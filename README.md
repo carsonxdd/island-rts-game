@@ -28,9 +28,9 @@ Think *Age of Empires* meets *Don't Starve* with a shipwreck survival twist, evo
 
 ## 🎮 Current Status
 
-**Development Phase:** Phase 5.4 Complete - Combat Visual Polish! 🎉✨
+**Development Phase:** Phase 5.5 In Progress - Audio System & Polish! 🎵✨
 **Last Updated:** November 2025
-**Build Status:** Fully playable with polished visual effects
+**Build Status:** Fully playable with visual effects and audio framework
 
 ### What's Working Now:
 - ✅ Complete resource gathering system with 10 autonomous workers
@@ -45,6 +45,11 @@ Think *Age of Empires* meets *Don't Starve* with a shipwreck survival twist, evo
 - ✅ **Combat visual effects** (attack particles, hit effects, damage numbers)
 - ✅ **Visual health bars** above all units with color coding
 - ✅ **Death effects** with particle bursts and fade-out animations
+- ✅ **Audio system** (AudioManager with music + ambient sounds working)
+- ✅ **Day/night music transitions** (smooth crossfades)
+- ✅ **Ambient nature sounds** (birds, crickets - separate from music)
+- ✅ **Camera shake effects** (hits and deaths)
+- 🔄 **Combat/UI sound effects** (system ready, audio clips needed)
 
 ### Known Issues & Bugs:
 1. **Warrior Stuttering** ✅ FIXED
@@ -83,9 +88,23 @@ Think *Age of Empires* meets *Don't Starve* with a shipwreck survival twist, evo
 - ✅ Visual health bars with dynamic color coding
 - ✅ Performance-optimized particle system (max 10/frame)
 
+### Phase 5.5 In Progress! 🎵
+**Audio System & Polish - Partially Complete**
+- ✅ AudioManager system (singleton with volume controls)
+- ✅ Music system with smooth crossfades
+- ✅ Ambient nature sounds (separate from music)
+- ✅ Day/night audio transitions
+- ✅ Camera shake effects on combat
+- 🔄 Combat sound effects (attack, hit, death) - clips needed
+- 🔄 UI sound effects (buttons, building) - clips needed
+- 🔄 Resource gathering sounds - clips needed
+
+**What Works:**
+Music and ambient sounds play automatically and transition smoothly between day/night. AudioManager is fully set up - just needs audio clip files added for combat/UI sounds.
+
 ### Next Up:
-**Phase 5.5 - Audio & Final Balance** (Optional)
-- Audio implementation (attack sounds, footsteps, ambience)
+**Complete Phase 5.5** (1-2 hours)
+- Source and add remaining audio clips
 - Combat balance tuning based on playtesting
 - Performance profiling and optimization
 
@@ -408,6 +427,63 @@ Think *Age of Empires* meets *Don't Starve* with a shipwreck survival twist, evo
 
 ---
 
+## 🎯 Phase 5.5 Implementation Summary (In Progress)
+
+### Audio System Components
+- **AudioManager:** Singleton audio management system
+  - 3 AudioSources (Music, Ambient, SFX)
+  - Volume controls (Master, Music, SFX, Ambient)
+  - Smart cooldown system prevents sound spam
+  - Smooth crossfade transitions for music (2s fade)
+  - Auto-starts appropriate audio on game load
+- **CameraShake:** Screen shake effects for combat impact
+  - Light shake (0.05) for hits
+  - Medium shake (0.1) for deaths
+  - Heavy shake (0.25) for big impacts
+  - Smooth decay and position preservation
+
+### New Scripts Added
+- **AudioManager.cs** - Complete audio management (music, ambient, SFX)
+- **CameraShake.cs** - Camera shake effects for combat feedback
+
+### Audio Integration Points
+- **Warrior.cs:** Calls `AudioManager.PlayWarriorAttack()` and `PlayWarriorDeath()`
+- **Enemy.cs:** Calls `AudioManager.PlayEnemyAttack()` and `PlayEnemyDeath()`
+- **Health.cs:** Calls `AudioManager.PlayHitSound()` + `CameraShake.ShakeLight()` on damage
+- **Health.cs:** Calls `CameraShake.ShakeMedium()` on death
+- **DayNightCycle.cs:** Calls `AudioManager.PlayDayMusic()` and `PlayNightMusic()` on transitions
+
+### Audio Slots Available
+**Working (clips assigned):**
+- Day Music - Background music track for daytime
+- Day Ambient Sounds - Nature sounds (birds, breeze)
+- Night Music - Background music track for nighttime
+- Night Ambient Sounds - Nature sounds (crickets, owls)
+
+**Ready (awaiting clips):**
+- Combat Sounds: Warrior Attack, Enemy Attack, Hit, Death sounds
+- UI Sounds: Button Click, Building Placed, Worker Assigned, Victory, Defeat
+- Resource Sounds: Gather Wood, Gather Food, Gather Stone
+- Combat Music: Intense battle music (optional)
+
+### Features Implemented
+- ✅ Dual-layer audio (music + ambient sounds play simultaneously)
+- ✅ Smooth crossfades between day/night for both layers
+- ✅ Volume controls (master, music, SFX, ambient)
+- ✅ Auto-start on game load (checks day/night state)
+- ✅ Camera shake on hits and deaths
+- ✅ Performance-optimized (only 3 audio sources, smart cooldowns)
+
+### Setup Requirements
+1. Create empty GameObject named "AudioManager" in scene
+2. Add AudioManager.cs component to it
+3. Add CameraShake.cs component to Main Camera
+4. Import audio files to `Assets/Audio/` folder
+5. Assign clips in AudioManager Inspector (music and ambient working)
+6. See AUDIO_SETUP.md for detailed instructions and free audio sources
+
+---
+
 ## 🧪 Testing Checklist
 
 ### Basic Functionality:
@@ -705,12 +781,17 @@ Assets/
 - **Death effects with particle bursts and fade-out**
 - **Performance-optimized particle system**
 
-### 📋 Phase 5.5: Audio & Final Polish (OPTIONAL - 3-5 hours)
-- [ ] Audio implementation (attack sounds, footsteps, ambience, music)
-- [ ] Pathfinding optimization for large unit counts (20+ units)
-- [ ] Balance tuning based on extensive playtesting
+### 🔄 Phase 5.5: Audio & Polish (IN PROGRESS - 1-2 hours remaining)
+- ✅ AudioManager system with volume controls
+- ✅ Music system with smooth crossfades
+- ✅ Ambient nature sounds (separate layer from music)
+- ✅ Day/night audio transitions
+- ✅ Camera shake effects on combat hits
+- 🔄 Combat sound effects (system ready, clips needed)
+- 🔄 UI sound effects (system ready, clips needed)
+- 🔄 Resource gathering sounds (system ready, clips needed)
+- [ ] Balance tuning based on playtesting
 - [ ] Performance profiling and optimization
-- [ ] Screen shake effects on combat hits
 
 ### 🔮 Phase 6: Economy Expansion
 - [ ] Stone resource actually used (walls, towers)

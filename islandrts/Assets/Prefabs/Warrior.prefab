@@ -128,10 +128,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   maxHealth: 75
-  damage: 15
+  damage: 10
   attackRange: 2
   attackCooldown: 1.2
-  moveSpeed: 3.5
+  moveSpeed: 2.5
   destinationUpdateThreshold: 1.5
   searchRadius: 50
   patrolRadius: 3

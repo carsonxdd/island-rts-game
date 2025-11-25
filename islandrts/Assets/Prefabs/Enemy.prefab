@@ -147,11 +147,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e47da1a867f181d4b899c298ca8b3496, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxHealth: 50
-  damage: 10
+  maxHealth: 100
+  damage: 15
   attackRange: 2
   attackCooldown: 1.5
-  moveSpeed: 5
+  moveSpeed: 3
   destinationUpdateThreshold: 1.5
   campfireAvoidDistance: 15
   showStateText: 0

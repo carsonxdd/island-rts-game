@@ -354,6 +354,12 @@ public class Warrior : MonoBehaviour
             CombatEffects.Instance.SpawnAttackEffect(transform.position, target.position, true);
         }
 
+        // Play attack sound
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlayWarriorAttack();
+        }
+
         // Apply damage to target's Health component
         Health targetHealth = target.GetComponent<Health>();
         if (targetHealth != null)
@@ -378,6 +384,12 @@ public class Warrior : MonoBehaviour
     void Die()
     {
         Debug.Log("Warrior: Defeated!");
+
+        // Play death sound
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlayWarriorDeath();
+        }
 
         // Notify base building to update warrior count
         if (baseBuilding != null)

@@ -307,6 +307,12 @@ public class Enemy : MonoBehaviour
             CombatEffects.Instance.SpawnAttackEffect(transform.position, target.position, false);
         }
 
+        // Play attack sound
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlayEnemyAttack();
+        }
+
         // Apply damage to target's Health component
         Health targetHealth = target.GetComponent<Health>();
         if (targetHealth != null)
@@ -331,6 +337,12 @@ public class Enemy : MonoBehaviour
     void Die()
     {
         Debug.Log("Enemy: Defeated!");
+
+        // Play death sound
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlayEnemyDeath();
+        }
 
         // Notify spawner
         EnemySpawner spawner = FindFirstObjectByType<EnemySpawner>();

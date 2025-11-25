@@ -80,6 +80,18 @@ public class Health : MonoBehaviour
             CombatEffects.Instance.SpawnHitEffect(transform.position, damageAmount);
         }
 
+        // Play hit sound
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlayHitSound();
+        }
+
+        // Camera shake on hit
+        if (CameraShake.Instance != null)
+        {
+            CameraShake.Instance.ShakeLight();
+        }
+
         // Trigger damaged event
         onDamaged?.Invoke();
 
@@ -130,6 +142,12 @@ public class Health : MonoBehaviour
             {
                 CombatEffects.Instance.FadeOutUnit(gameObject, destroyDelay > 0 ? destroyDelay : 0.5f);
             }
+        }
+
+        // Camera shake on death
+        if (CameraShake.Instance != null)
+        {
+            CameraShake.Instance.ShakeMedium();
         }
 
         // Trigger death event

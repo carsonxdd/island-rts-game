@@ -135,12 +135,26 @@ public class DayNightCycle : MonoBehaviour
         if (isNight && !wasNight)
         {
             Debug.Log($"DayNightCycle: Night {currentDay} begins! Enemies incoming...");
+
+            // Play night music
+            if (AudioManager.Instance != null)
+            {
+                AudioManager.Instance.PlayNightMusic();
+            }
+
             OnNightStart?.Invoke();  // Notify listeners (enemy spawner, etc.)
         }
         // Check if we just transitioned to day
         else if (!isNight && wasNight)
         {
             Debug.Log($"DayNightCycle: Day {currentDay} begins! Enemies retreat.");
+
+            // Play day music
+            if (AudioManager.Instance != null)
+            {
+                AudioManager.Instance.PlayDayMusic();
+            }
+
             OnDayStart?.Invoke();  // Notify listeners
         }
 
