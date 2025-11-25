@@ -348,6 +348,12 @@ public class Warrior : MonoBehaviour
         // Attack the target
         Debug.Log($"Warrior: Attacking {target.name} for {damage} damage!");
 
+        // Spawn attack visual effect
+        if (CombatEffects.Instance != null)
+        {
+            CombatEffects.Instance.SpawnAttackEffect(transform.position, target.position, true);
+        }
+
         // Apply damage to target's Health component
         Health targetHealth = target.GetComponent<Health>();
         if (targetHealth != null)

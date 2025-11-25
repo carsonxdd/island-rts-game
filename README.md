@@ -28,9 +28,9 @@ Think *Age of Empires* meets *Don't Starve* with a shipwreck survival twist, evo
 
 ## 🎮 Current Status
 
-**Development Phase:** Phase 5.3 Complete - Full Combat Alpha! 🎉  
-**Last Updated:** November 2025  
-**Build Status:** Playable from start to victory/defeat
+**Development Phase:** Phase 5.4 Complete - Combat Visual Polish! 🎉✨
+**Last Updated:** November 2025
+**Build Status:** Fully playable with polished visual effects
 
 ### What's Working Now:
 - ✅ Complete resource gathering system with 10 autonomous workers
@@ -42,6 +42,9 @@ Think *Age of Empires* meets *Don't Starve* with a shipwreck survival twist, evo
 - ✅ Health systems for all units and buildings
 - ✅ Smart enemy targeting (prioritizes warriors over buildings)
 - ✅ Warrior patrol behavior when idle
+- ✅ **Combat visual effects** (attack particles, hit effects, damage numbers)
+- ✅ **Visual health bars** above all units with color coding
+- ✅ **Death effects** with particle bursts and fade-out animations
 
 ### Known Issues & Bugs:
 1. **Warrior Stuttering** ✅ FIXED
@@ -72,12 +75,19 @@ Think *Age of Empires* meets *Don't Starve* with a shipwreck survival twist, evo
    - Doesn't affect gameplay, visual only
    - Low priority cosmetic issue
 
-### Current Focus:
-**Phase 5.4 - Combat Polish & Optimization**
-- Pathfinding optimization for large unit counts
-- Combat balance tuning
-- Visual effects for combat
-- Audio implementation
+### Phase 5.4 Complete! ✨
+**Combat Visual Polish - Finished**
+- ✅ Attack particle effects (blue for warriors, red for enemies)
+- ✅ Hit feedback with damage numbers and visual flashes
+- ✅ Death effects with particle bursts and fade-out
+- ✅ Visual health bars with dynamic color coding
+- ✅ Performance-optimized particle system (max 10/frame)
+
+### Next Up:
+**Phase 5.5 - Audio & Final Balance** (Optional)
+- Audio implementation (attack sounds, footsteps, ambience)
+- Combat balance tuning based on playtesting
+- Performance profiling and optimization
 
 ---
 
@@ -295,6 +305,39 @@ Think *Age of Empires* meets *Don't Starve* with a shipwreck survival twist, evo
   - Buildings protected when warriors are present
   - Strategic placement now matters
 
+### Phase 5.4: Combat Visual Effects ✅
+- **Attack Effects:**
+  - Particle cone bursts when attacking (blue for warriors, red for enemies)
+  - 15 particles per attack, 0.5s lifetime
+  - Directional cone pointing toward target
+  - Color-coded by unit type
+- **Hit Effects:**
+  - Yellow/orange particle flash on impact
+  - Floating damage numbers (-15, -10, etc.)
+  - Damage numbers rise and fade over 1 second
+  - 10 particles per hit, sphere burst pattern
+- **Death Effects:**
+  - Large particle explosion on death (25 particles)
+  - Color matches unit type (blue warriors, red enemies)
+  - Fade-out effect over 0.5 seconds
+  - Smooth material transparency transition
+- **Health Bars:**
+  - Visual quad-based health bars above all units
+  - Color-coded: Green (>60%) → Yellow (30-60%) → Red (<30%)
+  - Billboard effect (always faces camera)
+  - Option to hide when full or dead
+  - Left-aligned fill (drains right to left)
+- **CombatEffects Manager:**
+  - Singleton pattern for global access
+  - Performance limits (max 10 particles/frame)
+  - Auto-cleanup of particle GameObjects
+  - Configurable colors and settings
+- **Scripts Added:**
+  - CombatEffects.cs (effects manager)
+  - HealthBar.cs (visual health display)
+  - DamageNumberAnimator.cs (floating text animation)
+  - FadeOutEffect.cs (death fade shader)
+
 ---
 
 ## 🎯 Phase 5.3 Implementation Summary
@@ -318,6 +361,50 @@ Think *Age of Empires* meets *Don't Starve* with a shipwreck survival twist, evo
 - **Victory Screen Elements:** Title, stats text, continue button, quit button
 - **Defeat Screen Elements:** Title, stats text, restart button, quit button
 - **Cost Display:** Shows "Cost: 10 Wood, 15 Food" for warrior recruitment
+
+---
+
+## 🎯 Phase 5.4 Implementation Summary
+
+### Visual Effects System Components
+- **CombatEffects Manager:** Singleton GameObject that handles all particle effects
+  - Spawns attack particles (directional cone bursts)
+  - Spawns hit effects (flash + damage numbers)
+  - Spawns death effects (particle explosion + fade)
+  - Performance limits (10 particles max per frame)
+  - Configurable colors for warrior/enemy effects
+- **HealthBar Component:** Visual health display for all units
+  - Quad-based rendering (no sprite assets needed)
+  - Dynamic color based on health percentage
+  - Billboard effect for camera-facing
+  - Configurable size and position
+  - Hide when full/dead options
+
+### New Scripts Added
+- **CombatEffects.cs** - Central effects manager (singleton pattern)
+- **HealthBar.cs** - Visual health bar component
+- **DamageNumberAnimator.cs** - Helper for floating damage text animation
+- **FadeOutEffect.cs** - Helper for death fade-out shader effect
+
+### Integration Points
+- **Warrior.cs:** Calls `CombatEffects.SpawnAttackEffect()` on attack (line 352-355)
+- **Enemy.cs:** Calls `CombatEffects.SpawnAttackEffect()` on attack (line 304-307)
+- **Health.cs:** Calls `CombatEffects.SpawnHitEffect()` on damage (line 77-81)
+- **Health.cs:** Calls `CombatEffects.SpawnDeathEffect()` and `FadeOutUnit()` on death (line 122-132)
+
+### Setup Requirements
+1. Create empty GameObject named "CombatEffectsManager" in scene
+2. Add CombatEffects.cs component to it
+3. Add HealthBar.cs component to Warrior prefab
+4. Add HealthBar.cs component to Enemy prefab
+5. (Optional) Add HealthBar.cs to building prefabs
+
+### Visual Effects Details
+- **Attack Particles:** 15-particle cone burst, 0.5s lifetime, directional
+- **Hit Flash:** 10-particle sphere burst, 0.3s lifetime, yellow/orange
+- **Damage Numbers:** Floating red text, rises 2 m/s, fades over 1s
+- **Death Explosion:** 25-particle sphere burst, 1s lifetime, color-coded
+- **Fade Out:** Smooth alpha transition over 0.5s using material shader
 
 ---
 
@@ -358,6 +445,19 @@ Think *Age of Empires* meets *Don't Starve* with a shipwreck survival twist, evo
 - [ ] Resource costs feel balanced
 - [ ] Combat feels fair (not too easy/hard)
 - [ ] Game is winnable with good strategy
+
+### Visual Effects (Phase 5.4):
+- [ ] Blue particle cones appear when warriors attack
+- [ ] Red particle cones appear when enemies attack
+- [ ] Yellow flash effects appear on successful hits
+- [ ] Damage numbers float up and fade (-15, -10, etc.)
+- [ ] Health bars appear above all units
+- [ ] Health bars change color (green → yellow → red)
+- [ ] Health bars hide when units are at full health (if enabled)
+- [ ] Particle burst appears when units die
+- [ ] Units fade out smoothly on death
+- [ ] CombatEffectsManager exists in scene hierarchy
+- [ ] No excessive particles causing lag (performance check)
 
 ---
 
@@ -588,7 +688,7 @@ Assets/
 
 ## 🎯 Development Roadmap
 
-### ✅ Phase 1-5.3: COMPLETE
+### ✅ Phase 1-5.4: COMPLETE
 - Core systems (camera, grid, pathfinding)
 - Building placement system
 - Resource gathering economy
@@ -600,13 +700,17 @@ Assets/
 - Victory/defeat conditions
 - Full statistics tracking
 - Combat AI improvements (no stuttering, patrol, priority targeting)
+- **Combat visual effects (attack particles, hit effects, damage numbers)**
+- **Visual health bars with color coding**
+- **Death effects with particle bursts and fade-out**
+- **Performance-optimized particle system**
 
-### 📋 Phase 5.4: Combat Polish (NEXT - 3-5 hours)
-- [ ] Pathfinding optimization for large unit counts
-- [ ] Combat visual effects (attack animations, hit effects)
-- [ ] Audio implementation (attacks, footsteps, ambience)
-- [ ] Balance tuning based on playtesting
+### 📋 Phase 5.5: Audio & Final Polish (OPTIONAL - 3-5 hours)
+- [ ] Audio implementation (attack sounds, footsteps, ambience, music)
+- [ ] Pathfinding optimization for large unit counts (20+ units)
+- [ ] Balance tuning based on extensive playtesting
 - [ ] Performance profiling and optimization
+- [ ] Screen shake effects on combat hits
 
 ### 🔮 Phase 6: Economy Expansion
 - [ ] Stone resource actually used (walls, towers)
@@ -1136,28 +1240,33 @@ You now have a **fully playable combat alpha** with:
 
 ## 🚀 Next Steps
 
-### Immediate (Phase 5.4 - 3-5 hours):
-1. **Pathfinding Optimization:**
-   - Optimize NavMesh queries
-   - Implement spatial partitioning for large unit counts
-   - Profile and optimize hotspots
+### ✅ Phase 5.4 Complete - Visual Polish!
+All combat visual effects have been implemented:
+- ✅ Attack particle effects (blue warriors, red enemies)
+- ✅ Hit feedback with damage numbers
+- ✅ Death effects with particle bursts and fade-out
+- ✅ Visual health bars with color coding
+- ✅ Performance-optimized particle system
 
-2. **Visual Polish:**
-   - Attack animations or particle effects
-   - Hit feedback (screen shake, flash)
-   - Death effects (fade out, particles)
-
-3. **Audio Implementation:**
-   - Combat sounds (attacks, hits)
+### Optional (Phase 5.5 - Audio & Final Polish - 3-5 hours):
+1. **Audio Implementation:**
+   - Combat sounds (attacks, hits, death)
    - Footstep sounds for units
    - Ambient day/night audio
    - Victory/defeat music stingers
+   - Resource gathering sounds
 
-4. **Balance Tuning:**
-   - Playtest extensively
+2. **Additional Polish:**
+   - Screen shake on combat hits
+   - Camera zoom effects on victory/defeat
+   - Enhanced particle trails
+   - More dramatic lighting changes
+
+3. **Performance & Balance:**
+   - Pathfinding optimization for 20+ units
+   - Extensive playtesting
    - Adjust warrior/enemy stats
    - Fine-tune resource costs
-   - Test different strategies
 
 ### Medium-Term (Phase 6 - 10-15 hours):
 1. Stone actually used (walls, defenses)
@@ -1205,11 +1314,11 @@ You now have a **fully playable combat alpha** with:
 
 ---
 
-**Last Updated:** November 2025  
-**Current Build:** Phase 5.3 Complete - Full Combat Alpha  
-**Status:** Fully Playable from Start to Victory/Defeat  
-**Known Issues:** None game-breaking - all critical bugs fixed  
-**Next Milestone:** Phase 5.4 - Combat Polish & Audio (3-5 hours)
+**Last Updated:** November 2025
+**Current Build:** Phase 5.4 Complete - Combat Visual Polish! ✨
+**Status:** Fully Playable with Polished Visual Effects
+**Known Issues:** None game-breaking - all critical bugs fixed
+**Next Milestone:** Phase 5.5 - Audio (Optional) or Phase 6 - Economy Expansion
 
 *A shipwreck survival RTS game built in Unity*
 
@@ -1223,7 +1332,12 @@ You now have a **fully playable combat alpha** with:
 4. Click Campfire → Assign 5-6 workers
 5. Build 1-2 huts
 6. Recruit 2-3 warriors before night
-7. Watch the combat unfold!
+7. Watch the combat unfold with visual effects!
+   - ✨ Blue attack particles from warriors
+   - ✨ Red attack particles from enemies
+   - 💥 Hit effects with floating damage numbers
+   - 💚 Health bars above all units
+   - 💀 Death particle bursts
 8. Try to survive 5 nights!
 
-**Have fun building your island settlement!** 🏝️⚔️
+**Have fun building your island settlement!** 🏝️⚔️✨

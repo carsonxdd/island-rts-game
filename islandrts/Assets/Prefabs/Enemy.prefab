@@ -14,6 +14,7 @@ GameObject:
   - component: {fileID: 1391740050991621410}
   - component: {fileID: 3417692812822014759}
   - component: {fileID: 8883486114634359539}
+  - component: {fileID: -4202489604240290063}
   m_Layer: 0
   m_Name: Enemy
   m_TagString: Untagged
@@ -153,5 +154,27 @@ MonoBehaviour:
   moveSpeed: 5
   destinationUpdateThreshold: 1.5
   campfireAvoidDistance: 15
-  showStateText: 1
+  showStateText: 0
   textHeightOffset: 3
+--- !u!114 &-4202489604240290063
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2549357510391453760}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 76117e798052c1e4487e8994da815625, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  showHealthBar: 1
+  heightOffset: 2.5
+  barWidth: 1
+  barHeight: 0.15
+  highHealthColor: {r: 0, g: 1, b: 0, a: 1}
+  mediumHealthColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  lowHealthColor: {r: 1, g: 0, b: 0, a: 1}
+  backgroundColor: {r: 0.2, g: 0.2, b: 0.2, a: 0.8}
+  hideWhenFull: 1
+  hideWhenDead: 1

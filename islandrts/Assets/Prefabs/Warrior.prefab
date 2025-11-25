@@ -16,6 +16,7 @@ GameObject:
   - component: {fileID: 654336486999496939}
   - component: {fileID: 394190360043821536}
   - component: {fileID: 7831753549919669989}
+  - component: {fileID: 5840919571996031842}
   m_Layer: 0
   m_Name: Warrior
   m_TagString: Untagged
@@ -199,7 +200,7 @@ MonoBehaviour:
   currentHealth: 0
   destroyOnDeath: 1
   destroyDelay: 0
-  showHealthText: 1
+  showHealthText: 0
   healthTextHeight: 2.5
   showObjectName: 1
   onDeath:
@@ -208,3 +209,25 @@ MonoBehaviour:
   onDamaged:
     m_PersistentCalls:
       m_Calls: []
+--- !u!114 &5840919571996031842
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4028577899709980378}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 76117e798052c1e4487e8994da815625, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  showHealthBar: 1
+  heightOffset: 2.5
+  barWidth: 1
+  barHeight: 0.15
+  highHealthColor: {r: 0, g: 1, b: 0, a: 1}
+  mediumHealthColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  lowHealthColor: {r: 1, g: 0, b: 0, a: 1}
+  backgroundColor: {r: 0.2, g: 0.2, b: 0.2, a: 0.8}
+  hideWhenFull: 1
+  hideWhenDead: 1

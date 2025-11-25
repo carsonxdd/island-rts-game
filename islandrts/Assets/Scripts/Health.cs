@@ -74,6 +74,12 @@ public class Health : MonoBehaviour
 
         Debug.Log($"Health: {gameObject.name} took {damageAmount} damage. Health: {currentHealth}/{maxHealth}");
 
+        // Spawn hit visual effect
+        if (CombatEffects.Instance != null)
+        {
+            CombatEffects.Instance.SpawnHitEffect(transform.position, damageAmount);
+        }
+
         // Trigger damaged event
         onDamaged?.Invoke();
 
@@ -111,6 +117,20 @@ public class Health : MonoBehaviour
     void Die()
     {
         Debug.Log($"Health: {gameObject.name} has died!");
+
+        // Spawn death visual effect
+        if (CombatEffects.Instance != null)
+        {
+            // Determine if this is a warrior (for effect color)
+            bool isWarrior = GetComponent<Warrior>() != null;
+            CombatEffects.Instance.SpawnDeathEffect(transform.position, isWarrior);
+
+            // Fade out the unit
+            if (destroyOnDeath)
+            {
+                CombatEffects.Instance.FadeOutUnit(gameObject, destroyDelay > 0 ? destroyDelay : 0.5f);
+            }
+        }
 
         // Trigger death event
         onDeath?.Invoke();
