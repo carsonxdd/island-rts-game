@@ -12,6 +12,7 @@ public class Worker : MonoBehaviour
     public float gatherRatePerSecond = 1f;  // How fast worker gathers (resources/sec)
     public float carryCapacity = 5.01f;  // Maximum resources worker can carry (slightly over 5 to avoid floating point issues)
     public float searchRadius = 50f;  // How far to search for resources
+    public float gatherDistance = 2.5f;  // How close worker needs to be to start gathering
     public float deliveryDistance = 3.5f;  // How close worker needs to be to deliver resources
 
     [Header("Current State")]
@@ -43,11 +44,13 @@ public class Worker : MonoBehaviour
     private float stuckTimer = 0f;
     private float stuckCheckInterval = 2f;  // Check every 2 seconds
     private float minMoveDistance = 0.5f;   // Must move at least this far to not be stuck
+    private int consecutiveStuckCount = 0;   // How many times stuck in a row
+    private int maxStuckAttempts = 3;        // Give up after this many stuck attempts
 
-    // Smart approach to base (try different angles when stuck)
-    private int approachAttempts = 0;
-    private int maxApproachAttempts = 8;  // Try 8 different angles around campfire
-    private float approachOffset = 3f;    // How far from campfire to create waypoint
+    // Unstuck behavior
+    private bool isUnsticking = false;       // Currently moving to unstuck position
+    private WorkerState stateBeforeUnstuck;  // State to return to after unsticking
+    private ResourceNode targetBeforeUnstuck; // Target to resume after unsticking
 
     // Visual state display
     private GameObject stateTextObject;
@@ -64,8 +67,13 @@ public class Worker : MonoBehaviour
         }
         else
         {
-            // Set stopping distance to prevent getting too close to targets
-            agent.stoppingDistance = 1.5f;
+            // Configure NavMeshAgent for smooth navigation around obstacles
+            agent.stoppingDistance = gatherDistance * 0.8f;  // Stop slightly before gather distance
+            agent.acceleration = 8f;  // Quick acceleration
+            agent.angularSpeed = 180f;  // Very fast turning to avoid obstacles
+            agent.obstacleAvoidanceType = ObstacleAvoidanceType.HighQualityObstacleAvoidance;  // Best avoidance
+            agent.avoidancePriority = 50;  // Medium priority (0-99, lower = higher priority)
+            agent.radius = 0.6f;  // Larger radius to stay further from obstacles
         }
 
         // Find main camera for text billboard effect
@@ -106,6 +114,13 @@ public class Worker : MonoBehaviour
             CheckIfStuck();
         }
 
+        // Handle unsticking behavior first
+        if (isUnsticking)
+        {
+            CheckIfReachedUnstuckPosition();
+            return;
+        }
+
         // State machine
         switch (currentState)
         {
@@ -132,8 +147,44 @@ public class Worker : MonoBehaviour
         }
     }
 
+    void CheckIfReachedUnstuckPosition()
+    {
+        // Check if we've reached the unstuck position or stopped moving
+        if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance)
+        {
+            Debug.Log("Worker: Reached unstuck position, resuming previous task");
+            isUnsticking = false;
+
+            // Resume previous state
+            currentState = stateBeforeUnstuck;
+            targetResource = targetBeforeUnstuck;
+
+            // Reset path for clean resume
+            agent.ResetPath();
+
+            // Resume based on what we were doing
+            if (currentState == WorkerState.MovingToResource && targetResource != null)
+            {
+                agent.SetDestination(targetResource.transform.position);
+            }
+            else if (currentState == WorkerState.ReturningToBase)
+            {
+                ReturnToBase();
+            }
+            else
+            {
+                // Default to idle if state is unclear
+                currentState = WorkerState.Idle;
+                isSearchingForResource = false;
+            }
+        }
+    }
+
     void CheckIfStuck()
     {
+        // Skip stuck detection if we're already unsticking
+        if (isUnsticking) return;
+
         stuckTimer += Time.deltaTime;
 
         // Check every X seconds if we've moved
@@ -143,33 +194,85 @@ public class Worker : MonoBehaviour
 
             if (distanceMoved < minMoveDistance)
             {
-                // Worker hasn't moved much
-                Debug.LogWarning($"Worker: STUCK! Only moved {distanceMoved:F2} units in {stuckCheckInterval} seconds.");
+                // Worker hasn't moved much - STUCK!
+                consecutiveStuckCount++;
+                Debug.LogWarning($"Worker: STUCK! Only moved {distanceMoved:F2} units in {stuckCheckInterval}s (attempt {consecutiveStuckCount}/{maxStuckAttempts})");
 
-                if (currentState == WorkerState.MovingToResource)
+                if (consecutiveStuckCount >= maxStuckAttempts)
                 {
-                    // Stuck going to resource - find a different resource
+                    // Stuck too many times - give up and reset
+                    Debug.LogError($"Worker: Failed to unstuck after {maxStuckAttempts} attempts. Resetting...");
                     UnregisterFromNode();
                     targetResource = null;
                     currentState = WorkerState.Idle;
                     isSearchingForResource = false;
+                    isUnsticking = false;
+                    consecutiveStuckCount = 0;
                 }
-                else if (currentState == WorkerState.ReturningToBase)
+                else
                 {
-                    // Stuck returning to base - try different angle
-                    if (baseBuilding != null)
-                    {
-                        float distanceToBase = Vector3.Distance(transform.position, baseBuilding.transform.position);
-                        Debug.Log($"Worker: Stuck at distance {distanceToBase:F2} from base, trying alternate path...");
-                        TryAlternateApproachToBase();
-                    }
+                    // Try to unstuck by moving to nearby random position
+                    AttemptUnstuck();
                 }
+            }
+            else
+            {
+                // Worker moved successfully - reset stuck counter
+                consecutiveStuckCount = 0;
             }
 
             // Reset for next check
             lastPosition = transform.position;
             stuckTimer = 0f;
         }
+    }
+
+    void AttemptUnstuck()
+    {
+        // Save current state and target
+        stateBeforeUnstuck = currentState;
+        targetBeforeUnstuck = targetResource;
+        isUnsticking = true;
+
+        // Find a random nearby position to move to
+        Vector3 unstuckPosition = GetRandomNearbyPosition();
+
+        // Move to unstuck position
+        if (agent.isOnNavMesh)
+        {
+            agent.ResetPath();
+            agent.SetDestination(unstuckPosition);
+            Debug.Log($"Worker: Attempting to unstuck by moving to nearby position {unstuckPosition}");
+        }
+    }
+
+    Vector3 GetRandomNearbyPosition()
+    {
+        // Try to find a valid position 1-2 units away in a random direction
+        for (int attempts = 0; attempts < 10; attempts++)
+        {
+            float randomAngle = Random.Range(0f, 360f) * Mathf.Deg2Rad;
+            float randomDistance = Random.Range(1f, 2f);
+
+            Vector3 randomDirection = new Vector3(
+                Mathf.Cos(randomAngle),
+                0f,
+                Mathf.Sin(randomAngle)
+            );
+
+            Vector3 targetPosition = transform.position + randomDirection * randomDistance;
+
+            // Check if this position is valid on the NavMesh
+            NavMeshHit hit;
+            if (NavMesh.SamplePosition(targetPosition, out hit, 3f, NavMesh.AllAreas))
+            {
+                return hit.position;
+            }
+        }
+
+        // Fallback: just move 2 units in a random direction from current position
+        float fallbackAngle = Random.Range(0f, 360f) * Mathf.Deg2Rad;
+        return transform.position + new Vector3(Mathf.Cos(fallbackAngle) * 2f, 0f, Mathf.Sin(fallbackAngle) * 2f);
     }
 
     void FindNearestResource()
@@ -243,8 +346,8 @@ public class Worker : MonoBehaviour
         // Check actual distance to resource (more reliable than agent.remainingDistance)
         float distanceToResource = Vector3.Distance(transform.position, targetResource.transform.position);
 
-        // Arrived when within 2.5 units (gives more space around obstacles)
-        if (distanceToResource <= 2.5f)
+        // Arrived when within gather distance
+        if (distanceToResource <= gatherDistance)
         {
             // Stop moving
             agent.ResetPath();
@@ -356,63 +459,6 @@ public class Worker : MonoBehaviour
         }
     }
 
-    void TryAlternateApproachToBase()
-    {
-        if (baseBuilding == null || !agent.isOnNavMesh) return;
-
-        float distanceToBase = Vector3.Distance(transform.position, baseBuilding.transform.position);
-
-        // First check: if we're already close, just deliver
-        if (distanceToBase <= deliveryDistance * 1.8f)  // Within 6.3 units
-        {
-            Debug.Log($"Worker: Stuck but reasonably close ({distanceToBase:F2}), delivering from here");
-            agent.ResetPath();
-            DeliverResources();
-            currentState = WorkerState.Idle;
-            isSearchingForResource = false;
-            approachAttempts = 0;
-            return;
-        }
-
-        approachAttempts++;
-
-        if (approachAttempts < maxApproachAttempts)
-        {
-            // Calculate direction from campfire to worker's current position
-            Vector3 directionToWorker = (transform.position - baseBuilding.transform.position).normalized;
-
-            // Try different angles around the campfire
-            float angleOffset = (360f / maxApproachAttempts) * approachAttempts;
-            float radians = angleOffset * Mathf.Deg2Rad;
-
-            // Rotate the direction vector
-            Vector3 rotatedDirection = new Vector3(
-                directionToWorker.x * Mathf.Cos(radians) - directionToWorker.z * Mathf.Sin(radians),
-                0f,
-                directionToWorker.x * Mathf.Sin(radians) + directionToWorker.z * Mathf.Cos(radians)
-            );
-
-            // Calculate waypoint position at this angle
-            Vector3 waypointPosition = baseBuilding.transform.position + (rotatedDirection * approachOffset);
-            waypointPosition.y = baseBuilding.transform.position.y;
-
-            // Try to path to this waypoint
-            agent.ResetPath();
-            agent.SetDestination(waypointPosition);
-
-            Debug.Log($"Worker: Trying alternate approach angle (attempt {approachAttempts}/{maxApproachAttempts})");
-        }
-        else
-        {
-            // All angles failed - emergency deliver regardless of distance
-            Debug.LogWarning($"Worker: All approach attempts failed! Emergency delivery from {distanceToBase:F2} units");
-            agent.ResetPath();
-            DeliverResources();
-            currentState = WorkerState.Idle;
-            isSearchingForResource = false;
-            approachAttempts = 0;
-        }
-    }
 
     void ReturnToBase()
     {
@@ -424,9 +470,6 @@ public class Worker : MonoBehaviour
 
             agent.SetDestination(targetPosition);
             currentState = WorkerState.ReturningToBase;
-
-            // Reset approach attempts for new return trip
-            approachAttempts = 0;
 
             // Reset stuck detection for new path
             lastPosition = transform.position;
@@ -449,8 +492,8 @@ public class Worker : MonoBehaviour
         Vector3 directionToWorker = (transform.position - baseBuilding.transform.position).normalized;
 
         // Place target point on a ring around the campfire
-        // Use slightly less than deliveryDistance so workers can actually reach it
-        float ringRadius = deliveryDistance * 0.7f;  // ~2.45 units from center
+        // Use a comfortable distance that gives space to navigate around obstacles
+        float ringRadius = deliveryDistance * 0.9f;  // ~3.15 units from center (more space to maneuver)
         Vector3 dropoffPoint = baseBuilding.transform.position + (directionToWorker * ringRadius);
 
         // Keep the Y coordinate at ground level
@@ -472,6 +515,19 @@ public class Worker : MonoBehaviour
         // Check actual distance to base - this is the primary delivery condition
         float distanceToBase = Vector3.Distance(transform.position, baseBuilding.transform.position);
 
+        // Check if worker is moving very slowly (rubbing against obstacles)
+        if (agent.velocity.magnitude < 0.5f && distanceToBase <= deliveryDistance * 1.5f)
+        {
+            // Moving very slow and reasonably close - just deliver
+            agent.ResetPath();
+            DeliverResources();
+            currentState = WorkerState.Idle;
+            isSearchingForResource = false;
+            stuckTimer = 0f;
+            consecutiveStuckCount = 0;  // Reset stuck count on successful delivery
+            return;
+        }
+
         // Primary delivery condition: close enough to campfire
         if (distanceToBase <= deliveryDistance)
         {
@@ -481,7 +537,7 @@ public class Worker : MonoBehaviour
             currentState = WorkerState.Idle;
             isSearchingForResource = false;
             stuckTimer = 0f;
-            approachAttempts = 0;
+            consecutiveStuckCount = 0;  // Reset stuck count on successful delivery
             return;
         }
 
@@ -499,29 +555,7 @@ public class Worker : MonoBehaviour
                 currentState = WorkerState.Idle;
                 isSearchingForResource = false;
                 stuckTimer = 0f;
-                approachAttempts = 0;
-            }
-            else
-            {
-                // Path ended but we're still far - this shouldn't happen, retry
-                Debug.LogWarning($"Worker: Path ended too far from base ({distanceToBase:F2}), retrying...");
-                approachAttempts++;
-
-                // If we've tried too many times, just deliver anyway
-                if (approachAttempts >= 3)
-                {
-                    Debug.LogWarning($"Worker: Giving up after {approachAttempts} attempts, delivering from {distanceToBase:F2} units");
-                    agent.ResetPath();
-                    DeliverResources();
-                    currentState = WorkerState.Idle;
-                    isSearchingForResource = false;
-                    stuckTimer = 0f;
-                    approachAttempts = 0;
-                }
-                else
-                {
-                    ReturnToBase();
-                }
+                consecutiveStuckCount = 0;  // Reset stuck count on successful delivery
             }
         }
     }

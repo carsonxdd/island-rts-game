@@ -1,8 +1,13 @@
 using UnityEngine;
 using System.Collections.Generic;
+using TMPro;
 
 public class BaseBuilding : MonoBehaviour
 {
+    [Header("Health")]
+    public float maxHealth = 200f;  // Campfire health
+    private Health healthComponent;
+
     [Header("UI Reference")]
     public WorkerAssignmentUI workerUI;  // Drag the UI object here in Inspector
 
@@ -15,6 +20,13 @@ public class BaseBuilding : MonoBehaviour
     public int foodWorkers = 0;
     public int stoneWorkers = 0;
 
+    [Header("Warrior Management")]
+    public GameObject warriorPrefab;
+    public int maxWarriors = 5;
+    public int warriorCost_Wood = 10;
+    public int warriorCost_Food = 15;
+    public int currentWarriors = 0;
+
     [Header("Spawn Settings")]
     public float spawnRadius = 2f;  // How far from campfire workers spawn
 
@@ -25,8 +37,9 @@ public class BaseBuilding : MonoBehaviour
     public Color normalColor = Color.white;
     public Color hoverColor = new Color(1f, 1f, 0.7f, 1f);  // Slight yellow tint
 
-    // Track all spawned workers
+    // Track all spawned workers and warriors
     private List<Worker> activeWorkers = new List<Worker>();
+    private List<Warrior> activeWarriors = new List<Warrior>();
     private Renderer[] buildingRenderers;  // Changed to array to handle multiple parts
     private Color[] originalColors;        // Store original colors for each part
 
@@ -34,7 +47,20 @@ public class BaseBuilding : MonoBehaviour
     {
         Debug.Log("BaseBuilding: Campfire initialized!");
 
-        // Get ALL renderers (checks this object AND all children)
+        // Setup Health component
+        healthComponent = GetComponent<Health>();
+        if (healthComponent == null)
+        {
+            healthComponent = gameObject.AddComponent<Health>();
+        }
+        healthComponent.maxHealth = maxHealth;
+        healthComponent.currentHealth = maxHealth;
+        healthComponent.destroyOnDeath = false;  // Don't destroy campfire, handle game over instead
+        healthComponent.onDeath.AddListener(OnCampfireDestroyed);
+
+        Debug.Log($"BaseBuilding: Health system initialized - {maxHealth} HP");
+
+        // Get ALL renderers BEFORE creating health text (checks this object AND all children)
         buildingRenderers = GetComponentsInChildren<Renderer>();
 
         if (buildingRenderers.Length > 0)
@@ -64,6 +90,14 @@ public class BaseBuilding : MonoBehaviour
         else
         {
             Debug.Log($"BaseBuilding: Collider found: {col.GetType().Name}");
+        }
+
+        // Disable NavMeshObstacle carving so enemies can surround and attack
+        UnityEngine.AI.NavMeshObstacle obstacle = GetComponent<UnityEngine.AI.NavMeshObstacle>();
+        if (obstacle != null)
+        {
+            obstacle.carving = false;  // Don't carve NavMesh - let enemies get close from all sides
+            Debug.Log($"BaseBuilding: NavMeshObstacle carving disabled for combat");
         }
     }
 
@@ -227,6 +261,174 @@ public class BaseBuilding : MonoBehaviour
     public int GetTotalWorkers()
     {
         return woodWorkers + foodWorkers + stoneWorkers;
+    }
+
+    // Spawn a warrior
+    public void SpawnWarrior()
+    {
+        if (currentWarriors >= maxWarriors)
+        {
+            Debug.Log("BaseBuilding: Max warriors reached!");
+            return;
+        }
+
+        // Check if we have enough resources
+        if (ResourceManager.Instance.wood < warriorCost_Wood || ResourceManager.Instance.food < warriorCost_Food)
+        {
+            Debug.Log($"BaseBuilding: Not enough resources! Need {warriorCost_Wood} wood and {warriorCost_Food} food");
+            return;
+        }
+
+        if (warriorPrefab == null)
+        {
+            Debug.LogError("BaseBuilding: Warrior prefab not assigned!");
+            return;
+        }
+
+        // Deduct resources
+        ResourceManager.Instance.SpendWood(warriorCost_Wood);
+        ResourceManager.Instance.SpendFood(warriorCost_Food);
+
+        // Random position around campfire
+        float angle = Random.Range(0f, 360f);
+        float distance = Random.Range(spawnRadius + 0.2f, spawnRadius + 0.8f);
+
+        Vector3 offset = new Vector3(
+            Mathf.Cos(angle * Mathf.Deg2Rad) * distance,
+            0f,
+            Mathf.Sin(angle * Mathf.Deg2Rad) * distance
+        );
+
+        Vector3 spawnPos = transform.position + offset;
+        spawnPos.y = 1f;  // Warrior height
+
+        // Spawn warrior
+        GameObject warriorObj = Instantiate(warriorPrefab, spawnPos, Quaternion.identity);
+        warriorObj.name = $"Warrior_{currentWarriors + 1}";
+
+        // Get Warrior component and assign it
+        Warrior warrior = warriorObj.GetComponent<Warrior>();
+        if (warrior != null)
+        {
+            warrior.baseBuilding = this;
+            activeWarriors.Add(warrior);
+            currentWarriors++;
+
+            Debug.Log($"BaseBuilding: Spawned warrior #{currentWarriors} at {spawnPos}");
+        }
+        else
+        {
+            Debug.LogError("BaseBuilding: Warrior prefab doesn't have Warrior component!");
+        }
+    }
+
+    // Remove a warrior
+    public void RemoveWarrior()
+    {
+        if (currentWarriors <= 0 || activeWarriors.Count == 0)
+        {
+            Debug.Log("BaseBuilding: No warriors to remove!");
+            return;
+        }
+
+        // Find the first living warrior
+        Warrior warriorToRemove = null;
+        foreach (Warrior warrior in activeWarriors)
+        {
+            if (warrior != null)
+            {
+                warriorToRemove = warrior;
+                break;
+            }
+        }
+
+        if (warriorToRemove != null)
+        {
+            activeWarriors.Remove(warriorToRemove);
+            currentWarriors--;
+            Destroy(warriorToRemove.gameObject);
+
+            Debug.Log($"BaseBuilding: Removed 1 warrior. {currentWarriors} warriors remaining");
+        }
+    }
+
+    // Called when a warrior is killed
+    public void NotifyWarriorKilled(GameObject warrior)
+    {
+        Warrior warriorComponent = warrior.GetComponent<Warrior>();
+        if (warriorComponent != null)
+        {
+            activeWarriors.Remove(warriorComponent);
+            currentWarriors--;
+            Debug.Log($"BaseBuilding: Warrior killed. {currentWarriors} warriors remaining");
+        }
+    }
+
+    // Get current warrior count
+    public int GetWarriorCount()
+    {
+        return currentWarriors;
+    }
+
+    // Called when campfire is destroyed
+    void OnCampfireDestroyed()
+    {
+        Debug.Log("========================================");
+        Debug.Log("BaseBuilding: CAMPFIRE DESTROYED! GAME OVER!");
+        Debug.Log("========================================");
+
+        // Health component will handle the "DESTROYED!" text display
+
+        // Visual feedback - darken the campfire
+        if (buildingRenderers != null && buildingRenderers.Length > 0)
+        {
+            Debug.Log($"BaseBuilding: Turning {buildingRenderers.Length} renderers black...");
+            foreach (Renderer renderer in buildingRenderers)
+            {
+                if (renderer != null && renderer.material != null)
+                {
+                    renderer.material.color = Color.black;
+                    Debug.Log($"BaseBuilding: Renderer {renderer.name} turned black");
+                }
+            }
+        }
+        else
+        {
+            Debug.LogWarning("BaseBuilding: No renderers found to darken!");
+        }
+
+        // Disable collider so it can't be clicked
+        Collider col = GetComponent<Collider>();
+        if (col != null)
+        {
+            col.enabled = false;
+            Debug.Log("BaseBuilding: Collider disabled");
+        }
+
+        // Trigger game over through GameManager
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.TriggerDefeat();
+        }
+        else
+        {
+            Debug.LogError("BaseBuilding: No GameManager found to trigger defeat!");
+        }
+
+        // Disable worker spawning
+        enabled = false;
+        Debug.Log("BaseBuilding: Component disabled");
+    }
+
+    // Public method to get current health (for UI later)
+    public float GetCurrentHealth()
+    {
+        return healthComponent != null ? healthComponent.currentHealth : maxHealth;
+    }
+
+    public float GetHealthPercentage()
+    {
+        return healthComponent != null ? healthComponent.GetHealthPercentage() : 1f;
     }
 
     // Visual helper in Scene view

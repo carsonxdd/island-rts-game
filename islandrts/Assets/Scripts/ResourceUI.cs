@@ -27,9 +27,9 @@ public class ResourceUI : MonoBehaviour
 
     void UpdateUI()
     {
+        // Wait for ResourceManager to initialize
         if (ResourceManager.Instance == null)
         {
-            Debug.LogWarning("ResourceUI: No ResourceManager found!");
             return;
         }
 

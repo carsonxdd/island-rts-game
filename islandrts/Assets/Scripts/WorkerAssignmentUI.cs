@@ -27,6 +27,12 @@ public class WorkerAssignmentUI : MonoBehaviour
     public Button stonePlusButton;   // + button for stone workers
     public Button stoneMinusButton;  // - button for stone workers
 
+    [Header("Warrior UI")]
+    public TextMeshProUGUI warriorCountText;  // Shows "Warriors: 2"
+    public Button warriorPlusButton;   // + button for warriors
+    public Button warriorMinusButton;  // - button for warriors
+    public TextMeshProUGUI warriorCostText;  // Shows cost "Cost: 10 Wood, 15 Food"
+
     [Header("Total Workers")]
     public TextMeshProUGUI totalWorkersCountText;  // Shows just "3 / 10" (not the label)
 
@@ -81,6 +87,16 @@ public class WorkerAssignmentUI : MonoBehaviour
         if (stoneMinusButton != null)
         {
             stoneMinusButton.onClick.AddListener(() => OnMinusClicked(ResourceNode.ResourceType.Stone));
+        }
+
+        // Warrior buttons
+        if (warriorPlusButton != null)
+        {
+            warriorPlusButton.onClick.AddListener(OnWarriorPlusClicked);
+        }
+        if (warriorMinusButton != null)
+        {
+            warriorMinusButton.onClick.AddListener(OnWarriorMinusClicked);
         }
     }
 
@@ -151,6 +167,20 @@ public class WorkerAssignmentUI : MonoBehaviour
             int max = baseBuilding.maxWorkers;
             totalWorkersCountText.text = $"{total} / {max}";
         }
+
+        // Update warrior count
+        if (warriorCountText != null)
+        {
+            int current = baseBuilding.GetWarriorCount();
+            int max = baseBuilding.maxWarriors;
+            warriorCountText.text = $"Warriors: {current} / {max}";
+        }
+
+        // Update warrior cost text
+        if (warriorCostText != null)
+        {
+            warriorCostText.text = $"Cost: {baseBuilding.warriorCost_Wood} Wood, {baseBuilding.warriorCost_Food} Food";
+        }
     }
 
     /// <summary>
@@ -199,6 +229,65 @@ public class WorkerAssignmentUI : MonoBehaviour
         // Remove worker through BaseBuilding
         baseBuilding.UnassignWorker(resourceType);
         Debug.Log($"WorkerAssignmentUI: Worker removed! New count: {baseBuilding.GetTotalWorkers()}");
+
+        // Update the UI display
+        UpdateDisplay();
+    }
+
+    /// <summary>
+    /// Called when warrior + button is clicked
+    /// Recruits a new warrior
+    /// </summary>
+    void OnWarriorPlusClicked()
+    {
+        Debug.Log("WorkerAssignmentUI: Warrior + button clicked!");
+
+        if (baseBuilding == null)
+        {
+            Debug.LogError("WorkerAssignmentUI: No baseBuilding reference!");
+            return;
+        }
+
+        // Check if at max warriors
+        if (baseBuilding.GetWarriorCount() >= baseBuilding.maxWarriors)
+        {
+            Debug.Log("WorkerAssignmentUI: Cannot recruit more warriors - at maximum!");
+            return;
+        }
+
+        // Check resources
+        if (ResourceManager.Instance.wood < baseBuilding.warriorCost_Wood ||
+            ResourceManager.Instance.food < baseBuilding.warriorCost_Food)
+        {
+            Debug.Log($"WorkerAssignmentUI: Not enough resources! Need {baseBuilding.warriorCost_Wood} wood and {baseBuilding.warriorCost_Food} food");
+            return;
+        }
+
+        // Spawn warrior through BaseBuilding
+        baseBuilding.SpawnWarrior();
+        Debug.Log($"WorkerAssignmentUI: Warrior recruited! Total: {baseBuilding.GetWarriorCount()}");
+
+        // Update the UI display
+        UpdateDisplay();
+    }
+
+    /// <summary>
+    /// Called when warrior - button is clicked
+    /// Removes a warrior
+    /// </summary>
+    void OnWarriorMinusClicked()
+    {
+        Debug.Log("WorkerAssignmentUI: Warrior - button clicked!");
+
+        if (baseBuilding == null)
+        {
+            Debug.LogError("WorkerAssignmentUI: No baseBuilding reference!");
+            return;
+        }
+
+        // Remove warrior through BaseBuilding
+        baseBuilding.RemoveWarrior();
+        Debug.Log($"WorkerAssignmentUI: Warrior removed! Remaining: {baseBuilding.GetWarriorCount()}");
 
         // Update the UI display
         UpdateDisplay();

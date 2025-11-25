@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.AI;
 using System.Collections.Generic;
 
 public class ResourceNode : MonoBehaviour
@@ -32,6 +33,9 @@ public class ResourceNode : MonoBehaviour
         // Initialize current amount to max
         currentAmount = maxResourceAmount;
 
+        // Setup NavMeshObstacle for enemy pathfinding
+        SetupNavMeshObstacle();
+
         // Get ALL renderers for visual feedback (tree has trunk + leaves)
         nodeRenderers = GetComponentsInChildren<Renderer>();
         originalColors = new Color[nodeRenderers.Length];
@@ -44,6 +48,44 @@ public class ResourceNode : MonoBehaviour
         // Save original scale for depletion visual
         originalScale = transform.localScale;
         lastUpdateTime = Time.time;
+    }
+
+    void SetupNavMeshObstacle()
+    {
+        // Get or add NavMeshObstacle component
+        NavMeshObstacle obstacle = GetComponent<NavMeshObstacle>();
+        if (obstacle == null)
+        {
+            obstacle = gameObject.AddComponent<NavMeshObstacle>();
+        }
+
+        // Configure obstacle based on resource type
+        obstacle.carving = false;  // Disable carving to prevent pathfinding stutters
+        obstacle.shape = NavMeshObstacleShape.Capsule;  // Capsule works well for trees/rocks
+
+        // Size based on resource type
+        switch (resourceType)
+        {
+            case ResourceType.Wood:  // Trees
+                obstacle.radius = 0.5f;
+                obstacle.height = 2f;
+                break;
+            case ResourceType.Food:  // Bushes
+                obstacle.radius = 0.3f;
+                obstacle.height = 1f;
+                break;
+            case ResourceType.Stone:  // Rocks
+                obstacle.radius = 0.6f;
+                obstacle.height = 1.5f;
+                break;
+        }
+
+        // Resource nodes are static and baked into NavMesh, so carving not needed
+        obstacle.carveOnlyStationary = true;  // Only carve when not moving (if enabled)
+        obstacle.carvingMoveThreshold = 0.1f;
+        obstacle.carvingTimeToStationary = 0.5f;
+
+        Debug.Log($"ResourceNode: NavMeshObstacle setup for {resourceType} - Radius: {obstacle.radius}, Carving: {obstacle.carving}");
     }
 
     void Update()

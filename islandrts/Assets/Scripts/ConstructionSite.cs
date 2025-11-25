@@ -1,11 +1,13 @@
 using UnityEngine;
 using UnityEngine.AI;
+using TMPro;
 
 public class ConstructionSite : MonoBehaviour
 {
     [Header("Construction Settings")]
     public float buildTime = 5f;  // Seconds to auto-complete
     public GameObject finishedBuildingPrefab;  // What to spawn when done
+    public float targetHealth = 100f;  // Health the finished building will have
 
     [Header("Progress")]
     [Range(0f, 1f)]
@@ -14,8 +16,14 @@ public class ConstructionSite : MonoBehaviour
     [Header("Building Placement")]
     public float noBuildRadius = 2.5f;  // Creates 5x5 square no-build zone (1 grid cell buffer)
 
+    [Header("Progress Display")]
+    public bool showProgressText = true;
+    public float progressTextHeight = 2.5f;
+
     private float timeElapsed = 0f;
     private bool isComplete = false;
+    private TextMeshPro progressText;
+    private GameObject progressTextObject;
 
     void Start()
     {
@@ -24,8 +32,14 @@ public class ConstructionSite : MonoBehaviour
         if (obstacle != null)
         {
             obstacle.enabled = true;
-            obstacle.carving = true;
-            Debug.Log("ConstructionSite: NavMesh Obstacle enabled!");
+            obstacle.carving = false;  // Disable carving to prevent path recalculation during construction
+            Debug.Log("ConstructionSite: NavMesh Obstacle enabled (no carving)!");
+        }
+
+        // Create progress text display
+        if (showProgressText)
+        {
+            CreateProgressText();
         }
     }
 
@@ -36,6 +50,12 @@ public class ConstructionSite : MonoBehaviour
         // Auto-build over time
         timeElapsed += Time.deltaTime;
         progress = Mathf.Clamp01(timeElapsed / buildTime);
+
+        // Update progress text
+        if (showProgressText && progressText != null)
+        {
+            UpdateProgressText();
+        }
 
         // Check if construction is complete
         if (progress >= 1f)
@@ -61,14 +81,8 @@ public class ConstructionSite : MonoBehaviour
             // Copy layer to finished building
             finishedBuilding.layer = gameObject.layer;
 
-            // Enable NavMesh Obstacle on finished building for pathfinding
-            NavMeshObstacle obstacle = finishedBuilding.GetComponent<NavMeshObstacle>();
-            if (obstacle != null)
-            {
-                obstacle.enabled = true;
-                obstacle.carving = true;
-                Debug.Log("ConstructionSite: Finished building NavMesh Obstacle enabled!");
-            }
+            // Note: NavMeshObstacle settings are handled by the building's own script (Hut, BaseBuilding, etc.)
+            // Those scripts disable carving to prevent path stuttering
 
             Debug.Log("ConstructionSite: Spawned finished building!");
         }
@@ -92,6 +106,64 @@ public class ConstructionSite : MonoBehaviour
         if (progress >= 1f)
         {
             Complete();
+        }
+    }
+
+    void CreateProgressText()
+    {
+        // Create a child GameObject for the text
+        progressTextObject = new GameObject("ProgressText");
+        progressTextObject.transform.parent = transform;
+        progressTextObject.transform.localPosition = new Vector3(0, progressTextHeight, 0);
+
+        // Add TextMeshPro component
+        progressText = progressTextObject.AddComponent<TextMeshPro>();
+        progressText.fontSize = 2.5f;
+        progressText.alignment = TextAlignmentOptions.Center;
+        progressText.color = Color.cyan;
+
+        // Set sorting to render on top
+        progressText.GetComponent<MeshRenderer>().sortingOrder = 100;
+
+        UpdateProgressText();  // Set initial text
+        Debug.Log("ConstructionSite: Progress text created");
+    }
+
+    void UpdateProgressText()
+    {
+        if (progressText == null)
+            return;
+
+        // Calculate current "health" based on progress
+        float currentProgress = progress * targetHealth;
+
+        // Update text content
+        progressText.text = $"Building...\n{currentProgress:F0} / {targetHealth:F0} HP";
+
+        // Color based on progress
+        if (progress >= 1f)
+        {
+            progressText.text = "Complete!";
+            progressText.color = Color.green;
+        }
+        else if (progress >= 0.66f)
+        {
+            progressText.color = Color.green;
+        }
+        else if (progress >= 0.33f)
+        {
+            progressText.color = Color.yellow;
+        }
+        else
+        {
+            progressText.color = Color.cyan;
+        }
+
+        // Billboard effect - always face camera
+        if (Camera.main != null)
+        {
+            progressTextObject.transform.LookAt(Camera.main.transform);
+            progressTextObject.transform.Rotate(0, 180, 0);  // Flip to face camera correctly
         }
     }
 
