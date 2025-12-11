@@ -6,7 +6,7 @@ public class BuildPlacement : MonoBehaviour
     [Header("Building Prefabs")]
     public GameObject hutGhostPrefab;  // Drag your HutGhost prefab here
     public GameObject constructionSitePrefab;  // Drag your ConstructionSite prefab here
-    public float ghostBuildingNoBuildRadius = 2.5f;  // No-build radius for the building being placed
+    public float ghostBuildingNoBuildRadius = 3.5f;  // No-build radius for the building being placed (7x7 square)
 
     [Header("Building Cost")]
     public int woodCost = 20;
@@ -245,6 +245,12 @@ public class BuildPlacement : MonoBehaviour
 
         // Make sure it's on the Buildings layer for collision detection
         constructionSite.layer = LayerMask.NameToLayer("Buildings");
+
+        // Play building placed sound
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlayBuildingPlaced();
+        }
 
         // Destroy the ghost
         Destroy(currentGhost);

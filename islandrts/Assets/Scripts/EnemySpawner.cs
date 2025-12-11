@@ -86,6 +86,12 @@ public class EnemySpawner : MonoBehaviour
 
         Debug.Log($"EnemySpawner: Spawning {enemiesToSpawn} enemies for night {currentNight}");
 
+        // Start combat music when enemies begin spawning
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlayCombatMusic();
+        }
+
         // Spawn enemies with intervals
         for (int i = 0; i < enemiesToSpawn; i++)
         {
@@ -147,6 +153,29 @@ public class EnemySpawner : MonoBehaviour
     {
         activeEnemies.Remove(enemy);
         Debug.Log($"EnemySpawner: Enemy killed. {activeEnemies.Count} enemies remaining");
+
+        // Check if all enemies are dead
+        activeEnemies.RemoveAll(e => e == null);
+        if (activeEnemies.Count == 0)
+        {
+            Debug.Log("EnemySpawner: All enemies defeated! Returning to ambient sounds.");
+
+            // Return to appropriate music based on time of day
+            if (AudioManager.Instance != null)
+            {
+                DayNightCycle dayNight = FindFirstObjectByType<DayNightCycle>();
+                if (dayNight != null && dayNight.IsNightTime())
+                {
+                    // Still night - return to night ambience only
+                    AudioManager.Instance.PlayNightAmbience();
+                }
+                else
+                {
+                    // Day has broken - play day music
+                    AudioManager.Instance.PlayDayMusic();
+                }
+            }
+        }
     }
 
     // Public getters

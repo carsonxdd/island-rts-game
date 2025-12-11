@@ -14,7 +14,7 @@ public class ConstructionSite : MonoBehaviour
     public float progress = 0f;  // 0 = just started, 1 = complete
 
     [Header("Building Placement")]
-    public float noBuildRadius = 2.5f;  // Creates 5x5 square no-build zone (1 grid cell buffer)
+    public float noBuildRadius = 3.5f;  // Creates 7x7 square no-build zone (3 grid cell buffer)
 
     [Header("Progress Display")]
     public bool showProgressText = true;

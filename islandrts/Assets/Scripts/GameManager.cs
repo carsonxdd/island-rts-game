@@ -130,6 +130,12 @@ public class GameManager : MonoBehaviour
         isGameOver = true;
         isVictory = false;
 
+        // Play defeat sound
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlayDefeat();
+        }
+
         // Pause the game
         Time.timeScale = 0f;
 
@@ -158,6 +164,12 @@ public class GameManager : MonoBehaviour
 
         isGameOver = true;
         isVictory = true;
+
+        // Play victory sound
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlayVictory();
+        }
 
         // Pause the game
         Time.timeScale = 0f;

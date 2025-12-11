@@ -42,6 +42,9 @@ public class Warrior : MonoBehaviour
     private float patrolWaitTimer = 0f;
     private bool isWaitingAtPatrol = false;
 
+    // Audio - 3D Spatial Sound
+    private AudioSource combatAudioSource;
+
     void Start()
     {
         // Get NavMeshAgent component
@@ -81,6 +84,9 @@ public class Warrior : MonoBehaviour
             CreateStateText();
         }
 
+        // Setup 3D spatial audio for combat sounds
+        SetupCombatAudioSource();
+
         // Store idle position (spawn position)
         idlePosition = transform.position;
         currentPatrolPoint = GetRandomPatrolPoint();
@@ -105,13 +111,16 @@ public class Warrior : MonoBehaviour
             {
                 // No enemies - patrol around campfire
                 currentState = "Patrolling";
+                agent.isStopped = false;  // Make sure agent can move while patrolling
                 PatrolBehavior();
                 return;
             }
             else
             {
-                // Found a new target - reset last position
+                // Found a new target - reset last position and resume movement
                 lastTargetPosition = target.position;
+                agent.isStopped = false;  // Resume movement toward new target
+                agent.SetDestination(target.position);  // CRITICAL: Set path to new target
             }
         }
 
@@ -119,11 +128,12 @@ public class Warrior : MonoBehaviour
         Health targetHealth = target.GetComponent<Health>();
         if (targetHealth != null && !targetHealth.IsAlive)
         {
-            // Target is dead, find a new target
+            // Target is dead, clear target and resume movement
             currentState = "Enemy defeated! Searching...";
-            agent.isStopped = true;
             hasTarget = false;
             target = null;
+            agent.isStopped = false;  // Resume movement (will patrol or find new target next frame)
+            agent.ResetPath();  // Clear path to dead target
             return;
         }
 
@@ -354,11 +364,8 @@ public class Warrior : MonoBehaviour
             CombatEffects.Instance.SpawnAttackEffect(transform.position, target.position, true);
         }
 
-        // Play attack sound
-        if (AudioManager.Instance != null)
-        {
-            AudioManager.Instance.PlayWarriorAttack();
-        }
+        // Play attack sound (3D spatial audio)
+        PlayAttackSound();
 
         // Apply damage to target's Health component
         Health targetHealth = target.GetComponent<Health>();
@@ -385,11 +392,8 @@ public class Warrior : MonoBehaviour
     {
         Debug.Log("Warrior: Defeated!");
 
-        // Play death sound
-        if (AudioManager.Instance != null)
-        {
-            AudioManager.Instance.PlayWarriorDeath();
-        }
+        // Play death sound (3D spatial audio)
+        PlayDeathSound();
 
         // Notify base building to update warrior count
         if (baseBuilding != null)
@@ -398,6 +402,44 @@ public class Warrior : MonoBehaviour
         }
 
         // Health component will handle destruction
+    }
+
+    void SetupCombatAudioSource()
+    {
+        // Add an AudioSource component for 3D spatial combat sounds
+        combatAudioSource = gameObject.AddComponent<AudioSource>();
+
+        // Configure for 3D spatial audio
+        combatAudioSource.spatialBlend = 1.0f;  // Full 3D (0 = 2D, 1 = 3D)
+        combatAudioSource.playOnAwake = false;
+        combatAudioSource.loop = false;
+
+        // Distance settings (combat sounds heard from farther away than gathering)
+        combatAudioSource.minDistance = 8f;   // Full volume within 8 units
+        combatAudioSource.maxDistance = 35f;  // Can't hear beyond 35 units
+        combatAudioSource.rolloffMode = AudioRolloffMode.Linear;
+
+        // Volume settings (combat louder than gathering)
+        combatAudioSource.volume = 0.5f;
+
+        // No doppler for combat sounds
+        combatAudioSource.dopplerLevel = 0f;
+    }
+
+    void PlayAttackSound()
+    {
+        if (combatAudioSource != null && AudioManager.Instance != null && AudioManager.Instance.warriorAttackSound != null)
+        {
+            combatAudioSource.PlayOneShot(AudioManager.Instance.warriorAttackSound, 0.6f);
+        }
+    }
+
+    void PlayDeathSound()
+    {
+        if (combatAudioSource != null && AudioManager.Instance != null && AudioManager.Instance.warriorDeathSound != null)
+        {
+            combatAudioSource.PlayOneShot(AudioManager.Instance.warriorDeathSound, 1f);
+        }
     }
 
     void CreateStateText()

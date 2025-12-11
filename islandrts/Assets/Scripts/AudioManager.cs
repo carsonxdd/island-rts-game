@@ -13,6 +13,7 @@ public class AudioManager : MonoBehaviour
     [SerializeField] private AudioSource musicSource;
     [SerializeField] private AudioSource ambientSource;
     [SerializeField] private AudioSource sfxSource;
+    [SerializeField] private AudioSource resourceSoundSource;  // For looping resource gathering sounds
 
     [Header("Combat Sounds")]
     public AudioClip warriorAttackSound;
@@ -133,6 +134,16 @@ public class AudioManager : MonoBehaviour
             sfxSource.playOnAwake = false;
             sfxSource.volume = sfxVolume * masterVolume;
         }
+
+        if (resourceSoundSource == null)
+        {
+            GameObject resourceObj = new GameObject("ResourceSoundSource");
+            resourceObj.transform.SetParent(transform);
+            resourceSoundSource = resourceObj.AddComponent<AudioSource>();
+            resourceSoundSource.loop = true;  // Loops while gathering
+            resourceSoundSource.playOnAwake = false;
+            resourceSoundSource.volume = sfxVolume * masterVolume * 0.6f;  // Slightly quieter
+        }
     }
 
     void Update()
@@ -141,17 +152,29 @@ public class AudioManager : MonoBehaviour
         if (musicSource != null) musicSource.volume = musicVolume * masterVolume;
         if (ambientSource != null) ambientSource.volume = ambientVolume * masterVolume;
         if (sfxSource != null) sfxSource.volume = sfxVolume * masterVolume;
+        if (resourceSoundSource != null) resourceSoundSource.volume = sfxVolume * masterVolume * 0.6f;
 
         // Update cooldown timers
+        // Create a snapshot to avoid "Collection was modified" exception
+        var cooldownSnapshot = new Dictionary<string, float>(soundCooldowns);
         List<string> keysToRemove = new List<string>();
-        foreach (var key in soundCooldowns.Keys)
+
+        foreach (var kvp in cooldownSnapshot)
         {
-            soundCooldowns[key] -= Time.deltaTime;
-            if (soundCooldowns[key] <= 0)
+            // Update the actual dictionary with the new value
+            float newValue = kvp.Value - Time.deltaTime;
+
+            if (soundCooldowns.ContainsKey(kvp.Key))
             {
-                keysToRemove.Add(key);
+                soundCooldowns[kvp.Key] = newValue;
+
+                if (newValue <= 0)
+                {
+                    keysToRemove.Add(kvp.Key);
+                }
             }
         }
+
         foreach (var key in keysToRemove)
         {
             soundCooldowns.Remove(key);
@@ -233,6 +256,52 @@ public class AudioManager : MonoBehaviour
 
     #region Resource Sounds
 
+    // Start looping resource gathering sound
+    public void StartGatheringSound(ResourceNode.ResourceType resourceType)
+    {
+        if (resourceSoundSource == null) return;
+
+        AudioClip clipToPlay = null;
+
+        switch (resourceType)
+        {
+            case ResourceNode.ResourceType.Wood:
+                clipToPlay = gatherWoodSound;
+                break;
+            case ResourceNode.ResourceType.Food:
+                clipToPlay = gatherFoodSound;
+                break;
+            case ResourceNode.ResourceType.Stone:
+                clipToPlay = gatherStoneSound;
+                break;
+        }
+
+        // Only start if we have a clip and it's not already playing this clip
+        if (clipToPlay != null && resourceSoundSource.clip != clipToPlay)
+        {
+            resourceSoundSource.clip = clipToPlay;
+            resourceSoundSource.Play();
+            Debug.Log($"AudioManager: Started gathering sound for {resourceType}");
+        }
+        else if (clipToPlay != null && !resourceSoundSource.isPlaying)
+        {
+            // Same clip but stopped - restart it
+            resourceSoundSource.Play();
+        }
+    }
+
+    // Stop looping resource gathering sound
+    public void StopGatheringSound()
+    {
+        if (resourceSoundSource != null && resourceSoundSource.isPlaying)
+        {
+            resourceSoundSource.Stop();
+            resourceSoundSource.clip = null;
+            Debug.Log("AudioManager: Stopped gathering sound");
+        }
+    }
+
+    // Legacy one-shot methods (kept for backwards compatibility if needed elsewhere)
     public void PlayGatherWood()
     {
         if (CanPlaySound("gather_wood"))
@@ -286,11 +355,34 @@ public class AudioManager : MonoBehaviour
         PlayAmbientSounds(nightAmbientSounds);
     }
 
+    // New method: Play ONLY night ambience, no music (for nighttime without combat)
+    public void PlayNightAmbience()
+    {
+        // Fade out music, keep only ambient sounds
+        StopMusic();
+
+        // Play night ambient sounds
+        PlayAmbientSounds(nightAmbientSounds);
+
+        Debug.Log("AudioManager: Night ambience only (no music)");
+    }
+
     public void PlayCombatMusic()
     {
+        if (combatMusic == null)
+        {
+            Debug.LogWarning("AudioManager: Combat music clip not assigned! Please assign in Inspector.");
+            return;
+        }
+
         if (currentMusic != combatMusic)
         {
+            Debug.Log("AudioManager: Starting combat music");
             FadeToMusic(combatMusic);
+        }
+        else
+        {
+            Debug.Log("AudioManager: Combat music already playing");
         }
     }
 
@@ -326,13 +418,22 @@ public class AudioManager : MonoBehaviour
 
     void FadeToMusic(AudioClip newClip)
     {
-        if (newClip == null) return;
+        if (newClip == null)
+        {
+            Debug.LogWarning("AudioManager: Attempted to play null music clip!");
+            return;
+        }
 
         currentMusic = newClip;
 
         if (!isFadingMusic)
         {
+            Debug.Log($"AudioManager: Fading to music: {newClip.name}");
             StartCoroutine(CrossfadeMusic(newClip));
+        }
+        else
+        {
+            Debug.Log("AudioManager: Already fading music, queuing next clip");
         }
     }
 

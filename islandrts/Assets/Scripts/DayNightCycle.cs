@@ -136,10 +136,10 @@ public class DayNightCycle : MonoBehaviour
         {
             Debug.Log($"DayNightCycle: Night {currentDay} begins! Enemies incoming...");
 
-            // Play night music
+            // Play night ambience only (no music until combat starts)
             if (AudioManager.Instance != null)
             {
-                AudioManager.Instance.PlayNightMusic();
+                AudioManager.Instance.PlayNightAmbience();
             }
 
             OnNightStart?.Invoke();  // Notify listeners (enemy spawner, etc.)

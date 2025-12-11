@@ -42,10 +42,10 @@ public class Worker : MonoBehaviour
     // Stuck detection
     private Vector3 lastPosition;
     private float stuckTimer = 0f;
-    private float stuckCheckInterval = 2f;  // Check every 2 seconds
-    private float minMoveDistance = 0.5f;   // Must move at least this far to not be stuck
+    private float stuckCheckInterval = 5f;  // Check every 5 seconds (reduced frequency)
+    private float minMoveDistance = 1.0f;   // Must move at least this far to not be stuck
     private int consecutiveStuckCount = 0;   // How many times stuck in a row
-    private int maxStuckAttempts = 3;        // Give up after this many stuck attempts
+    private int maxStuckAttempts = 2;        // Give up after 2 attempts (reduced from 3)
 
     // Unstuck behavior
     private bool isUnsticking = false;       // Currently moving to unstuck position
@@ -56,6 +56,10 @@ public class Worker : MonoBehaviour
     private GameObject stateTextObject;
     private TextMeshPro stateText;
     private Camera mainCamera;
+
+    // Audio - 3D Spatial Sound
+    private AudioSource gatheringAudioSource;
+    private Coroutine gatheringSoundCoroutine;
 
     void Start()
     {
@@ -85,6 +89,9 @@ public class Worker : MonoBehaviour
             CreateStateText();
         }
 
+        // Setup 3D spatial audio for gathering sounds
+        SetupGatheringAudioSource();
+
         // Wait a moment for NavMeshAgent to fully initialize
         currentState = WorkerState.Idle;
         Invoke(nameof(Initialize), 0.5f);  // Small delay before starting work
@@ -94,7 +101,7 @@ public class Worker : MonoBehaviour
     {
         isInitialized = true;
         lastPosition = transform.position;
-        Debug.Log($"Worker: Initialized and ready to work on {assignedResourceType}");
+        // Debug.Log($"Worker: Initialized and ready to work on {assignedResourceType}");
     }
 
     void Update()
@@ -152,7 +159,7 @@ public class Worker : MonoBehaviour
         // Check if we've reached the unstuck position or stopped moving
         if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance)
         {
-            Debug.Log("Worker: Reached unstuck position, resuming previous task");
+            // Debug.Log("Worker: Reached unstuck position, resuming previous task");
             isUnsticking = false;
 
             // Resume previous state
@@ -196,18 +203,27 @@ public class Worker : MonoBehaviour
             {
                 // Worker hasn't moved much - STUCK!
                 consecutiveStuckCount++;
-                Debug.LogWarning($"Worker: STUCK! Only moved {distanceMoved:F2} units in {stuckCheckInterval}s (attempt {consecutiveStuckCount}/{maxStuckAttempts})");
 
                 if (consecutiveStuckCount >= maxStuckAttempts)
                 {
-                    // Stuck too many times - give up and reset
-                    Debug.LogError($"Worker: Failed to unstuck after {maxStuckAttempts} attempts. Resetting...");
+                    // Stuck too many times - completely reset and find new task
+                    Debug.LogWarning($"Worker: Stuck after {maxStuckAttempts} attempts. Resetting to find new target...");
+
+                    // Clean up current task
                     UnregisterFromNode();
                     targetResource = null;
-                    currentState = WorkerState.Idle;
-                    isSearchingForResource = false;
+
+                    // Reset agent
+                    agent.ResetPath();
+                    agent.isStopped = false;
+
+                    // Reset stuck detection
                     isUnsticking = false;
                     consecutiveStuckCount = 0;
+
+                    // Return to idle to find new resource
+                    currentState = WorkerState.Idle;
+                    isSearchingForResource = false;
                 }
                 else
                 {
@@ -229,6 +245,8 @@ public class Worker : MonoBehaviour
 
     void AttemptUnstuck()
     {
+        Debug.LogWarning($"Worker: Stuck detected (attempt {consecutiveStuckCount}/{maxStuckAttempts}). Attempting to unstuck...");
+
         // Save current state and target
         stateBeforeUnstuck = currentState;
         targetBeforeUnstuck = targetResource;
@@ -241,18 +259,18 @@ public class Worker : MonoBehaviour
         if (agent.isOnNavMesh)
         {
             agent.ResetPath();
+            agent.isStopped = false;  // Make sure agent can move
             agent.SetDestination(unstuckPosition);
-            Debug.Log($"Worker: Attempting to unstuck by moving to nearby position {unstuckPosition}");
         }
     }
 
     Vector3 GetRandomNearbyPosition()
     {
-        // Try to find a valid position 1-2 units away in a random direction
+        // Try to find a valid position 2-4 units away in a random direction (increased distance)
         for (int attempts = 0; attempts < 10; attempts++)
         {
             float randomAngle = Random.Range(0f, 360f) * Mathf.Deg2Rad;
-            float randomDistance = Random.Range(1f, 2f);
+            float randomDistance = Random.Range(2f, 4f);  // Increased from 1-2 to 2-4
 
             Vector3 randomDirection = new Vector3(
                 Mathf.Cos(randomAngle),
@@ -264,15 +282,15 @@ public class Worker : MonoBehaviour
 
             // Check if this position is valid on the NavMesh
             NavMeshHit hit;
-            if (NavMesh.SamplePosition(targetPosition, out hit, 3f, NavMesh.AllAreas))
+            if (NavMesh.SamplePosition(targetPosition, out hit, 5f, NavMesh.AllAreas))  // Increased search radius
             {
                 return hit.position;
             }
         }
 
-        // Fallback: just move 2 units in a random direction from current position
+        // Fallback: just move 3 units in a random direction from current position
         float fallbackAngle = Random.Range(0f, 360f) * Mathf.Deg2Rad;
-        return transform.position + new Vector3(Mathf.Cos(fallbackAngle) * 2f, 0f, Mathf.Sin(fallbackAngle) * 2f);
+        return transform.position + new Vector3(Mathf.Cos(fallbackAngle) * 3f, 0f, Mathf.Sin(fallbackAngle) * 3f);
     }
 
     void FindNearestResource()
@@ -314,7 +332,7 @@ public class Worker : MonoBehaviour
                 lastPosition = transform.position;
                 stuckTimer = 0f;
 
-                Debug.Log($"Worker: Found {assignedResourceType} at {targetResource.transform.position}");
+                // Debug.Log($"Worker: Found {assignedResourceType} at {targetResource.transform.position}");
             }
             else
             {
@@ -326,7 +344,7 @@ public class Worker : MonoBehaviour
         else
         {
             // No resources found, wait a bit and try again
-            Debug.Log($"Worker: No {assignedResourceType} resources found nearby. Waiting...");
+            // Debug.Log($"Worker: No {assignedResourceType} resources found nearby. Waiting...");
             isSearchingForResource = false;  // Reset flag
             Invoke(nameof(FindNearestResource), 3f);  // Try again in 3 seconds
         }
@@ -337,7 +355,7 @@ public class Worker : MonoBehaviour
         // Check if target still exists
         if (targetResource == null)
         {
-            Debug.Log("Worker: Target resource disappeared!");
+            // Debug.Log("Worker: Target resource disappeared!");
             currentState = WorkerState.Idle;
             isSearchingForResource = false;  // Reset so we find a new target
             return;
@@ -361,12 +379,15 @@ public class Worker : MonoBehaviour
                 // Reset stuck detection - we reached our destination
                 stuckTimer = 0f;
 
-                Debug.Log("Worker: Arrived at resource, starting to gather...");
+                // Start gathering sound (3D spatial audio on this worker)
+                StartGatheringSound();
+
+                // Debug.Log("Worker: Arrived at resource, starting to gather...");
             }
             else
             {
                 // Node is empty, find another
-                Debug.Log("Worker: Node is empty!");
+                // Debug.Log("Worker: Node is empty!");
                 targetResource = null;
                 currentState = WorkerState.Idle;
                 isSearchingForResource = false;
@@ -379,7 +400,7 @@ public class Worker : MonoBehaviour
         // Check if target still exists
         if (targetResource == null)
         {
-            Debug.Log("Worker: Resource disappeared while gathering!");
+            // Debug.Log("Worker: Resource disappeared while gathering!");
             UnregisterFromNode();
             currentState = WorkerState.Idle;
             isSearchingForResource = false;
@@ -391,7 +412,11 @@ public class Worker : MonoBehaviour
         {
             // Snap to exact capacity to avoid 4.99 issues
             carryAmount = carryCapacity;
-            Debug.Log($"Worker: Inventory full ({carryAmount}/{carryCapacity})! Returning to base.");
+            // Debug.Log($"Worker: Inventory full ({carryAmount}/{carryCapacity})! Returning to base.");
+
+            // Stop gathering sound
+            StopGatheringSound();
+
             UnregisterFromNode();
             ReturnToBase();
             return;
@@ -400,7 +425,11 @@ public class Worker : MonoBehaviour
         // Check if node is empty
         if (!targetResource.HasResources())
         {
-            Debug.Log("Worker: Node depleted while gathering!");
+            // Debug.Log("Worker: Node depleted while gathering!");
+
+            // Stop gathering sound
+            StopGatheringSound();
+
             UnregisterFromNode();
             targetResource = null;
 
@@ -439,6 +468,9 @@ public class Worker : MonoBehaviour
         if (isFull || nodeEmpty)
         {
             // Done gathering from this node
+            // Stop gathering sound
+            StopGatheringSound();
+
             UnregisterFromNode();
 
             if (nodeEmpty)
@@ -475,7 +507,7 @@ public class Worker : MonoBehaviour
             lastPosition = transform.position;
             stuckTimer = 0f;
 
-            Debug.Log($"Worker: Returning to base with {carryAmount:F2} {assignedResourceType}");
+            // Debug.Log($"Worker: Returning to base with {carryAmount:F2} {assignedResourceType}");
         }
         else
         {
@@ -589,12 +621,108 @@ public class Worker : MonoBehaviour
                 break;
         }
 
-        Debug.Log($"Worker: Delivered {amountToDeliver} {assignedResourceType} to base! (carried {carryAmount:F2})");
+        // Debug.Log($"Worker: Delivered {amountToDeliver} {assignedResourceType} to base! (carried {carryAmount:F2})");
         carryAmount = 0f;
+    }
+
+    void SetupGatheringAudioSource()
+    {
+        // Add an AudioSource component for 3D spatial gathering sounds
+        gatheringAudioSource = gameObject.AddComponent<AudioSource>();
+
+        // Configure for 3D spatial audio
+        gatheringAudioSource.spatialBlend = 1.0f;  // Full 3D (0 = 2D, 1 = 3D)
+        gatheringAudioSource.playOnAwake = false;
+        gatheringAudioSource.loop = false;  // We'll handle looping manually with delays
+
+        // Distance settings (how far you can hear the sound)
+        gatheringAudioSource.minDistance = 5f;   // Full volume within 5 units
+        gatheringAudioSource.maxDistance = 25f;  // Can't hear beyond 25 units
+        gatheringAudioSource.rolloffMode = AudioRolloffMode.Linear;  // Linear falloff
+
+        // Volume settings
+        gatheringAudioSource.volume = 0.3f;  // Quieter than before (was 0.6)
+
+        // Doppler effect (slight pitch change when moving)
+        gatheringAudioSource.dopplerLevel = 0.1f;  // Subtle doppler
+    }
+
+    void StartGatheringSound()
+    {
+        // Stop any existing sound coroutine
+        if (gatheringSoundCoroutine != null)
+        {
+            StopCoroutine(gatheringSoundCoroutine);
+        }
+
+        // Start the delayed looping coroutine
+        gatheringSoundCoroutine = StartCoroutine(PlayGatheringSoundLoop());
+    }
+
+    void StopGatheringSound()
+    {
+        // Stop the looping coroutine
+        if (gatheringSoundCoroutine != null)
+        {
+            StopCoroutine(gatheringSoundCoroutine);
+            gatheringSoundCoroutine = null;
+        }
+
+        // Stop any currently playing sound
+        if (gatheringAudioSource != null && gatheringAudioSource.isPlaying)
+        {
+            gatheringAudioSource.Stop();
+        }
+    }
+
+    System.Collections.IEnumerator PlayGatheringSoundLoop()
+    {
+        while (true)
+        {
+            // Get the appropriate sound clip from AudioManager
+            AudioClip clipToPlay = GetGatheringClip();
+
+            if (clipToPlay != null && gatheringAudioSource != null)
+            {
+                gatheringAudioSource.clip = clipToPlay;
+                gatheringAudioSource.Play();
+
+                // Wait for clip to finish
+                yield return new WaitForSeconds(clipToPlay.length);
+
+                // Add delay between loops (1-2 seconds)
+                yield return new WaitForSeconds(Random.Range(1f, 2f));
+            }
+            else
+            {
+                // No clip available, wait and try again
+                yield return new WaitForSeconds(1f);
+            }
+        }
+    }
+
+    AudioClip GetGatheringClip()
+    {
+        if (AudioManager.Instance == null) return null;
+
+        switch (assignedResourceType)
+        {
+            case ResourceNode.ResourceType.Wood:
+                return AudioManager.Instance.gatherWoodSound;
+            case ResourceNode.ResourceType.Food:
+                return AudioManager.Instance.gatherFoodSound;
+            case ResourceNode.ResourceType.Stone:
+                return AudioManager.Instance.gatherStoneSound;
+            default:
+                return null;
+        }
     }
 
     void OnDestroy()
     {
+        // Stop any gathering sound
+        StopGatheringSound();
+
         // Unregister from node if we're destroyed while gathering
         UnregisterFromNode();
 

@@ -124,6 +124,12 @@ public class WorkerAssignmentUI : MonoBehaviour
         {
             uiPanel.SetActive(false);
         }
+
+        // Play button click sound
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlayButtonClick();
+        }
     }
 
     void Update()
@@ -208,6 +214,12 @@ public class WorkerAssignmentUI : MonoBehaviour
         baseBuilding.AssignWorker(resourceType);
         Debug.Log($"WorkerAssignmentUI: Worker assigned! New count: {baseBuilding.GetTotalWorkers()}");
 
+        // Play worker assigned sound
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlayWorkerAssigned();
+        }
+
         // Update the UI display
         UpdateDisplay();
     }
@@ -229,6 +241,12 @@ public class WorkerAssignmentUI : MonoBehaviour
         // Remove worker through BaseBuilding
         baseBuilding.UnassignWorker(resourceType);
         Debug.Log($"WorkerAssignmentUI: Worker removed! New count: {baseBuilding.GetTotalWorkers()}");
+
+        // Play button click sound
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlayButtonClick();
+        }
 
         // Update the UI display
         UpdateDisplay();
@@ -267,6 +285,12 @@ public class WorkerAssignmentUI : MonoBehaviour
         baseBuilding.SpawnWarrior();
         Debug.Log($"WorkerAssignmentUI: Warrior recruited! Total: {baseBuilding.GetWarriorCount()}");
 
+        // Play button click sound
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlayButtonClick();
+        }
+
         // Update the UI display
         UpdateDisplay();
     }
@@ -288,6 +312,12 @@ public class WorkerAssignmentUI : MonoBehaviour
         // Remove warrior through BaseBuilding
         baseBuilding.RemoveWarrior();
         Debug.Log($"WorkerAssignmentUI: Warrior removed! Remaining: {baseBuilding.GetWarriorCount()}");
+
+        // Play button click sound
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlayButtonClick();
+        }
 
         // Update the UI display
         UpdateDisplay();
