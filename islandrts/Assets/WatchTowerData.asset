@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5b18d4c3764b3904b85798cad4ee4df7, type: 3}
+  m_Name: WatchTowerData
+  m_EditorClassIdentifier: 
+  buildingType: 3
+  buildingName: Watch Tower
+  woodCost: 25
+  foodCost: 0
+  stoneCost: 15
+  ghostPrefab: {fileID: 3971485318021736461, guid: 27f7c27801af83648a02827032ff4980, type: 3}
+  constructionSitePrefab: {fileID: 1713934267972723311, guid: 70d8b501cbfdcc645b9cbba0d90a5f01, type: 3}
+  finishedBuildingPrefab: {fileID: 5222481416697825286, guid: b118dc7c578e0f04e974615acefd46b3, type: 3}
+  buildingSize: {x: 2, y: 1.5, z: 2}
+  noBuildRadius: 3.5
+  placementHeight: 0.75
+  maxHealth: 200
+  blocksNavMesh: 0

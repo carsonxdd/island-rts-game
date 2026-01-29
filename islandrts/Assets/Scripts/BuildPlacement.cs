@@ -3,15 +3,19 @@ using System.Collections.Generic;
 
 public class BuildPlacement : MonoBehaviour
 {
-    [Header("Building Prefabs")]
-    public GameObject hutGhostPrefab;  // Drag your HutGhost prefab here
-    public GameObject constructionSitePrefab;  // Drag your ConstructionSite prefab here
-    public float ghostBuildingNoBuildRadius = 3.5f;  // No-build radius for the building being placed (7x7 square)
+    [Header("Building Selection")]
+    public BuildingType selectedBuildingType = BuildingType.Hut;
+    public BuildingSelectionUI selectionUI;  // Optional: Visual feedback for building selection
 
-    [Header("Building Cost")]
-    public int woodCost = 20;
-    public int foodCost = 10;
-    public int stoneCost = 0;
+    [Header("Building Prefabs (Legacy - kept for backward compatibility)")]
+    public GameObject hutGhostPrefab;  // Legacy: Use BuildingDatabase instead
+    public GameObject constructionSitePrefab;  // Shared construction site prefab
+    public float ghostBuildingNoBuildRadius = 3.5f;  // Will be dynamically set from BuildingData
+
+    [Header("Building Cost (Legacy - kept for backward compatibility)")]
+    public int woodCost = 20;  // Legacy: Use BuildingDatabase instead
+    public int foodCost = 10;  // Legacy: Use BuildingDatabase instead
+    public int stoneCost = 0;  // Legacy: Use BuildingDatabase instead
 
     [Header("Grid Settings")]
     public float cellSize = 1f;  // Match your grid size
@@ -67,6 +71,12 @@ public class BuildPlacement : MonoBehaviour
         // If we're in placement mode
         if (isPlacing && currentGhost != null)
         {
+            // Building type selection hotkeys (1-4)
+            if (Input.GetKeyDown(KeyCode.Alpha1)) SelectBuilding(BuildingType.Hut);
+            if (Input.GetKeyDown(KeyCode.Alpha2)) SelectBuilding(BuildingType.WoodenWall);
+            if (Input.GetKeyDown(KeyCode.Alpha3)) SelectBuilding(BuildingType.StoneWall);
+            if (Input.GetKeyDown(KeyCode.Alpha4)) SelectBuilding(BuildingType.Watchtower);
+
             MoveGhostToMouse();
 
             // Confirm placement with left-click
@@ -85,20 +95,34 @@ public class BuildPlacement : MonoBehaviour
 
     void StartPlacement()
     {
-        if (hutGhostPrefab == null)
+        // Check if BuildingDatabase exists
+        if (BuildingDatabase.Instance == null)
         {
-            Debug.LogError("BuildPlacement: HutGhost prefab is not assigned!");
+            Debug.LogError("BuildPlacement: BuildingDatabase not found in scene!");
+            return;
+        }
+
+        // Get building data for the selected type
+        BuildingData data = BuildingDatabase.Instance.GetBuildingData(selectedBuildingType);
+        if (data == null || data.ghostPrefab == null)
+        {
+            Debug.LogError($"BuildPlacement: No ghost prefab for building type {selectedBuildingType}!");
             return;
         }
 
         // Spawn the ghost building
-        currentGhost = Instantiate(hutGhostPrefab);
+        currentGhost = Instantiate(data.ghostPrefab);
         ghostRenderer = currentGhost.GetComponent<Renderer>();
 
         if (ghostRenderer == null)
         {
-            Debug.LogError("BuildPlacement: Ghost prefab has no Renderer component!");
+            Debug.LogError($"BuildPlacement: Ghost prefab for {selectedBuildingType} has no Renderer component!");
         }
+
+        // Update building properties from data
+        buildingSize = data.buildingSize;
+        placementHeight = data.placementHeight;
+        ghostBuildingNoBuildRadius = data.noBuildRadius;
 
         // Initialize target position
         targetPosition = currentGhost.transform.position;
@@ -115,7 +139,15 @@ public class BuildPlacement : MonoBehaviour
         // Create no-build zone preview for the ghost building
         CreateGhostNoBuildZone();
 
-        Debug.Log("BuildPlacement: Started! Move mouse and left-click to place. ESC to cancel.");
+        // Update UI if exists
+        if (selectionUI != null)
+        {
+            bool canAfford = ResourceManager.Instance.CanAfford(data.woodCost, data.foodCost, data.stoneCost);
+            selectionUI.UpdateDisplay(data, canAfford);
+            selectionUI.Show();
+        }
+
+        Debug.Log($"BuildPlacement: Started with {data.buildingName}! Press 1-4 to switch buildings. Left-click to place, ESC to cancel.");
     }
 
     void MoveGhostToMouse()
@@ -210,9 +242,17 @@ public class BuildPlacement : MonoBehaviour
             return;
         }
 
-        if (constructionSitePrefab == null)
+        // Get building data
+        if (BuildingDatabase.Instance == null)
         {
-            Debug.LogError("BuildPlacement: ConstructionSite prefab is not assigned!");
+            Debug.LogError("BuildPlacement: BuildingDatabase not found!");
+            return;
+        }
+
+        BuildingData data = BuildingDatabase.Instance.GetBuildingData(selectedBuildingType);
+        if (data == null || data.constructionSitePrefab == null)
+        {
+            Debug.LogError($"BuildPlacement: No construction site prefab for {selectedBuildingType}!");
             return;
         }
 
@@ -223,28 +263,35 @@ public class BuildPlacement : MonoBehaviour
             return;
         }
 
-        if (!ResourceManager.Instance.CanAfford(woodCost, foodCost, stoneCost))
+        if (!ResourceManager.Instance.CanAfford(data.woodCost, data.foodCost, data.stoneCost))
         {
-            Debug.Log($"BuildPlacement: Not enough resources! Need Wood:{woodCost} Food:{foodCost} Stone:{stoneCost}");
+            Debug.Log($"BuildPlacement: Not enough resources! Need {data.woodCost}W {data.foodCost}F {data.stoneCost}S");
             return;
         }
 
         // Deduct resources
-        ResourceManager.Instance.SpendResources(woodCost, foodCost, stoneCost);
+        ResourceManager.Instance.SpendResources(data.woodCost, data.foodCost, data.stoneCost);
 
         // Use target position (where ghost is moving to) not current position
         Vector3 buildPosition = targetPosition;
-        Debug.Log($"BuildPlacement: Spawning ConstructionSite at {buildPosition}");
+        Debug.Log($"BuildPlacement: Spawning ConstructionSite for {data.buildingName} at {buildPosition}");
 
         // Spawn the construction site
         GameObject constructionSite = Instantiate(
-            constructionSitePrefab,
+            data.constructionSitePrefab,
             buildPosition,
             Quaternion.identity
         );
 
         // Make sure it's on the Buildings layer for collision detection
         constructionSite.layer = LayerMask.NameToLayer("Buildings");
+
+        // Configure construction site with building type
+        ConstructionSite siteComponent = constructionSite.GetComponent<ConstructionSite>();
+        if (siteComponent != null)
+        {
+            siteComponent.SetBuildingType(selectedBuildingType);
+        }
 
         // Play building placed sound
         if (AudioManager.Instance != null)
@@ -265,12 +312,18 @@ public class BuildPlacement : MonoBehaviour
             ghostNoBuildZone = null;
         }
 
+        // Hide UI if exists
+        if (selectionUI != null)
+        {
+            selectionUI.Hide();
+        }
+
         // End placement mode
         currentGhost = null;
         ghostRenderer = null;
         isPlacing = false;
 
-        Debug.Log("BuildPlacement: ConstructionSite placed! It will auto-complete in a few seconds. Press B to place another.");
+        Debug.Log($"BuildPlacement: {data.buildingName} construction started! Press B to place another.");
     }
 
     void CancelPlacement()
@@ -294,7 +347,84 @@ public class BuildPlacement : MonoBehaviour
             ghostNoBuildZone = null;
         }
 
+        // Hide UI if exists
+        if (selectionUI != null)
+        {
+            selectionUI.Hide();
+        }
+
         isPlacing = false;
+    }
+
+    /// <summary>
+    /// Switch to a different building type during placement mode
+    /// </summary>
+    void SelectBuilding(BuildingType type)
+    {
+        if (!isPlacing)
+        {
+            Debug.LogWarning("BuildPlacement: Cannot select building - not in placement mode!");
+            return;
+        }
+
+        // Check if BuildingDatabase exists
+        if (BuildingDatabase.Instance == null)
+        {
+            Debug.LogError("BuildPlacement: BuildingDatabase not found in scene!");
+            return;
+        }
+
+        // Get building data for the selected type
+        BuildingData data = BuildingDatabase.Instance.GetBuildingData(type);
+        if (data == null)
+        {
+            Debug.LogError($"BuildPlacement: No BuildingData found for {type}!");
+            return;
+        }
+
+        // Destroy old ghost
+        if (currentGhost != null)
+        {
+            Destroy(currentGhost);
+        }
+
+        // Destroy old ghost no-build zone
+        if (ghostNoBuildZone != null)
+        {
+            Destroy(ghostNoBuildZone);
+        }
+
+        // Update selected building type
+        selectedBuildingType = type;
+
+        // Spawn new ghost from building data
+        currentGhost = Instantiate(data.ghostPrefab);
+        ghostRenderer = currentGhost.GetComponent<Renderer>();
+
+        if (ghostRenderer == null)
+        {
+            Debug.LogError($"BuildPlacement: Ghost prefab for {type} has no Renderer component!");
+        }
+
+        // Update building size and placement height for collision detection
+        buildingSize = data.buildingSize;
+        placementHeight = data.placementHeight;
+        ghostBuildingNoBuildRadius = data.noBuildRadius;
+
+        // Initialize target position
+        targetPosition = currentGhost.transform.position;
+
+        // Create new ghost no-build zone
+        CreateGhostNoBuildZone();
+
+        // Update UI if exists
+        if (selectionUI != null)
+        {
+            bool canAfford = ResourceManager.Instance.CanAfford(data.woodCost, data.foodCost, data.stoneCost);
+            selectionUI.UpdateDisplay(data, canAfford);
+        }
+
+        Debug.Log($"BuildPlacement: Selected {data.buildingName} (Cost: {data.woodCost}W {data.foodCost}F {data.stoneCost}S)");
     }
 
     // Check if position is too close to any existing building's no-build zone
@@ -351,6 +481,36 @@ public class BuildPlacement : MonoBehaviour
             }
         }
 
+        // Check all Wall objects (finished walls)
+        Wall[] walls = FindObjectsByType<Wall>(FindObjectsSortMode.None);
+        foreach (Wall wall in walls)
+        {
+            if (wall == null) continue;
+
+            float deltaX = Mathf.Abs(position.x - wall.transform.position.x);
+            float deltaZ = Mathf.Abs(position.z - wall.transform.position.z);
+
+            if (deltaX < wall.noBuildRadius + gridBuffer && deltaZ < wall.noBuildRadius + gridBuffer)
+            {
+                return true;  // Too close!
+            }
+        }
+
+        // Check all Watchtower objects (finished towers)
+        Watchtower[] watchtowers = FindObjectsByType<Watchtower>(FindObjectsSortMode.None);
+        foreach (Watchtower tower in watchtowers)
+        {
+            if (tower == null) continue;
+
+            float deltaX = Mathf.Abs(position.x - tower.transform.position.x);
+            float deltaZ = Mathf.Abs(position.z - tower.transform.position.z);
+
+            if (deltaX < tower.noBuildRadius + gridBuffer && deltaZ < tower.noBuildRadius + gridBuffer)
+            {
+                return true;  // Too close!
+            }
+        }
+
         return false;  // All good!
     }
 
@@ -398,6 +558,22 @@ public class BuildPlacement : MonoBehaviour
             if (hut == null) continue;
             CreateCircleVisual(hut.transform.position, hut.noBuildRadius);
         }
+
+        // Create circles for all Wall objects
+        Wall[] walls = FindObjectsByType<Wall>(FindObjectsSortMode.None);
+        foreach (Wall wall in walls)
+        {
+            if (wall == null) continue;
+            CreateCircleVisual(wall.transform.position, wall.noBuildRadius);
+        }
+
+        // Create circles for all Watchtower objects
+        Watchtower[] watchtowers = FindObjectsByType<Watchtower>(FindObjectsSortMode.None);
+        foreach (Watchtower tower in watchtowers)
+        {
+            if (tower == null) continue;
+            CreateCircleVisual(tower.transform.position, tower.noBuildRadius);
+        }
     }
 
     // Create merged zones by filling grid cells then outlining the filled region
@@ -425,6 +601,20 @@ public class BuildPlacement : MonoBehaviour
         {
             if (hut == null) continue;
             zones.Add(new ZoneData { position = hut.transform.position, radius = hut.noBuildRadius });
+        }
+
+        Wall[] walls = FindObjectsByType<Wall>(FindObjectsSortMode.None);
+        foreach (Wall wall in walls)
+        {
+            if (wall == null) continue;
+            zones.Add(new ZoneData { position = wall.transform.position, radius = wall.noBuildRadius });
+        }
+
+        Watchtower[] watchtowers = FindObjectsByType<Watchtower>(FindObjectsSortMode.None);
+        foreach (Watchtower tower in watchtowers)
+        {
+            if (tower == null) continue;
+            zones.Add(new ZoneData { position = tower.transform.position, radius = tower.noBuildRadius });
         }
 
         if (zones.Count == 0) return;

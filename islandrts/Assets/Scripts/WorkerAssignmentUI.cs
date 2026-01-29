@@ -170,7 +170,7 @@ public class WorkerAssignmentUI : MonoBehaviour
         if (totalWorkersCountText != null)
         {
             int total = baseBuilding.GetTotalWorkers();
-            int max = baseBuilding.maxWorkers;
+            int max = PopulationManager.Instance != null ? PopulationManager.Instance.GetHousingCapacity() : 10;
             totalWorkersCountText.text = $"{total} / {max}";
         }
 
@@ -203,14 +203,7 @@ public class WorkerAssignmentUI : MonoBehaviour
             return;
         }
 
-        // Check if we can add more workers
-        if (baseBuilding.GetTotalWorkers() >= baseBuilding.maxWorkers)
-        {
-            Debug.Log("WorkerAssignmentUI: Cannot add more workers - at maximum!");
-            return;
-        }
-
-        // Add worker through BaseBuilding
+        // Add worker through BaseBuilding (it will check housing capacity internally)
         baseBuilding.AssignWorker(resourceType);
         Debug.Log($"WorkerAssignmentUI: Worker assigned! New count: {baseBuilding.GetTotalWorkers()}");
 

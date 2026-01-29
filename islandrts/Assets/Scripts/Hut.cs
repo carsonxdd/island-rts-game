@@ -9,6 +9,9 @@ public class Hut : MonoBehaviour
     [Header("Building Placement")]
     public float noBuildRadius = 3.5f;  // Creates 7x7 square no-build zone (3 grid cell buffer)
 
+    [Header("Population & Housing")]
+    public int workerCapacity = 2;  // Huts provide 2 worker slots
+
     void Start()
     {
         // Setup Health component
@@ -25,12 +28,20 @@ public class Hut : MonoBehaviour
         healthComponent.showObjectName = true;
         healthComponent.onDeath.AddListener(OnHutDestroyed);
 
-        // Disable NavMeshObstacle carving so enemies can attack from all sides
+        // Enable NavMeshObstacle carving so workers path around the hut
         UnityEngine.AI.NavMeshObstacle obstacle = GetComponent<UnityEngine.AI.NavMeshObstacle>();
         if (obstacle != null)
         {
-            obstacle.carving = false;  // Don't carve NavMesh - let enemies get close
-            Debug.Log($"Hut: NavMeshObstacle carving disabled for combat");
+            obstacle.carving = true;  // Carve NavMesh so agents path around
+            obstacle.carveOnlyStationary = true;  // Only carve when not moving (performance)
+            Debug.Log($"Hut: NavMeshObstacle carving enabled for pathfinding");
+        }
+
+        // Register housing capacity with PopulationManager
+        if (PopulationManager.Instance != null)
+        {
+            PopulationManager.Instance.AddHousing(workerCapacity);
+            Debug.Log($"Hut: Registered {workerCapacity} housing slots");
         }
 
         Debug.Log($"Hut: Initialized at {transform.position} with {maxHealth} HP and no-build radius {noBuildRadius}");
@@ -39,6 +50,20 @@ public class Hut : MonoBehaviour
     void OnHutDestroyed()
     {
         Debug.Log($"Hut: {gameObject.name} has been destroyed!");
+
+        // Remove housing capacity from PopulationManager
+        if (PopulationManager.Instance != null)
+        {
+            PopulationManager.Instance.RemoveHousing(workerCapacity);
+
+            // Check if workers are now homeless
+            if (PopulationManager.Instance.HasHomelessWorkers())
+            {
+                int homelessCount = PopulationManager.Instance.GetHomelessCount();
+                Debug.LogWarning($"Hut: {homelessCount} workers are now HOMELESS! Build more huts.");
+            }
+        }
+
         // Could add visual effects, resource drops, etc. here
     }
 

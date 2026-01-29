@@ -6,8 +6,11 @@ public class ConstructionSite : MonoBehaviour
 {
     [Header("Construction Settings")]
     public float buildTime = 5f;  // Seconds to auto-complete
-    public GameObject finishedBuildingPrefab;  // What to spawn when done
+    public GameObject finishedBuildingPrefab;  // Legacy: What to spawn when done (use BuildingDatabase instead)
     public float targetHealth = 100f;  // Health the finished building will have
+
+    [Header("Building Type (Set by BuildPlacement)")]
+    public BuildingType buildingType = BuildingType.Hut;  // Which building type to construct
 
     [Header("Progress")]
     [Range(0f, 1f)]
@@ -32,8 +35,9 @@ public class ConstructionSite : MonoBehaviour
         if (obstacle != null)
         {
             obstacle.enabled = true;
-            obstacle.carving = false;  // Disable carving to prevent path recalculation during construction
-            Debug.Log("ConstructionSite: NavMesh Obstacle enabled (no carving)!");
+            obstacle.carving = true;  // Enable carving so workers path around
+            obstacle.carveOnlyStationary = true;  // Only carve when not moving (performance)
+            Debug.Log("ConstructionSite: NavMesh Obstacle enabled with carving!");
         }
 
         // Create progress text display
@@ -69,30 +73,58 @@ public class ConstructionSite : MonoBehaviour
         isComplete = true;
         Debug.Log($"ConstructionSite: Building completed at {transform.position}!");
 
+        // Get building data from database
+        if (BuildingDatabase.Instance == null)
+        {
+            Debug.LogError("ConstructionSite: BuildingDatabase not found! Cannot spawn finished building.");
+            Destroy(gameObject);
+            return;
+        }
+
+        BuildingData data = BuildingDatabase.Instance.GetBuildingData(buildingType);
+        if (data == null || data.finishedBuildingPrefab == null)
+        {
+            Debug.LogError($"ConstructionSite: No finished building prefab for {buildingType}!");
+            Destroy(gameObject);
+            return;
+        }
+
         // Spawn the finished building
-        if (finishedBuildingPrefab != null)
-        {
-            GameObject finishedBuilding = Instantiate(
-                finishedBuildingPrefab,
-                transform.position,
-                transform.rotation
-            );
+        GameObject finishedBuilding = Instantiate(
+            data.finishedBuildingPrefab,
+            transform.position,
+            transform.rotation
+        );
 
-            // Copy layer to finished building
-            finishedBuilding.layer = gameObject.layer;
+        // Copy layer to finished building
+        finishedBuilding.layer = gameObject.layer;
 
-            // Note: NavMeshObstacle settings are handled by the building's own script (Hut, BaseBuilding, etc.)
-            // Those scripts disable carving to prevent path stuttering
+        // Note: NavMeshObstacle settings are handled by the building's own script (Wall, Watchtower, Hut, etc.)
+        // Wall scripts enable carving, other buildings disable it
 
-            Debug.Log("ConstructionSite: Spawned finished building!");
-        }
-        else
-        {
-            Debug.LogWarning("ConstructionSite: No finished building prefab assigned!");
-        }
+        Debug.Log($"ConstructionSite: Spawned finished {data.buildingName}!");
 
         // Destroy the construction site
         Destroy(gameObject);
+    }
+
+    /// <summary>
+    /// Set the building type to construct (called by BuildPlacement)
+    /// </summary>
+    public void SetBuildingType(BuildingType type)
+    {
+        buildingType = type;
+
+        // Update target health from building data
+        if (BuildingDatabase.Instance != null)
+        {
+            BuildingData data = BuildingDatabase.Instance.GetBuildingData(type);
+            if (data != null)
+            {
+                targetHealth = data.maxHealth;
+                Debug.Log($"ConstructionSite: Set to build {data.buildingName} with {targetHealth} HP");
+            }
+        }
     }
 
     // Method for workers to add progress (we'll use this later)

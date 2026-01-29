@@ -15,6 +15,9 @@ public class BaseBuilding : MonoBehaviour
     public GameObject workerPrefab;
     public int maxWorkers = 10;
 
+    [Header("Population & Housing")]
+    public int workerCapacity = 3;  // Campfire provides 3 worker slots (starting crew)
+
     [Header("Worker Assignments")]
     public int woodWorkers = 0;
     public int foodWorkers = 0;
@@ -59,6 +62,13 @@ public class BaseBuilding : MonoBehaviour
         healthComponent.onDeath.AddListener(OnCampfireDestroyed);
 
         Debug.Log($"BaseBuilding: Health system initialized - {maxHealth} HP");
+
+        // Register housing capacity with PopulationManager
+        if (PopulationManager.Instance != null)
+        {
+            PopulationManager.Instance.AddHousing(workerCapacity);
+            Debug.Log($"BaseBuilding: Registered {workerCapacity} housing slots");
+        }
 
         // Get ALL renderers BEFORE creating health text (checks this object AND all children)
         buildingRenderers = GetComponentsInChildren<Renderer>();
@@ -145,11 +155,10 @@ public class BaseBuilding : MonoBehaviour
     // Assign a worker to a resource type
     public void AssignWorker(ResourceNode.ResourceType resourceType)
     {
-        int totalWorkers = woodWorkers + foodWorkers + stoneWorkers;
-
-        if (totalWorkers >= maxWorkers)
+        // Check housing capacity via PopulationManager (this is now the only limit)
+        if (PopulationManager.Instance != null && !PopulationManager.Instance.HasAvailableHousing())
         {
-            Debug.Log("BaseBuilding: Max workers reached!");
+            Debug.Log($"BaseBuilding: No housing available! Build more huts. ({PopulationManager.Instance.GetCurrentWorkers()}/{PopulationManager.Instance.GetHousingCapacity()})");
             return;
         }
 
@@ -204,6 +213,12 @@ public class BaseBuilding : MonoBehaviour
             // Remove from list
             activeWorkers.Remove(workerToRemove);
 
+            // Unregister worker with PopulationManager
+            if (PopulationManager.Instance != null)
+            {
+                PopulationManager.Instance.RemoveWorker();
+            }
+
             // Destroy the worker GameObject
             Destroy(workerToRemove.gameObject);
 
@@ -248,6 +263,12 @@ public class BaseBuilding : MonoBehaviour
             worker.assignedResourceType = resourceType;
             worker.baseBuilding = this;
             activeWorkers.Add(worker);
+
+            // Register worker with PopulationManager
+            if (PopulationManager.Instance != null)
+            {
+                PopulationManager.Instance.AddWorker();
+            }
 
             Debug.Log($"BaseBuilding: Spawned {resourceType} worker at {spawnPos}");
         }
@@ -376,6 +397,12 @@ public class BaseBuilding : MonoBehaviour
         Debug.Log("========================================");
         Debug.Log("BaseBuilding: CAMPFIRE DESTROYED! GAME OVER!");
         Debug.Log("========================================");
+
+        // Remove housing capacity from PopulationManager
+        if (PopulationManager.Instance != null)
+        {
+            PopulationManager.Instance.RemoveHousing(workerCapacity);
+        }
 
         // Health component will handle the "DESTROYED!" text display
 

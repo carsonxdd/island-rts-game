@@ -7,6 +7,7 @@ public class ResourceUI : MonoBehaviour
     public TMP_Text woodText;
     public TMP_Text foodText;
     public TMP_Text stoneText;
+    public TMP_Text populationText;  // Display worker population
 
     [Header("Update Settings")]
     public float updateInterval = 0.1f;  // Update UI every 0.1 seconds
@@ -47,6 +48,32 @@ public class ResourceUI : MonoBehaviour
         if (stoneText != null)
         {
             stoneText.text = $"Stone: {ResourceManager.Instance.GetStone()}";
+        }
+
+        // Update population display
+        if (populationText != null && PopulationManager.Instance != null)
+        {
+            int currentWorkers = PopulationManager.Instance.GetCurrentWorkers();
+            int housingCapacity = PopulationManager.Instance.GetHousingCapacity();
+
+            populationText.text = $"Workers: {currentWorkers}/{housingCapacity}";
+
+            // Color code based on housing status
+            if (PopulationManager.Instance.HasHomelessWorkers())
+            {
+                // Red if workers are homeless
+                populationText.color = Color.red;
+            }
+            else if (currentWorkers >= housingCapacity)
+            {
+                // Yellow if at capacity
+                populationText.color = Color.yellow;
+            }
+            else
+            {
+                // White if there's room
+                populationText.color = Color.white;
+            }
         }
     }
 

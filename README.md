@@ -67,9 +67,9 @@ Think *Age of Empires* meets *Don't Starve* with a shipwreck survival twist, evo
 
 ## 🎮 Current Status
 
-**Development Phase:** Phase 5.5 Complete - Audio System & 3D Spatial Audio! 🎵✨
-**Last Updated:** December 2025
-**Build Status:** Fully playable with visual effects and complete 3D spatial audio
+**Development Phase:** Phase 6A Complete - Defensive Structures & Building Selection System
+**Last Updated:** January 2026
+**Build Status:** Fully playable with building selection menu, defensive structures, visual effects, 3D spatial audio, and housing management
 
 ### What's Working Now:
 - ✅ Complete resource gathering system with 10 autonomous workers
@@ -92,6 +92,14 @@ Think *Age of Empires* meets *Don't Starve* with a shipwreck survival twist, evo
 - ✅ **Victory/Defeat sounds** - Triggered on game end
 - ✅ **Combat music** - Plays when enemies spawn
 - 🔄 **Combat/UI sound effects** (system ready, audio clips needed)
+- ✅ **Population & Housing System** - Workers require housing to recruit
+- ✅ **Dynamic worker capacity** - Scales with buildings (Campfire: 3 slots, Huts: 2 slots each)
+- ✅ **Population UI display** - Shows "Workers: X/Y" with color coding
+- ✅ **Building Selection System** - Press 1-4 to switch between building types
+- ✅ **BuildingDatabase** - ScriptableObject-driven building data system
+- ✅ **Defensive Structures** - Wooden Wall, Stone Wall, Watchtower placeable
+- ✅ **Building Selection UI** - Shows building name, cost, and hotkey hints
+- ✅ **NavMesh carving** - Buildings and construction sites properly block pathfinding
 
 ### Known Issues & Bugs:
 1. **Warrior Stuttering** ✅ FIXED
@@ -154,13 +162,45 @@ Think *Age of Empires* meets *Don't Starve* with a shipwreck survival twist, evo
 - Victory and defeat sounds play on game end
 - AudioManager is fully set up - just needs audio clip files assigned in Inspector
 
+### Phase 6A (Partial) - Population & Housing System! 🏘️
+**Population Management - COMPLETE**
+- ✅ PopulationManager singleton system
+- ✅ Worker housing capacity tracking
+- ✅ Campfire provides 3 worker slots (starting crew)
+- ✅ Huts provide 2 worker slots each
+- ✅ Dynamic capacity scaling (unlimited growth)
+- ✅ Housing limit enforcement (can't recruit without housing)
+- ✅ Population UI display with color coding:
+  - **White** = Room available
+  - **Yellow** = At capacity
+  - **Red** = Homeless workers (building destroyed)
+- ✅ WorkerAssignmentUI updated to show housing capacity
+- ✅ Homeless worker detection and warnings
+
+**What Works:**
+- Start with Campfire = 3 worker capacity
+- Build Huts to expand capacity (+2 per hut)
+- Worker recruitment blocked when at housing limit
+- Real-time UI updates showing "Workers: X/Y"
+- Destroying buildings reduces capacity and warns about homeless workers
+- No more hardcoded 10-worker limit - scales infinitely with housing!
+
+### Phase 6A Complete! 🏗️
+**Defensive Structures & Building Selection - FINISHED**
+- ✅ Building selection system (Press 1-4 to switch: Hut, Wooden Wall, Stone Wall, Watchtower)
+- ✅ BuildingDatabase with ScriptableObject-driven data (HutData, WoodenWallData, StoneWallData, WatchTowerData)
+- ✅ Building Selection UI panel (shows name, cost, hotkey hints)
+- ✅ Wooden Wall (15W + 5S, 150 HP)
+- ✅ Stone Wall (10W + 20S, 300 HP)
+- ✅ Watchtower (25W + 15S, 200 HP)
+- ✅ NavMesh carving on huts and construction sites (workers path around properly)
+- ✅ Stone now has gameplay purpose (defensive structures)
+
 ### Next Up:
-**Phase 6 - Economy Expansion** (Optional)
-- Stone resource actually used (walls, towers)
+**Phase 6B - Building Progression** (Future)
 - Building upgrades (campfire → fortress)
-- Worker housing requirements
 - Advanced buildings (storage, workshop)
-- Technology/upgrade system
+- Tool upgrade system
 
 ---
 
@@ -188,10 +228,14 @@ Think *Age of Empires* meets *Don't Starve* with a shipwreck survival twist, evo
 
 ### Building:
 1. Press **B** to enter build mode
-2. Move mouse to position ghost building (cyan = valid, red = invalid)
-3. **Left-click** to confirm placement
-4. Cost: 20 wood + 10 food per hut
-5. Huts provide housing but no other benefit yet
+2. Press **1-4** to select building type:
+   - **1** = Hut (20W) - housing for 2 workers
+   - **2** = Wooden Wall (15W + 5S) - basic defense, 150 HP
+   - **3** = Stone Wall (10W + 20S) - strong defense, 300 HP
+   - **4** = Watchtower (25W + 15S) - defensive structure, 200 HP
+3. Move mouse to position ghost building (green = valid, red = invalid)
+4. **Left-click** to confirm placement
+5. **ESC** or **Right-click** to cancel
 6. Construction takes 5 seconds (auto-completes)
 
 ### Combat & Defense:
@@ -571,6 +615,59 @@ Each unit now has its own AudioSource component for directional sound:
 
 ---
 
+## 🎯 Phase 6A Implementation Summary (Partial) ✅ 🏘️
+
+### Population & Housing System Components
+- **PopulationManager:** Singleton system for tracking worker housing capacity
+  - Tracks `currentWorkers` and `housingCapacity`
+  - Methods: `HasAvailableHousing()`, `AddWorker()`, `RemoveWorker()`, `AddHousing()`, `RemoveHousing()`
+  - Detects homeless workers when buildings destroyed
+  - Recalculates capacity when buildings added/removed
+
+- **Worker Capacity System:**
+  - Campfire: 3 worker slots (starting shipwrecked crew)
+  - Hut: 2 worker slots (expandable housing)
+  - Scales infinitely with building construction
+  - No more hardcoded 10-worker limit!
+
+- **UI Integration:**
+  - ResourceUI updated with population display
+  - Shows "Workers: X/Y" in top bar
+  - Color coding: White (available) → Yellow (at capacity) → Red (homeless)
+  - WorkerAssignmentUI updated to show housing capacity
+  - Real-time updates as buildings are built/destroyed
+
+### New Scripts Added
+- **PopulationManager.cs** - Singleton housing tracker
+- Updated: **BaseBuilding.cs** - Added `workerCapacity` property and housing registration
+- Updated: **Hut.cs** - Added `workerCapacity` property and housing registration
+- Updated: **ResourceUI.cs** - Added population text display with color coding
+- Updated: **WorkerAssignmentUI.cs** - Removed old maxWorkers limit, uses housing capacity
+
+### Integration Points
+- **BaseBuilding.cs:** Registers housing on Start, checks capacity before spawning workers
+- **Hut.cs:** Registers housing on Start, unregisters on destruction with homeless warning
+- **WorkerAssignmentUI.cs:** Displays housing capacity instead of hardcoded limit
+- **ResourceUI.cs:** Real-time population display with visual feedback
+
+### Setup Requirements
+1. Create empty GameObject named "PopulationManager" in scene
+2. Add PopulationManager.cs component to it
+3. Add TextMeshPro text object to Canvas for population display
+4. Link population text to ResourceUI component in Inspector
+5. Campfire and Huts automatically register housing capacity
+
+### How It Works
+- **Starting State:** Campfire provides 3 worker slots
+- **Expansion:** Each Hut adds +2 worker slots (unlimited)
+- **Worker Recruitment:** Blocked when housing capacity reached
+- **Building Destruction:** Reduces capacity, warns if workers become homeless
+- **Strategic Impact:** Must build infrastructure to expand workforce
+
+**Phase 6A Defensive Structures - COMPLETE ✅**
+
+---
+
 ## 🧪 Testing Checklist
 
 ### Basic Functionality:
@@ -621,6 +718,21 @@ Each unit now has its own AudioSource component for directional sound:
 - [ ] Units fade out smoothly on death
 - [ ] CombatEffectsManager exists in scene hierarchy
 - [ ] No excessive particles causing lag (performance check)
+
+### Population System (Phase 6A):
+- [ ] PopulationManager GameObject exists in scene
+- [ ] Population text displays "Workers: X/Y" in top UI bar
+- [ ] Starting capacity is 3 (from Campfire only)
+- [ ] Cannot recruit 4th worker without building a hut
+- [ ] Building 1 hut increases capacity to 5 (3 + 2)
+- [ ] Population display turns YELLOW when at capacity
+- [ ] Worker assignment panel shows correct capacity (not hardcoded 10)
+- [ ] Building multiple huts scales capacity correctly (+2 per hut)
+- [ ] No worker limit beyond housing capacity
+- [ ] Destroying a hut reduces capacity by 2
+- [ ] Population display turns RED if workers become homeless
+- [ ] Console warns about homeless workers when building destroyed
+- [ ] Can recruit up to housing capacity (tested with 10+ workers)
 
 ---
 
@@ -745,6 +857,13 @@ Each unit now has its own AudioSource component for directional sound:
 - Event-driven UI updates
 - Global access via ResourceManager.Instance
 
+**PopulationManager (Singleton):**
+- Worker housing capacity tracking
+- Dynamic scaling based on buildings
+- Housing limit enforcement
+- Homeless worker detection
+- Global access via PopulationManager.Instance
+
 **Worker AI State Machine:**
 ```
 Idle → SearchForResource → MovingToResource → Gathering → ReturningToBase → Idle
@@ -802,6 +921,7 @@ Assets/
 ├── Scripts/
 │   ├── Core/
 │   │   ├── ResourceManager.cs (singleton)
+│   │   ├── PopulationManager.cs (singleton - housing tracker)
 │   │   ├── GameManager.cs (game state)
 │   │   └── Health.cs (universal health)
 │   ├── Building/
@@ -883,11 +1003,168 @@ Assets/
 - 🔄 Audio clip assignments (system ready, clips needed for full implementation)
 
 ### 🔮 Phase 6: Economy Expansion
-- [ ] Stone resource actually used (walls, towers)
-- [ ] Building upgrades (campfire → fortress)
-- [ ] Worker housing requirements (huts provide worker slots)
-- [ ] Advanced buildings (storage, workshop, barracks)
-- [ ] Technology/upgrade system
+
+**Implementation Strategy:** Three major milestones (6A → 6B → 6C)
+
+---
+
+#### **Phase 6A: Defensive Expansion** ⭐ START HERE
+**Goal:** Make stone useful + add population management
+**Estimated Time:** 5-8 hours
+
+**New Defensive Structures:**
+- [ ] **Wooden Wall** - Basic perimeter defense
+  - Cost: 15 Wood + 5 Stone
+  - Health: 150 HP
+  - Placement: Connects in line segments to create barriers
+  - Blocks enemy pathing (enemies must attack to break through)
+
+- [ ] **Stone Wall** - Upgraded defense
+  - Cost: 10 Wood + 20 Stone
+  - Health: 300 HP
+  - Stronger defensive barrier
+
+- [ ] **Watchtower** - Early warning + defensive position
+  - Cost: 25 Wood + 15 Stone
+  - Health: 200 HP
+  - Feature: Reveals enemies earlier (extended vision range)
+  - Optional: Can house 1 archer unit (prep for Phase 7)
+
+**Housing & Population System:**
+- [ ] **Worker Capacity System:**
+  - Each building provides worker slots:
+    - Starting Campfire: 3 worker slots (base crew)
+    - Basic Hut: 2 worker slots
+    - Longhouse (future): 4 worker slots
+    - Manor (future): 6 worker slots
+  - UI shows: "Workers: 7/10" (current/max capacity)
+  - Cannot recruit workers beyond housing limit
+
+- [ ] **Population Management:**
+  - Warning when at housing capacity: "Build more housing!"
+  - Homeless workers if building destroyed (still work during day)
+  - "Homeless" indicator in UI
+  - Sets up Phase 7 mechanic: workers need housing to hide at night
+
+**Strategic Impact:**
+- Stone becomes valuable defensive resource
+- Players can build defensive perimeters and chokepoints
+- Population planning required (housing before workers)
+- Losing buildings = losing worker capacity
+
+---
+
+#### **Phase 6B: Building Progression**
+**Goal:** Add building tiers and meaningful upgrades
+**Estimated Time:** 4-6 hours
+
+**Building Upgrade System:**
+- [ ] **Campfire Upgrade Path:**
+  - **Campfire → Fire Pit** (50 Wood + 30 Stone)
+    - Health: 300 HP (up from 200)
+    - Unlocks: +2 max warriors (7 total instead of 5)
+    - Visual: Larger fire with stone ring
+  - **Fire Pit → Fortress** (100 Wood + 80 Stone)
+    - Health: 500 HP
+    - Unlocks: +3 max warriors (10 total)
+    - Feature: Auto-repairs 5 HP per minute
+    - Visual: Stone structure with battlements
+
+- [ ] **Hut Upgrade Path:**
+  - **Hut → Longhouse** (40 Wood + 20 Stone)
+    - Health: 150 HP (up from 100)
+    - Worker capacity: 4 (up from 2)
+    - Visual: Longer building footprint
+  - **Longhouse → Manor** (80 Wood + 50 Stone)
+    - Health: 250 HP
+    - Worker capacity: 6
+    - Bonus: Workers housed here gather 10% faster
+    - Visual: Two-story structure
+
+**Upgrade UI:**
+- [ ] Click building → "Upgrade Available" button appears
+- [ ] Shows upgrade cost and benefits clearly
+- [ ] Upgrade construction takes 10 seconds
+- [ ] Building transforms (no demolish needed)
+
+**New Specialized Buildings:**
+- [ ] **Storage Shed** - Resource stockpiling
+  - Cost: 30 Wood + 10 Stone
+  - Health: 100 HP
+  - Feature: Increases resource cap from 999 to 1500 per resource
+  - Allows stockpiling for big upgrades
+
+- [ ] **Workshop** - Tool upgrades
+  - Cost: 50 Wood + 25 Stone
+  - Health: 150 HP
+  - Unlocks worker tool upgrades:
+    - **Stone Tools** (default): 1 resource/second
+    - **Iron Tools** (upgrade): 1.5 resources/second (costs 50 stone to research)
+    - **Steel Tools** (upgrade): 2 resources/second (costs 100 stone to research)
+  - Simplified version of Phase 8's full tech tree
+
+**Strategic Impact:**
+- Players choose: upgrade vs expand
+- Resource sink for mid-late game
+- Stronger buildings = better night survival
+- Tool upgrades = economic efficiency boost
+
+---
+
+#### **Phase 6C: Economic Depth** (Optional Polish)
+**Goal:** Add military upgrades and research system
+**Estimated Time:** 6-8 hours
+
+**Advanced Buildings:**
+- [ ] **Barracks** - Military training facility
+  - Cost: 60 Wood + 40 Stone
+  - Health: 250 HP
+  - Unlocks warrior upgrades (one-time research):
+    - **Veteran Training:** +15 HP to all warriors (40 wood + 60 food)
+    - **Combat Drills:** +2 damage to all warriors (50 wood + 50 food)
+    - **Formation Training:** Warriors patrol in pairs (30 wood + 30 food)
+  - Creates choice: stronger warriors vs more warriors
+
+- [ ] **Quarry** - Automated stone production
+  - Cost: 80 Wood + 40 Stone
+  - Health: 150 HP
+  - Feature: Passively generates 1 stone every 5 seconds
+  - Requires: 1 worker assigned (stays at quarry)
+  - Frees workers for other tasks
+
+**Simple Research System:**
+- [ ] **Research UI Panel** - Button on campfire: "Research"
+  - Shows available technologies
+  - One research at a time (30 seconds to complete)
+  - Each tech has cost, description, benefit
+
+**Available Technologies:**
+- [ ] **Economy Tier:**
+  - Efficient Gathering: Workers gather 20% faster (50W + 50F + 30S)
+  - Increased Capacity: Workers carry 7 resources (40W + 40F + 20S)
+
+- [ ] **Military Tier:**
+  - Armor Training: Warriors +20 HP (60W + 80F + 40S)
+  - Weapon Sharpening: Warriors +3 damage (50W + 70F + 30S)
+
+- [ ] **Building Tier:**
+  - Reinforced Construction: All buildings +50 HP (80W + 100S)
+  - Quick Construction: Buildings complete in 3s (60W + 40S)
+
+**Strategic Impact:**
+- Long-term goals and progression
+- Meaningful resource sinks for stockpiled resources
+- Replay value (different tech paths)
+- Prepares for Phase 8's full tech tree
+
+---
+
+**Phase 6 Summary:**
+- **6A (Essential):** Walls + Housing system → Stone becomes useful + population management
+- **6B (High Value):** Building upgrades + Workshop → Progression and efficiency
+- **6C (Optional):** Barracks + Research → Advanced strategy and late-game depth
+
+**Leads into Phase 7:** Housing system naturally enables worker night-hiding mechanic
 
 ### 🔮 Phase 7: Worker Night Behavior System
 - [ ] **Worker Hide Mechanic:**
@@ -1485,11 +1762,11 @@ All combat visual effects have been implemented:
 
 ---
 
-**Last Updated:** December 2025
-**Current Build:** Phase 5.5 Complete - Audio & 3D Spatial Audio! 🎵✨
-**Status:** Fully Playable with Visual Effects and Complete 3D Spatial Audio
+**Last Updated:** January 2026
+**Current Build:** Phase 6A Complete - Defensive Structures & Building Selection
+**Status:** Fully Playable with Building Menu, Defensive Structures, Visual Effects, 3D Spatial Audio, and Housing Management
 **Known Issues:** None game-breaking - all critical bugs fixed
-**Next Milestone:** Phase 6 - Economy Expansion (Optional)
+**Next Milestone:** Phase 6B - Building Progression (Upgrades)
 
 *A shipwreck survival RTS game built in Unity*
 
@@ -1512,3 +1789,4 @@ All combat visual effects have been implemented:
 8. Try to survive 5 nights!
 
 **Have fun building your island settlement!** 🏝️⚔️✨
+

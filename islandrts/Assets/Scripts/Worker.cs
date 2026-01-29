@@ -109,6 +109,12 @@ public class Worker : MonoBehaviour
         // Don't do anything until initialized
         if (!isInitialized) return;
 
+        // Update gathering audio volume based on AudioManager SFX slider
+        if (gatheringAudioSource != null && AudioManager.Instance != null)
+        {
+            gatheringAudioSource.volume = 0.15f * AudioManager.Instance.sfxVolume * AudioManager.Instance.masterVolume;
+        }
+
         // Update state text display
         if (showStateText && stateText != null)
         {
@@ -640,8 +646,8 @@ public class Worker : MonoBehaviour
         gatheringAudioSource.maxDistance = 25f;  // Can't hear beyond 25 units
         gatheringAudioSource.rolloffMode = AudioRolloffMode.Linear;  // Linear falloff
 
-        // Volume settings
-        gatheringAudioSource.volume = 0.3f;  // Quieter than before (was 0.6)
+        // Volume settings - will be updated dynamically in Update() based on AudioManager SFX volume
+        gatheringAudioSource.volume = 0.15f;  // Base volume (will be multiplied by SFX slider)
 
         // Doppler effect (slight pitch change when moving)
         gatheringAudioSource.dopplerLevel = 0.1f;  // Subtle doppler
@@ -668,10 +674,11 @@ public class Worker : MonoBehaviour
             gatheringSoundCoroutine = null;
         }
 
-        // Stop any currently playing sound
-        if (gatheringAudioSource != null && gatheringAudioSource.isPlaying)
+        // Stop any currently playing sound IMMEDIATELY (no fade)
+        if (gatheringAudioSource != null)
         {
             gatheringAudioSource.Stop();
+            gatheringAudioSource.clip = null;  // Clear the clip to ensure it stops
         }
     }
 
@@ -679,6 +686,13 @@ public class Worker : MonoBehaviour
     {
         while (true)
         {
+            // CRITICAL: Only play sound if we're still in Gathering state
+            if (currentState != WorkerState.Gathering)
+            {
+                // Worker left gathering state, stop the loop
+                yield break;
+            }
+
             // Get the appropriate sound clip from AudioManager
             AudioClip clipToPlay = GetGatheringClip();
 
@@ -689,6 +703,12 @@ public class Worker : MonoBehaviour
 
                 // Wait for clip to finish
                 yield return new WaitForSeconds(clipToPlay.length);
+
+                // Check again after clip finishes (worker might have stopped gathering)
+                if (currentState != WorkerState.Gathering)
+                {
+                    yield break;
+                }
 
                 // Add delay between loops (1-2 seconds)
                 yield return new WaitForSeconds(Random.Range(1f, 2f));
