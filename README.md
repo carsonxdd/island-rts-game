@@ -38,6 +38,7 @@ Think *Age of Empires* meets *Don't Starve* with a shipwreck survival twist, evo
 - [Phase 5.3 - Warriors & Victory/Defeat](#-phase-53-implementation-summary)
 - [Phase 5.4 - Combat Visual Effects](#-phase-54-implementation-summary)
 - [Phase 5.5 - Audio & 3D Spatial Audio](#-phase-55-implementation-summary--complete)
+- [Phase 6B - Wall System Refactor](#-phase-6b-complete-)
 
 ### Technical Documentation
 - [🔧 Technical Architecture](#-technical-architecture)
@@ -67,9 +68,9 @@ Think *Age of Empires* meets *Don't Starve* with a shipwreck survival twist, evo
 
 ## 🎮 Current Status
 
-**Development Phase:** Phase 6A Complete - Defensive Structures & Building Selection System
+**Development Phase:** Phase 6B Complete - Wall System Refactor & Smart Wall Connections
 **Last Updated:** January 2026
-**Build Status:** Fully playable with building selection menu, defensive structures, visual effects, 3D spatial audio, and housing management
+**Build Status:** Fully playable with smart wall connection system, building selection menu, defensive structures, visual effects, 3D spatial audio, and housing management
 
 ### What's Working Now:
 - ✅ Complete resource gathering system with 10 autonomous workers
@@ -100,6 +101,13 @@ Think *Age of Empires* meets *Don't Starve* with a shipwreck survival twist, evo
 - ✅ **Defensive Structures** - Wooden Wall, Stone Wall, Watchtower placeable
 - ✅ **Building Selection UI** - Shows building name, cost, and hotkey hints
 - ✅ **NavMesh carving** - Buildings and construction sites properly block pathfinding
+- ✅ **Smart Wall Connections** - Walls auto-connect with neighbor-driven shapes (isolated/endcap/straight/corner/T-junction/cross)
+- ✅ **WallGrid Singleton** - Central O(1) grid dictionary replaces FindObjectsByType scanning
+- ✅ **Procedural Wall Meshes** - Shape-driven geometry generated at runtime (pillar + arms, no overlapping faces)
+- ✅ **Ghost Preview Connections** - Wall line preview shows connected shapes before placement
+- ✅ **L-Shaped Wall Paths** - Default wall drawing uses L-shaped paths; R toggles X-first vs Z-first
+- ✅ **Bresenham Staircase Mode** - Hold Shift during wall line drawing for diagonal staircase paths
+- ✅ **Construction Site Grid Registration** - Wall construction sites connect to neighboring walls during build phase
 
 ### Known Issues & Bugs:
 1. **Warrior Stuttering** ✅ FIXED
@@ -196,8 +204,21 @@ Think *Age of Empires* meets *Don't Starve* with a shipwreck survival twist, evo
 - ✅ NavMesh carving on huts and construction sites (workers path around properly)
 - ✅ Stone now has gameplay purpose (defensive structures)
 
+### Phase 6B Complete! 🧱
+**Wall System Refactor & Smart Connections - FINISHED**
+- ✅ WallGrid singleton — central `Dictionary<Vector2Int, MonoBehaviour>` for O(1) wall occupancy lookups
+- ✅ Neighbor-driven wall shapes — walls auto-select isolated/endcap/straight/corner/T-junction/cross based on adjacent walls
+- ✅ Procedural mesh generation — each shape built from a central pillar + non-overlapping directional arms (no z-fighting)
+- ✅ Correct triangle winding — clockwise for Unity front faces, bottom face omitted (no ground z-fighting)
+- ✅ Ghost preview connections — wall line preview shows the correct connected shapes in semi-transparent blue
+- ✅ L-shaped wall paths — default path mode; press R to toggle X-first vs Z-first direction
+- ✅ Bresenham staircase mode — hold Shift while drawing a wall line for diagonal staircase paths
+- ✅ Construction sites register with WallGrid — walls connect to sites during construction phase
+- ✅ Auto-refresh on place/destroy — placing or destroying a wall updates its neighbors automatically
+- ✅ Eliminated all `FindObjectsByType` scanning in wall code — replaced with grid dictionary lookups
+
 ### Next Up:
-**Phase 6B - Building Progression** (Future)
+**Phase 6C - Building Progression** (Future)
 - Building upgrades (campfire → fortress)
 - Advanced buildings (storage, workshop)
 - Tool upgrade system
@@ -1763,7 +1784,7 @@ All combat visual effects have been implemented:
 ---
 
 **Last Updated:** January 2026
-**Current Build:** Phase 6A Complete - Defensive Structures & Building Selection
+**Current Build:** Phase 6B Complete - Wall System Refactor & Smart Wall Connections
 **Status:** Fully Playable with Building Menu, Defensive Structures, Visual Effects, 3D Spatial Audio, and Housing Management
 **Known Issues:** None game-breaking - all critical bugs fixed
 **Next Milestone:** Phase 6B - Building Progression (Upgrades)

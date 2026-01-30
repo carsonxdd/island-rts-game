@@ -28,6 +28,10 @@ public class ConstructionSite : MonoBehaviour
     private TextMeshPro progressText;
     private GameObject progressTextObject;
 
+    // WallGrid registration
+    private Vector2Int gridPos;
+    private bool registeredWithGrid = false;
+
     void Start()
     {
         // Make sure NavMesh Obstacle is enabled for runtime pathfinding
@@ -35,9 +39,8 @@ public class ConstructionSite : MonoBehaviour
         if (obstacle != null)
         {
             obstacle.enabled = true;
-            obstacle.carving = true;  // Enable carving so workers path around
-            obstacle.carveOnlyStationary = true;  // Only carve when not moving (performance)
-            Debug.Log("ConstructionSite: NavMesh Obstacle enabled with carving!");
+            obstacle.carving = true;
+            obstacle.carveOnlyStationary = true;
         }
 
         // Create progress text display
@@ -45,6 +48,9 @@ public class ConstructionSite : MonoBehaviour
         {
             CreateProgressText();
         }
+
+        // Register with WallGrid if this is a wall type
+        RegisterIfWall();
     }
 
     void Update()
@@ -71,12 +77,13 @@ public class ConstructionSite : MonoBehaviour
     void Complete()
     {
         isComplete = true;
-        Debug.Log($"ConstructionSite: Building completed at {transform.position}!");
+
+        // Unregister from WallGrid before destroying (the finished Wall will re-register)
+        UnregisterFromGrid();
 
         // Get building data from database
         if (BuildingDatabase.Instance == null)
         {
-            Debug.LogError("ConstructionSite: BuildingDatabase not found! Cannot spawn finished building.");
             Destroy(gameObject);
             return;
         }
@@ -84,7 +91,6 @@ public class ConstructionSite : MonoBehaviour
         BuildingData data = BuildingDatabase.Instance.GetBuildingData(buildingType);
         if (data == null || data.finishedBuildingPrefab == null)
         {
-            Debug.LogError($"ConstructionSite: No finished building prefab for {buildingType}!");
             Destroy(gameObject);
             return;
         }
@@ -98,11 +104,6 @@ public class ConstructionSite : MonoBehaviour
 
         // Copy layer to finished building
         finishedBuilding.layer = gameObject.layer;
-
-        // Note: NavMeshObstacle settings are handled by the building's own script (Wall, Watchtower, Hut, etc.)
-        // Wall scripts enable carving, other buildings disable it
-
-        Debug.Log($"ConstructionSite: Spawned finished {data.buildingName}!");
 
         // Destroy the construction site
         Destroy(gameObject);
@@ -122,9 +123,11 @@ public class ConstructionSite : MonoBehaviour
             if (data != null)
             {
                 targetHealth = data.maxHealth;
-                Debug.Log($"ConstructionSite: Set to build {data.buildingName} with {targetHealth} HP");
             }
         }
+
+        // Register with WallGrid if this is a wall type (may be called after Start)
+        RegisterIfWall();
     }
 
     // Method for workers to add progress (we'll use this later)
@@ -139,6 +142,39 @@ public class ConstructionSite : MonoBehaviour
         {
             Complete();
         }
+    }
+
+    private void RegisterIfWall()
+    {
+        if (registeredWithGrid) return;
+
+        bool isWall = false;
+        if (BuildingDatabase.Instance != null)
+        {
+            BuildingData data = BuildingDatabase.Instance.GetBuildingData(buildingType);
+            isWall = data != null && data.isWall;
+        }
+
+        if (isWall)
+        {
+            gridPos = WallGrid.Instance.WorldToGrid(transform.position);
+            WallGrid.Instance.Register(gridPos, this);
+            registeredWithGrid = true;
+        }
+    }
+
+    private void UnregisterFromGrid()
+    {
+        if (registeredWithGrid && WallGrid.Instance != null)
+        {
+            WallGrid.Instance.Unregister(gridPos);
+            registeredWithGrid = false;
+        }
+    }
+
+    void OnDestroy()
+    {
+        UnregisterFromGrid();
     }
 
     void CreateProgressText()
@@ -158,7 +194,6 @@ public class ConstructionSite : MonoBehaviour
         progressText.GetComponent<MeshRenderer>().sortingOrder = 100;
 
         UpdateProgressText();  // Set initial text
-        Debug.Log("ConstructionSite: Progress text created");
     }
 
     void UpdateProgressText()

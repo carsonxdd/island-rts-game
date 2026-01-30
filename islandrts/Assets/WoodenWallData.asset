@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   buildingType: 1
   buildingName: Wooden Wall
-  woodCost: 15
+  woodCost: 5
   foodCost: 0
-  stoneCost: 5
+  stoneCost: 2
   ghostPrefab: {fileID: 3971485318021736461, guid: a04bc6e7cca55bb4b8a31f048c75c144, type: 3}
   constructionSitePrefab: {fileID: 1713934267972723311, guid: 70d8b501cbfdcc645b9cbba0d90a5f01, type: 3}
   finishedBuildingPrefab: {fileID: 5222481416697825286, guid: 060767e1b07482c46b44931cf342ce07, type: 3}
   buildingSize: {x: 2, y: 1.5, z: 2}
-  noBuildRadius: 3.5
+  noBuildRadius: 0
   placementHeight: 0.75
   maxHealth: 150
   blocksNavMesh: 1

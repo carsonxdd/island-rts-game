@@ -21,14 +21,25 @@ public class ResourceSpawner : MonoBehaviour
     [Header("Spacing")]
     public float minDistanceBetweenNodes = 2f;  // Minimum space between resources
     public float minDistanceFromCampfire = 5f;  // Keep resources away from campfire
-    public float minDistanceFromBuildings = 3f;  // Keep resources away from buildings
+    public float minDistanceFromBuildings = 5f;  // Keep resources away from buildings
+
+    [Header("Tree Clustering")]
+    public int treeClusters = 3;              // Number of forest clusters
+    public float clusterRadius = 6f;          // How spread out trees are within a cluster
+    public float minTreeSpacing = 1.5f;       // Minimum distance between trees in a cluster
+    public float minClusterDistFromCampfire = 8f;  // Keep forests away from campfire
+
+    [Header("Scattered Trees")]
+    public int scatteredTreeCount = 6;        // Extra trees randomly placed between clusters
+    public float minScatteredTreeSpacing = 3f;  // Minimum distance between scattered trees
 
     [Header("Respawning")]
     public bool enableRespawning = true;  // Toggle resource respawning
     public float respawnDelay = 10f;  // Seconds before respawning a depleted resource
 
     private List<Vector3> spawnedPositions = new List<Vector3>();
-    private Vector3 campfirePosition = Vector3.zero;  // Campfire is usually at world origin
+    private List<Vector3> clusterCenters = new List<Vector3>();  // Track forest centers for respawning
+    private Vector3 campfirePosition = Vector3.zero;
 
     // Singleton pattern for easy access from ResourceNode
     public static ResourceSpawner Instance { get; private set; }
@@ -69,16 +80,213 @@ public class ResourceSpawner : MonoBehaviour
     {
         Debug.Log("ResourceSpawner: Starting resource spawn...");
 
-        // Spawn trees
-        SpawnResourceType(treePrefab, treeCount, "Tree");
+        // Spawn trees in clusters (forests)
+        SpawnTreeClusters();
 
-        // Spawn berry bushes
+        // Spawn scattered individual trees between clusters
+        SpawnScatteredTrees();
+
+        // Spawn berry bushes (scattered)
         SpawnResourceType(berryBushPrefab, berryBushCount, "BerryBush");
 
-        // Spawn rocks
+        // Spawn rocks (scattered)
         SpawnResourceType(rockNodePrefab, rockNodeCount, "RockNode");
 
         Debug.Log($"ResourceSpawner: Spawned {spawnedPositions.Count} total resource nodes!");
+    }
+
+    void SpawnTreeClusters()
+    {
+        if (treePrefab == null)
+        {
+            Debug.LogWarning("ResourceSpawner: Tree prefab is not assigned!");
+            return;
+        }
+
+        int treesPerCluster = Mathf.CeilToInt((float)treeCount / treeClusters);
+        int totalTreesSpawned = 0;
+
+        for (int cluster = 0; cluster < treeClusters; cluster++)
+        {
+            // Find a valid cluster center
+            Vector3 clusterCenter = FindClusterCenter();
+            if (clusterCenter == Vector3.zero && cluster > 0)
+            {
+                Debug.LogWarning($"ResourceSpawner: Could not find valid center for tree cluster {cluster + 1}");
+                continue;
+            }
+
+            clusterCenters.Add(clusterCenter);
+
+            // Determine how many trees this cluster gets
+            int treesForThisCluster = Mathf.Min(treesPerCluster, treeCount - totalTreesSpawned);
+
+            int spawned = 0;
+            int attempts = 0;
+            int maxAttempts = treesForThisCluster * 20;
+
+            while (spawned < treesForThisCluster && attempts < maxAttempts)
+            {
+                attempts++;
+
+                // Generate position within cluster radius using gaussian-like distribution
+                // Trees closer to center are more likely (tighter clusters)
+                float angle = Random.Range(0f, 360f) * Mathf.Deg2Rad;
+                float dist = Random.Range(0f, 1f) * Random.Range(0f, 1f) * clusterRadius;  // Bias toward center
+                Vector3 offset = new Vector3(Mathf.Cos(angle) * dist, 0f, Mathf.Sin(angle) * dist);
+                Vector3 treePos = clusterCenter + offset;
+                treePos.y = spawnHeight;
+
+                // Clamp within spawn area
+                treePos.x = Mathf.Clamp(treePos.x, spawnAreaMin.x, spawnAreaMax.x);
+                treePos.z = Mathf.Clamp(treePos.z, spawnAreaMin.y, spawnAreaMax.y);
+
+                // Validate: not too close to other trees, not on buildings
+                if (IsPositionValidForTree(treePos))
+                {
+                    GameObject spawnedNode = Instantiate(treePrefab, treePos, Quaternion.identity);
+                    // Add slight random rotation for visual variety
+                    spawnedNode.transform.rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+                    spawnedNode.name = $"Tree_{totalTreesSpawned + 1}";
+                    spawnedNode.transform.parent = transform;
+
+                    spawnedPositions.Add(treePos);
+                    spawned++;
+                    totalTreesSpawned++;
+                }
+            }
+
+            Debug.Log($"ResourceSpawner: Spawned forest cluster {cluster + 1} with {spawned} trees near {clusterCenter}");
+        }
+
+        Debug.Log($"ResourceSpawner: Spawned {totalTreesSpawned} trees in {treeClusters} clusters");
+    }
+
+    void SpawnScatteredTrees()
+    {
+        if (treePrefab == null || scatteredTreeCount <= 0) return;
+
+        int spawned = 0;
+        int attempts = 0;
+        int maxAttempts = scatteredTreeCount * 15;
+
+        while (spawned < scatteredTreeCount && attempts < maxAttempts)
+        {
+            attempts++;
+
+            Vector3 randomPos = new Vector3(
+                Random.Range(spawnAreaMin.x, spawnAreaMax.x),
+                spawnHeight,
+                Random.Range(spawnAreaMin.y, spawnAreaMax.y)
+            );
+
+            // Must be away from campfire
+            if (Vector3.Distance(randomPos, campfirePosition) < minDistanceFromCampfire)
+                continue;
+
+            // Must be away from cluster centers (scattered, not in forests)
+            bool tooCloseToCluster = false;
+            foreach (Vector3 center in clusterCenters)
+            {
+                if (Vector3.Distance(randomPos, center) < clusterRadius + 2f)
+                {
+                    tooCloseToCluster = true;
+                    break;
+                }
+            }
+            if (tooCloseToCluster) continue;
+
+            // Must be away from other resources
+            bool tooCloseToResource = false;
+            foreach (Vector3 pos in spawnedPositions)
+            {
+                if (Vector3.Distance(randomPos, pos) < minScatteredTreeSpacing)
+                {
+                    tooCloseToResource = true;
+                    break;
+                }
+            }
+            if (tooCloseToResource) continue;
+
+            // Must be away from buildings
+            if (!IsPositionClearOfBuildings(randomPos))
+                continue;
+
+            GameObject tree = Instantiate(treePrefab, randomPos, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f));
+            tree.name = $"Tree_Scattered_{spawned + 1}";
+            tree.transform.parent = transform;
+
+            spawnedPositions.Add(randomPos);
+            spawned++;
+        }
+
+        Debug.Log($"ResourceSpawner: Spawned {spawned} scattered trees");
+    }
+
+    Vector3 FindClusterCenter()
+    {
+        int attempts = 0;
+        int maxAttempts = 100;
+
+        while (attempts < maxAttempts)
+        {
+            attempts++;
+
+            Vector3 candidate = new Vector3(
+                Random.Range(spawnAreaMin.x + clusterRadius, spawnAreaMax.x - clusterRadius),
+                spawnHeight,
+                Random.Range(spawnAreaMin.y + clusterRadius, spawnAreaMax.y - clusterRadius)
+            );
+
+            // Must be far from campfire
+            if (Vector3.Distance(candidate, campfirePosition) < minClusterDistFromCampfire)
+                continue;
+
+            // Must be far from other cluster centers (spread forests out)
+            bool tooCloseToOtherCluster = false;
+            foreach (Vector3 existingCenter in clusterCenters)
+            {
+                if (Vector3.Distance(candidate, existingCenter) < clusterRadius * 2.5f)
+                {
+                    tooCloseToOtherCluster = true;
+                    break;
+                }
+            }
+            if (tooCloseToOtherCluster) continue;
+
+            // Must not overlap with buildings
+            if (!IsPositionClearOfBuildings(candidate))
+                continue;
+
+            return candidate;
+        }
+
+        // Fallback: just pick a random position far from campfire
+        return new Vector3(
+            Random.Range(spawnAreaMin.x + clusterRadius, spawnAreaMax.x - clusterRadius),
+            spawnHeight,
+            Random.Range(spawnAreaMin.y + clusterRadius, spawnAreaMax.y - clusterRadius)
+        );
+    }
+
+    bool IsPositionValidForTree(Vector3 position)
+    {
+        // Check distance from campfire
+        if (Vector3.Distance(position, campfirePosition) < minDistanceFromCampfire)
+            return false;
+
+        // Check distance from other spawned resources (use tighter tree spacing)
+        foreach (Vector3 spawnedPos in spawnedPositions)
+        {
+            if (Vector3.Distance(position, spawnedPos) < minTreeSpacing)
+                return false;
+        }
+
+        // Check distance from buildings
+        if (!IsPositionClearOfBuildings(position))
+            return false;
+
+        return true;
     }
 
     void SpawnResourceType(GameObject prefab, int count, string resourceName)
@@ -147,7 +355,7 @@ public class ResourceSpawner : MonoBehaviour
             }
         }
 
-        // Check distance from all buildings (BaseBuilding, Hut, ConstructionSite)
+        // Check distance from all buildings
         if (!IsPositionClearOfBuildings(position))
         {
             return false;  // Too close to a building
@@ -163,11 +371,9 @@ public class ResourceSpawner : MonoBehaviour
         foreach (BaseBuilding building in baseBuildings)
         {
             if (building == null) continue;
-            float distance = Vector3.Distance(position, building.transform.position);
-            if (distance < minDistanceFromBuildings)
-            {
+            float clearance = Mathf.Max(minDistanceFromBuildings, building.noBuildRadius);
+            if (Vector3.Distance(position, building.transform.position) < clearance)
                 return false;
-            }
         }
 
         // Check Huts
@@ -175,11 +381,9 @@ public class ResourceSpawner : MonoBehaviour
         foreach (Hut hut in huts)
         {
             if (hut == null) continue;
-            float distance = Vector3.Distance(position, hut.transform.position);
-            if (distance < minDistanceFromBuildings)
-            {
+            float clearance = Mathf.Max(minDistanceFromBuildings, hut.noBuildRadius);
+            if (Vector3.Distance(position, hut.transform.position) < clearance)
                 return false;
-            }
         }
 
         // Check ConstructionSites
@@ -187,11 +391,27 @@ public class ResourceSpawner : MonoBehaviour
         foreach (ConstructionSite site in constructionSites)
         {
             if (site == null) continue;
-            float distance = Vector3.Distance(position, site.transform.position);
-            if (distance < minDistanceFromBuildings)
-            {
+            float clearance = Mathf.Max(minDistanceFromBuildings, site.noBuildRadius);
+            if (Vector3.Distance(position, site.transform.position) < clearance)
                 return false;
-            }
+        }
+
+        // Check Walls
+        Wall[] walls = FindObjectsByType<Wall>(FindObjectsSortMode.None);
+        foreach (Wall wall in walls)
+        {
+            if (wall == null) continue;
+            if (Vector3.Distance(position, wall.transform.position) < minDistanceFromBuildings)
+                return false;
+        }
+
+        // Check Watchtowers
+        Watchtower[] watchtowers = FindObjectsByType<Watchtower>(FindObjectsSortMode.None);
+        foreach (Watchtower tower in watchtowers)
+        {
+            if (tower == null) continue;
+            if (Vector3.Distance(position, tower.transform.position) < minDistanceFromBuildings)
+                return false;
         }
 
         return true;  // Clear of all buildings
@@ -211,29 +431,33 @@ public class ResourceSpawner : MonoBehaviour
 
         Debug.Log($"ResourceSpawner: {resourceType} depleted at {depletedPosition}. Scheduling respawn in {respawnDelay}s...");
 
-        // Schedule respawn after delay
+        // Store the resource type for respawning the same type
+        pendingRespawns.Enqueue(resourceType);
         Invoke(nameof(RespawnResource), respawnDelay);
     }
 
-    // Respawn a single resource of random type
+    private Queue<ResourceNode.ResourceType> pendingRespawns = new Queue<ResourceNode.ResourceType>();
+
+    // Respawn a resource of the same type that was depleted
     void RespawnResource()
     {
-        // Randomly pick a resource type to respawn
-        int randomType = Random.Range(0, 3);
+        if (pendingRespawns.Count == 0) return;
+
+        ResourceNode.ResourceType typeToSpawn = pendingRespawns.Dequeue();
         GameObject prefabToSpawn = null;
         string resourceName = "";
 
-        switch (randomType)
+        switch (typeToSpawn)
         {
-            case 0:
+            case ResourceNode.ResourceType.Wood:
                 prefabToSpawn = treePrefab;
                 resourceName = "Tree";
                 break;
-            case 1:
+            case ResourceNode.ResourceType.Food:
                 prefabToSpawn = berryBushPrefab;
                 resourceName = "BerryBush";
                 break;
-            case 2:
+            case ResourceNode.ResourceType.Stone:
                 prefabToSpawn = rockNodePrefab;
                 resourceName = "RockNode";
                 break;
@@ -245,39 +469,77 @@ public class ResourceSpawner : MonoBehaviour
             return;
         }
 
-        // Try to find a valid spawn position
+        // For trees, try to respawn near an existing cluster center
+        if (typeToSpawn == ResourceNode.ResourceType.Wood && clusterCenters.Count > 0)
+        {
+            if (TryRespawnNearCluster(prefabToSpawn, resourceName))
+                return;
+        }
+
+        // Fallback: spawn at random valid position
         int attempts = 0;
-        int maxAttempts = 50;  // Try 50 times to find a valid position
+        int maxAttempts = 50;
 
         while (attempts < maxAttempts)
         {
             attempts++;
 
-            // Generate random position within spawn area
             Vector3 randomPos = new Vector3(
                 Random.Range(spawnAreaMin.x, spawnAreaMax.x),
                 spawnHeight,
                 Random.Range(spawnAreaMin.y, spawnAreaMax.y)
             );
 
-            // Check if position is valid
             if (IsPositionValid(randomPos))
             {
-                // Spawn the resource
                 GameObject spawnedNode = Instantiate(prefabToSpawn, randomPos, Quaternion.identity);
                 spawnedNode.name = $"{resourceName}_Respawned";
-                spawnedNode.transform.parent = transform;  // Organize under spawner
+                spawnedNode.transform.parent = transform;
 
-                // Track this position
                 spawnedPositions.Add(randomPos);
 
                 Debug.Log($"ResourceSpawner: Respawned {resourceName} at {randomPos}");
-                return;  // Success!
+                return;
             }
         }
 
-        // Failed to find valid position after max attempts
         Debug.LogWarning($"ResourceSpawner: Failed to respawn {resourceName} - no valid positions found after {maxAttempts} attempts");
+    }
+
+    bool TryRespawnNearCluster(GameObject prefab, string resourceName)
+    {
+        // Pick a random cluster center to respawn near
+        Vector3 cluster = clusterCenters[Random.Range(0, clusterCenters.Count)];
+
+        int attempts = 0;
+        int maxAttempts = 30;
+
+        while (attempts < maxAttempts)
+        {
+            attempts++;
+
+            float angle = Random.Range(0f, 360f) * Mathf.Deg2Rad;
+            float dist = Random.Range(0f, 1f) * Random.Range(0f, 1f) * clusterRadius;
+            Vector3 treePos = cluster + new Vector3(Mathf.Cos(angle) * dist, spawnHeight, Mathf.Sin(angle) * dist);
+
+            treePos.x = Mathf.Clamp(treePos.x, spawnAreaMin.x, spawnAreaMax.x);
+            treePos.z = Mathf.Clamp(treePos.z, spawnAreaMin.y, spawnAreaMax.y);
+
+            if (IsPositionValidForTree(treePos))
+            {
+                GameObject spawnedNode = Instantiate(prefab, treePos, Quaternion.identity);
+                spawnedNode.transform.rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+                spawnedNode.name = $"{resourceName}_Respawned";
+                spawnedNode.transform.parent = transform;
+
+                spawnedPositions.Add(treePos);
+
+                Debug.Log($"ResourceSpawner: Respawned {resourceName} near forest cluster at {treePos}");
+                return true;
+            }
+        }
+
+        return false;  // Couldn't find a spot near any cluster
     }
 
     // Visual helper in Scene view
@@ -296,5 +558,12 @@ public class ResourceSpawner : MonoBehaviour
             spawnAreaMax.y - spawnAreaMin.y
         );
         Gizmos.DrawWireCube(center, size);
+
+        // Draw cluster centers
+        Gizmos.color = new Color(0f, 0.8f, 0f, 0.5f);
+        foreach (Vector3 clusterCenter in clusterCenters)
+        {
+            Gizmos.DrawWireSphere(clusterCenter, clusterRadius);
+        }
     }
 }

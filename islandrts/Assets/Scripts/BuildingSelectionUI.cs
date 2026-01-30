@@ -69,7 +69,41 @@ public class BuildingSelectionUI : MonoBehaviour
         // Update hint text if exists
         if (hintText != null)
         {
-            hintText.text = "Press 1-4 to select | Click to place";
+            hintText.text = "1-4: Select | R: Rotate | Click: Place";
+            hintText.color = defaultColor;
+        }
+    }
+
+    /// <summary>
+    /// Update the UI for wall line drawing mode (shows count and total cost)
+    /// </summary>
+    public void UpdateWallLineDisplay(BuildingData data, int wallCount, bool canAfford)
+    {
+        if (data == null) return;
+
+        if (buildingNameText != null)
+        {
+            buildingNameText.text = $"{data.buildingName} x{wallCount}";
+            buildingNameText.color = defaultColor;
+        }
+
+        if (buildingCostText != null)
+        {
+            int totalWood = data.woodCost * wallCount;
+            int totalFood = data.foodCost * wallCount;
+            int totalStone = data.stoneCost * wallCount;
+
+            string costText = $"Total: {totalWood}W";
+            if (totalFood > 0) costText += $" {totalFood}F";
+            if (totalStone > 0) costText += $" {totalStone}S";
+
+            buildingCostText.text = costText;
+            buildingCostText.color = canAfford ? affordableColor : unaffordableColor;
+        }
+
+        if (hintText != null)
+        {
+            hintText.text = "Click: Confirm | ESC/RMB: Cancel line";
             hintText.color = defaultColor;
         }
     }

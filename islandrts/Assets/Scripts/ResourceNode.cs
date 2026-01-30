@@ -60,28 +60,27 @@ public class ResourceNode : MonoBehaviour
         }
 
         // Configure obstacle based on resource type
-        obstacle.carving = false;  // Disable carving to prevent pathfinding stutters
+        obstacle.carving = true;  // Enable carving so workers path around resource nodes
+        obstacle.carveOnlyStationary = true;  // Only carve when not moving (performance)
         obstacle.shape = NavMeshObstacleShape.Capsule;  // Capsule works well for trees/rocks
 
         // Size based on resource type
         switch (resourceType)
         {
             case ResourceType.Wood:  // Trees
-                obstacle.radius = 0.5f;
+                obstacle.radius = 0.8f;
                 obstacle.height = 2f;
                 break;
             case ResourceType.Food:  // Bushes
-                obstacle.radius = 0.3f;
+                obstacle.radius = 0.5f;
                 obstacle.height = 1f;
                 break;
             case ResourceType.Stone:  // Rocks
-                obstacle.radius = 0.6f;
+                obstacle.radius = 0.8f;
                 obstacle.height = 1.5f;
                 break;
         }
 
-        // Resource nodes are static and baked into NavMesh, so carving not needed
-        obstacle.carveOnlyStationary = true;  // Only carve when not moving (if enabled)
         obstacle.carvingMoveThreshold = 0.1f;
         obstacle.carvingTimeToStationary = 0.5f;
 

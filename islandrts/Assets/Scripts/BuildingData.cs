@@ -25,4 +25,7 @@ public class BuildingData : ScriptableObject
     [Header("Gameplay Stats")]
     public float maxHealth = 100f;
     public bool blocksNavMesh = false;  // true for walls, false for others
+
+    [Header("Wall Behavior")]
+    public bool isWall = false;  // true for WoodenWall/StoneWall - changes placement rules
 }

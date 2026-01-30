@@ -48,8 +48,18 @@ public class BuildPlacement : MonoBehaviour
     private bool isValidPlacement = false;
     private Renderer ghostRenderer;
     private Vector3 targetPosition;  // Where the ghost wants to move to
+    private float currentRotation = 0f;  // Current ghost rotation in degrees
     private List<GameObject> noBuildZoneVisuals = new List<GameObject>();  // Visual circles for no-build zones
     private GameObject ghostNoBuildZone;  // No-build zone preview for the ghost building
+
+    // Wall line drawing state
+    private bool isDrawingWallLine = false;
+    private Vector3 wallLineStart;
+    private List<GameObject> wallLineGhosts = new List<GameObject>();
+    private List<Vector3> wallLinePositions = new List<Vector3>();
+
+    // L-shaped path mode
+    private bool xFirst = true;  // true = go along X first, then Z; toggled with R
 
     void Start()
     {
@@ -77,21 +87,502 @@ public class BuildPlacement : MonoBehaviour
             if (Input.GetKeyDown(KeyCode.Alpha3)) SelectBuilding(BuildingType.StoneWall);
             if (Input.GetKeyDown(KeyCode.Alpha4)) SelectBuilding(BuildingType.Watchtower);
 
-            MoveGhostToMouse();
-
-            // Confirm placement with left-click
-            if (Input.GetMouseButtonDown(0))
+            if (IsWallType(selectedBuildingType))
             {
-                ConfirmPlacement();
+                // Wall placement uses click-start + click-end line drawing
+                UpdateWallPlacement();
+            }
+            else
+            {
+                // Non-wall placement: single click to place
+                if (Input.GetKeyDown(KeyCode.R))
+                {
+                    RotateGhost();
+                }
+
+                MoveGhostToMouse();
+
+                if (Input.GetMouseButtonDown(0))
+                {
+                    ConfirmPlacement();
+                }
+
+                if (Input.GetKeyDown(KeyCode.Escape) || Input.GetMouseButtonDown(1))
+                {
+                    CancelPlacement();
+                }
+            }
+        }
+    }
+
+    // =============================================
+    // Wall Line Drawing System
+    // =============================================
+
+    /// <summary>
+    /// Handle wall placement with click-start + click-end line drawing.
+    /// Phase 1: Single ghost follows mouse. Click to set start point.
+    /// Phase 2: Ghost line from start to mouse. Click to confirm all walls.
+    /// </summary>
+    void UpdateWallPlacement()
+    {
+        Vector3 snapped;
+        if (!GetSnappedMousePosition(out snapped)) return;
+
+        if (!isDrawingWallLine)
+        {
+            // Phase 1: Cursor ghost follows mouse, waiting for first click
+            Vector3 cursorPos = snapped;
+            cursorPos.y = 0.02f; // Match wall Y offset
+            currentGhost.transform.position = cursorPos;
+
+            // R toggles L-path direction (X-first vs Z-first) before starting a line
+            if (Input.GetKeyDown(KeyCode.R))
+            {
+                xFirst = !xFirst;
+                Debug.Log($"BuildPlacement: L-path mode = {(xFirst ? "X-first" : "Z-first")}");
             }
 
-            // Cancel with Escape or right-click
+            // Color ghost based on whether this cell is occupied
+            bool occupied = HasWallAtPosition(snapped);
+            if (ghostRenderer != null)
+            {
+                ghostRenderer.material.color = occupied ? wallGhostInvalidColor : wallGhostColor;
+            }
+
+            // Show single-wall cost in UI
+            BuildingData data = BuildingDatabase.Instance != null
+                ? BuildingDatabase.Instance.GetBuildingData(selectedBuildingType)
+                : null;
+            if (selectionUI != null && data != null)
+            {
+                bool canAfford = ResourceManager.Instance.CanAfford(data.woodCost, data.foodCost, data.stoneCost);
+                selectionUI.UpdateDisplay(data, canAfford);
+            }
+
+            // Left click: set start point and begin drawing line
+            if (Input.GetMouseButtonDown(0))
+            {
+                wallLineStart = snapped;
+                isDrawingWallLine = true;
+                currentGhost.SetActive(false);  // Hide cursor ghost; line ghosts take over
+                Debug.Log($"BuildPlacement: Wall line started at {wallLineStart}");
+            }
+
+            // Cancel: exit build mode
             if (Input.GetKeyDown(KeyCode.Escape) || Input.GetMouseButtonDown(1))
             {
                 CancelPlacement();
             }
         }
+        else
+        {
+            // Phase 2: Drawing line from start to current mouse position
+            // R toggles L-path direction while drawing
+            if (Input.GetKeyDown(KeyCode.R))
+            {
+                xFirst = !xFirst;
+                Debug.Log($"BuildPlacement: L-path mode = {(xFirst ? "X-first" : "Z-first")}");
+            }
+
+            UpdateWallLinePreview(snapped);
+
+            // Left click: confirm and place all walls in the line
+            if (Input.GetMouseButtonDown(0))
+            {
+                ConfirmWallLine();
+            }
+
+            // Cancel: discard line, return to cursor mode
+            if (Input.GetKeyDown(KeyCode.Escape) || Input.GetMouseButtonDown(1))
+            {
+                CancelWallLine();
+            }
+        }
     }
+
+    /// <summary>
+    /// Update the wall line preview: compute grid positions along the line,
+    /// spawn/update ghost objects, show total cost.
+    /// Default: L-shaped path (R toggles X-first vs Z-first).
+    /// Hold Shift: Bresenham staircase path.
+    /// Wall shapes are auto-determined by WallGrid neighbors, so no per-wall rotation is needed.
+    /// </summary>
+    void UpdateWallLinePreview(Vector3 endSnapped)
+    {
+        // Choose path algorithm based on Shift modifier
+        bool useBresenham = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+
+        if (useBresenham)
+        {
+            wallLinePositions = GetGridLine(wallLineStart, endSnapped);
+        }
+        else
+        {
+            wallLinePositions = GetLShapedLine(wallLineStart, endSnapped, xFirst);
+        }
+
+        BuildingData data = BuildingDatabase.Instance != null
+            ? BuildingDatabase.Instance.GetBuildingData(selectedBuildingType)
+            : null;
+        if (data == null || data.ghostPrefab == null) return;
+
+        bool isStone = data.buildingType == BuildingType.StoneWall;
+
+        // Build a HashSet of ghost grid positions for neighbor lookups
+        HashSet<Vector2Int> ghostGridPositions = new HashSet<Vector2Int>();
+        List<Vector2Int> ghostGridList = new List<Vector2Int>();
+        for (int i = 0; i < wallLinePositions.Count; i++)
+        {
+            Vector2Int gp = WallGrid.Instance.WorldToGrid(wallLinePositions[i]);
+            ghostGridPositions.Add(gp);
+            ghostGridList.Add(gp);
+        }
+
+        // Grow ghost pool if needed — use simple GameObjects with MeshFilter+MeshRenderer
+        while (wallLineGhosts.Count < wallLinePositions.Count)
+        {
+            GameObject ghost = new GameObject("WallGhost");
+            ghost.AddComponent<MeshFilter>();
+            MeshRenderer mr = ghost.AddComponent<MeshRenderer>();
+            mr.material = CreateWallGhostMaterial();
+            wallLineGhosts.Add(ghost);
+        }
+
+        int validCount = 0;
+
+        // Position, shape, rotate, and color each ghost
+        for (int i = 0; i < wallLinePositions.Count; i++)
+        {
+            GameObject ghost = wallLineGhosts[i];
+            ghost.SetActive(true);
+            ghost.transform.localScale = Vector3.one;
+
+            // Place at grid position, slightly above ground
+            Vector3 pos = wallLinePositions[i];
+            pos.y = 0.02f;
+            ghost.transform.position = pos;
+
+            bool occupied = HasWallAtPosition(wallLinePositions[i]);
+            if (!occupied) validCount++;
+
+            // Compute neighbor mask considering both existing walls and other ghosts in the line
+            int mask = WallConnector.GetPreviewNeighborMask(ghostGridList[i], ghostGridPositions);
+
+            // Get shape and rotation
+            WallConnector.WallShape shape;
+            float yRot;
+            WallConnector.GetShapeAndRotation(mask, out shape, out yRot);
+
+            // Apply procedural mesh
+            MeshFilter mf = ghost.GetComponent<MeshFilter>();
+            if (mf != null)
+            {
+                mf.mesh = WallConnector.GetOrCreateMesh(shape, isStone);
+            }
+            ghost.transform.rotation = Quaternion.Euler(0f, yRot, 0f);
+
+            // Color: light blue if valid, red if occupied
+            MeshRenderer renderer = ghost.GetComponent<MeshRenderer>();
+            if (renderer != null)
+            {
+                renderer.material.color = occupied ? wallGhostInvalidColor : wallGhostColor;
+            }
+        }
+
+        // Hide excess ghosts from pool
+        for (int i = wallLinePositions.Count; i < wallLineGhosts.Count; i++)
+        {
+            wallLineGhosts[i].SetActive(false);
+        }
+
+        // Update UI with total cost for the line
+        if (selectionUI != null && data != null)
+        {
+            int totalWood = data.woodCost * validCount;
+            int totalFood = data.foodCost * validCount;
+            int totalStone = data.stoneCost * validCount;
+            bool canAfford = ResourceManager.Instance.CanAfford(totalWood, totalFood, totalStone);
+            selectionUI.UpdateWallLineDisplay(data, validCount, canAfford);
+        }
+    }
+
+    /// <summary>
+    /// Compute grid cell positions along a line using Bresenham's algorithm.
+    /// Diagonal steps are split into horizontal + vertical so every corner
+    /// is filled (no gaps in the staircase).
+    /// </summary>
+    List<Vector3> GetGridLine(Vector3 start, Vector3 end)
+    {
+        int x0 = Mathf.RoundToInt(start.x / cellSize);
+        int z0 = Mathf.RoundToInt(start.z / cellSize);
+        int x1 = Mathf.RoundToInt(end.x / cellSize);
+        int z1 = Mathf.RoundToInt(end.z / cellSize);
+
+        List<Vector3> positions = new List<Vector3>();
+
+        int dx = Mathf.Abs(x1 - x0);
+        int dz = Mathf.Abs(z1 - z0);
+        int sx = x0 < x1 ? 1 : -1;
+        int sz = z0 < z1 ? 1 : -1;
+        int err = dx - dz;
+
+        while (true)
+        {
+            positions.Add(new Vector3(x0 * cellSize, placementHeight, z0 * cellSize));
+
+            if (x0 == x1 && z0 == z1) break;
+
+            int e2 = 2 * err;
+            bool stepX = e2 > -dz;
+            bool stepZ = e2 < dx;
+
+            if (stepX && stepZ)
+            {
+                // Would be diagonal — split into horizontal step then vertical step
+                // so the corner cell is filled (no gap)
+                err -= dz; x0 += sx;
+                positions.Add(new Vector3(x0 * cellSize, placementHeight, z0 * cellSize));
+                err += dx; z0 += sz;
+            }
+            else
+            {
+                if (stepX) { err -= dz; x0 += sx; }
+                if (stepZ) { err += dx; z0 += sz; }
+            }
+        }
+
+        return positions;
+    }
+
+    /// <summary>
+    /// Compute an L-shaped path from start to end.
+    /// Goes along the X axis first (if xFirst), then Z axis (or vice versa).
+    /// Returns List of grid positions with no duplicates.
+    /// </summary>
+    List<Vector3> GetLShapedLine(Vector3 start, Vector3 end, bool doXFirst)
+    {
+        int x0 = Mathf.RoundToInt(start.x / cellSize);
+        int z0 = Mathf.RoundToInt(start.z / cellSize);
+        int x1 = Mathf.RoundToInt(end.x / cellSize);
+        int z1 = Mathf.RoundToInt(end.z / cellSize);
+
+        List<Vector3> positions = new List<Vector3>();
+
+        if (doXFirst)
+        {
+            // Walk along X first
+            int sx = x0 < x1 ? 1 : -1;
+            for (int x = x0; x != x1; x += sx)
+            {
+                positions.Add(new Vector3(x * cellSize, placementHeight, z0 * cellSize));
+            }
+            // Then walk along Z
+            int sz = z0 < z1 ? 1 : -1;
+            for (int z = z0; z != z1; z += sz)
+            {
+                positions.Add(new Vector3(x1 * cellSize, placementHeight, z * cellSize));
+            }
+            // Add final position
+            positions.Add(new Vector3(x1 * cellSize, placementHeight, z1 * cellSize));
+        }
+        else
+        {
+            // Walk along Z first
+            int sz = z0 < z1 ? 1 : -1;
+            for (int z = z0; z != z1; z += sz)
+            {
+                positions.Add(new Vector3(x0 * cellSize, placementHeight, z * cellSize));
+            }
+            // Then walk along X
+            int sx = x0 < x1 ? 1 : -1;
+            for (int x = x0; x != x1; x += sx)
+            {
+                positions.Add(new Vector3(x * cellSize, placementHeight, z1 * cellSize));
+            }
+            // Add final position
+            positions.Add(new Vector3(x1 * cellSize, placementHeight, z1 * cellSize));
+        }
+
+        return positions;
+    }
+
+    /// <summary>
+    /// Raycast to ground and return grid-snapped position.
+    /// </summary>
+    bool GetSnappedMousePosition(out Vector3 snapped)
+    {
+        snapped = Vector3.zero;
+
+        Ray ray = mainCam.ScreenPointToRay(Input.mousePosition);
+        RaycastHit hit;
+
+        if (Physics.Raycast(ray, out hit, 1000f, groundLayer))
+        {
+            snapped = GridSnap.SnapXZ(hit.point, cellSize);
+            snapped.y = placementHeight;
+            return true;
+        }
+
+        // Fallback: plane at y=0
+        Plane groundPlane = new Plane(Vector3.up, Vector3.zero);
+        float distance;
+        if (groundPlane.Raycast(ray, out distance))
+        {
+            Vector3 worldPos = ray.GetPoint(distance);
+            snapped = GridSnap.SnapXZ(worldPos, cellSize);
+            snapped.y = placementHeight;
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Confirm wall line: deduct total cost, place construction sites at all valid positions.
+    /// Returns to cursor mode for continuous wall building.
+    /// </summary>
+    void ConfirmWallLine()
+    {
+        if (BuildingDatabase.Instance == null || ResourceManager.Instance == null) return;
+
+        BuildingData data = BuildingDatabase.Instance.GetBuildingData(selectedBuildingType);
+        if (data == null || data.constructionSitePrefab == null) return;
+
+        // Collect valid (non-occupied) positions
+        List<Vector3> validPositions = new List<Vector3>();
+        for (int i = 0; i < wallLinePositions.Count; i++)
+        {
+            if (!HasWallAtPosition(wallLinePositions[i]))
+            {
+                validPositions.Add(wallLinePositions[i]);
+            }
+        }
+
+        if (validPositions.Count == 0)
+        {
+            Debug.Log("BuildPlacement: No valid positions in wall line.");
+            CancelWallLine();
+            return;
+        }
+
+        // Check total cost
+        int totalWood = data.woodCost * validPositions.Count;
+        int totalFood = data.foodCost * validPositions.Count;
+        int totalStone = data.stoneCost * validPositions.Count;
+
+        if (!ResourceManager.Instance.CanAfford(totalWood, totalFood, totalStone))
+        {
+            Debug.Log($"BuildPlacement: Can't afford {validPositions.Count} walls! Need {totalWood}W {totalFood}F {totalStone}S");
+            return;
+        }
+
+        // Deduct resources (once for the entire line)
+        ResourceManager.Instance.SpendResources(totalWood, totalFood, totalStone);
+
+        // Place construction sites at each valid position (rotation auto-determined by WallGrid)
+        for (int i = 0; i < validPositions.Count; i++)
+        {
+            GameObject constructionSite = Instantiate(
+                data.constructionSitePrefab,
+                validPositions[i],
+                Quaternion.identity
+            );
+
+            constructionSite.layer = LayerMask.NameToLayer("Buildings");
+
+            ConstructionSite siteComponent = constructionSite.GetComponent<ConstructionSite>();
+            if (siteComponent != null)
+            {
+                siteComponent.SetBuildingType(selectedBuildingType);
+            }
+        }
+
+        // Play sound
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlayBuildingPlaced();
+        }
+
+        Debug.Log($"BuildPlacement: Placed {validPositions.Count} walls!");
+
+        // Clean up and return to cursor mode for next line
+        ClearWallLineGhosts();
+        isDrawingWallLine = false;
+        currentGhost.SetActive(true);
+
+        // Restore single-wall cost display
+        if (selectionUI != null)
+        {
+            bool canAfford = ResourceManager.Instance.CanAfford(data.woodCost, data.foodCost, data.stoneCost);
+            selectionUI.UpdateDisplay(data, canAfford);
+        }
+    }
+
+    /// <summary>
+    /// Cancel wall line drawing, return to cursor mode.
+    /// </summary>
+    void CancelWallLine()
+    {
+        ClearWallLineGhosts();
+        isDrawingWallLine = false;
+        currentGhost.SetActive(true);
+
+        // Restore single-wall cost display
+        BuildingData data = BuildingDatabase.Instance != null
+            ? BuildingDatabase.Instance.GetBuildingData(selectedBuildingType)
+            : null;
+        if (selectionUI != null && data != null)
+        {
+            bool canAfford = ResourceManager.Instance.CanAfford(data.woodCost, data.foodCost, data.stoneCost);
+            selectionUI.UpdateDisplay(data, canAfford);
+        }
+
+        Debug.Log("BuildPlacement: Wall line cancelled.");
+    }
+
+    /// <summary>
+    /// Destroy all wall line ghost objects and clear the lists.
+    /// </summary>
+    void ClearWallLineGhosts()
+    {
+        foreach (GameObject ghost in wallLineGhosts)
+        {
+            if (ghost != null) Destroy(ghost);
+        }
+        wallLineGhosts.Clear();
+        wallLinePositions.Clear();
+    }
+
+    /// <summary>
+    /// Create a simple procedural ghost for the wall cursor (single isolated shape).
+    /// Uses the same transparent material as line ghosts.
+    /// </summary>
+    // Shared ghost material — light blue, semi-transparent
+    private static readonly Color wallGhostColor = new Color(0.4f, 0.7f, 1f, 0.35f);
+    private static readonly Color wallGhostInvalidColor = new Color(1f, 0.3f, 0.3f, 0.35f);
+
+    Material CreateWallGhostMaterial()
+    {
+        Material mat = new Material(Shader.Find("Sprites/Default"));
+        mat.color = wallGhostColor;
+        return mat;
+    }
+
+    GameObject CreateWallCursorGhost(BuildingData data)
+    {
+        bool isStone = data.buildingType == BuildingType.StoneWall;
+        GameObject ghost = new GameObject("WallCursorGhost");
+        MeshFilter mf = ghost.AddComponent<MeshFilter>();
+        mf.mesh = WallConnector.GetOrCreateMesh(WallConnector.WallShape.Isolated, isStone);
+        MeshRenderer mr = ghost.AddComponent<MeshRenderer>();
+        mr.material = CreateWallGhostMaterial();
+        return ghost;
+    }
+
+    // =============================================
+    // Standard (Non-Wall) Placement
+    // =============================================
 
     void StartPlacement()
     {
@@ -111,12 +602,19 @@ public class BuildPlacement : MonoBehaviour
         }
 
         // Spawn the ghost building
-        currentGhost = Instantiate(data.ghostPrefab);
+        if (IsWallType(selectedBuildingType))
+        {
+            currentGhost = CreateWallCursorGhost(data);
+        }
+        else
+        {
+            currentGhost = Instantiate(data.ghostPrefab);
+        }
         ghostRenderer = currentGhost.GetComponent<Renderer>();
 
         if (ghostRenderer == null)
         {
-            Debug.LogError($"BuildPlacement: Ghost prefab for {selectedBuildingType} has no Renderer component!");
+            ghostRenderer = currentGhost.GetComponent<MeshRenderer>();
         }
 
         // Update building properties from data
@@ -129,15 +627,20 @@ public class BuildPlacement : MonoBehaviour
 
         isPlacing = true;
         isValidPlacement = false;
+        currentRotation = 0f;  // Reset rotation when entering build mode
+        isDrawingWallLine = false;  // Reset wall line state
 
-        // Create visual no-build zones for existing buildings
-        if (showNoBuildZones)
+        // Create visual no-build zones for existing buildings (not when placing walls)
+        if (showNoBuildZones && !IsWallType(selectedBuildingType))
         {
             CreateNoBuildZoneVisuals();
         }
 
-        // Create no-build zone preview for the ghost building
-        CreateGhostNoBuildZone();
+        // Create no-build zone preview for the ghost building (not for walls)
+        if (!IsWallType(selectedBuildingType))
+        {
+            CreateGhostNoBuildZone();
+        }
 
         // Update UI if exists
         if (selectionUI != null)
@@ -186,7 +689,7 @@ public class BuildPlacement : MonoBehaviour
             // Update target position (where we want to go)
             targetPosition = snappedPos;
 
-            // Smoothly interpolate ghost position towards target
+            // Smooth lerp for non-wall buildings
             currentGhost.transform.position = Vector3.Lerp(
                 currentGhost.transform.position,
                 targetPosition,
@@ -203,12 +706,11 @@ public class BuildPlacement : MonoBehaviour
                 );
             }
 
-            // Check for collisions at TARGET position (not current ghost position)
-            // This ensures we check where it's going, not where it currently is
+            // Check for collisions at TARGET position
             bool hasCollision = Physics.CheckBox(
                 targetPosition,
                 buildingSize * 0.5f,  // Half extents
-                Quaternion.identity,
+                Quaternion.Euler(0f, currentRotation, 0f),
                 buildingsLayer
             );
 
@@ -276,11 +778,11 @@ public class BuildPlacement : MonoBehaviour
         Vector3 buildPosition = targetPosition;
         Debug.Log($"BuildPlacement: Spawning ConstructionSite for {data.buildingName} at {buildPosition}");
 
-        // Spawn the construction site
+        // Spawn the construction site with the ghost's rotation
         GameObject constructionSite = Instantiate(
             data.constructionSitePrefab,
             buildPosition,
-            Quaternion.identity
+            Quaternion.Euler(0f, currentRotation, 0f)
         );
 
         // Make sure it's on the Buildings layer for collision detection
@@ -299,26 +801,21 @@ public class BuildPlacement : MonoBehaviour
             AudioManager.Instance.PlayBuildingPlaced();
         }
 
-        // Destroy the ghost
+        // NON-WALL: Exit build mode after placing
         Destroy(currentGhost);
-
-        // Destroy no-build zone visuals
         DestroyNoBuildZoneVisuals();
 
-        // Destroy ghost no-build zone
         if (ghostNoBuildZone != null)
         {
             Destroy(ghostNoBuildZone);
             ghostNoBuildZone = null;
         }
 
-        // Hide UI if exists
         if (selectionUI != null)
         {
             selectionUI.Hide();
         }
 
-        // End placement mode
         currentGhost = null;
         ghostRenderer = null;
         isPlacing = false;
@@ -329,6 +826,10 @@ public class BuildPlacement : MonoBehaviour
     void CancelPlacement()
     {
         Debug.Log("BuildPlacement: Cancelled.");
+
+        // Clean up wall line ghosts if any
+        ClearWallLineGhosts();
+        isDrawingWallLine = false;
 
         // Destroy the ghost
         if (currentGhost != null)
@@ -382,6 +883,10 @@ public class BuildPlacement : MonoBehaviour
             return;
         }
 
+        // Clean up wall line state if switching types
+        ClearWallLineGhosts();
+        isDrawingWallLine = false;
+
         // Destroy old ghost
         if (currentGhost != null)
         {
@@ -392,18 +897,28 @@ public class BuildPlacement : MonoBehaviour
         if (ghostNoBuildZone != null)
         {
             Destroy(ghostNoBuildZone);
+            ghostNoBuildZone = null;
         }
+
+        // Destroy old no-build zone visuals
+        DestroyNoBuildZoneVisuals();
 
         // Update selected building type
         selectedBuildingType = type;
 
         // Spawn new ghost from building data
-        currentGhost = Instantiate(data.ghostPrefab);
+        if (IsWallType(type))
+        {
+            currentGhost = CreateWallCursorGhost(data);
+        }
+        else
+        {
+            currentGhost = Instantiate(data.ghostPrefab);
+        }
         ghostRenderer = currentGhost.GetComponent<Renderer>();
-
         if (ghostRenderer == null)
         {
-            Debug.LogError($"BuildPlacement: Ghost prefab for {type} has no Renderer component!");
+            ghostRenderer = currentGhost.GetComponent<MeshRenderer>();
         }
 
         // Update building size and placement height for collision detection
@@ -414,8 +929,15 @@ public class BuildPlacement : MonoBehaviour
         // Initialize target position
         targetPosition = currentGhost.transform.position;
 
-        // Create new ghost no-build zone
-        CreateGhostNoBuildZone();
+        // Create no-build zone visuals and ghost zone (not for walls)
+        if (!IsWallType(type))
+        {
+            if (showNoBuildZones)
+            {
+                CreateNoBuildZoneVisuals();
+            }
+            CreateGhostNoBuildZone();
+        }
 
         // Update UI if exists
         if (selectionUI != null)
@@ -427,10 +949,77 @@ public class BuildPlacement : MonoBehaviour
         Debug.Log($"BuildPlacement: Selected {data.buildingName} (Cost: {data.woodCost}W {data.foodCost}F {data.stoneCost}S)");
     }
 
+    /// <summary>
+    /// Rotate the ghost building 90 degrees when R is pressed
+    /// </summary>
+    void RotateGhost()
+    {
+        currentRotation += 90f;
+        if (currentRotation >= 360f) currentRotation = 0f;
+
+        if (currentGhost != null)
+        {
+            currentGhost.transform.rotation = Quaternion.Euler(0f, currentRotation, 0f);
+        }
+
+        Debug.Log($"BuildPlacement: Rotated to {currentRotation}°");
+    }
+
+    // =============================================
+    // Collision / Validity Checks
+    // =============================================
+
+    // Check if a wall or construction site already exists at this exact grid position
+    bool HasWallAtPosition(Vector3 position)
+    {
+        if (WallGrid.Instance != null)
+        {
+            Vector2Int gridPos = WallGrid.Instance.WorldToGrid(position);
+            return WallGrid.Instance.HasWallAt(gridPos);
+        }
+
+        // Fallback if WallGrid not yet initialized
+        float threshold = cellSize * 0.4f;
+
+        Wall[] walls = FindObjectsByType<Wall>(FindObjectsSortMode.None);
+        foreach (Wall wall in walls)
+        {
+            if (wall == null) continue;
+            float dx = Mathf.Abs(position.x - wall.transform.position.x);
+            float dz = Mathf.Abs(position.z - wall.transform.position.z);
+            if (dx < threshold && dz < threshold)
+                return true;
+        }
+
+        ConstructionSite[] sites = FindObjectsByType<ConstructionSite>(FindObjectsSortMode.None);
+        foreach (ConstructionSite site in sites)
+        {
+            if (site == null) continue;
+            float dx = Mathf.Abs(position.x - site.transform.position.x);
+            float dz = Mathf.Abs(position.z - site.transform.position.z);
+            if (dx < threshold && dz < threshold)
+                return true;
+        }
+
+        return false;
+    }
+
+    // Check if a building type is a wall using BuildingData.isWall flag
+    bool IsWallType(BuildingType type)
+    {
+        if (BuildingDatabase.Instance == null) return false;
+        BuildingData data = BuildingDatabase.Instance.GetBuildingData(type);
+        return data != null && data.isWall;
+    }
+
     // Check if position is too close to any existing building's no-build zone
-    // Uses SQUARE bounds instead of circular to match visual display
+    // Walls skip this check entirely
     bool IsTooCloseToExistingBuilding(Vector3 position)
     {
+        // Walls skip all no-build zone checks - they can be placed anywhere
+        if (IsWallType(selectedBuildingType))
+            return false;
+
         // Small buffer to account for floating-point precision with grid snapping
         float gridBuffer = cellSize * 0.1f;
 
@@ -440,11 +1029,9 @@ public class BuildPlacement : MonoBehaviour
         {
             if (building == null) continue;
 
-            // Check if inside square bounds (check X and Z separately)
             float deltaX = Mathf.Abs(position.x - building.transform.position.x);
             float deltaZ = Mathf.Abs(position.z - building.transform.position.z);
 
-            // Add buffer to ensure boundary cells are blocked despite floating point errors
             if (deltaX < building.noBuildRadius + gridBuffer && deltaZ < building.noBuildRadius + gridBuffer)
             {
                 return true;  // Too close!
@@ -481,20 +1068,7 @@ public class BuildPlacement : MonoBehaviour
             }
         }
 
-        // Check all Wall objects (finished walls)
-        Wall[] walls = FindObjectsByType<Wall>(FindObjectsSortMode.None);
-        foreach (Wall wall in walls)
-        {
-            if (wall == null) continue;
-
-            float deltaX = Mathf.Abs(position.x - wall.transform.position.x);
-            float deltaZ = Mathf.Abs(position.z - wall.transform.position.z);
-
-            if (deltaX < wall.noBuildRadius + gridBuffer && deltaZ < wall.noBuildRadius + gridBuffer)
-            {
-                return true;  // Too close!
-            }
-        }
+        // Walls have noBuildRadius=0 so this check is effectively skipped for them
 
         // Check all Watchtower objects (finished towers)
         Watchtower[] watchtowers = FindObjectsByType<Watchtower>(FindObjectsSortMode.None);
@@ -513,6 +1087,10 @@ public class BuildPlacement : MonoBehaviour
 
         return false;  // All good!
     }
+
+    // =============================================
+    // No-Build Zone Visuals (unchanged)
+    // =============================================
 
     // Create visual zones showing no-build areas around existing buildings
     void CreateNoBuildZoneVisuals()
@@ -559,13 +1137,7 @@ public class BuildPlacement : MonoBehaviour
             CreateCircleVisual(hut.transform.position, hut.noBuildRadius);
         }
 
-        // Create circles for all Wall objects
-        Wall[] walls = FindObjectsByType<Wall>(FindObjectsSortMode.None);
-        foreach (Wall wall in walls)
-        {
-            if (wall == null) continue;
-            CreateCircleVisual(wall.transform.position, wall.noBuildRadius);
-        }
+        // Walls intentionally have no no-build zone visuals so they can be placed adjacent
 
         // Create circles for all Watchtower objects
         Watchtower[] watchtowers = FindObjectsByType<Watchtower>(FindObjectsSortMode.None);
@@ -603,12 +1175,7 @@ public class BuildPlacement : MonoBehaviour
             zones.Add(new ZoneData { position = hut.transform.position, radius = hut.noBuildRadius });
         }
 
-        Wall[] walls = FindObjectsByType<Wall>(FindObjectsSortMode.None);
-        foreach (Wall wall in walls)
-        {
-            if (wall == null) continue;
-            zones.Add(new ZoneData { position = wall.transform.position, radius = wall.noBuildRadius });
-        }
+        // Walls excluded from no-build zones - they can be placed adjacent
 
         Watchtower[] watchtowers = FindObjectsByType<Watchtower>(FindObjectsSortMode.None);
         foreach (Watchtower tower in watchtowers)
@@ -640,16 +1207,10 @@ public class BuildPlacement : MonoBehaviour
 
         foreach (var zone in zones)
         {
-            // Find the grid cell that contains the zone center
-            // Use RoundToInt instead of FloorToInt for symmetric cell filling
             int centerGridX = Mathf.RoundToInt(zone.position.x / cellSize);
             int centerGridZ = Mathf.RoundToInt(zone.position.z / cellSize);
-
-            // Calculate how many cells to extend in each direction
-            // For radius 2.5: we want 2 cells on each side (total 5 cells)
             int cellsToExtend = Mathf.FloorToInt(zone.radius / cellSize);
 
-            // Fill cells symmetrically around center
             for (int x = centerGridX - cellsToExtend; x <= centerGridX + cellsToExtend; x++)
             {
                 for (int z = centerGridZ - cellsToExtend; z <= centerGridZ + cellsToExtend; z++)
@@ -666,7 +1227,7 @@ public class BuildPlacement : MonoBehaviour
     // Helper class for grid-based edge data
     class GridEdgeData
     {
-        public Vector3 worldP1;  // World coordinates for drawing
+        public Vector3 worldP1;
         public Vector3 worldP2;
         public int count;
     }
@@ -678,45 +1239,9 @@ public class BuildPlacement : MonoBehaviour
         public float radius;
     }
 
-    // Helper struct for edge segments
-    struct EdgeSegment
-    {
-        public Vector3 p1;
-        public Vector3 p2;
-
-        public EdgeSegment(Vector3 point1, Vector3 point2)
-        {
-            // Normalize edge direction so we can detect duplicates
-            if (point1.x < point2.x || (point1.x == point2.x && point1.z < point2.z))
-            {
-                p1 = point1;
-                p2 = point2;
-            }
-            else
-            {
-                p1 = point2;
-                p2 = point1;
-            }
-        }
-
-        public override bool Equals(object obj)
-        {
-            if (!(obj is EdgeSegment)) return false;
-            EdgeSegment other = (EdgeSegment)obj;
-            return p1 == other.p1 && p2 == other.p2;
-        }
-
-        public override int GetHashCode()
-        {
-            return p1.GetHashCode() ^ p2.GetHashCode();
-        }
-    }
-
     // Draw perimeter edges around all filled cells
     void DrawPerimeterEdgesFromGrid(HashSet<string> filledCells, int minX, int maxX, int minZ, int maxZ)
     {
-        // For each filled cell, check its 4 edges
-        // If a neighbor is NOT filled, draw that edge
         Dictionary<string, GridEdgeData> uniqueEdges = new Dictionary<string, GridEdgeData>();
 
         foreach (string cellKey in filledCells)
@@ -725,43 +1250,32 @@ public class BuildPlacement : MonoBehaviour
             int x = int.Parse(parts[0]);
             int z = int.Parse(parts[1]);
 
-            // Check each of the 4 neighbors
-            // Bottom edge (neighbor at z-1)
             if (!filledCells.Contains($"{x},{z - 1}"))
             {
-                AddGridEdge(uniqueEdges, x, z, x + 1, z);  // Bottom edge of this cell
+                AddGridEdge(uniqueEdges, x, z, x + 1, z);
             }
-
-            // Right edge (neighbor at x+1)
             if (!filledCells.Contains($"{x + 1},{z}"))
             {
-                AddGridEdge(uniqueEdges, x + 1, z, x + 1, z + 1);  // Right edge of this cell
+                AddGridEdge(uniqueEdges, x + 1, z, x + 1, z + 1);
             }
-
-            // Top edge (neighbor at z+1)
             if (!filledCells.Contains($"{x},{z + 1}"))
             {
-                AddGridEdge(uniqueEdges, x, z + 1, x + 1, z + 1);  // Top edge of this cell
+                AddGridEdge(uniqueEdges, x, z + 1, x + 1, z + 1);
             }
-
-            // Left edge (neighbor at x-1)
             if (!filledCells.Contains($"{x - 1},{z}"))
             {
-                AddGridEdge(uniqueEdges, x, z, x, z + 1);  // Left edge of this cell
+                AddGridEdge(uniqueEdges, x, z, x, z + 1);
             }
         }
 
-        // Draw all unique edges
         foreach (var edge in uniqueEdges.Values)
         {
             DrawEdgeSegment(edge.worldP1, edge.worldP2);
         }
     }
 
-    // Add an edge to the dictionary (using grid coordinates for the key)
     void AddGridEdge(Dictionary<string, GridEdgeData> edges, int gridX1, int gridZ1, int gridX2, int gridZ2)
     {
-        // Normalize edge direction
         int x1, z1, x2, z2;
         if (gridX1 < gridX2 || (gridX1 == gridX2 && gridZ1 < gridZ2))
         {
@@ -778,9 +1292,6 @@ public class BuildPlacement : MonoBehaviour
 
         if (!edges.ContainsKey(key))
         {
-            // Center the grid coordinates first, then convert to world coordinates
-            // Grid edges span asymmetrically (e.g., -2 to 3), so we add 0.5 to center them
-            // Then apply offset to align with the functional no-build zone boundary
             float centeringOffset = 0.5f;
             float offset = cellSize;
             Vector3 worldP1 = new Vector3((x1 + centeringOffset) * cellSize - offset, 0, (z1 + centeringOffset) * cellSize - offset);
@@ -790,8 +1301,6 @@ public class BuildPlacement : MonoBehaviour
         }
     }
 
-
-    // Draw a single edge segment
     void DrawEdgeSegment(Vector3 p1, Vector3 p2)
     {
         GameObject segmentObj = new GameObject("EdgeSegment");
@@ -800,7 +1309,6 @@ public class BuildPlacement : MonoBehaviour
         lineRenderer.positionCount = 2;
         lineRenderer.useWorldSpace = true;
 
-        // Set line properties
         lineRenderer.startWidth = 0.15f;
         lineRenderer.endWidth = 0.15f;
         Color borderColor = new Color(1f, 0f, 0f, 0.8f);
@@ -810,7 +1318,6 @@ public class BuildPlacement : MonoBehaviour
         lineRenderer.material = new Material(Shader.Find("Sprites/Default"));
         lineRenderer.material.color = borderColor;
 
-        // Set positions
         p1.y = 0.05f;
         p2.y = 0.05f;
         lineRenderer.SetPosition(0, p1);
@@ -819,7 +1326,6 @@ public class BuildPlacement : MonoBehaviour
         noBuildZoneVisuals.Add(segmentObj);
     }
 
-    // Destroy all no-build zone visuals
     void DestroyNoBuildZoneVisuals()
     {
         foreach (GameObject visual in noBuildZoneVisuals)
@@ -832,26 +1338,22 @@ public class BuildPlacement : MonoBehaviour
         noBuildZoneVisuals.Clear();
     }
 
-    // Create a single square zone visual at a position with given radius (used as half-width)
     void CreateCircleVisual(Vector3 center, float radius)
     {
         GameObject zoneObj = new GameObject("NoBuildZone");
         zoneObj.transform.position = new Vector3(center.x, 0.05f, center.z);
 
-        // Create the filled square (quad) if enabled
         if (showNoBuildFills)
         {
             GameObject fillObj = new GameObject("Fill");
             fillObj.transform.SetParent(zoneObj.transform);
             fillObj.transform.localPosition = Vector3.zero;
-            fillObj.transform.localRotation = Quaternion.Euler(90f, 0f, 0f); // Lay flat on ground
+            fillObj.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
 
             MeshFilter meshFilter = fillObj.AddComponent<MeshFilter>();
             MeshRenderer meshRenderer = fillObj.AddComponent<MeshRenderer>();
 
-            // Create a quad mesh
             Mesh mesh = new Mesh();
-            float size = radius * 2f;
             mesh.vertices = new Vector3[]
             {
                 new Vector3(-radius, -radius, 0),
@@ -870,7 +1372,6 @@ public class BuildPlacement : MonoBehaviour
             mesh.RecalculateNormals();
             meshFilter.mesh = mesh;
 
-            // Create semi-transparent red material for the fill
             Material fillMaterial;
             if (noBuildZoneMaterial != null)
             {
@@ -880,7 +1381,7 @@ public class BuildPlacement : MonoBehaviour
             {
                 fillMaterial = new Material(Shader.Find("Standard"));
                 fillMaterial.color = noBuildZoneColor;
-                fillMaterial.SetFloat("_Mode", 3); // Transparent mode
+                fillMaterial.SetFloat("_Mode", 3);
                 fillMaterial.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
                 fillMaterial.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
                 fillMaterial.SetInt("_ZWrite", 0);
@@ -892,39 +1393,33 @@ public class BuildPlacement : MonoBehaviour
             meshRenderer.material = fillMaterial;
         }
 
-        // Create the border using LineRenderer
         GameObject borderObj = new GameObject("Border");
         borderObj.transform.SetParent(zoneObj.transform);
-        borderObj.transform.localPosition = new Vector3(0, 0.01f, 0); // Slightly above fill
+        borderObj.transform.localPosition = new Vector3(0, 0.01f, 0);
 
         LineRenderer lineRenderer = borderObj.AddComponent<LineRenderer>();
-        lineRenderer.positionCount = 5; // Square needs 5 points to close
+        lineRenderer.positionCount = 5;
         lineRenderer.loop = true;
         lineRenderer.useWorldSpace = false;
 
-        // Set border width and color (brighter red for border)
         lineRenderer.startWidth = 0.15f;
         lineRenderer.endWidth = 0.15f;
-        Color borderColor = new Color(1f, 0f, 0f, 0.8f); // Brighter red for border
+        Color borderColor = new Color(1f, 0f, 0f, 0.8f);
         lineRenderer.startColor = borderColor;
         lineRenderer.endColor = borderColor;
 
-        // Use default material for border
         lineRenderer.material = new Material(Shader.Find("Sprites/Default"));
         lineRenderer.material.color = borderColor;
 
-        // Set square corner positions
         lineRenderer.SetPosition(0, new Vector3(-radius, 0, -radius));
         lineRenderer.SetPosition(1, new Vector3(radius, 0, -radius));
         lineRenderer.SetPosition(2, new Vector3(radius, 0, radius));
         lineRenderer.SetPosition(3, new Vector3(-radius, 0, radius));
-        lineRenderer.SetPosition(4, new Vector3(-radius, 0, -radius)); // Close the square
+        lineRenderer.SetPosition(4, new Vector3(-radius, 0, -radius));
 
-        // Add to our tracking list
         noBuildZoneVisuals.Add(zoneObj);
     }
 
-    // Create no-build zone preview for the ghost building (follows the ghost)
     void CreateGhostNoBuildZone()
     {
         if (ghostNoBuildZone != null)
@@ -937,7 +1432,6 @@ public class BuildPlacement : MonoBehaviour
 
         float radius = ghostBuildingNoBuildRadius;
 
-        // Create the filled square (quad) if enabled
         if (showNoBuildFills)
         {
             GameObject fillObj = new GameObject("Fill");
@@ -948,7 +1442,6 @@ public class BuildPlacement : MonoBehaviour
             MeshFilter meshFilter = fillObj.AddComponent<MeshFilter>();
             MeshRenderer meshRenderer = fillObj.AddComponent<MeshRenderer>();
 
-            // Create a quad mesh
             Mesh mesh = new Mesh();
             mesh.vertices = new Vector3[]
             {
@@ -968,9 +1461,8 @@ public class BuildPlacement : MonoBehaviour
             mesh.RecalculateNormals();
             meshFilter.mesh = mesh;
 
-            // Create semi-transparent blue/cyan material for ghost preview (different from existing buildings)
             Material fillMaterial = new Material(Shader.Find("Standard"));
-            Color ghostZoneColor = new Color(0.3f, 0.7f, 1f, 0.25f);  // Light blue, more transparent
+            Color ghostZoneColor = new Color(0.3f, 0.7f, 1f, 0.25f);
             fillMaterial.color = ghostZoneColor;
             fillMaterial.SetFloat("_Mode", 3);
             fillMaterial.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
@@ -983,7 +1475,6 @@ public class BuildPlacement : MonoBehaviour
             meshRenderer.material = fillMaterial;
         }
 
-        // Create the border using LineRenderer
         GameObject borderObj = new GameObject("Border");
         borderObj.transform.SetParent(zoneObj.transform);
         borderObj.transform.localPosition = new Vector3(0, 0.01f, 0);
@@ -993,17 +1484,15 @@ public class BuildPlacement : MonoBehaviour
         lineRenderer.loop = true;
         lineRenderer.useWorldSpace = false;
 
-        // Cyan border for ghost preview
         lineRenderer.startWidth = 0.15f;
         lineRenderer.endWidth = 0.15f;
-        Color borderColor = new Color(0.3f, 0.9f, 1f, 0.6f);  // Bright cyan
-        lineRenderer.startColor = borderColor;
-        lineRenderer.endColor = borderColor;
+        Color ghostBorderColor = new Color(0.3f, 0.9f, 1f, 0.6f);
+        lineRenderer.startColor = ghostBorderColor;
+        lineRenderer.endColor = ghostBorderColor;
 
         lineRenderer.material = new Material(Shader.Find("Sprites/Default"));
-        lineRenderer.material.color = borderColor;
+        lineRenderer.material.color = ghostBorderColor;
 
-        // Set square corner positions
         lineRenderer.SetPosition(0, new Vector3(-radius, 0, -radius));
         lineRenderer.SetPosition(1, new Vector3(radius, 0, -radius));
         lineRenderer.SetPosition(2, new Vector3(radius, 0, radius));

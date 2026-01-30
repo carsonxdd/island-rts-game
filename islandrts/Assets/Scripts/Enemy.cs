@@ -295,6 +295,43 @@ public class Enemy : MonoBehaviour
                 agent.SetDestination(target.position);
                 lastTargetPosition = target.position;
             }
+
+            // If path is partial (blocked by wall), find and attack the nearest wall
+            if (agent.hasPath && agent.pathStatus == NavMeshPathStatus.PathPartial)
+            {
+                FindNearestWallTarget();
+            }
+        }
+    }
+
+    void FindNearestWallTarget()
+    {
+        Wall[] walls = FindObjectsByType<Wall>(FindObjectsSortMode.None);
+        float closestDist = float.MaxValue;
+        Wall closestWall = null;
+
+        foreach (Wall wall in walls)
+        {
+            if (wall == null) continue;
+            Health wallHealth = wall.GetComponent<Health>();
+            if (wallHealth == null || !wallHealth.IsAlive) continue;
+
+            float dist = Vector3.Distance(transform.position, wall.transform.position);
+            if (dist < closestDist)
+            {
+                closestDist = dist;
+                closestWall = wall;
+            }
+        }
+
+        if (closestWall != null && closestDist < 10f)
+        {
+            target = closestWall.transform;
+            targetName = closestWall.gameObject.name;
+            hasTarget = true;
+            lastTargetPosition = target.position;
+            agent.SetDestination(target.position);
+            Debug.Log($"Enemy: Path blocked! Switching to attack wall {targetName} at {closestDist:F1}m");
         }
     }
 

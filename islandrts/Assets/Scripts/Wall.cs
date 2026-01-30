@@ -11,7 +11,10 @@ public class Wall : MonoBehaviour
     private Health healthComponent;
 
     [Header("Building Placement")]
-    public float noBuildRadius = 1.5f;  // Walls have smaller no-build zones
+    public float noBuildRadius = 0f;  // Walls have no no-build zone - they can be placed adjacent
+
+    private Vector2Int gridPos;
+    private bool registered = false;
 
     void Start()
     {
@@ -36,31 +39,30 @@ public class Wall : MonoBehaviour
             obstacle.carving = true;  // FORCE ENEMIES TO ATTACK WALLS
             obstacle.carveOnlyStationary = true;
             obstacle.carvingTimeToStationary = 0.1f;
-            Debug.Log($"Wall: NavMeshObstacle carving ENABLED - enemies must destroy to pass through");
-        }
-        else
-        {
-            Debug.LogWarning("Wall: No NavMeshObstacle component found! Enemies will path through walls.");
         }
 
-        Debug.Log($"Wall: Initialized {(isStoneWall ? "Stone" : "Wooden")} wall with {maxHealth} HP at {transform.position}");
+        // Register with WallGrid
+        gridPos = WallGrid.Instance.WorldToGrid(transform.position);
+        WallGrid.Instance.Register(gridPos, this);
+        registered = true;
     }
 
     void OnWallDestroyed()
     {
-        Debug.Log($"Wall: {(isStoneWall ? "Stone" : "Wooden")} wall destroyed at {transform.position}");
+        UnregisterFromGrid();
+    }
 
-        // Play destruction sound if AudioManager exists
-        if (AudioManager.Instance != null)
-        {
-            // AudioManager.Instance.PlayWallDestroyed();  // TODO: Add sound
-        }
+    void OnDestroy()
+    {
+        UnregisterFromGrid();
+    }
 
-        // Notify adjacent walls to update connections
-        WallConnector connector = GetComponent<WallConnector>();
-        if (connector != null)
+    private void UnregisterFromGrid()
+    {
+        if (registered && WallGrid.Instance != null)
         {
-            connector.NotifyAdjacentWalls();
+            WallGrid.Instance.Unregister(gridPos);
+            registered = false;
         }
     }
 
