@@ -3,5 +3,7 @@ public enum BuildingType
     Hut,
     WoodenWall,
     StoneWall,
-    Watchtower
+    Watchtower,
+    WoodenGate,
+    StoneGate
 }

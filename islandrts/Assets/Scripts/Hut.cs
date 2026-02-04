@@ -1,7 +1,17 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 public class Hut : MonoBehaviour
 {
+    // Static registry for O(1) lookup instead of FindObjectsByType
+    private static readonly List<Hut> activeList = new List<Hut>();
+    public static IReadOnlyList<Hut> ActiveList => activeList;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetStatics() { activeList.Clear(); }
+
+    void Awake() { activeList.Add(this); }
+
     [Header("Health")]
     public float maxHealth = 100f;  // Hut health (less than campfire)
     private Health healthComponent;
@@ -65,6 +75,11 @@ public class Hut : MonoBehaviour
         }
 
         // Could add visual effects, resource drops, etc. here
+    }
+
+    void OnDestroy()
+    {
+        activeList.Remove(this);
     }
 
     // Visual helper in Scene view

@@ -1,9 +1,18 @@
 using UnityEngine;
 using UnityEngine.AI;
 using TMPro;
-
+using System.Collections.Generic;
 public class Enemy : MonoBehaviour
 {
+    // Static registry for O(1) lookup instead of FindObjectsByType
+    private static readonly List<Enemy> activeList = new List<Enemy>();
+    public static IReadOnlyList<Enemy> ActiveList => activeList;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetStatics() { activeList.Clear(); wallTargetCounts.Clear(); }
+
+    void Awake() { activeList.Add(this); }
+
     [Header("Stats")]
     public float maxHealth = 50f;
     public float damage = 10f;
@@ -15,7 +24,9 @@ public class Enemy : MonoBehaviour
     public float destinationUpdateThreshold = 1.5f;  // Only update destination if target moved this far
 
     [Header("Targeting")]
-    public float campfireAvoidDistance = 15f;  // Prefer other buildings if campfire is further than this
+    public float warriorDetectionRange = 15f;  // Only engage warriors within this range
+    public float buildingEngagementRange = 20f;  // Only engage buildings within this range
+    public float retargetInterval = 1.5f;  // Re-evaluate targets this often
 
     [Header("State Display")]
     public bool showStateText = true;
@@ -28,16 +39,93 @@ public class Enemy : MonoBehaviour
     private float lastAttackTime = 0f;
     private bool hasTarget = false;
     private Health healthComponent;
+    private Health cachedTargetHealth;
+    private Transform cachedTargetTransform;
     private TextMeshPro stateText;
     private GameObject stateTextObject;
     private string currentState = "Spawning";
+    private string lastRenderedState = "";
     private Vector3 lastTargetPosition;  // Track last known target position to reduce path updates
+    private float retargetTimer;
+    private bool isAttackingWall = false;  // True when committed to attacking a wall/gate
+    private float handleBlockedCooldown = 0f;  // Prevents HandleBlockedPath from thrashing every frame
+
+    // Faster breach check when attacking walls
+    private float breachCheckTimer = 0f;
+    private float breachCheckInterval = 0.5f;  // Check for breaches every 0.5s when attacking walls
+
+    // Post-breach building hunt
+    private bool justBreached = false;
+    private float postBreachBuildingRange = 25f;
+
+    // Static wall-target coordination: tracks how many enemies are targeting each wall/gate
+    private static Dictionary<Transform, int> wallTargetCounts = new Dictionary<Transform, int>();
+    private static readonly List<Transform> staleKeyBuffer = new List<Transform>();
+
+    // Pooled NavMeshPath to avoid GC allocations
+    private NavMeshPath reusablePath;
+
+    // Pooled candidate list for HandleBlockedPath
+    private readonly List<(Transform t, float score, string name)> blockedCandidates = new List<(Transform, float, string)>();
 
     // Audio - 3D Spatial Sound
     private AudioSource combatAudioSource;
 
+    // NavMesh.CalculatePath throttle — max 2 per frame across all enemies
+    private static int calcPathFrame = -1;
+    private static int calcPathCount = 0;
+
+    static bool TryCalculatePath(Vector3 src, Vector3 dst, int mask, NavMeshPath path)
+    {
+        if (Time.frameCount != calcPathFrame) { calcPathFrame = Time.frameCount; calcPathCount = 0; }
+        if (calcPathCount >= 2) return false;
+        calcPathCount++;
+        NavMesh.CalculatePath(src, dst, mask, path);
+        return true;
+    }
+
+    // --- Static wall-target coordination helpers ---
+
+    static void RegisterWallTarget(Transform wallTransform)
+    {
+        CleanupStaleEntries();
+        if (wallTransform == null) return;
+        if (wallTargetCounts.ContainsKey(wallTransform))
+            wallTargetCounts[wallTransform]++;
+        else
+            wallTargetCounts[wallTransform] = 1;
+    }
+
+    static void UnregisterWallTarget(Transform wallTransform)
+    {
+        if (wallTransform == null) return;
+        if (wallTargetCounts.ContainsKey(wallTransform))
+        {
+            wallTargetCounts[wallTransform]--;
+            if (wallTargetCounts[wallTransform] <= 0)
+                wallTargetCounts.Remove(wallTransform);
+        }
+    }
+
+    static int GetWallTargetCount(Transform wallTransform)
+    {
+        if (wallTransform == null) return 0;
+        return wallTargetCounts.ContainsKey(wallTransform) ? wallTargetCounts[wallTransform] : 0;
+    }
+
+    static void CleanupStaleEntries()
+    {
+        staleKeyBuffer.Clear();
+        foreach (var kvp in wallTargetCounts)
+            if (kvp.Key == null) staleKeyBuffer.Add(kvp.Key);
+        for (int i = 0; i < staleKeyBuffer.Count; i++)
+            wallTargetCounts.Remove(staleKeyBuffer[i]);
+    }
+
     void Start()
     {
+        reusablePath = new NavMeshPath();
+
         // Get NavMeshAgent component
         agent = GetComponent<NavMeshAgent>();
         if (agent == null)
@@ -54,6 +142,9 @@ public class Enemy : MonoBehaviour
         agent.autoBraking = true;
         agent.radius = 0.5f;             // Agent size for collision
         agent.obstacleAvoidanceType = ObstacleAvoidanceType.GoodQualityObstacleAvoidance;  // Reduced from High for performance
+
+        // Exclude gate passage area — enemies cannot walk through gates, only attack them
+        agent.areaMask = NavMesh.AllAreas & ~(1 << Gate.GateAreaIndex);
 
         Debug.Log($"Enemy: NavMeshAgent configured - Speed: {agent.speed}, Accel: {agent.acceleration}");
 
@@ -77,6 +168,15 @@ public class Enemy : MonoBehaviour
         // Setup 3D spatial audio for combat sounds
         SetupCombatAudioSource();
 
+        // Stagger timers so not all enemies retarget/check on the same frame
+        retargetTimer = Random.Range(0f, retargetInterval);
+        breachCheckTimer = Random.Range(0f, breachCheckInterval);
+        handleBlockedCooldown = Random.Range(0f, 2f);
+
+        // Subscribe to wall/gate destroy events for immediate breach detection
+        Wall.OnAnyWallDestroyed += OnWallOrGateDestroyed;
+        Gate.OnAnyGateDestroyed += OnWallOrGateDestroyed;
+
         // Find the best target
         FindTarget();
 
@@ -89,6 +189,37 @@ public class Enemy : MonoBehaviour
         currentState = hasTarget ? $"Moving to {targetName}" : "Searching";
 
         Debug.Log($"Enemy: Spawned with {maxHealth} health. Target: {(hasTarget ? targetName : "None")}");
+    }
+
+    void OnDestroy()
+    {
+        activeList.Remove(this);
+
+        // Unsubscribe from static events to prevent memory leaks
+        Wall.OnAnyWallDestroyed -= OnWallOrGateDestroyed;
+        Gate.OnAnyGateDestroyed -= OnWallOrGateDestroyed;
+
+        // Unregister from wall target tracking
+        if (isAttackingWall && target != null)
+            UnregisterWallTarget(target);
+    }
+
+    /// <summary>
+    /// Called when any wall or gate is destroyed. Forces immediate path recheck
+    /// so ALL enemies can funnel through breaches — not just wall-attackers.
+    /// </summary>
+    void OnWallOrGateDestroyed()
+    {
+        // Unregister from wall target tracking if we were attacking a wall
+        if (isAttackingWall && target != null)
+            UnregisterWallTarget(target);
+
+        // ALL enemies re-evaluate on wall destruction — a breach may have opened
+        isAttackingWall = false;
+        justBreached = true;  // Enable extended building search range post-breach
+        breachCheckTimer = 0f;
+        handleBlockedCooldown = 0f;  // Allow immediate path-around check
+        retargetTimer = retargetInterval;  // Force retarget on next Update
     }
 
     void Update()
@@ -104,34 +235,97 @@ public class Enemy : MonoBehaviour
             // Try to find target again if we lost it
             currentState = "Searching for target";
             FindTarget();
-
-            // Initialize last position and path if we found a new target
-            if (hasTarget && target != null)
-            {
-                lastTargetPosition = target.position;
-                agent.isStopped = false;  // Resume movement toward new target
-                agent.SetDestination(target.position);  // CRITICAL: Set path to new target
-            }
+            ApplyNewTarget();
             return;
         }
 
-        // Check if target is still alive
-        Health targetHealth = target.GetComponent<Health>();
-        if (targetHealth != null && !targetHealth.IsAlive)
+        // Check if target is still alive (use cached Health to avoid GetComponent every frame)
+        if (cachedTargetTransform != target)
+        {
+            cachedTargetHealth = target.GetComponent<Health>();
+            cachedTargetTransform = target;
+        }
+        if (cachedTargetHealth != null && !cachedTargetHealth.IsAlive)
         {
             // Target is dead, find a new target
             currentState = "Target destroyed! Searching...";
+            if (isAttackingWall && target != null)
+                UnregisterWallTarget(target);
+            isAttackingWall = false;
             agent.isStopped = true;
             FindTarget();
-
-            // Initialize last position and path if we found a new target
-            if (hasTarget && target != null)
-            {
-                lastTargetPosition = target.position;
-                agent.isStopped = false;  // Resume movement toward new target
-                agent.SetDestination(target.position);  // CRITICAL: Set path to new target
-            }
+            ApplyNewTarget();
             return;
+        }
+
+        // Periodic retargeting - re-evaluate while moving
+        retargetTimer += Time.deltaTime;
+        if (retargetTimer >= retargetInterval)
+        {
+            retargetTimer = 0f;
+
+            // If committed to attacking a wall, use faster breach check instead
+            if (isAttackingWall)
+            {
+                // Check if wall target is still valid
+                if (target == null || !IsTargetAlive(target))
+                {
+                    if (target != null) UnregisterWallTarget(target);
+                    isAttackingWall = false;
+                    FindTarget();
+                    ApplyNewTarget();
+                    return;
+                }
+                // Breach check handled separately below with faster timer
+                return;
+            }
+
+            // Normal retarget for non-wall targets
+            Transform previousTarget = target;
+            FindTarget();
+            if (target != previousTarget)
+            {
+                ApplyNewTarget();
+            }
+        }
+
+        // Faster breach checking when attacking walls (every 0.5s instead of 1.5s)
+        if (isAttackingWall)
+        {
+            breachCheckTimer += Time.deltaTime;
+            if (breachCheckTimer >= breachCheckInterval)
+            {
+                breachCheckTimer = 0f;
+
+                // Check if wall target is still valid
+                if (target == null || !IsTargetAlive(target))
+                {
+                    if (target != null) UnregisterWallTarget(target);
+                    isAttackingWall = false;
+                    FindTarget();
+                    ApplyNewTarget();
+                    return;
+                }
+
+                // Breach funneling: check if a complete path to campfire now exists
+                BaseBuilding campfire = BaseBuilding.ActiveList.Count > 0 ? BaseBuilding.ActiveList[0] : null;
+                if (campfire != null)
+                {
+                    if (TryCalculatePath(transform.position, campfire.transform.position, NavMesh.AllAreas, reusablePath)
+                        && reusablePath.status == NavMeshPathStatus.PathComplete)
+                    {
+                        // Breach found! Stop attacking wall and go through
+                        UnregisterWallTarget(target);
+                        isAttackingWall = false;
+                        justBreached = true;
+                        FindTarget();
+                        ApplyNewTarget();
+#if UNITY_EDITOR
+                        Debug.Log($"Enemy: Wall breach detected! Routing through gap");
+#endif
+                    }
+                }
+            }
         }
 
         // Move toward target
@@ -140,47 +334,58 @@ public class Enemy : MonoBehaviour
         // Check if in attack range
         float distanceToTarget = Vector3.Distance(transform.position, target.position);
 
+        // For walls/gates: use a more generous attack range since NavMesh carving
+        // prevents the agent from reaching the wall center. The agent stops at the
+        // edge of the carved hole, so we add extra range to compensate.
+        float effectiveAttackRange = attackRange;
+        if (isAttackingWall)
+        {
+            effectiveAttackRange = attackRange + 1.5f;  // Extra range to reach past carved NavMesh hole
+        }
+
+#if UNITY_EDITOR
         // Debug: Log distance and agent status occasionally
-        if (Time.frameCount % 60 == 0)  // Every 60 frames (~1 second)
+        if (Time.frameCount % 60 == 0)
         {
             bool hasPath = agent.hasPath;
             bool pathPending = agent.pathPending;
             float remainingDistance = agent.remainingDistance;
-            Debug.Log($"Enemy {gameObject.name}: Distance to {targetName}: {distanceToTarget:F2}m (Attack range: {attackRange}m) | HasPath: {hasPath} | PathPending: {pathPending} | RemainingDist: {remainingDistance:F2}m");
+            Debug.Log($"Enemy {gameObject.name}: Distance to {targetName}: {distanceToTarget:F2}m (Attack range: {effectiveAttackRange}m) | HasPath: {hasPath} | PathPending: {pathPending} | RemainingDist: {remainingDistance:F2}m | WallMode: {isAttackingWall}");
         }
 
-        // Also check if agent can't reach target (stuck)
-        if (agent.hasPath && !agent.pathPending && agent.remainingDistance <= agent.stoppingDistance)
+        // Stuck detection — only for non-wall targets (wall targets naturally stop at carved edge)
+        if (!isAttackingWall && agent.hasPath && !agent.pathPending && agent.remainingDistance <= agent.stoppingDistance)
         {
-            // Agent has stopped moving
-            if (distanceToTarget > attackRange)
+            if (distanceToTarget > effectiveAttackRange)
             {
-                // Stopped but not in attack range = stuck
                 Debug.LogWarning($"Enemy {gameObject.name}: STUCK! At stopping distance but outside attack range. Distance: {distanceToTarget:F2}m");
             }
         }
+#endif
 
-        if (distanceToTarget <= attackRange)
+        if (distanceToTarget <= effectiveAttackRange)
         {
             // Stop moving and attack
             agent.isStopped = true;
-            currentState = $"Attacking {targetName}!";
+            if (!currentState.StartsWith("Attacking"))
+                currentState = "Attacking " + targetName + "!";
             AttemptAttack();
         }
         else
         {
             // Resume moving if we were stopped
             agent.isStopped = false;
-            currentState = $"Moving to {targetName} ({distanceToTarget:F1}m)";
+            if (!currentState.StartsWith("Moving"))
+                currentState = "Moving to " + targetName;
         }
     }
 
     void FindTarget()
     {
         // Priority System:
-        // 1. Warriors (highest priority - defend against defenders!)
-        // 2. Buildings (huts, etc.) if closer than campfire
-        // 3. Campfire (only if it's the last thing or very close)
+        // 1. Warriors within warriorDetectionRange -> attack nearest
+        // 2. Buildings/huts within buildingEngagementRange -> attack nearest
+        // 3. Campfire -> always the default objective
 
         Transform bestWarrior = null;
         float bestWarriorDistance = float.MaxValue;
@@ -190,94 +395,126 @@ public class Enemy : MonoBehaviour
         string bestBuildingName = "";
 
         BaseBuilding campfire = null;
-        float campfireDistance = float.MaxValue;
 
-        // Check for all objects with Health components
-        Health[] allHealthObjects = FindObjectsByType<Health>(FindObjectsSortMode.None);
-
-        foreach (Health healthObj in allHealthObjects)
+        // Scan warriors
+        for (int i = 0; i < Warrior.ActiveList.Count; i++)
         {
-            // Skip if not alive
-            if (!healthObj.IsAlive)
-                continue;
+            Warrior warrior = Warrior.ActiveList[i];
+            if (warrior == null) continue;
+            Health h = warrior.GetComponent<Health>();
+            if (h != null && !h.IsAlive) continue;
 
-            // Skip self
-            if (healthObj.transform == transform)
-                continue;
-
-            // Skip other enemies
-            if (healthObj.GetComponent<Enemy>() != null)
-                continue;
-
-            float distance = Vector3.Distance(transform.position, healthObj.transform.position);
-
-            // Check if this is a warrior (HIGHEST PRIORITY)
-            Warrior warrior = healthObj.GetComponent<Warrior>();
-            if (warrior != null)
+            float distance = Vector3.Distance(transform.position, warrior.transform.position);
+            if (distance <= warriorDetectionRange && distance < bestWarriorDistance)
             {
-                if (distance < bestWarriorDistance)
-                {
-                    bestWarriorDistance = distance;
-                    bestWarrior = warrior.transform;
-                }
-                continue;
-            }
-
-            // Check if this is the campfire
-            BaseBuilding baseBuildingComponent = healthObj.GetComponent<BaseBuilding>();
-            if (baseBuildingComponent != null)
-            {
-                campfire = baseBuildingComponent;
-                campfireDistance = distance;
-                continue;  // Don't target yet
-            }
-
-            // Regular building (hut, etc.) - medium priority
-            if (distance < bestBuildingDistance)
-            {
-                bestBuildingDistance = distance;
-                bestBuilding = healthObj.transform;
-                bestBuildingName = healthObj.gameObject.name;
+                bestWarriorDistance = distance;
+                bestWarrior = warrior.transform;
             }
         }
 
-        // Decision Logic - Priority order:
-        // 1. Attack warriors if any exist (they're defending!)
+        // Scan huts and watchtowers (buildings of opportunity)
+        float effectiveBuildingRange = justBreached ? postBreachBuildingRange : buildingEngagementRange;
+
+        for (int i = 0; i < Hut.ActiveList.Count; i++)
+        {
+            Hut hut = Hut.ActiveList[i];
+            if (hut == null) continue;
+            Health h = hut.GetComponent<Health>();
+            if (h != null && !h.IsAlive) continue;
+
+            float distance = Vector3.Distance(transform.position, hut.transform.position);
+            if (distance <= effectiveBuildingRange && distance < bestBuildingDistance)
+            {
+                bestBuildingDistance = distance;
+                bestBuilding = hut.transform;
+                bestBuildingName = hut.gameObject.name;
+            }
+        }
+
+        for (int i = 0; i < Watchtower.ActiveList.Count; i++)
+        {
+            Watchtower tower = Watchtower.ActiveList[i];
+            if (tower == null) continue;
+            Health h = tower.GetComponent<Health>();
+            if (h != null && !h.IsAlive) continue;
+
+            float distance = Vector3.Distance(transform.position, tower.transform.position);
+            if (distance <= effectiveBuildingRange && distance < bestBuildingDistance)
+            {
+                bestBuildingDistance = distance;
+                bestBuilding = tower.transform;
+                bestBuildingName = tower.gameObject.name;
+            }
+        }
+
+        // Campfire
+        if (BaseBuilding.ActiveList.Count > 0)
+        {
+            campfire = BaseBuilding.ActiveList[0];
+            if (campfire != null)
+            {
+                Health h = campfire.GetComponent<Health>();
+                if (h != null && !h.IsAlive) campfire = null;
+            }
+        }
+
+        // Decision Logic:
+        // 1. Nearby warriors get highest priority
         if (bestWarrior != null)
         {
             target = bestWarrior;
             targetName = bestWarrior.gameObject.name;
             hasTarget = true;
-            Debug.Log($"Enemy: Targeting WARRIOR - {targetName} at {bestWarriorDistance:F1}m");
+#if UNITY_EDITOR
+            Debug.Log($"Enemy: Targeting nearby WARRIOR - {targetName} at {bestWarriorDistance:F1}m");
+#endif
         }
-        // 2. Attack buildings if they exist and are closer than campfire
-        else if (bestBuilding != null && (campfire == null || bestBuildingDistance < campfireDistance))
+        // 2. Nearby buildings are targets of opportunity
+        else if (bestBuilding != null)
         {
             target = bestBuilding;
             targetName = bestBuildingName;
             hasTarget = true;
-            Debug.Log($"Enemy: Targeting building - {targetName} at {bestBuildingDistance:F1}m");
+#if UNITY_EDITOR
+            Debug.Log($"Enemy: Targeting nearby building - {targetName} at {bestBuildingDistance:F1}m");
+#endif
         }
-        // 3. Attack campfire if it's very close (within avoid distance)
-        else if (campfire != null && campfireDistance < campfireAvoidDistance)
+        // 3. Campfire is always the ultimate objective
+        else if (campfire != null)
         {
             target = campfire.transform;
             targetName = "Campfire";
             hasTarget = true;
-            Debug.Log($"Enemy: Campfire is close ({campfireDistance:F1}m). Targeting it.");
-        }
-        // 4. Attack campfire if it's the only thing left
-        else if (campfire != null && bestBuilding == null && bestWarrior == null)
-        {
-            target = campfire.transform;
-            targetName = "Campfire";
-            hasTarget = true;
-            Debug.Log($"Enemy: No other targets. Going for Campfire at {campfireDistance:F1}m");
+#if UNITY_EDITOR
+            Debug.Log($"Enemy: Heading for Campfire");
+#endif
         }
         else
         {
+#if UNITY_EDITOR
             Debug.LogWarning("Enemy: No valid targets found!");
+#endif
             hasTarget = false;
+        }
+
+        // Reset post-breach flag after one use
+        justBreached = false;
+    }
+
+    bool IsTargetAlive(Transform t)
+    {
+        if (t == null) return false;
+        Health h = t.GetComponent<Health>();
+        return h != null && h.IsAlive;
+    }
+
+    void ApplyNewTarget()
+    {
+        if (hasTarget && target != null)
+        {
+            lastTargetPosition = target.position;
+            agent.isStopped = false;
+            agent.SetDestination(target.position);
         }
     }
 
@@ -285,8 +522,19 @@ public class Enemy : MonoBehaviour
     {
         if (agent != null && target != null)
         {
+            // If attacking a wall, don't re-pathfind (wall center is carved out of NavMesh)
+            if (isAttackingWall)
+            {
+                // Just keep moving toward the wall position; attack range check handles the rest
+                if (!agent.hasPath || agent.pathStatus == NavMeshPathStatus.PathInvalid)
+                {
+                    agent.SetDestination(target.position);
+                    lastTargetPosition = target.position;
+                }
+                return;
+            }
+
             // Only update destination if target has moved significantly OR if path is invalid
-            // This reduces stuttering when target moves slightly
             float distanceMoved = Vector3.Distance(target.position, lastTargetPosition);
             bool needsNewPath = !agent.hasPath || agent.pathPending || agent.pathStatus == NavMeshPathStatus.PathInvalid;
 
@@ -296,42 +544,92 @@ public class Enemy : MonoBehaviour
                 lastTargetPosition = target.position;
             }
 
-            // If path is partial (blocked by wall), find and attack the nearest wall
-            if (agent.hasPath && agent.pathStatus == NavMeshPathStatus.PathPartial)
+            // If path is partial (blocked by wall), try to find a way around
+            // Use a cooldown so this doesn't thrash every frame
+            handleBlockedCooldown -= Time.deltaTime;
+            if (agent.hasPath && agent.pathStatus == NavMeshPathStatus.PathPartial && handleBlockedCooldown <= 0f)
             {
-                FindNearestWallTarget();
+                handleBlockedCooldown = 2f;  // Only re-evaluate every 2 seconds
+                HandleBlockedPath();
             }
         }
     }
 
-    void FindNearestWallTarget()
+    void HandleBlockedPath()
     {
-        Wall[] walls = FindObjectsByType<Wall>(FindObjectsSortMode.None);
-        float closestDist = float.MaxValue;
-        Wall closestWall = null;
-
-        foreach (Wall wall in walls)
+        // No complete path to current target — walls are in the way.
+        // First check: is there a complete path to campfire going AROUND the walls?
+        BaseBuilding campfire = BaseBuilding.ActiveList.Count > 0 ? BaseBuilding.ActiveList[0] : null;
+        if (campfire != null)
         {
+            if (TryCalculatePath(transform.position, campfire.transform.position, NavMesh.AllAreas, reusablePath)
+                && reusablePath.status == NavMeshPathStatus.PathComplete)
+            {
+                // A route around exists — use normal targeting (will pick campfire or closer building)
+                if (isAttackingWall && target != null)
+                    UnregisterWallTarget(target);
+                isAttackingWall = false;
+                FindTarget();
+                ApplyNewTarget();
+#if UNITY_EDITOR
+                Debug.Log($"Enemy: Path blocked to target, but found route around walls");
+#endif
+                return;
+            }
+        }
+
+        // No complete path exists — walls truly block all routes.
+        // Build scored candidate list with crowd penalty to distribute enemies across walls.
+        blockedCandidates.Clear();
+
+        for (int i = 0; i < Wall.ActiveList.Count; i++)
+        {
+            Wall wall = Wall.ActiveList[i];
             if (wall == null) continue;
             Health wallHealth = wall.GetComponent<Health>();
             if (wallHealth == null || !wallHealth.IsAlive) continue;
 
             float dist = Vector3.Distance(transform.position, wall.transform.position);
-            if (dist < closestDist)
-            {
-                closestDist = dist;
-                closestWall = wall;
-            }
+            int attackers = GetWallTargetCount(wall.transform);
+            float score = dist * (1f + attackers * 0.5f);
+            blockedCandidates.Add((wall.transform, score, wall.gameObject.name));
         }
 
-        if (closestWall != null && closestDist < 10f)
+        // Also consider gates (enemies can attack them to destroy them)
+        for (int i = 0; i < Gate.ActiveList.Count; i++)
         {
-            target = closestWall.transform;
-            targetName = closestWall.gameObject.name;
+            Gate gate = Gate.ActiveList[i];
+            if (gate == null) continue;
+            Health gateHealth = gate.GetComponent<Health>();
+            if (gateHealth == null || !gateHealth.IsAlive) continue;
+
+            float dist = Vector3.Distance(transform.position, gate.transform.position);
+            dist *= 0.3f;  // Strong preference for gates — treat as much closer (weak points)
+            int attackers = GetWallTargetCount(gate.transform);
+            float score = dist * (1f + attackers * 0.5f);
+            blockedCandidates.Add((gate.transform, score, gate.gameObject.name));
+        }
+
+        if (blockedCandidates.Count > 0)
+        {
+            // Sort by score (lowest = best target)
+            blockedCandidates.Sort((a, b) => a.score.CompareTo(b.score));
+            var best = blockedCandidates[0];
+
+            // Unregister from previous wall target if switching
+            if (isAttackingWall && target != null && target != best.t)
+                UnregisterWallTarget(target);
+
+            target = best.t;
+            targetName = best.name;
             hasTarget = true;
+            isAttackingWall = true;  // Commit to this wall — don't let retarget override
+            RegisterWallTarget(target);
             lastTargetPosition = target.position;
             agent.SetDestination(target.position);
-            Debug.Log($"Enemy: Path blocked! Switching to attack wall {targetName} at {closestDist:F1}m");
+#if UNITY_EDITOR
+            Debug.Log($"Enemy: All paths blocked! Committed to attacking {targetName} (score: {best.score:F1}, attackers: {GetWallTargetCount(target)})");
+#endif
         }
     }
 
@@ -346,7 +644,9 @@ public class Enemy : MonoBehaviour
         lastAttackTime = Time.time;
 
         // Attack the target
+#if UNITY_EDITOR
         Debug.Log($"Enemy: Attacking {target.name} for {damage} damage!");
+#endif
 
         // Spawn attack visual effect
         if (CombatEffects.Instance != null)
@@ -357,11 +657,15 @@ public class Enemy : MonoBehaviour
         // Play attack sound (3D spatial audio)
         PlayAttackSound();
 
-        // Apply damage to target's Health component
-        Health targetHealth = target.GetComponent<Health>();
-        if (targetHealth != null)
+        // Apply damage to target's Health component (use cached reference)
+        if (cachedTargetTransform != target)
         {
-            targetHealth.TakeDamage(damage);
+            cachedTargetHealth = target.GetComponent<Health>();
+            cachedTargetTransform = target;
+        }
+        if (cachedTargetHealth != null)
+        {
+            cachedTargetHealth.TakeDamage(damage);
         }
         else
         {
@@ -381,6 +685,10 @@ public class Enemy : MonoBehaviour
     void Die()
     {
         Debug.Log("Enemy: Defeated!");
+
+        // Unregister from wall target tracking
+        if (isAttackingWall && target != null)
+            UnregisterWallTarget(target);
 
         // Play death sound (3D spatial audio)
         PlayDeathSound();
@@ -461,35 +769,37 @@ public class Enemy : MonoBehaviour
 
     void UpdateStateText()
     {
-        if (stateText != null)
+        if (stateText == null) return;
+
+        // Billboard effect - always face camera (zero allocations)
+        if (Camera.main != null)
         {
-            // Update text content
-            stateText.text = currentState;
+            stateTextObject.transform.LookAt(Camera.main.transform);
+            stateTextObject.transform.Rotate(0, 180, 0);
+        }
 
-            // Color based on state
-            if (currentState.Contains("Attacking"))
-            {
-                stateText.color = Color.red;
-            }
-            else if (currentState.Contains("Moving"))
-            {
-                stateText.color = Color.yellow;
-            }
-            else if (currentState.Contains("Searching"))
-            {
-                stateText.color = Color.gray;
-            }
-            else
-            {
-                stateText.color = Color.white;
-            }
+        // Only update text content when state string changed
+        if (currentState == lastRenderedState) return;
+        lastRenderedState = currentState;
 
-            // Billboard effect - always face camera
-            if (Camera.main != null)
-            {
-                stateTextObject.transform.LookAt(Camera.main.transform);
-                stateTextObject.transform.Rotate(0, 180, 0);  // Flip to face correctly
-            }
+        stateText.text = currentState;
+
+        // Color based on state
+        if (currentState.StartsWith("Attacking"))
+        {
+            stateText.color = Color.red;
+        }
+        else if (currentState.StartsWith("Moving"))
+        {
+            stateText.color = Color.yellow;
+        }
+        else if (currentState.StartsWith("Searching"))
+        {
+            stateText.color = Color.gray;
+        }
+        else
+        {
+            stateText.color = Color.white;
         }
     }
 
@@ -499,5 +809,13 @@ public class Enemy : MonoBehaviour
         // Draw attack range
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(transform.position, attackRange);
+
+        // Draw warrior detection range
+        Gizmos.color = Color.magenta;
+        Gizmos.DrawWireSphere(transform.position, warriorDetectionRange);
+
+        // Draw building engagement range
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(transform.position, buildingEngagementRange);
     }
 }

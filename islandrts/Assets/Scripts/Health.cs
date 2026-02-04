@@ -24,6 +24,7 @@ public class Health : MonoBehaviour
     // Private
     private TextMeshPro healthText;
     private GameObject healthTextObject;
+    private float lastDisplayedHealth = -1f;
 
     // Public property to check if alive
     public bool IsAlive => currentHealth > 0;
@@ -52,10 +53,16 @@ public class Health : MonoBehaviour
 
     void Update()
     {
-        // Update health text display
         if (showHealthText && healthText != null)
         {
-            UpdateHealthText();
+            // Billboard rotation runs every frame (zero allocations)
+            BillboardHealthText();
+
+            // Only rebuild text when health value actually changed
+            if (currentHealth != lastDisplayedHealth)
+            {
+                UpdateHealthText();
+            }
         }
     }
 
@@ -72,7 +79,9 @@ public class Health : MonoBehaviour
         currentHealth -= damageAmount;
         currentHealth = Mathf.Max(currentHealth, 0); // Clamp to 0
 
+#if UNITY_EDITOR
         Debug.Log($"Health: {gameObject.name} took {damageAmount} damage. Health: {currentHealth}/{maxHealth}");
+#endif
 
         // Spawn hit visual effect
         if (CombatEffects.Instance != null)
@@ -115,7 +124,9 @@ public class Health : MonoBehaviour
         currentHealth += healAmount;
         currentHealth = Mathf.Min(currentHealth, maxHealth); // Clamp to max
 
+#if UNITY_EDITOR
         Debug.Log($"Health: {gameObject.name} healed {healAmount}. Health: {currentHealth}/{maxHealth}");
+#endif
     }
 
     /// <summary>
@@ -179,10 +190,22 @@ public class Health : MonoBehaviour
         UpdateHealthText();  // Set initial text
     }
 
+    void BillboardHealthText()
+    {
+        // Billboard effect - always face camera (zero allocations)
+        if (Camera.main != null)
+        {
+            healthTextObject.transform.LookAt(Camera.main.transform);
+            healthTextObject.transform.Rotate(0, 180, 0);
+        }
+    }
+
     void UpdateHealthText()
     {
         if (healthText == null)
             return;
+
+        lastDisplayedHealth = currentHealth;
 
         // Update text content
         string objectName = showObjectName ? $"{gameObject.name}\n" : "";
@@ -207,13 +230,6 @@ public class Health : MonoBehaviour
         else
         {
             healthText.color = Color.red;
-        }
-
-        // Billboard effect - always face camera
-        if (Camera.main != null)
-        {
-            healthTextObject.transform.LookAt(Camera.main.transform);
-            healthTextObject.transform.Rotate(0, 180, 0);  // Flip to face camera correctly
         }
     }
 

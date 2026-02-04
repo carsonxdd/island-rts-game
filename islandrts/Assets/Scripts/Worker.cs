@@ -1,9 +1,20 @@
 using UnityEngine;
 using UnityEngine.AI;
 using TMPro;
+using System.Collections;
+using System.Collections.Generic;
 
 public class Worker : MonoBehaviour
 {
+    // Static registry for O(1) lookup instead of FindObjectsByType
+    private static readonly List<Worker> activeList = new List<Worker>();
+    public static IReadOnlyList<Worker> ActiveList => activeList;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetStatics() { activeList.Clear(); }
+
+    void Awake() { activeList.Add(this); }
+
     [Header("Assignment")]
     public ResourceNode.ResourceType assignedResourceType = ResourceNode.ResourceType.Wood;
     public BaseBuilding baseBuilding;  // Reference to campfire
@@ -41,28 +52,61 @@ public class Worker : MonoBehaviour
 
     // Stuck detection
     private Vector3 lastPosition;
+    private float lastRemainingDistance;      // Track progress toward goal, not just raw movement
     private float stuckTimer = 0f;
-    private float stuckCheckInterval = 5f;  // Check every 5 seconds (reduced frequency)
-    private float minMoveDistance = 1.0f;   // Must move at least this far to not be stuck
+    private float stuckCheckInterval = 2f;   // Check every 2 seconds for faster detection
+    private float minMoveDistance = 0.5f;    // Must move at least this far to not be stuck
     private int consecutiveStuckCount = 0;   // How many times stuck in a row
-    private int maxStuckAttempts = 2;        // Give up after 2 attempts (reduced from 3)
+    private int maxStuckAttempts = 3;        // Give up after 3 attempts
+    private bool stuckCheckReady = false;    // Skip first stuck check to establish baseline
 
     // Unstuck behavior
     private bool isUnsticking = false;       // Currently moving to unstuck position
+    private float unstickTimer = 0f;         // Timeout for unsticking attempts
+    private float maxUnstickTime = 4f;       // Max seconds to spend trying to unstick
     private WorkerState stateBeforeUnstuck;  // State to return to after unsticking
     private ResourceNode targetBeforeUnstuck; // Target to resume after unsticking
+
+    // Thinking delay - brief pause before picking next task
+    private float thinkTimer = 0f;
+    private float thinkDuration = 0f;  // Randomized each time
+    private bool isThinking = false;
+
+    // Phase-through (face-to-face stuck resolution)
+    private float faceToFaceTimer = 0f;
+    private float phaseThreshold = 2f;
+    private bool isPhasing = false;
+    private float phaseActiveTimer = 0f;     // How long phasing has been active
+    private float phaseMinDuration = 3f;     // Minimum time to stay phased (prevents oscillation)
+    private float savedRadius;
+    private ObstacleAvoidanceType savedAvoidance;
 
     // Visual state display
     private GameObject stateTextObject;
     private TextMeshPro stateText;
     private Camera mainCamera;
+    private WorkerState lastDisplayedState = (WorkerState)(-1);
+    private float lastDisplayedCarry = -1f;
+    private bool lastDisplayedThinking = false;
 
     // Audio - 3D Spatial Sound
     private AudioSource gatheringAudioSource;
     private Coroutine gatheringSoundCoroutine;
 
+    // Smooth gate traversal
+    private bool isTraversingLink = false;
+    private Vector3 linkEndPos;
+
+    // Pooled NavMeshPath to avoid GC allocations
+    private NavMeshPath reusablePath;
+
+    // Resource re-evaluation during movement
+    private float resourceRecheckTimer = 0f;
+    private float resourceRecheckInterval = 4f;
+
     void Start()
     {
+        reusablePath = new NavMeshPath();
         agent = GetComponent<NavMeshAgent>();
 
         if (agent == null)
@@ -75,9 +119,10 @@ public class Worker : MonoBehaviour
             agent.stoppingDistance = gatherDistance * 0.8f;  // Stop slightly before gather distance
             agent.acceleration = 8f;  // Quick acceleration
             agent.angularSpeed = 180f;  // Very fast turning to avoid obstacles
-            agent.obstacleAvoidanceType = ObstacleAvoidanceType.HighQualityObstacleAvoidance;  // Best avoidance
+            agent.obstacleAvoidanceType = ObstacleAvoidanceType.MedQualityObstacleAvoidance;  // Reduced from High for performance with many walls
             agent.avoidancePriority = 50;  // Medium priority (0-99, lower = higher priority)
-            agent.radius = 0.6f;  // Larger radius to stay further from obstacles
+            agent.radius = 0.5f;  // Reduced from 0.6 to match warriors/enemies, less pathfinding complexity
+            agent.autoTraverseOffMeshLink = false;  // Manual traversal for smooth gate walking
         }
 
         // Find main camera for text billboard effect
@@ -101,6 +146,8 @@ public class Worker : MonoBehaviour
     {
         isInitialized = true;
         lastPosition = transform.position;
+        lastRemainingDistance = 0f;
+        stuckCheckReady = false;
         // Debug.Log($"Worker: Initialized and ready to work on {assignedResourceType}");
     }
 
@@ -108,6 +155,13 @@ public class Worker : MonoBehaviour
     {
         // Don't do anything until initialized
         if (!isInitialized) return;
+
+        // Smooth gate traversal — handle OffMeshLink before all other logic
+        if (agent != null && agent.isOnOffMeshLink)
+        {
+            HandleOffMeshLinkTraversal();
+            return;
+        }
 
         // Update gathering audio volume based on AudioManager SFX slider
         if (gatheringAudioSource != null && AudioManager.Instance != null)
@@ -119,6 +173,12 @@ public class Worker : MonoBehaviour
         if (showStateText && stateText != null)
         {
             UpdateStateText();
+        }
+
+        // Phase-through check for moving states
+        if (currentState == WorkerState.MovingToResource || currentState == WorkerState.ReturningToBase)
+        {
+            CheckFaceToFaceStuck();
         }
 
         // Stuck detection for moving states
@@ -138,15 +198,25 @@ public class Worker : MonoBehaviour
         switch (currentState)
         {
             case WorkerState.Idle:
+                // Brief thinking pause before picking next task
+                if (isThinking)
+                {
+                    thinkTimer -= Time.deltaTime;
+                    if (thinkTimer > 0f) break;  // Still thinking
+                    isThinking = false;
+                }
+
                 // Only search once per idle state
                 if (!isSearchingForResource)
                 {
                     isSearchingForResource = true;
-                    FindNearestResource();
+                    // Stagger resource search with random delay so not all workers search on same frame
+                    Invoke(nameof(FindNearestResource), Random.Range(0f, 0.3f));
                 }
                 break;
 
             case WorkerState.MovingToResource:
+                CheckResourceRecheck();
                 CheckIfReachedResource();
                 break;
 
@@ -160,13 +230,118 @@ public class Worker : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Smoothly walk through gate OffMeshLinks instead of warping.
+    /// </summary>
+    void HandleOffMeshLinkTraversal()
+    {
+        OffMeshLinkData data = agent.currentOffMeshLinkData;
+
+        if (!isTraversingLink)
+        {
+            // First frame on link — determine walk direction
+            isTraversingLink = true;
+            Vector3 start = data.startPos;
+            Vector3 end = data.endPos;
+
+            // Walk toward whichever endpoint is farther from us (we're near the start)
+            if (Vector3.Distance(transform.position, end) < Vector3.Distance(transform.position, start))
+            {
+                linkEndPos = start;
+            }
+            else
+            {
+                linkEndPos = end;
+            }
+        }
+
+        // Walk toward link end at normal agent speed
+        transform.position = Vector3.MoveTowards(transform.position, linkEndPos, agent.speed * Time.deltaTime);
+
+        // Smooth rotation toward movement direction
+        Vector3 dir = (linkEndPos - transform.position).normalized;
+        dir.y = 0f;
+        if (dir != Vector3.zero)
+        {
+            transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(dir), Time.deltaTime * 10f);
+        }
+
+        // Complete when close enough
+        if (Vector3.Distance(transform.position, linkEndPos) < 0.1f)
+        {
+            agent.CompleteOffMeshLink();
+            isTraversingLink = false;
+        }
+    }
+
+    /// <summary>
+    /// Phase-through system: after 2s stuck at low velocity, temporarily shrink agent
+    /// radius and disable avoidance so workers can pass through each other.
+    /// Enforces a minimum phase duration to prevent oscillation.
+    /// </summary>
+    void CheckFaceToFaceStuck()
+    {
+        if (agent == null || !agent.isOnNavMesh || !agent.enabled) return;
+        if (isUnsticking) return;
+
+        bool tryingToMove = agent.remainingDistance > agent.stoppingDistance + 1f;
+        bool movingSlowly = agent.velocity.magnitude < 0.3f;
+
+        if (tryingToMove && movingSlowly && !isPhasing)
+        {
+            faceToFaceTimer += Time.deltaTime;
+            if (faceToFaceTimer >= phaseThreshold)
+            {
+                // Enable phase-through
+                savedRadius = agent.radius;
+                savedAvoidance = agent.obstacleAvoidanceType;
+                agent.radius = 0.1f;
+                agent.obstacleAvoidanceType = ObstacleAvoidanceType.NoObstacleAvoidance;
+                isPhasing = true;
+                phaseActiveTimer = 0f;
+            }
+        }
+        else if (!isPhasing)
+        {
+            // Reset the trigger timer when not stuck (but only when not phasing)
+            faceToFaceTimer = 0f;
+        }
+
+        // While phasing, track how long we've been phased
+        if (isPhasing)
+        {
+            phaseActiveTimer += Time.deltaTime;
+
+            // Only restore after minimum duration AND moving well
+            if (phaseActiveTimer >= phaseMinDuration && agent.velocity.magnitude > 0.5f)
+            {
+                agent.radius = savedRadius;
+                agent.obstacleAvoidanceType = savedAvoidance;
+                faceToFaceTimer = 0f;
+                phaseActiveTimer = 0f;
+                isPhasing = false;
+            }
+        }
+    }
+
     void CheckIfReachedUnstuckPosition()
     {
-        // Check if we've reached the unstuck position or stopped moving
-        if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance)
+        unstickTimer += Time.deltaTime;
+
+        bool reached = !agent.pathPending && agent.remainingDistance <= agent.stoppingDistance;
+        bool timedOut = unstickTimer >= maxUnstickTime;
+        bool pathInvalid = agent.hasPath && agent.pathStatus == NavMeshPathStatus.PathInvalid;
+
+        if (reached || timedOut || pathInvalid)
         {
-            // Debug.Log("Worker: Reached unstuck position, resuming previous task");
             isUnsticking = false;
+            unstickTimer = 0f;
+
+            if (timedOut || pathInvalid)
+            {
+                // Unstick attempt failed — stop and reset cleanly
+                agent.ResetPath();
+            }
 
             // Resume previous state
             currentState = stateBeforeUnstuck;
@@ -178,7 +353,8 @@ public class Worker : MonoBehaviour
             // Resume based on what we were doing
             if (currentState == WorkerState.MovingToResource && targetResource != null)
             {
-                agent.SetDestination(targetResource.transform.position);
+                agent.SetDestination(targetResource.GetGatherPoint(transform.position));
+                lastRemainingDistance = agent.remainingDistance;
             }
             else if (currentState == WorkerState.ReturningToBase)
             {
@@ -190,6 +366,10 @@ public class Worker : MonoBehaviour
                 currentState = WorkerState.Idle;
                 isSearchingForResource = false;
             }
+
+            // Reset stuck tracking for the resumed path
+            lastPosition = transform.position;
+            stuckTimer = 0f;
         }
     }
 
@@ -197,39 +377,55 @@ public class Worker : MonoBehaviour
     {
         // Skip stuck detection if we're already unsticking
         if (isUnsticking) return;
+        if (agent == null || !agent.isOnNavMesh || !agent.enabled) return;
+
+        // Immediate check: if path is invalid, reset right away
+        if (agent.hasPath && agent.pathStatus == NavMeshPathStatus.PathInvalid)
+        {
+            Debug.LogWarning("Worker: Path is invalid, resetting to idle");
+            HandleFullReset();
+            return;
+        }
 
         stuckTimer += Time.deltaTime;
 
-        // Check every X seconds if we've moved
+        // Check every interval if we've made progress
         if (stuckTimer >= stuckCheckInterval)
         {
+            // Skip first check interval to establish a baseline position/distance
+            if (!stuckCheckReady)
+            {
+                stuckCheckReady = true;
+                lastPosition = transform.position;
+                lastRemainingDistance = agent.remainingDistance;
+                stuckTimer = 0f;
+                return;
+            }
+
             float distanceMoved = Vector3.Distance(transform.position, lastPosition);
 
-            if (distanceMoved < minMoveDistance)
+            // Check progress toward destination (remaining distance should decrease)
+            float currentRemaining = agent.remainingDistance;
+            float progressMade = lastRemainingDistance - currentRemaining;
+
+            // Worker is stuck if it hasn't moved much AND hasn't made progress toward goal
+            // This catches oscillating workers that move side-to-side without making real progress
+            bool barelyMoved = distanceMoved < minMoveDistance;
+            bool noProgress = progressMade < 0.3f;
+            bool isStuck = barelyMoved && noProgress;
+
+            // Also stuck if velocity is near zero while having a valid destination
+            bool velocityStuck = agent.velocity.magnitude < 0.3f
+                && agent.remainingDistance > agent.stoppingDistance + 1f
+                && !agent.pathPending;
+
+            if (isStuck || velocityStuck)
             {
-                // Worker hasn't moved much - STUCK!
                 consecutiveStuckCount++;
 
                 if (consecutiveStuckCount >= maxStuckAttempts)
                 {
-                    // Stuck too many times - completely reset and find new task
-                    Debug.LogWarning($"Worker: Stuck after {maxStuckAttempts} attempts. Resetting to find new target...");
-
-                    // Clean up current task
-                    UnregisterFromNode();
-                    targetResource = null;
-
-                    // Reset agent
-                    agent.ResetPath();
-                    agent.isStopped = false;
-
-                    // Reset stuck detection
-                    isUnsticking = false;
-                    consecutiveStuckCount = 0;
-
-                    // Return to idle to find new resource
-                    currentState = WorkerState.Idle;
-                    isSearchingForResource = false;
+                    HandleFullReset();
                 }
                 else
                 {
@@ -239,14 +435,57 @@ public class Worker : MonoBehaviour
             }
             else
             {
-                // Worker moved successfully - reset stuck counter
-                consecutiveStuckCount = 0;
+                // Worker made progress — decay stuck counter instead of full reset
+                consecutiveStuckCount = Mathf.Max(0, consecutiveStuckCount - 1);
             }
 
             // Reset for next check
             lastPosition = transform.position;
+            lastRemainingDistance = agent.remainingDistance;
             stuckTimer = 0f;
         }
+    }
+
+    /// <summary>
+    /// Full reset: clean up everything and return worker to idle to find a new task.
+    /// </summary>
+    void HandleFullReset()
+    {
+        Debug.LogWarning($"Worker: Stuck after {consecutiveStuckCount} attempts. Resetting to find new target...");
+
+        // Clean up current task
+        UnregisterFromNode();
+        targetResource = null;
+
+        // Reset agent
+        if (agent.isOnNavMesh)
+        {
+            agent.ResetPath();
+            agent.isStopped = false;
+        }
+
+        // Reset stuck detection
+        isUnsticking = false;
+        unstickTimer = 0f;
+        consecutiveStuckCount = 0;
+        stuckTimer = 0f;
+        lastPosition = transform.position;
+        lastRemainingDistance = 0f;
+        stuckCheckReady = false;
+
+        // Restore phase-through if active
+        if (isPhasing)
+        {
+            agent.radius = savedRadius;
+            agent.obstacleAvoidanceType = savedAvoidance;
+            isPhasing = false;
+            phaseActiveTimer = 0f;
+            faceToFaceTimer = 0f;
+        }
+
+        // Return to idle to find new resource
+        currentState = WorkerState.Idle;
+        isSearchingForResource = false;
     }
 
     void AttemptUnstuck()
@@ -299,28 +538,84 @@ public class Worker : MonoBehaviour
         return transform.position + new Vector3(Mathf.Cos(fallbackAngle) * 3f, 0f, Mathf.Sin(fallbackAngle) * 3f);
     }
 
+    /// <summary>
+    /// Transition to Idle with a brief thinking pause before picking the next task.
+    /// </summary>
+    void GoIdleAndThink()
+    {
+        currentState = WorkerState.Idle;
+        isSearchingForResource = false;
+        isThinking = true;
+        thinkDuration = Random.Range(0.2f, 0.6f);
+        thinkTimer = thinkDuration;
+        agent.ResetPath();
+    }
+
+    /// <summary>
+    /// Sum the distance between path corners to get actual walking distance.
+    /// Returns float.MaxValue if path is not complete.
+    /// </summary>
+    float GetPathDistance(NavMeshPath path)
+    {
+        if (path.status != NavMeshPathStatus.PathComplete) return float.MaxValue;
+        float dist = 0f;
+        Vector3[] corners = path.corners;
+        for (int i = 1; i < corners.Length; i++)
+            dist += Vector3.Distance(corners[i - 1], corners[i]);
+        return dist;
+    }
+
     void FindNearestResource()
     {
-        // Find all resource nodes in scene
-        ResourceNode[] allResources = FindObjectsByType<ResourceNode>(FindObjectsSortMode.None);
+        // Find top 3 closest resources by Euclidean distance (cheap filter), then pick shortest path
+        ResourceNode best1 = null, best2 = null, best3 = null;
+        float dist1 = searchRadius, dist2 = searchRadius, dist3 = searchRadius;
 
-        ResourceNode closestResource = null;
-        float closestDistance = searchRadius;
-
-        foreach (ResourceNode resource in allResources)
+        for (int i = 0; i < ResourceNode.ActiveList.Count; i++)
         {
-            // Only look for our assigned resource type
-            if (resource.resourceType != assignedResourceType)
-                continue;
+            ResourceNode resource = ResourceNode.ActiveList[i];
+            if (resource == null) continue;
+            if (resource.resourceType != assignedResourceType) continue;
 
             float distance = Vector3.Distance(transform.position, resource.transform.position);
 
-            if (distance < closestDistance)
+            if (distance < dist1)
             {
-                closestDistance = distance;
-                closestResource = resource;
+                best3 = best2; dist3 = dist2;
+                best2 = best1; dist2 = dist1;
+                best1 = resource; dist1 = distance;
+            }
+            else if (distance < dist2)
+            {
+                best3 = best2; dist3 = dist2;
+                best2 = resource; dist2 = distance;
+            }
+            else if (distance < dist3)
+            {
+                best3 = resource; dist3 = distance;
             }
         }
+
+        // Evaluate path distances for candidates
+        ResourceNode closestResource = null;
+        float closestPathDist = float.MaxValue;
+        ResourceNode euclideanFallback = best1;  // fallback if no complete paths
+
+        ResourceNode[] candidates = { best1, best2, best3 };
+        for (int i = 0; i < candidates.Length; i++)
+        {
+            if (candidates[i] == null) continue;
+            NavMesh.CalculatePath(transform.position, candidates[i].GetGatherPoint(transform.position), NavMesh.AllAreas, reusablePath);
+            float pathDist = GetPathDistance(reusablePath);
+            if (pathDist < closestPathDist)
+            {
+                closestPathDist = pathDist;
+                closestResource = candidates[i];
+            }
+        }
+
+        // Fall back to Euclidean closest if no complete path found
+        if (closestResource == null) closestResource = euclideanFallback;
 
         if (closestResource != null)
         {
@@ -330,13 +625,16 @@ public class Worker : MonoBehaviour
             // Make sure agent is ready before setting destination
             if (agent.isOnNavMesh && agent.enabled)
             {
-                agent.SetDestination(targetResource.transform.position);
+                agent.SetDestination(targetResource.GetGatherPoint(transform.position));
                 currentState = WorkerState.MovingToResource;
                 isSearchingForResource = false;  // Reset flag
 
                 // Reset stuck detection for new path
                 lastPosition = transform.position;
+                lastRemainingDistance = 0f;
+                stuckCheckReady = false;
                 stuckTimer = 0f;
+                consecutiveStuckCount = 0;
 
                 // Debug.Log($"Worker: Found {assignedResourceType} at {targetResource.transform.position}");
             }
@@ -356,19 +654,67 @@ public class Worker : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Periodically re-evaluate resource target during movement.
+    /// If a significantly shorter path to a same-type resource exists, switch to it.
+    /// </summary>
+    void CheckResourceRecheck()
+    {
+        resourceRecheckTimer += Time.deltaTime;
+        if (resourceRecheckTimer < resourceRecheckInterval) return;
+        resourceRecheckTimer = 0f;
+
+        if (targetResource == null || agent == null || !agent.isOnNavMesh) return;
+        if (!agent.hasPath || agent.pathPending) return;
+
+        float currentRemaining = agent.remainingDistance;
+        if (currentRemaining <= gatherDistance) return;  // Almost there, don't switch
+
+        // Check nearby same-type resources whose Euclidean distance is less than our remaining path
+        for (int i = 0; i < ResourceNode.ActiveList.Count; i++)
+        {
+            ResourceNode candidate = ResourceNode.ActiveList[i];
+            if (candidate == null || candidate == targetResource) continue;
+            if (candidate.resourceType != assignedResourceType) continue;
+
+            float euclidean = Vector3.Distance(transform.position, candidate.transform.position);
+            if (euclidean >= currentRemaining) continue;  // Can't possibly be shorter
+
+            // Potential shortcut — calculate actual path distance
+            NavMesh.CalculatePath(transform.position, candidate.GetGatherPoint(transform.position), NavMesh.AllAreas, reusablePath);
+            float pathDist = GetPathDistance(reusablePath);
+
+            // Switch only if new path is 20%+ shorter (prevents oscillation)
+            if (pathDist < currentRemaining * 0.8f)
+            {
+                targetResource = candidate;
+                agent.SetDestination(targetResource.GetGatherPoint(transform.position));
+
+                // Reset stuck detection for new path
+                lastPosition = transform.position;
+                lastRemainingDistance = 0f;
+                stuckCheckReady = false;
+                stuckTimer = 0f;
+                consecutiveStuckCount = 0;
+                return;
+            }
+        }
+    }
+
     void CheckIfReachedResource()
     {
         // Check if target still exists
         if (targetResource == null)
         {
             // Debug.Log("Worker: Target resource disappeared!");
-            currentState = WorkerState.Idle;
-            isSearchingForResource = false;  // Reset so we find a new target
+            GoIdleAndThink();
             return;
         }
 
-        // Check actual distance to resource (more reliable than agent.remainingDistance)
-        float distanceToResource = Vector3.Distance(transform.position, targetResource.transform.position);
+        // Check actual distance to resource — use whichever is closer: node center or gather point
+        float distToCenter = Vector3.Distance(transform.position, targetResource.transform.position);
+        float distToGatherPt = Vector3.Distance(transform.position, targetResource.GetGatherPoint(transform.position));
+        float distanceToResource = Mathf.Min(distToCenter, distToGatherPt);
 
         // Arrived when within gather distance
         if (distanceToResource <= gatherDistance)
@@ -395,8 +741,7 @@ public class Worker : MonoBehaviour
                 // Node is empty, find another
                 // Debug.Log("Worker: Node is empty!");
                 targetResource = null;
-                currentState = WorkerState.Idle;
-                isSearchingForResource = false;
+                GoIdleAndThink();
             }
         }
     }
@@ -408,8 +753,7 @@ public class Worker : MonoBehaviour
         {
             // Debug.Log("Worker: Resource disappeared while gathering!");
             UnregisterFromNode();
-            currentState = WorkerState.Idle;
-            isSearchingForResource = false;
+            GoIdleAndThink();
             return;
         }
 
@@ -446,8 +790,7 @@ public class Worker : MonoBehaviour
             }
             else
             {
-                currentState = WorkerState.Idle;
-                isSearchingForResource = false;
+                GoIdleAndThink();
             }
             return;
         }
@@ -511,7 +854,10 @@ public class Worker : MonoBehaviour
 
             // Reset stuck detection for new path
             lastPosition = transform.position;
+            lastRemainingDistance = 0f;
+            stuckCheckReady = false;
             stuckTimer = 0f;
+            consecutiveStuckCount = 0;
 
             // Debug.Log($"Worker: Returning to base with {carryAmount:F2} {assignedResourceType}");
         }
@@ -529,13 +875,31 @@ public class Worker : MonoBehaviour
         // Calculate direction from campfire to worker
         Vector3 directionToWorker = (transform.position - baseBuilding.transform.position).normalized;
 
-        // Place target point on a ring around the campfire
-        // Use a comfortable distance that gives space to navigate around obstacles
-        float ringRadius = deliveryDistance * 0.9f;  // ~3.15 units from center (more space to maneuver)
+        // Ring at full delivery distance so the point is outside any NavMesh carve zone
+        float ringRadius = deliveryDistance;
         Vector3 dropoffPoint = baseBuilding.transform.position + (directionToWorker * ringRadius);
-
-        // Keep the Y coordinate at ground level
         dropoffPoint.y = baseBuilding.transform.position.y;
+
+        // Validate on NavMesh — the point must be on walkable surface
+        NavMeshHit hit;
+        if (NavMesh.SamplePosition(dropoffPoint, out hit, 3f, NavMesh.AllAreas))
+        {
+            return hit.position;
+        }
+
+        // Fallback: try 8 directions at the same radius
+        for (int i = 0; i < 8; i++)
+        {
+            float angle = i * 45f * Mathf.Deg2Rad;
+            Vector3 dir = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
+            Vector3 candidate = baseBuilding.transform.position + dir * ringRadius;
+            candidate.y = baseBuilding.transform.position.y;
+
+            if (NavMesh.SamplePosition(candidate, out hit, 3f, NavMesh.AllAreas))
+            {
+                return hit.position;
+            }
+        }
 
         return dropoffPoint;
     }
@@ -550,51 +914,40 @@ public class Worker : MonoBehaviour
             return;
         }
 
-        // Check actual distance to base - this is the primary delivery condition
         float distanceToBase = Vector3.Distance(transform.position, baseBuilding.transform.position);
 
-        // Check if worker is moving very slowly (rubbing against obstacles)
-        if (agent.velocity.magnitude < 0.5f && distanceToBase <= deliveryDistance * 1.5f)
-        {
-            // Moving very slow and reasonably close - just deliver
-            agent.ResetPath();
-            DeliverResources();
-            currentState = WorkerState.Idle;
-            isSearchingForResource = false;
-            stuckTimer = 0f;
-            consecutiveStuckCount = 0;  // Reset stuck count on successful delivery
-            return;
-        }
-
-        // Primary delivery condition: close enough to campfire
+        // Primary: within delivery distance — deliver immediately, no other checks needed
         if (distanceToBase <= deliveryDistance)
         {
-            // Within range - deliver!
-            agent.ResetPath();
             DeliverResources();
-            currentState = WorkerState.Idle;
-            isSearchingForResource = false;
+            GoIdleAndThink();
             stuckTimer = 0f;
-            consecutiveStuckCount = 0;  // Reset stuck count on successful delivery
+            consecutiveStuckCount = 0;
             return;
         }
 
-        // Secondary condition: path finished but not quite at target
-        // This handles NavMesh limitations (can't path exactly to center)
-        if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance)
+        // Secondary: agent path finished and within generous range
+        // Handles NavMesh carve edges where agent can't get any closer
+        if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.5f)
         {
-            // We've reached as close as we can get
-            if (distanceToBase <= deliveryDistance * 2.0f)  // Within 7.0 units (more forgiving)
+            if (distanceToBase <= deliveryDistance * 2.0f)
             {
-                // Close enough - NavMesh brought us as close as possible
-                Debug.Log($"Worker: Arrived at closest reachable point ({distanceToBase:F2}), delivering");
-                agent.ResetPath();
                 DeliverResources();
-                currentState = WorkerState.Idle;
-                isSearchingForResource = false;
+                GoIdleAndThink();
                 stuckTimer = 0f;
-                consecutiveStuckCount = 0;  // Reset stuck count on successful delivery
+                consecutiveStuckCount = 0;
+                return;
             }
+        }
+
+        // Tertiary: moving very slowly near campfire (rubbing against obstacle)
+        if (agent.velocity.magnitude < 0.5f && distanceToBase <= deliveryDistance * 1.5f)
+        {
+            DeliverResources();
+            GoIdleAndThink();
+            stuckTimer = 0f;
+            consecutiveStuckCount = 0;
+            return;
         }
     }
 
@@ -682,7 +1035,7 @@ public class Worker : MonoBehaviour
         }
     }
 
-    System.Collections.IEnumerator PlayGatheringSoundLoop()
+    IEnumerator PlayGatheringSoundLoop()
     {
         while (true)
         {
@@ -740,6 +1093,8 @@ public class Worker : MonoBehaviour
 
     void OnDestroy()
     {
+        activeList.Remove(this);
+
         // Stop any gathering sound
         StopGatheringSound();
 
@@ -783,24 +1138,45 @@ public class Worker : MonoBehaviour
         // Update text position to follow worker
         stateTextObject.transform.position = transform.position + Vector3.up * textHeightOffset;
 
-        // Billboard effect - make text face camera
+        // Billboard effect - make text face camera (zero allocations)
         if (mainCamera != null)
         {
             stateTextObject.transform.LookAt(mainCamera.transform);
-            stateTextObject.transform.Rotate(0, 180, 0);  // Flip because LookAt faces away
+            stateTextObject.transform.Rotate(0, 180, 0);
         }
+
+        // Early-out if nothing changed
+        // For Gathering state, only rebuild when carry changes by >= 0.5
+        bool carryChanged = (currentState == WorkerState.Gathering || currentState == WorkerState.ReturningToBase)
+            && Mathf.Abs(carryAmount - lastDisplayedCarry) >= 0.5f;
+        bool stateChanged = currentState != lastDisplayedState;
+        bool thinkingChanged = (currentState == WorkerState.Idle) && (isThinking != lastDisplayedThinking);
+
+        if (!stateChanged && !carryChanged && !thinkingChanged) return;
+
+        lastDisplayedState = currentState;
+        lastDisplayedCarry = carryAmount;
+        lastDisplayedThinking = isThinking;
 
         // Update text based on current state
         string stateMessage = "";
         switch (currentState)
         {
             case WorkerState.Idle:
-                stateMessage = "Searching...";
-                stateText.color = Color.gray;
+                if (isThinking)
+                {
+                    stateMessage = "Deciding...";
+                    stateText.color = new Color(0.8f, 0.8f, 0.6f);
+                }
+                else
+                {
+                    stateMessage = "Searching...";
+                    stateText.color = Color.gray;
+                }
                 break;
 
             case WorkerState.MovingToResource:
-                stateMessage = $"Moving to {assignedResourceType}";
+                stateMessage = "Moving to " + assignedResourceType;
                 stateText.color = Color.yellow;
                 break;
 

@@ -39,6 +39,9 @@ Think *Age of Empires* meets *Don't Starve* with a shipwreck survival twist, evo
 - [Phase 5.4 - Combat Visual Effects](#-phase-54-implementation-summary)
 - [Phase 5.5 - Audio & 3D Spatial Audio](#-phase-55-implementation-summary--complete)
 - [Phase 6B - Wall System Refactor](#-phase-6b-complete-)
+- [Phase 6B+ - AI Bug Fixes](#phase-6b-complete--1)
+- [Phase 6B++ - Pathfinding Improvements](#phase-6b-complete--2)
+- [Phase 6B+++ - GC Allocation Elimination](#phase-6b-complete--3)
 
 ### Technical Documentation
 - [🔧 Technical Architecture](#-technical-architecture)
@@ -68,12 +71,12 @@ Think *Age of Empires* meets *Don't Starve* with a shipwreck survival twist, evo
 
 ## 🎮 Current Status
 
-**Development Phase:** Phase 6B Complete - Wall System Refactor & Smart Wall Connections
-**Last Updated:** January 2026
-**Build Status:** Fully playable with smart wall connection system, building selection menu, defensive structures, visual effects, 3D spatial audio, and housing management
+**Development Phase:** Phase 6B+++ - GC Allocation Elimination
+**Last Updated:** February 2026
+**Build Status:** Fully playable with smart wall connections, gate traversal, building selection menu, defensive structures, visual effects, 3D spatial audio, housing management, refined unit AI, optimized pathfinding, and GC-optimized hot paths
 
 ### What's Working Now:
-- ✅ Complete resource gathering system with 10 autonomous workers
+- ✅ Complete resource gathering system with autonomous workers (housing-based limits)
 - ✅ Building placement with construction system
 - ✅ Day/night cycle with visual lighting
 - ✅ Enemy spawning and AI (scales with difficulty)
@@ -108,18 +111,29 @@ Think *Age of Empires* meets *Don't Starve* with a shipwreck survival twist, evo
 - ✅ **L-Shaped Wall Paths** - Default wall drawing uses L-shaped paths; R toggles X-first vs Z-first
 - ✅ **Bresenham Staircase Mode** - Hold Shift during wall line drawing for diagonal staircase paths
 - ✅ **Construction Site Grid Registration** - Wall construction sites connect to neighboring walls during build phase
+- ✅ **Gate Traversal** - Workers/warriors pass through gates; enemies must destroy them
+- ✅ **Nearest-Side Gather Points** - Workers approach stone/resource nodes from the closest side
+- ✅ **NavMesh-Validated Spawning** - Units spawn at validated NavMesh positions, not inside obstacles
+- ✅ **Warrior Target Hysteresis** - Prevents rapid target switching (1s lock, 30% closer threshold)
+- ✅ **Improved Stuck Detection** - Gate-aware, baseline-establishing, gradual-decay stuck system
+- ✅ **Static Entity Registries** - O(1) entity lookups replace per-frame FindObjectsByType scanning
+- ✅ **Smooth Gate Traversal** - Units walk through gates at normal speed instead of warping
+- ✅ **Path-Aware Resource Selection** - Workers pick resources by actual walking distance, not straight-line
+- ✅ **NavMesh.CalculatePath Throttle** - Max 2 path calculations per frame across all enemies
+- ✅ **Staggered AI Timers** - Enemy/warrior retarget timers randomized to prevent same-frame spikes
+- ✅ **GC Allocation Elimination** - Zero per-frame heap allocations in hot paths (health text, state text, GetComponent, NavMeshPath, LINQ, materials)
 
 ### Known Issues & Bugs:
-1. **Warrior Stuttering** ✅ FIXED
+1. **Warrior Stuttering** ✅ FIXED (Phase 5.3 + Phase 6B+)
    - Warriors were jittering when chasing moving enemies
-   - **Fix Applied:** Added destination update threshold (1.5m)
-   - Only updates path when enemy moves significantly
-   - Now smooth movement when tracking targets
+   - **Fix Applied:** Destination update threshold increased to 3.0m
+   - Target-switching hysteresis: won't switch if target held < 1s, new target must be 30%+ closer
+   - Smooth movement when tracking targets
 
 2. **Warriors Standing Idle** ✅ FIXED
    - Warriors previously stood still when no enemies present
    - **Fix Applied:** Implemented patrol behavior
-   - Warriors now patrol 8m radius around campfire
+   - Warriors now patrol 8m radius around campfire (or near walls when walls exist)
    - Wait 3 seconds at each random patrol point
 
 3. **Warrior Attack Range Too Short** ✅ FIXED
@@ -133,10 +147,30 @@ Think *Age of Empires* meets *Don't Starve* with a shipwreck survival twist, evo
    - Priority: Warriors > Buildings > Campfire
    - Enemies now engage warriors in combat first
 
-5. **Visual Border Too Large** ⚠️ DEFERRED
-   - No-build zone visual overlay 0.5 units too large
-   - Doesn't affect gameplay, visual only
-   - Low priority cosmetic issue
+5. **Gate Rubber-Banding Loop** ✅ FIXED (Phase 6B+)
+   - Units would infinitely loop through gates due to NavMesh carving re-triggering PathPartial
+   - **Fix Applied:** Gate carving disabled during traversal and re-enabled after, 3s cooldown, 4-unit exit distance
+
+6. **Worker Stuck Detection False Positives** ✅ FIXED (Phase 6B+)
+   - Workers declared stuck too eagerly near gates; `lastRemainingDistance` initialized to `float.MaxValue` caused instant false triggers
+   - **Fix Applied:** Gate traversal checked before stuck detection, baseline establishment period, gradual stuck counter decay
+
+7. **Stone Node Wrong-Side Pathing** ✅ FIXED (Phase 6B+)
+   - Workers would path to the far side of stone nodes instead of the nearest approach
+   - **Fix Applied:** `GetGatherPoint()` on ResourceNode calculates nearest-side approach; stone obstacle radius reduced from 0.8 to 0.5
+
+8. **Units Stuck Behind Campfire on Spawn** ✅ FIXED (Phase 6B+)
+   - Rapidly spawned units could end up inside the campfire's NavMeshObstacle
+   - **Fix Applied:** `GetValidSpawnPosition()` validates positions on NavMesh with fallback directions
+
+9. **Worker "Deciding..." Duration Too Long** ✅ FIXED (Phase 6B+)
+   - Workers paused 0.8-1.8s between tasks, felt sluggish
+   - **Fix Applied:** Reduced to 0.2-0.6s
+
+10. **Visual Border Too Large** ⚠️ DEFERRED
+    - No-build zone visual overlay 0.5 units too large
+    - Doesn't affect gameplay, visual only
+    - Low priority cosmetic issue
 
 ### Phase 5.4 Complete! ✨
 **Combat Visual Polish - Finished**
@@ -200,7 +234,8 @@ Think *Age of Empires* meets *Don't Starve* with a shipwreck survival twist, evo
 - ✅ Building Selection UI panel (shows name, cost, hotkey hints)
 - ✅ Wooden Wall (15W + 5S, 150 HP)
 - ✅ Stone Wall (10W + 20S, 300 HP)
-- ✅ Watchtower (25W + 15S, 200 HP)
+- ✅ Watchtower (25W + 15S, 200 HP, 25% damage buff aura in 8-unit radius)
+- ✅ Gates (Wooden 150 HP, Stone 300 HP) - workers/warriors traverse, enemies must break through
 - ✅ NavMesh carving on huts and construction sites (workers path around properly)
 - ✅ Stone now has gameplay purpose (defensive structures)
 
@@ -217,11 +252,130 @@ Think *Age of Empires* meets *Don't Starve* with a shipwreck survival twist, evo
 - ✅ Auto-refresh on place/destroy — placing or destroying a wall updates its neighbors automatically
 - ✅ Eliminated all `FindObjectsByType` scanning in wall code — replaced with grid dictionary lookups
 
+### Phase 6B+ Complete! 🐛
+**Movement, Targeting, Resource Interaction & Gate Traversal Fixes - FINISHED**
+- ✅ Gate rubber-banding loop fixed (carving control + cooldown + 4-unit exit distance)
+- ✅ Stuck detection reliability improved (gate traversal priority, baseline establishment, gradual counter decay)
+- ✅ Stone node hitbox reduced and nearest-side gather point system added
+- ✅ Spawn position validation with NavMesh sampling and fallbacks
+- ✅ Warrior target-switching hysteresis (1s lock, 30% closer threshold)
+- ✅ Warrior destination update threshold increased to 3.0m
+- ✅ Worker "Deciding..." duration shortened (0.2-0.6s)
+
+### Phase 6B++ Complete! -- Pathfinding Improvements
+**Stuttering Fix, Smooth Gate Traversal & Path-Aware Resources - FINISHED**
+
+**Problem 1: Pathfinding Stuttering**
+All entities were calling `FindObjectsByType<T>()` every fraction of a second to find targets. Each call scans the entire scene and allocates a new array. With 10+ enemies, 5+ warriors, and 5+ workers all doing this independently, the cumulative cost caused periodic frame hitches.
+
+**Solution: Static Entity Registries**
+- Added `ActiveList` static registry to 9 entity types: Enemy, Warrior, Worker, Wall, Gate, ResourceNode, Watchtower, BaseBuilding (campfire), Hut
+- Each entity registers in `Awake()` and unregisters in `OnDestroy()` -- zero per-frame overhead
+- All `FindObjectsByType` calls in per-frame code replaced with direct list reads
+- `NavMesh.CalculatePath` throttled to max 2 calls per frame across all enemies
+- AI retarget/search timers staggered with random initial offsets so entities don't all recalculate on the same frame
+
+**Problem 2: Gate Traversal Jerky/Warping**
+`autoTraverseOffMeshLink = true` caused units to instantly teleport through gate OffMeshLinks.
+
+**Solution: Manual Smooth Traversal**
+- `autoTraverseOffMeshLink` set to `false` for warriors and workers
+- New `HandleOffMeshLinkTraversal()` method walks units through gates at normal speed using `Vector3.MoveTowards`
+- Smooth rotation with `Quaternion.Slerp` during traversal
+- Checked at the very top of `Update()` to pause the state machine while traversing
+
+**Problem 3: Workers Ignore Walls in Distance Calculation**
+Workers picked the Euclidean-nearest resource, ignoring walls. A resource on the other side of a wall would be selected even though the walking path was much longer.
+
+**Solution: Path-Aware Resource Selection**
+- `FindNearestResource()` now finds top 3 closest resources by Euclidean distance (cheap filter)
+- For each candidate, calculates actual `NavMesh.CalculatePath` walking distance
+- Picks the resource with the shortest path distance
+- Falls back to Euclidean-closest if no complete paths exist
+- New `CheckResourceRecheck()` runs every 4 seconds during movement: if a closer resource appears (e.g. placed nearby), the worker switches -- but only if the new path is 20%+ shorter to prevent oscillation
+
+**Files Changed:**
+- `Enemy.cs` - Static registry, rewritten FindTarget using typed lists, TryCalculatePath throttle, staggered timers
+- `Warrior.cs` - Static registry, all FindObjectsByType replaced, staggered timers, smooth gate traversal
+- `Worker.cs` - Static registry, path-distance resource selection, resource re-evaluation timer, smooth gate traversal
+- `Wall.cs` - Static registry
+- `Gate.cs` - Static registry
+- `ResourceNode.cs` - Static registry
+- `Watchtower.cs` - Static registry, GetDamageMultiplier uses ActiveList
+- `BaseBuilding.cs` - Static registry
+- `Hut.cs` - Static registry
+
+### Phase 6B+++ Complete! -- GC Allocation Elimination
+**Periodic Stuttering Fix - Zero Per-Frame Heap Allocations in Hot Paths - FINISHED**
+
+**Problem: Periodic Stuttering (30s smooth / 7s stutter)**
+With ~40 entities, the game was creating ~75+ temporary heap objects per frame from string interpolations, GetComponent lookups, NavMeshPath instantiations, LINQ operations, and Material creations. When the garbage collector ran to reclaim them, it froze the main thread for multiple frames.
+
+**Solution: Systematic GC Pressure Elimination (9 Phases)**
+
+**Phase 1 - Health Text (Highest Impact):**
+- Health text `UpdateHealthText()` now only rebuilds when `currentHealth` changes (was every frame for ~40 entities)
+- Billboard rotation separated into zero-allocation `BillboardHealthText()` that still runs every frame
+- ~40 string allocations/frame eliminated
+
+**Phase 2 - State Text:**
+- Enemy/Warrior/Worker state strings only set on state transitions (not every frame)
+- `UpdateStateText()` early-outs when `currentState == lastRenderedState`
+- Billboard rotation separated from text content updates
+- Worker carry amount uses 0.5 threshold to avoid sub-visible rebuilds
+- ~20 string allocations/frame eliminated
+
+**Phase 3 - Cache GetComponent<Health>():**
+- Enemy and Warrior cache target Health component reference
+- Only re-fetched when target actually changes
+- ~15 GetComponent calls/frame eliminated
+
+**Phase 4 - Pool NavMeshPath Instances:**
+- Enemy and Worker reuse a single `reusablePath` field instead of `new NavMeshPath()` each check
+- Enemy: breach check (0.5s) + blocked-path check (2s)
+- Worker: `FindNearestResource()` + `CheckResourceRecheck()`
+
+**Phase 5 - Remove LINQ & Pool Lists:**
+- Enemy `CleanupStaleEntries()`: LINQ `.Where().ToList()` replaced with manual loop + static buffer
+- Enemy `HandleBlockedPath()`: pooled candidate list with `.Clear()` instead of `new List`
+- Warrior `GetBuildingPerimeterPatrolPoint()`: pooled building buffer with value tuples
+- EnemySpawner: 3 `RemoveAll(lambda)` calls replaced with backward for-loops
+
+**Phase 6 - Cache CombatEffects Material:**
+- Single `cachedParticleMaterial` created once in `Awake()`
+- Shared across all attack/hit/death particle effects (was creating new Material per effect)
+
+**Phase 7 - Stagger Enemy Despawn at Dawn:**
+- Enemies destroyed one per 0.15s instead of all at once
+- Prevents NavMesh carving spike + GC spike at dawn transition
+
+**Phase 8 - Guard Debug.Log in Hot Paths:**
+- 10+ hot-path Debug.Log calls wrapped in `#if UNITY_EDITOR`
+- Eliminates string interpolation allocations in release builds
+
+**Phase 9 - Billboard Rotation Optimization:**
+- All billboard rotations (health text, state text) separated from text updates
+- Run every frame with zero allocations (pure transform operations)
+
+**Files Changed:**
+- `Health.cs` - Only update text on health change; separate billboard from text update; guard Debug.Log
+- `Enemy.cs` - Cache target Health; pool NavMeshPath; pool candidate list; remove LINQ; state-only transitions; guard Debug.Log
+- `Warrior.cs` - Cache target Health; pool building list; state-only transitions; guard Debug.Log
+- `Worker.cs` - Pool NavMeshPath; state text on change only; carry amount threshold
+- `CombatEffects.cs` - Cache particle material (shared instance)
+- `EnemySpawner.cs` - Stagger enemy despawn; replace lambda RemoveAll with for-loops
+
 ### Next Up:
 **Phase 6C - Building Progression** (Future)
 - Building upgrades (campfire → fortress)
 - Advanced buildings (storage, workshop)
 - Tool upgrade system
+
+**Phase 6D - Wall Repair System** (Future)
+- Workers/Builders can repair damaged walls during daytime
+- Tied to future builder unit system (specialized worker role)
+- Walls below max HP show visual damage indicator
+- Repair costs a fraction of original wall resources
 
 ---
 
@@ -244,7 +398,7 @@ Think *Age of Empires* meets *Don't Starve* with a shipwreck survival twist, evo
    - Food Workers (gather from bushes)
    - Stone Workers (gather from rocks)
 3. Click **-** buttons to remove workers
-4. **Maximum 10 workers** total
+4. Workers require housing (Campfire: 3 slots, Huts: +2 each)
 5. Watch resources in top UI bar
 
 ### Building:
@@ -253,7 +407,7 @@ Think *Age of Empires* meets *Don't Starve* with a shipwreck survival twist, evo
    - **1** = Hut (20W) - housing for 2 workers
    - **2** = Wooden Wall (15W + 5S) - basic defense, 150 HP
    - **3** = Stone Wall (10W + 20S) - strong defense, 300 HP
-   - **4** = Watchtower (25W + 15S) - defensive structure, 200 HP
+   - **4** = Watchtower (25W + 15S) - 200 HP, 25% damage buff to nearby warriors
 3. Move mouse to position ghost building (green = valid, red = invalid)
 4. **Left-click** to confirm placement
 5. **ESC** or **Right-click** to cancel
@@ -324,19 +478,19 @@ Think *Age of Empires* meets *Don't Starve* with a shipwreck survival twist, evo
 - Thread-safe resource management
 
 ### Phase 4: Worker & AI System ✅
-- Worker spawning (ring formation around campfire)
+- Worker spawning (NavMesh-validated positions around campfire)
 - Worker assignment UI (click campfire)
 - +/- buttons for each resource type
-- Maximum 10 workers total
+- Housing-based worker limits (Campfire: 3, Huts: +2 each)
 - NavMesh pathfinding with obstacle avoidance
 - Worker state machine (Idle → Search → Move → Gather → Return)
 - Carry capacity: 5 resources per trip
 - Incremental gathering: 1 resource/second
-- Smart resource search (nearest available node)
+- Smart resource search (nearest-side gather points)
 - 360° campfire access for delivery
-- Stuck detection (checks every 2 seconds)
-- Smart approach system (8 alternate angles)
-- Emergency delivery after 8 failed attempts
+- Stuck detection with baseline establishment and gradual decay
+- Gate traversal system (workers pass through gates, not get stuck)
+- Phase-through system for face-to-face stuck resolution
 - Visual state display with color coding:
   - Gray: "Searching..."
   - Yellow: "Moving to Wood"
@@ -396,7 +550,7 @@ Think *Age of Empires* meets *Don't Starve* with a shipwreck survival twist, evo
   - Move Speed: 3.5 m/s
 - Warrior AI behaviors:
   - **Patrol Mode:** Random patrol points in 8m radius around campfire
-  - **Engage Mode:** Smooth pursuit of enemies (updates only when target moves >1.5m)
+  - **Engage Mode:** Smooth pursuit of enemies (updates only when target moves >3.0m)
   - **Attack Mode:** Stops, faces enemy, attacks every 1.2s
 - Warrior state display:
   - "Patrolling" (gray)
@@ -420,17 +574,17 @@ Think *Age of Empires* meets *Don't Starve* with a shipwreck survival twist, evo
 - Game state management (playing, victory, defeat)
 - Time pause on victory/defeat
 
-### Combat AI Improvements (Phase 5.3 Polish) ✅
+### Combat AI Improvements (Phase 5.3 + 6B+ Polish) ✅
 - **Warrior Pathfinding Optimization:**
-  - Destination update threshold (1.5m)
-  - Reduced path recalculation by ~60%
+  - Destination update threshold (3.0m) - reduces path recalculation
+  - Target-switching hysteresis (1s lock, 30% closer threshold)
   - Smooth rotation when attacking
   - No more stuttering or jittering
 - **Patrol Behavior:**
-  - 8m patrol radius around spawn point
+  - 8m patrol radius around spawn point (or near walls when walls exist)
   - 3-second wait at each patrol point
   - Random patrol point generation
-  - Visual feedback: "Patrolling"
+  - Visual feedback: "Patrolling" or "Guarding Walls"
 - **Enhanced Attack Range:**
   - Increased from 3.0m to 4.5m
   - Better stopping distance (3.5m)
@@ -755,6 +909,35 @@ Each unit now has its own AudioSource component for directional sound:
 - [ ] Console warns about homeless workers when building destroyed
 - [ ] Can recruit up to housing capacity (tested with 10+ workers)
 
+### Walls, Gates & AI Fixes (Phase 6B+):
+- [ ] Workers assigned to stone approach from nearest side (not far side)
+- [ ] Workers pass through gates smoothly without rubber-banding back
+- [ ] Warriors pass through gates smoothly without rubber-banding back
+- [ ] Workers near a gate use gate traversal instead of being declared stuck
+- [ ] Spawning 5+ workers rapidly - none stuck behind campfire
+- [ ] Spawning 5+ warriors rapidly - none stuck behind campfire
+- [ ] Warriors don't rapidly switch targets when multiple enemies present
+- [ ] Warriors move smoothly toward enemies (no stuttering/jittering)
+- [ ] Workers transition from "Deciding..." quickly (0.2-0.6s, not 1-2s)
+- [ ] Watchtower provides 25% damage buff to warriors within 8 units
+
+### GC Allocation Elimination (Phase 6B+++):
+- [ ] Stuttering: Spawn 5+ workers, wait for night with 5+ enemies -- movement smooth throughout, no periodic freezes
+- [ ] Health text: Damage an entity -- health text updates immediately; when not taking damage, text still billboards but no GC allocations
+- [ ] State text: Watch enemy/warrior state text -- updates on state transitions, not flickering/rebuilding every frame
+- [ ] Dawn transition: When day breaks and enemies despawn -- no freeze, enemies disappear one by one over ~1 second
+- [ ] Combat effects: During combat -- particles still appear correctly (attack cones, hit flashes, death bursts)
+- [ ] Worker state: Worker carry amount display only updates when carry changes by >= 0.5
+
+### Pathfinding Improvements (Phase 6B++):
+- [ ] Gate traversal: Send warrior/worker through gate -- walks smoothly at normal speed, no warping
+- [ ] Stuttering: With 10+ enemies and 5+ workers, movement is smooth with no periodic hitches
+- [ ] Resource pathing: Place resources on both sides of a wall -- workers on inside pick inside resource
+- [ ] Resource re-evaluation: While worker walks to far resource, place closer one -- worker switches within 4 seconds
+- [ ] Enemy breach detection still works (enemies funnel through destroyed wall sections)
+- [ ] Warrior wall patrol still works (warriors guard near walls when walls exist)
+- [ ] Watchtower damage buff still works after static list refactor
+
 ---
 
 ## 🎮 Expected Gameplay Flow
@@ -774,7 +957,7 @@ Each unit now has its own AudioSource component for directional sound:
 5. Enemies scale up but warriors handle them
 
 ### Late Game (Night 5):
-1. Maximum economy (10 workers, 5 warriors)
+1. Strong economy (10+ workers, 5 warriors)
 2. 4-5 huts built
 3. Strong defensive position
 4. Survive final night wave
@@ -816,10 +999,10 @@ Each unit now has its own AudioSource component for directional sound:
 ## 🐛 Known Issues & Fixes
 
 ### ✅ FIXED - Warrior Stuttering
-**Symptom:** Warriors jitter when chasing enemies  
-**Cause:** Constant path recalculation  
-**Fix:** Destination update threshold (1.5m)  
-**Status:** Resolved in COMBAT_AI_IMPROVEMENTS
+**Symptom:** Warriors jitter when chasing enemies
+**Cause:** Constant path recalculation and rapid target switching
+**Fix:** Destination update threshold (3.0m) + target-switching hysteresis (1s lock, 30% closer threshold)
+**Status:** Resolved in COMBAT_AI_IMPROVEMENTS + Phase 6B+
 
 ### ✅ FIXED - Warriors Standing Idle
 **Symptom:** Warriors don't move when no enemies  
@@ -862,9 +1045,9 @@ Each unit now has its own AudioSource component for directional sound:
 - Reduce patrolRadius if issues occur
 
 **Target Switching:**
-- Enemies might rapidly switch between targets
-- Priority system should prevent this
-- Monitor enemy behavior
+- Warrior target-switching hysteresis prevents rapid switching (1s lock, 30% threshold)
+- Enemy priority system prevents random switching
+- Both systems tested and stable
 
 ---
 
@@ -901,7 +1084,7 @@ Patrolling → Engaging → Attacking → Patrolling
 - Patrol when idle (8m radius)
 - Engage when enemy detected (50m range)
 - Attack when in range (4.5m)
-- Smooth path updates (1.5m threshold)
+- Smooth path updates (3.0m threshold)
 
 **Enemy AI:**
 ```
@@ -951,15 +1134,22 @@ Assets/
 │   │   ├── ConstructionSite.cs (construction timer)
 │   │   └── BaseBuilding.cs (campfire/warrior spawning)
 │   ├── Workers/
-│   │   ├── WorkerAI.cs (state machine)
+│   │   ├── Worker.cs (state machine with gate traversal)
 │   │   └── WorkerAssignmentUI.cs (UI management)
 │   ├── Combat/
-│   │   ├── Warrior.cs (warrior AI with patrol)
-│   │   ├── Enemy.cs (enemy AI with priority targeting)
+│   │   ├── Warrior.cs (warrior AI with patrol + target hysteresis)
+│   │   ├── Enemy.cs (enemy AI with priority targeting + breach detection)
 │   │   ├── EnemySpawner.cs (night spawning)
 │   │   └── DayNightCycle.cs (time/lighting)
+│   ├── Defense/
+│   │   ├── Wall.cs (wall structures with smart connections)
+│   │   ├── Gate.cs (traversable walls with carving control)
+│   │   ├── WallGrid.cs (O(1) grid dictionary for wall lookups)
+│   │   ├── WallConnector.cs (procedural mesh generation)
+│   │   └── Watchtower.cs (damage buff aura)
 │   ├── Resources/
-│   │   └── ResourceNode.cs (depletion/respawn)
+│   │   ├── ResourceNode.cs (depletion/respawn + gather points)
+│   │   └── ResourceSpawner.cs (auto-respawn system)
 │   └── UI/
 │       ├── ResourceUI.cs (top bar display)
 │       └── VictoryDefeatUI.cs (end screens)
@@ -1029,55 +1219,49 @@ Assets/
 
 ---
 
-#### **Phase 6A: Defensive Expansion** ⭐ START HERE
+#### **Phase 6A: Defensive Expansion** ✅ COMPLETE
 **Goal:** Make stone useful + add population management
-**Estimated Time:** 5-8 hours
 
 **New Defensive Structures:**
-- [ ] **Wooden Wall** - Basic perimeter defense
-  - Cost: 15 Wood + 5 Stone
-  - Health: 150 HP
-  - Placement: Connects in line segments to create barriers
-  - Blocks enemy pathing (enemies must attack to break through)
-
-- [ ] **Stone Wall** - Upgraded defense
-  - Cost: 10 Wood + 20 Stone
-  - Health: 300 HP
-  - Stronger defensive barrier
-
-- [ ] **Watchtower** - Early warning + defensive position
-  - Cost: 25 Wood + 15 Stone
-  - Health: 200 HP
-  - Feature: Reveals enemies earlier (extended vision range)
-  - Optional: Can house 1 archer unit (prep for Phase 7)
+- [x] **Wooden Wall** - Basic perimeter defense (15W + 5S, 150 HP)
+- [x] **Stone Wall** - Upgraded defense (10W + 20S, 300 HP)
+- [x] **Watchtower** - Defensive tower with 25% damage buff aura (25W + 15S, 200 HP, 8-unit buff radius)
+- [x] **Gates** - Wooden (150 HP) and Stone (300 HP) - units traverse, enemies must destroy
 
 **Housing & Population System:**
-- [ ] **Worker Capacity System:**
-  - Each building provides worker slots:
-    - Starting Campfire: 3 worker slots (base crew)
-    - Basic Hut: 2 worker slots
-    - Longhouse (future): 4 worker slots
-    - Manor (future): 6 worker slots
-  - UI shows: "Workers: 7/10" (current/max capacity)
-  - Cannot recruit workers beyond housing limit
+- [x] **Worker Capacity System** - Campfire: 3 slots, Huts: +2 each, scales infinitely
+- [x] **Population Management** - Housing enforcement, homeless detection, UI display
 
-- [ ] **Population Management:**
-  - Warning when at housing capacity: "Build more housing!"
-  - Homeless workers if building destroyed (still work during day)
-  - "Homeless" indicator in UI
-  - Sets up Phase 7 mechanic: workers need housing to hide at night
+#### **Phase 6B: Wall System Refactor & Smart Connections** ✅ COMPLETE
+**Goal:** Intelligent wall connection system with grid-based management
 
-**Strategic Impact:**
-- Stone becomes valuable defensive resource
-- Players can build defensive perimeters and chokepoints
-- Population planning required (housing before workers)
-- Losing buildings = losing worker capacity
+- [x] WallGrid singleton for O(1) wall lookups
+- [x] Neighbor-driven wall shapes (isolated/endcap/straight/corner/T-junction/cross)
+- [x] Procedural mesh generation
+- [x] Ghost preview connections
+- [x] L-shaped and Bresenham staircase wall paths
+- [x] Gate traversal system for workers/warriors
+
+#### **Phase 6B+: AI Bug Fixes** ✅ COMPLETE
+- [x] Gate rubber-banding loop fix
+- [x] Stuck detection reliability improvements
+- [x] Stone node nearest-side gather points
+- [x] NavMesh-validated spawn positions
+- [x] Warrior target-switching hysteresis
+- [x] Worker think duration reduction
+
+#### **Phase 6B++: Pathfinding Improvements** ✅ COMPLETE
+- [x] Static entity registries (9 types) replacing FindObjectsByType scanning
+- [x] Smooth gate traversal (manual OffMeshLink walking instead of warping)
+- [x] Path-aware resource selection (NavMesh distance, not Euclidean)
+- [x] Resource re-evaluation during movement (every 4s, 20% threshold)
+- [x] NavMesh.CalculatePath throttle (max 2/frame)
+- [x] AI timer staggering (random initial offsets)
 
 ---
 
-#### **Phase 6B: Building Progression**
+#### **Phase 6C: Building Progression** (Future)
 **Goal:** Add building tiers and meaningful upgrades
-**Estimated Time:** 4-6 hours
 
 **Building Upgrade System:**
 - [ ] **Campfire Upgrade Path:**
@@ -1132,7 +1316,7 @@ Assets/
 
 ---
 
-#### **Phase 6C: Economic Depth** (Optional Polish)
+#### **Phase 6D: Economic Depth** (Optional Polish)
 **Goal:** Add military upgrades and research system
 **Estimated Time:** 6-8 hours
 
@@ -1181,9 +1365,13 @@ Assets/
 ---
 
 **Phase 6 Summary:**
-- **6A (Essential):** Walls + Housing system → Stone becomes useful + population management
-- **6B (High Value):** Building upgrades + Workshop → Progression and efficiency
-- **6C (Optional):** Barracks + Research → Advanced strategy and late-game depth
+- **6A (Complete):** Walls + Housing system → Stone becomes useful + population management
+- **6B (Complete):** Wall system refactor + Smart connections + Gate traversal
+- **6B+ (Complete):** AI bug fixes (gate rubber-banding, stuck detection, spawn positions, targeting)
+- **6B++ (Complete):** Pathfinding improvements (static registries, smooth gates, path-aware resources)
+- **6B+++ (Complete):** GC allocation elimination → Zero per-frame heap allocations, no more periodic stuttering
+- **6C (Future):** Building upgrades + Workshop → Progression and efficiency
+- **6D (Optional):** Barracks + Research → Advanced strategy and late-game depth
 
 **Leads into Phase 7:** Housing system naturally enables worker night-hiding mechanic
 
@@ -1638,7 +1826,7 @@ Assets/
 - **Double-click error** - Jumps to problem line in code
 
 ### Performance Issues:
-- Check worker count (max 10)
+- Check worker count (limited by housing capacity)
 - Verify no infinite loops in Update()
 - Profile in Window → Analysis → Profiler
 - Check NavMesh quality (too complex?)
@@ -1670,9 +1858,10 @@ Assets/
 - Night 5 = 8 enemies total
 
 **Economy:**
-- Worker costs: Free (max 10)
+- Worker costs: Free (limited by housing capacity)
 - Warrior costs: 10 wood + 15 food
-- Building costs: 20 wood + 10 food
+- Hut cost: 20 wood + 10 food
+- Starting resources: 100 wood, 50 food, 0 stone
 - 5 warriors = 50 wood + 75 food
 - Leaves resources for 2-3 buildings
 
@@ -1737,12 +1926,11 @@ All combat visual effects have been implemented:
    - ✅ Performance-optimized audio system
    - Remaining: Extensive playtesting, stat adjustments, resource cost tuning
 
-### Medium-Term (Phase 6 - 10-15 hours):
-1. Stone actually used (walls, defenses)
-2. Building upgrades system
-3. Worker housing (huts provide worker slots)
-4. Advanced buildings (storage, workshop)
-5. Technology tree
+### Medium-Term (Phase 6C-6D):
+1. Building upgrades system (campfire → fortress, hut → longhouse)
+2. Advanced buildings (storage shed, workshop)
+3. Tool upgrade system (stone → iron → steel)
+4. Barracks + military research (optional)
 
 ### Long-Term (Phase 7-8 - 20+ hours):
 1. Worker night hide behavior
@@ -1783,11 +1971,11 @@ All combat visual effects have been implemented:
 
 ---
 
-**Last Updated:** January 2026
-**Current Build:** Phase 6B Complete - Wall System Refactor & Smart Wall Connections
-**Status:** Fully Playable with Building Menu, Defensive Structures, Visual Effects, 3D Spatial Audio, and Housing Management
+**Last Updated:** February 2026
+**Current Build:** Phase 6B+++ Complete - GC Allocation Elimination
+**Status:** Fully Playable with Building Menu, Defensive Structures, Smooth Gate Traversal, Visual Effects, 3D Spatial Audio, Housing Management, Optimized Pathfinding, Path-Aware Resource Selection, and GC-Optimized Hot Paths
 **Known Issues:** None game-breaking - all critical bugs fixed
-**Next Milestone:** Phase 6B - Building Progression (Upgrades)
+**Next Milestone:** Phase 6C - Building Progression (Upgrades)
 
 *A shipwreck survival RTS game built in Unity*
 

@@ -25,3 +25,4 @@ MonoBehaviour:
   placementHeight: 0.75
   maxHealth: 300
   blocksNavMesh: 1
+  isWall: 1

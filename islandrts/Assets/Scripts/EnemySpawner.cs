@@ -16,12 +16,17 @@ public class EnemySpawner : MonoBehaviour
     public float spawnDelay = 2f;               // Delay after night starts before spawning
     public float spawnInterval = 1f;            // Time between each enemy spawn
 
+    [Header("Group Spawning")]
+    public float groupSpreadAngle = 15f;        // Max angle spread within a wave group (degrees)
+    public float groupSpreadDistance = 3f;       // Max distance spread within a wave group
+
     [Header("Difficulty Scaling")]
     public bool increaseDifficulty = true;      // Increase enemies each night
 
     // Private
     private List<GameObject> activeEnemies = new List<GameObject>();
     private int currentNight = 0;
+    private float waveBaseAngle = 0f;  // Chosen direction for current wave group
 
     void OnEnable()
     {
@@ -84,7 +89,10 @@ public class EnemySpawner : MonoBehaviour
 
         int enemiesToSpawn = CalculateEnemyCount();
 
-        Debug.Log($"EnemySpawner: Spawning {enemiesToSpawn} enemies for night {currentNight}");
+        // Pick a random direction for this wave — all enemies cluster around it
+        waveBaseAngle = Random.Range(0f, 360f);
+
+        Debug.Log($"EnemySpawner: Spawning {enemiesToSpawn} enemies for night {currentNight} from direction {waveBaseAngle:F0}°");
 
         // Start combat music when enemies begin spawning
         if (AudioManager.Instance != null)
@@ -117,9 +125,9 @@ public class EnemySpawner : MonoBehaviour
 
     Vector3 GetRandomSpawnPosition()
     {
-        // Spawn enemies in a circle around the center
-        float angle = Random.Range(0f, 360f);
-        float distance = Random.Range(spawnDistance * 0.8f, spawnDistance * 1.2f);
+        // Spawn enemies clustered together around the wave's chosen direction
+        float angle = waveBaseAngle + Random.Range(-groupSpreadAngle, groupSpreadAngle);
+        float distance = spawnDistance + Random.Range(-groupSpreadDistance, groupSpreadDistance);
 
         Vector3 position = new Vector3(
             Mathf.Cos(angle * Mathf.Deg2Rad) * distance,
@@ -133,19 +141,18 @@ public class EnemySpawner : MonoBehaviour
     void DespawnAllEnemies()
     {
         // Clean up null references first
-        activeEnemies.RemoveAll(enemy => enemy == null);
+        for (int i = activeEnemies.Count - 1; i >= 0; i--)
+            if (activeEnemies[i] == null) activeEnemies.RemoveAt(i);
 
-        // Destroy all remaining enemies
-        foreach (GameObject enemy in activeEnemies)
+        // Stagger destruction to avoid NavMesh carving spike and GC spike
+        for (int i = 0; i < activeEnemies.Count; i++)
         {
-            if (enemy != null)
-            {
-                Destroy(enemy);
-            }
+            if (activeEnemies[i] != null)
+                Destroy(activeEnemies[i], i * 0.15f);
         }
 
         activeEnemies.Clear();
-        Debug.Log("EnemySpawner: All enemies despawned");
+        Debug.Log("EnemySpawner: All enemies despawning (staggered)");
     }
 
     // Called when an enemy is killed (for tracking)
@@ -155,7 +162,8 @@ public class EnemySpawner : MonoBehaviour
         Debug.Log($"EnemySpawner: Enemy killed. {activeEnemies.Count} enemies remaining");
 
         // Check if all enemies are dead
-        activeEnemies.RemoveAll(e => e == null);
+        for (int i = activeEnemies.Count - 1; i >= 0; i--)
+            if (activeEnemies[i] == null) activeEnemies.RemoveAt(i);
         if (activeEnemies.Count == 0)
         {
             Debug.Log("EnemySpawner: All enemies defeated! Returning to ambient sounds.");
@@ -181,7 +189,8 @@ public class EnemySpawner : MonoBehaviour
     // Public getters
     public int GetActiveEnemyCount()
     {
-        activeEnemies.RemoveAll(enemy => enemy == null);
+        for (int i = activeEnemies.Count - 1; i >= 0; i--)
+            if (activeEnemies[i] == null) activeEnemies.RemoveAt(i);
         return activeEnemies.Count;
     }
 

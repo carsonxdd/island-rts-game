@@ -28,6 +28,7 @@ public class CombatEffects : MonoBehaviour
     public int maxParticlesPerFrame = 10;
 
     private int particlesThisFrame = 0;
+    private Material cachedParticleMaterial;
 
     void Awake()
     {
@@ -36,6 +37,7 @@ public class CombatEffects : MonoBehaviour
         {
             Instance = this;
             DontDestroyOnLoad(gameObject);
+            cachedParticleMaterial = new Material(Shader.Find("Sprites/Default"));
             Debug.Log("CombatEffects: Initialized");
         }
         else
@@ -88,7 +90,7 @@ public class CombatEffects : MonoBehaviour
 
         // Renderer
         var renderer = ps.GetComponent<ParticleSystemRenderer>();
-        renderer.material = new Material(Shader.Find("Sprites/Default"));
+        renderer.material = cachedParticleMaterial;
 
         // Auto-destroy after particles finish
         Destroy(effectObj, 2f);
@@ -124,7 +126,7 @@ public class CombatEffects : MonoBehaviour
         emission.SetBursts(new ParticleSystem.Burst[] { new ParticleSystem.Burst(0f, 10) });
 
         var renderer = ps.GetComponent<ParticleSystemRenderer>();
-        renderer.material = new Material(Shader.Find("Sprites/Default"));
+        renderer.material = cachedParticleMaterial;
 
         Destroy(effectObj, 1f);
         particlesThisFrame++;
@@ -189,7 +191,7 @@ public class CombatEffects : MonoBehaviour
         emission.SetBursts(new ParticleSystem.Burst[] { new ParticleSystem.Burst(0f, 25) });
 
         var renderer = ps.GetComponent<ParticleSystemRenderer>();
-        renderer.material = new Material(Shader.Find("Sprites/Default"));
+        renderer.material = cachedParticleMaterial;
 
         Destroy(effectObj, 2f);
         particlesThisFrame++;

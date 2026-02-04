@@ -21,6 +21,15 @@ public class ResourceNode : MonoBehaviour
     public Color highlightColor = Color.yellow;
     public bool scaleWithDepletion = true;  // Shrink as resources deplete
 
+    // Static registry for O(1) lookup instead of FindObjectsByType
+    private static readonly List<ResourceNode> activeList = new List<ResourceNode>();
+    public static IReadOnlyList<ResourceNode> ActiveList => activeList;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetStatics() { activeList.Clear(); }
+
+    void Awake() { activeList.Add(this); }
+
     private Renderer[] nodeRenderers;
     private Color[] originalColors;
     private bool isHighlighted = false;
@@ -76,8 +85,8 @@ public class ResourceNode : MonoBehaviour
                 obstacle.height = 1f;
                 break;
             case ResourceType.Stone:  // Rocks
-                obstacle.radius = 0.8f;
-                obstacle.height = 1.5f;
+                obstacle.radius = 0.5f;
+                obstacle.height = 1.0f;
                 break;
         }
 
@@ -201,6 +210,63 @@ public class ResourceNode : MonoBehaviour
     public int GetWorkerCount()
     {
         return activeWorkers.Count;
+    }
+
+    /// <summary>
+    /// Returns a valid NavMesh position on the nearest side of this resource node
+    /// to the given worker position. This prevents workers from pathing to the far
+    /// side of large obstacles like stone nodes.
+    /// </summary>
+    public Vector3 GetGatherPoint(Vector3 workerPosition)
+    {
+        // Get the obstacle radius for offset calculation
+        NavMeshObstacle obstacle = GetComponent<NavMeshObstacle>();
+        float obstacleRadius = obstacle != null ? obstacle.radius : 0.5f;
+        float offset = obstacleRadius * 1.3f;  // Just outside the obstacle
+
+        // Try direct approach: nearest side from worker
+        Vector3 dirToWorker = (workerPosition - transform.position).normalized;
+        Vector3 gatherPoint = transform.position + dirToWorker * offset;
+
+        NavMeshHit hit;
+        if (NavMesh.SamplePosition(gatherPoint, out hit, 2f, NavMesh.AllAreas))
+        {
+            return hit.position;
+        }
+
+        // Fallback: try 8 cardinal directions and pick the one closest to worker
+        float bestDist = float.MaxValue;
+        Vector3 bestPoint = transform.position;
+        bool found = false;
+
+        for (int i = 0; i < 8; i++)
+        {
+            float angle = i * 45f * Mathf.Deg2Rad;
+            Vector3 dir = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
+            Vector3 candidate = transform.position + dir * offset;
+
+            if (NavMesh.SamplePosition(candidate, out hit, 2f, NavMesh.AllAreas))
+            {
+                float dist = Vector3.Distance(hit.position, workerPosition);
+                if (dist < bestDist)
+                {
+                    bestDist = dist;
+                    bestPoint = hit.position;
+                    found = true;
+                }
+            }
+        }
+
+        if (found)
+            return bestPoint;
+
+        // Last resort: just return the node center
+        return transform.position;
+    }
+
+    void OnDestroy()
+    {
+        activeList.Remove(this);
     }
 
     // Manual gathering removed - workers only now!

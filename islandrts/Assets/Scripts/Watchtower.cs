@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.AI;
+using System.Collections.Generic;
 
 public class Watchtower : MonoBehaviour
 {
@@ -10,9 +11,24 @@ public class Watchtower : MonoBehaviour
     [Header("Building Placement")]
     public float noBuildRadius = 3.0f;
 
-    [Header("Detection (Future Phase 6B)")]
+    [Header("Detection")]
     [Tooltip("Early warning system - reveals enemies at greater distance")]
     public float detectionRadius = 20f;
+
+    [Header("Damage Buff Aura")]
+    [Tooltip("Warriors within this radius get a damage buff")]
+    public float buffRadius = 8f;
+    [Tooltip("Damage multiplier for warriors in range (1.25 = 25% buff)")]
+    public float damageMultiplier = 1.25f;
+
+    // Static registry for O(1) lookup instead of FindObjectsByType
+    private static readonly List<Watchtower> activeList = new List<Watchtower>();
+    public static IReadOnlyList<Watchtower> ActiveList => activeList;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetStatics() { activeList.Clear(); }
+
+    void Awake() { activeList.Add(this); }
 
     void Start()
     {
@@ -41,6 +57,31 @@ public class Watchtower : MonoBehaviour
         Debug.Log($"Watchtower: Initialized with {maxHealth} HP and {detectionRadius}m detection radius at {transform.position}");
     }
 
+    /// <summary>
+    /// Returns the best damage multiplier for a unit at the given position.
+    /// Checks all watchtowers and returns the highest multiplier if in range, or 1.0 if not.
+    /// </summary>
+    public static float GetDamageMultiplier(Vector3 position)
+    {
+        float bestMultiplier = 1f;
+
+        for (int i = 0; i < activeList.Count; i++)
+        {
+            Watchtower tower = activeList[i];
+            if (tower == null) continue;
+            Health towerHealth = tower.GetComponent<Health>();
+            if (towerHealth != null && !towerHealth.IsAlive) continue;
+
+            float distance = Vector3.Distance(position, tower.transform.position);
+            if (distance <= tower.buffRadius && tower.damageMultiplier > bestMultiplier)
+            {
+                bestMultiplier = tower.damageMultiplier;
+            }
+        }
+
+        return bestMultiplier;
+    }
+
     void OnWatchtowerDestroyed()
     {
         Debug.Log($"Watchtower: Destroyed at {transform.position}");
@@ -52,6 +93,11 @@ public class Watchtower : MonoBehaviour
         }
     }
 
+    void OnDestroy()
+    {
+        activeList.Remove(this);
+    }
+
     // Visual feedback in Scene view
     void OnDrawGizmosSelected()
     {
@@ -59,8 +105,12 @@ public class Watchtower : MonoBehaviour
         Gizmos.color = new Color(1f, 0.3f, 0.3f, 0.3f);
         Gizmos.DrawWireSphere(transform.position, noBuildRadius);
 
-        // Draw detection radius (future feature visualization)
+        // Draw detection radius
         Gizmos.color = new Color(1f, 1f, 0f, 0.2f);
         Gizmos.DrawWireSphere(transform.position, detectionRadius);
+
+        // Draw buff radius
+        Gizmos.color = new Color(0.3f, 1f, 0.3f, 0.2f);
+        Gizmos.DrawWireSphere(transform.position, buffRadius);
     }
 }

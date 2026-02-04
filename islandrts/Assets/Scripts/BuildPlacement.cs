@@ -87,6 +87,12 @@ public class BuildPlacement : MonoBehaviour
             if (Input.GetKeyDown(KeyCode.Alpha3)) SelectBuilding(BuildingType.StoneWall);
             if (Input.GetKeyDown(KeyCode.Alpha4)) SelectBuilding(BuildingType.Watchtower);
 
+            // G key: convert hovered wall to gate
+            if (Input.GetKeyDown(KeyCode.G))
+            {
+                TryConvertWallToGate();
+            }
+
             if (IsWallType(selectedBuildingType))
             {
                 // Wall placement uses click-start + click-end line drawing
@@ -578,6 +584,54 @@ public class BuildPlacement : MonoBehaviour
         MeshRenderer mr = ghost.AddComponent<MeshRenderer>();
         mr.material = CreateWallGhostMaterial();
         return ghost;
+    }
+
+    // =============================================
+    // Wall-to-Gate Conversion
+    // =============================================
+
+    /// <summary>
+    /// Raycast under mouse; if a Wall is hit, convert it to a Gate (costs 5 wood).
+    /// </summary>
+    void TryConvertWallToGate()
+    {
+        if (mainCam == null) return;
+
+        Ray ray = mainCam.ScreenPointToRay(Input.mousePosition);
+        RaycastHit hit;
+
+        if (Physics.Raycast(ray, out hit, 1000f))
+        {
+            Wall wall = hit.collider.GetComponent<Wall>();
+            if (wall == null) wall = hit.collider.GetComponentInParent<Wall>();
+
+            if (wall != null)
+            {
+                // Check cost: 5 wood
+                if (ResourceManager.Instance == null) return;
+
+                if (!ResourceManager.Instance.CanAfford(5, 0, 0))
+                {
+                    Debug.Log("BuildPlacement: Not enough wood to convert wall to gate! Need 5 Wood.");
+                    return;
+                }
+
+                ResourceManager.Instance.SpendResources(5, 0, 0);
+
+                // Play sound
+                if (AudioManager.Instance != null)
+                {
+                    AudioManager.Instance.PlayBuildingPlaced();
+                }
+
+                wall.UpgradeToGate();
+                Debug.Log("BuildPlacement: Wall converted to Gate!");
+            }
+            else
+            {
+                Debug.Log("BuildPlacement: No wall under cursor to convert.");
+            }
+        }
     }
 
     // =============================================

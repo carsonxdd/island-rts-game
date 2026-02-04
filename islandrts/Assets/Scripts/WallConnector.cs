@@ -15,7 +15,13 @@ public class WallConnector : MonoBehaviour
         Straight,   // 2 opposite neighbors
         Corner,     // 2 adjacent neighbors
         TJunction,  // 3 neighbors
-        Cross       // 4 neighbors
+        Cross,      // 4 neighbors
+        GateIsolated,   // Gate: 0 neighbors
+        GateEndcap,     // Gate: 1 neighbor
+        GateStraight,   // Gate: 2 opposite neighbors
+        GateCorner,     // Gate: 2 adjacent neighbors
+        GateTJunction,  // Gate: 3 neighbors
+        GateCross       // Gate: 4 neighbors
     }
 
     [Header("Debug")]
@@ -26,6 +32,7 @@ public class WallConnector : MonoBehaviour
     private MeshFilter meshFilter;
     private MeshRenderer meshRenderer;
     private bool isStoneWall = false;
+    private bool isGate = false;
     private bool initialized = false;
 
     // Cached procedural meshes (shared across all walls of same type)
@@ -37,6 +44,8 @@ public class WallConnector : MonoBehaviour
     private const float STONE_HEIGHT = 2.0f;
     private const float PILLAR_SIZE = 0.4f;
     private const float Y_OFFSET = 0.02f; // Slight raise to avoid ground z-fighting
+    private const float GATE_HEIGHT_RATIO = 0.5f; // Gates are half the height of walls
+    private const float GATE_ARCHWAY_WIDTH = 0.35f; // Width of the archway opening
 
     private float wallHeight;
 
@@ -51,7 +60,9 @@ public class WallConnector : MonoBehaviour
         initialized = true;
 
         Wall wall = GetComponent<Wall>();
-        isStoneWall = wall != null && wall.isStoneWall;
+        Gate gate = GetComponent<Gate>();
+        isStoneWall = (wall != null && wall.isStoneWall) || (gate != null && gate.isStoneGate);
+        isGate = gate != null;
         wallHeight = isStoneWall ? STONE_HEIGHT : WOODEN_HEIGHT;
 
         // Disable ALL child renderers so the original prefab mesh doesn't show
@@ -94,7 +105,13 @@ public class WallConnector : MonoBehaviour
         transform.position = snapped;
 
         // Set initial isolated shape
-        meshFilter.mesh = GetOrCreateMesh(WallShape.Isolated, isStoneWall);
+        meshFilter.mesh = GetOrCreateMesh(isGate ? WallShape.GateIsolated : WallShape.Isolated, isStoneWall);
+
+        // Gates use a distinct color tint
+        if (isGate && meshRenderer != null && meshRenderer.sharedMaterial != null)
+        {
+            meshRenderer.material.color = isStoneWall ? new Color(0.5f, 0.6f, 0.5f) : new Color(0.45f, 0.35f, 0.2f);
+        }
     }
 
     /// <summary>
@@ -108,6 +125,13 @@ public class WallConnector : MonoBehaviour
         WallShape shape;
         float yRotation;
         GetShapeAndRotation(mask, out shape, out yRotation);
+
+        // Convert to gate variant if this is a gate
+        if (isGate)
+        {
+            shape = ToGateShape(shape);
+        }
+
         currentShape = shape;
 
         if (meshFilter != null)
@@ -199,6 +223,24 @@ public class WallConnector : MonoBehaviour
                 break;
             case WallShape.Cross:
                 mesh = CreateCrossMesh(t, h);
+                break;
+            case WallShape.GateIsolated:
+                mesh = CreateBox(PILLAR_SIZE, h * GATE_HEIGHT_RATIO, PILLAR_SIZE);
+                break;
+            case WallShape.GateEndcap:
+                mesh = CreateGateEndcapMesh(t, h);
+                break;
+            case WallShape.GateStraight:
+                mesh = CreateGateStraightMesh(t, h);
+                break;
+            case WallShape.GateCorner:
+                mesh = CreateGateCornerMesh(t, h);
+                break;
+            case WallShape.GateTJunction:
+                mesh = CreateGateTJunctionMesh(t, h);
+                break;
+            case WallShape.GateCross:
+                mesh = CreateGateCrossMesh(t, h);
                 break;
             default:
                 mesh = CreateBox(PILLAR_SIZE, h, PILLAR_SIZE);
@@ -495,6 +537,179 @@ public class WallConnector : MonoBehaviour
         mesh.normals = norms;
         mesh.uv = uvArr;
         mesh.triangles = tris;
+        mesh.RecalculateBounds();
+
+        return mesh;
+    }
+
+    // =============================================
+    // Gate Shape Helpers
+    // =============================================
+
+    /// <summary>
+    /// Convert a wall shape to its gate equivalent.
+    /// </summary>
+    public static WallShape ToGateShape(WallShape wallShape)
+    {
+        switch (wallShape)
+        {
+            case WallShape.Isolated:  return WallShape.GateIsolated;
+            case WallShape.Endcap:    return WallShape.GateEndcap;
+            case WallShape.Straight:  return WallShape.GateStraight;
+            case WallShape.Corner:    return WallShape.GateCorner;
+            case WallShape.TJunction: return WallShape.GateTJunction;
+            case WallShape.Cross:     return WallShape.GateCross;
+            default:                  return wallShape; // Already a gate shape
+        }
+    }
+
+    /// <summary>
+    /// Gate meshes: same structure as wall meshes but at half height with pillar posts at connections.
+    /// The lower section has an opening (archway) so it visually reads as a gate.
+    /// </summary>
+    private static Mesh CreateGateEndcapMesh(float thickness, float height)
+    {
+        float gh = height * GATE_HEIGHT_RATIO;
+        // Short pillar at center
+        Mesh pillar = CreateBoxAt(PILLAR_SIZE, gh, PILLAR_SIZE, 0f, 0f);
+        // Short bar toward +Z
+        float barLen = 0.5f - PILLAR_SIZE * 0.5f;
+        float barCZ = PILLAR_SIZE * 0.5f + barLen * 0.5f;
+        // Gate bar: only top portion (archway below)
+        Mesh topBar = CreateBoxAtYRange(thickness, gh * 0.6f, gh, barLen, 0f, barCZ);
+        return CombineMeshes(pillar, topBar);
+    }
+
+    private static Mesh CreateGateStraightMesh(float thickness, float height)
+    {
+        float gh = height * GATE_HEIGHT_RATIO;
+        Mesh pillar = CreateBoxAt(PILLAR_SIZE, gh, PILLAR_SIZE, 0f, 0f);
+        float armLen = 0.5f - PILLAR_SIZE * 0.5f;
+        float offset = PILLAR_SIZE * 0.5f + armLen * 0.5f;
+        // Top bars only (archway openings below)
+        Mesh armN = CreateBoxAtYRange(thickness, gh * 0.6f, gh, armLen, 0f, offset);
+        Mesh armS = CreateBoxAtYRange(thickness, gh * 0.6f, gh, armLen, 0f, -offset);
+        return CombineMeshes(CombineMeshes(pillar, armN), armS);
+    }
+
+    private static Mesh CreateGateCornerMesh(float thickness, float height)
+    {
+        float gh = height * GATE_HEIGHT_RATIO;
+        Mesh pillar = CreateBoxAt(PILLAR_SIZE, gh, PILLAR_SIZE, 0f, 0f);
+        float armLen = 0.5f - PILLAR_SIZE * 0.5f;
+        float armCZ = PILLAR_SIZE * 0.5f + armLen * 0.5f;
+        float armCX = PILLAR_SIZE * 0.5f + armLen * 0.5f;
+        Mesh armN = CreateBoxAtYRange(thickness, gh * 0.6f, gh, armLen, 0f, armCZ);
+        Mesh armE = CreateBoxAtYRange(armLen, gh * 0.6f, gh, thickness, armCX, 0f);
+        return CombineMeshes(CombineMeshes(pillar, armN), armE);
+    }
+
+    private static Mesh CreateGateTJunctionMesh(float thickness, float height)
+    {
+        float gh = height * GATE_HEIGHT_RATIO;
+        Mesh pillar = CreateBoxAt(PILLAR_SIZE, gh, PILLAR_SIZE, 0f, 0f);
+        float armLen = 0.5f - PILLAR_SIZE * 0.5f;
+        float offset = PILLAR_SIZE * 0.5f + armLen * 0.5f;
+        Mesh armN = CreateBoxAtYRange(thickness, gh * 0.6f, gh, armLen, 0f, offset);
+        Mesh armE = CreateBoxAtYRange(armLen, gh * 0.6f, gh, thickness, offset, 0f);
+        Mesh armW = CreateBoxAtYRange(armLen, gh * 0.6f, gh, thickness, -offset, 0f);
+        return CombineMeshes(CombineMeshes(CombineMeshes(pillar, armN), armE), armW);
+    }
+
+    private static Mesh CreateGateCrossMesh(float thickness, float height)
+    {
+        float gh = height * GATE_HEIGHT_RATIO;
+        Mesh pillar = CreateBoxAt(PILLAR_SIZE, gh, PILLAR_SIZE, 0f, 0f);
+        float armLen = 0.5f - PILLAR_SIZE * 0.5f;
+        float offset = PILLAR_SIZE * 0.5f + armLen * 0.5f;
+        Mesh armN = CreateBoxAtYRange(thickness, gh * 0.6f, gh, armLen, 0f, offset);
+        Mesh armS = CreateBoxAtYRange(thickness, gh * 0.6f, gh, armLen, 0f, -offset);
+        Mesh armE = CreateBoxAtYRange(armLen, gh * 0.6f, gh, thickness, offset, 0f);
+        Mesh armW = CreateBoxAtYRange(armLen, gh * 0.6f, gh, thickness, -offset, 0f);
+        Mesh ns = CombineMeshes(CombineMeshes(pillar, armN), armS);
+        return CombineMeshes(CombineMeshes(ns, armE), armW);
+    }
+
+    /// <summary>
+    /// Create a box at given XZ offset with a Y range (bottom at yMin, top at yMax).
+    /// Used for gate archway bars that only span the top portion.
+    /// </summary>
+    private static Mesh CreateBoxAtYRange(float sizeX, float yMin, float yMax, float sizeZ, float cx, float cz)
+    {
+        Mesh mesh = new Mesh();
+
+        float hx = sizeX * 0.5f;
+        float hz = sizeZ * 0.5f;
+
+        // 6 faces x 4 verts = 24 vertices (full box since bottom is visible for archway)
+        Vector3[] vertices = new Vector3[24];
+        Vector3[] normals = new Vector3[24];
+        Vector2[] uvs = new Vector2[24];
+
+        // Front face (+Z)
+        vertices[0]  = new Vector3(cx - hx, yMin, cz + hz);
+        vertices[1]  = new Vector3(cx + hx, yMin, cz + hz);
+        vertices[2]  = new Vector3(cx + hx, yMax, cz + hz);
+        vertices[3]  = new Vector3(cx - hx, yMax, cz + hz);
+        // Back face (-Z)
+        vertices[4]  = new Vector3(cx + hx, yMin, cz - hz);
+        vertices[5]  = new Vector3(cx - hx, yMin, cz - hz);
+        vertices[6]  = new Vector3(cx - hx, yMax, cz - hz);
+        vertices[7]  = new Vector3(cx + hx, yMax, cz - hz);
+        // Top face (+Y)
+        vertices[8]  = new Vector3(cx - hx, yMax, cz + hz);
+        vertices[9]  = new Vector3(cx + hx, yMax, cz + hz);
+        vertices[10] = new Vector3(cx + hx, yMax, cz - hz);
+        vertices[11] = new Vector3(cx - hx, yMax, cz - hz);
+        // Right face (+X)
+        vertices[12] = new Vector3(cx + hx, yMin, cz + hz);
+        vertices[13] = new Vector3(cx + hx, yMin, cz - hz);
+        vertices[14] = new Vector3(cx + hx, yMax, cz - hz);
+        vertices[15] = new Vector3(cx + hx, yMax, cz + hz);
+        // Left face (-X)
+        vertices[16] = new Vector3(cx - hx, yMin, cz - hz);
+        vertices[17] = new Vector3(cx - hx, yMin, cz + hz);
+        vertices[18] = new Vector3(cx - hx, yMax, cz + hz);
+        vertices[19] = new Vector3(cx - hx, yMax, cz - hz);
+        // Bottom face (-Y) - visible for archway
+        vertices[20] = new Vector3(cx - hx, yMin, cz - hz);
+        vertices[21] = new Vector3(cx + hx, yMin, cz - hz);
+        vertices[22] = new Vector3(cx + hx, yMin, cz + hz);
+        vertices[23] = new Vector3(cx - hx, yMin, cz + hz);
+
+        for (int i = 0;  i < 4;  i++) normals[i]  = Vector3.forward;
+        for (int i = 4;  i < 8;  i++) normals[i]  = Vector3.back;
+        for (int i = 8;  i < 12; i++) normals[i]  = Vector3.up;
+        for (int i = 12; i < 16; i++) normals[i]  = Vector3.right;
+        for (int i = 16; i < 20; i++) normals[i]  = Vector3.left;
+        for (int i = 20; i < 24; i++) normals[i]  = Vector3.down;
+
+        for (int i = 0; i < 6; i++)
+        {
+            int b = i * 4;
+            uvs[b]     = new Vector2(0, 0);
+            uvs[b + 1] = new Vector2(1, 0);
+            uvs[b + 2] = new Vector2(1, 1);
+            uvs[b + 3] = new Vector2(0, 1);
+        }
+
+        int[] triangles = new int[36]; // 6 faces x 6 indices
+        for (int i = 0; i < 6; i++)
+        {
+            int b = i * 4;
+            int t = i * 6;
+            triangles[t]     = b;
+            triangles[t + 1] = b + 1;
+            triangles[t + 2] = b + 2;
+            triangles[t + 3] = b;
+            triangles[t + 4] = b + 2;
+            triangles[t + 5] = b + 3;
+        }
+
+        mesh.vertices = vertices;
+        mesh.normals = normals;
+        mesh.uv = uvs;
+        mesh.triangles = triangles;
         mesh.RecalculateBounds();
 
         return mesh;

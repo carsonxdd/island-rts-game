@@ -1,9 +1,19 @@
 using UnityEngine;
+using UnityEngine.AI;
 using System.Collections.Generic;
 using TMPro;
 
 public class BaseBuilding : MonoBehaviour
 {
+    // Static registry for O(1) lookup instead of FindObjectsByType
+    private static readonly List<BaseBuilding> activeList = new List<BaseBuilding>();
+    public static IReadOnlyList<BaseBuilding> ActiveList => activeList;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetStatics() { activeList.Clear(); }
+
+    void Awake() { activeList.Add(this); }
+
     [Header("Health")]
     public float maxHealth = 200f;  // Campfire health
     private Health healthComponent;
@@ -102,12 +112,15 @@ public class BaseBuilding : MonoBehaviour
             Debug.Log($"BaseBuilding: Collider found: {col.GetType().Name}");
         }
 
-        // Disable NavMeshObstacle carving so enemies can surround and attack
+        // Enable NavMeshObstacle carving so workers/units path AROUND the campfire
+        // instead of trying to walk through it and getting stuck on the collider.
+        // Enemies can still attack from the carve edge (attackRange 3.5 > any reasonable carve radius).
         UnityEngine.AI.NavMeshObstacle obstacle = GetComponent<UnityEngine.AI.NavMeshObstacle>();
         if (obstacle != null)
         {
-            obstacle.carving = false;  // Don't carve NavMesh - let enemies get close from all sides
-            Debug.Log($"BaseBuilding: NavMeshObstacle carving disabled for combat");
+            obstacle.carving = true;
+            obstacle.carveOnlyStationary = true;
+            obstacle.carvingTimeToStationary = 0.1f;
         }
     }
 
@@ -238,19 +251,8 @@ public class BaseBuilding : MonoBehaviour
             return;
         }
 
-        // Random position around campfire - use OUTSIDE the obstacle radius
-        // Spawn in a ring shape outside the building
-        float angle = Random.Range(0f, 360f);
-        float distance = Random.Range(spawnRadius + 0.2f, spawnRadius + 0.8f);  // Just outside obstacle
-
-        Vector3 offset = new Vector3(
-            Mathf.Cos(angle * Mathf.Deg2Rad) * distance,
-            0f,
-            Mathf.Sin(angle * Mathf.Deg2Rad) * distance
-        );
-
-        Vector3 spawnPos = transform.position + offset;
-        spawnPos.y = 1f;  // Worker height
+        // Find a valid NavMesh position around the campfire
+        Vector3 spawnPos = GetValidSpawnPosition();
 
         // Spawn worker
         GameObject workerObj = Instantiate(workerPrefab, spawnPos, Quaternion.identity);
@@ -276,6 +278,61 @@ public class BaseBuilding : MonoBehaviour
         {
             Debug.LogError("BaseBuilding: Worker prefab doesn't have Worker component!");
         }
+    }
+
+    /// <summary>
+    /// Find a valid spawn position on the NavMesh around the campfire.
+    /// Tries random positions, then evenly-spaced directions, then falls back with warning.
+    /// </summary>
+    Vector3 GetValidSpawnPosition()
+    {
+        NavMeshHit hit;
+
+        // Try 8 random positions slightly farther out
+        for (int i = 0; i < 8; i++)
+        {
+            float angle = Random.Range(0f, 360f) * Mathf.Deg2Rad;
+            float distance = spawnRadius + Random.Range(0.5f, 1.5f);
+
+            Vector3 candidate = transform.position + new Vector3(
+                Mathf.Cos(angle) * distance,
+                0f,
+                Mathf.Sin(angle) * distance
+            );
+
+            if (NavMesh.SamplePosition(candidate, out hit, 2f, NavMesh.AllAreas))
+            {
+                Vector3 pos = hit.position;
+                pos.y = 1f;
+                return pos;
+            }
+        }
+
+        // Fallback: try 8 evenly-spaced directions at a farther distance
+        for (int i = 0; i < 8; i++)
+        {
+            float angle = i * 45f * Mathf.Deg2Rad;
+            float distance = spawnRadius + 2f;
+
+            Vector3 candidate = transform.position + new Vector3(
+                Mathf.Cos(angle) * distance,
+                0f,
+                Mathf.Sin(angle) * distance
+            );
+
+            if (NavMesh.SamplePosition(candidate, out hit, 3f, NavMesh.AllAreas))
+            {
+                Vector3 pos = hit.position;
+                pos.y = 1f;
+                return pos;
+            }
+        }
+
+        // Last resort: offset position with warning
+        Debug.LogWarning("BaseBuilding: Could not find valid NavMesh spawn position! Using fallback.");
+        Vector3 fallback = transform.position + new Vector3(spawnRadius + 1f, 0f, 0f);
+        fallback.y = 1f;
+        return fallback;
     }
 
     // Get total number of workers
@@ -310,18 +367,8 @@ public class BaseBuilding : MonoBehaviour
         ResourceManager.Instance.SpendWood(warriorCost_Wood);
         ResourceManager.Instance.SpendFood(warriorCost_Food);
 
-        // Random position around campfire
-        float angle = Random.Range(0f, 360f);
-        float distance = Random.Range(spawnRadius + 0.2f, spawnRadius + 0.8f);
-
-        Vector3 offset = new Vector3(
-            Mathf.Cos(angle * Mathf.Deg2Rad) * distance,
-            0f,
-            Mathf.Sin(angle * Mathf.Deg2Rad) * distance
-        );
-
-        Vector3 spawnPos = transform.position + offset;
-        spawnPos.y = 1f;  // Warrior height
+        // Find a valid NavMesh position around the campfire
+        Vector3 spawnPos = GetValidSpawnPosition();
 
         // Spawn warrior
         GameObject warriorObj = Instantiate(warriorPrefab, spawnPos, Quaternion.identity);
@@ -456,6 +503,11 @@ public class BaseBuilding : MonoBehaviour
     public float GetHealthPercentage()
     {
         return healthComponent != null ? healthComponent.GetHealthPercentage() : 1f;
+    }
+
+    void OnDestroy()
+    {
+        activeList.Remove(this);
     }
 
     // Visual helper in Scene view
