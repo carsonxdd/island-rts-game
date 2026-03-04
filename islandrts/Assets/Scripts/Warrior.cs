@@ -10,8 +10,11 @@ public class Warrior : MonoBehaviour
     private static readonly List<Warrior> activeList = new List<Warrior>();
     public static IReadOnlyList<Warrior> ActiveList => activeList;
 
+    // Static event: fires when any warrior dies (with death position for proximity checks)
+    public static event System.Action<Vector3> OnAnyWarriorDied;
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    static void ResetStatics() { activeList.Clear(); }
+    static void ResetStatics() { activeList.Clear(); OnAnyWarriorDied = null; }
 
     void Awake() { activeList.Add(this); }
 
@@ -30,12 +33,18 @@ public class Warrior : MonoBehaviour
     public float patrolRadius = 8f;  // Patrol radius around campfire when idle
     public float patrolWaitTime = 3f;  // Wait at patrol point before moving to next
 
+    [Header("AI Mode")]
+    public bool useUtilityAI = true;  // Toggle between old state machine and new Utility AI
+
     [Header("State Display")]
     public bool showStateText = true;
     public float textHeightOffset = 2.5f;
 
     [Header("References")]
     public BaseBuilding baseBuilding;  // Reference to campfire
+
+    // Utility AI components
+    private AIBrain aiBrain;
 
     // Private
     private NavMeshAgent agent;
@@ -44,6 +53,7 @@ public class Warrior : MonoBehaviour
     private float lastAttackTime = 0f;
     private bool hasTarget = false;
     private Health healthComponent;
+    public Health CachedHealth => healthComponent;
     private Health cachedTargetHealth;
     private Transform cachedTargetTransform;
     private TextMeshPro stateText;
@@ -63,9 +73,13 @@ public class Warrior : MonoBehaviour
     private float minTargetLockDuration = 1.0f;  // Don't switch targets within this window
     private float targetSwitchThreshold = 0.7f;  // New target must be 30%+ closer to switch
 
+    // Attack range hysteresis to prevent oscillation at boundary
+    private bool isInAttackRange = false;
+    private float attackRangeBuffer = 0.5f;  // Exit threshold is attackRange + this buffer
+
     // Caching timers to avoid FindObjectsByType every frame
     private float enemySearchTimer = 0f;
-    private float enemySearchInterval = 0.3f;  // Search for enemies every 0.3s
+    private float enemySearchInterval = 0.5f;  // Search for enemies every 0.5s (increased from 0.3 to reduce path spam)
     private float wallCheckTimer = 0f;
     private float wallCheckInterval = 2f;  // Check for walls every 2s
     private bool cachedHasWalls = false;
@@ -76,18 +90,30 @@ public class Warrior : MonoBehaviour
     private float faceToFaceTimer = 0f;
     private float phaseThreshold = 2f;
     private bool isPhasing = false;
+    private float phaseActiveTimer = 0f;     // How long phasing has been active
+    private float phaseMinDuration = 3f;     // Minimum time to stay phased (prevents oscillation)
     private float savedRadius;
     private ObstacleAvoidanceType savedAvoidance;
 
     // Audio - 3D Spatial Sound
     private AudioSource combatAudioSource;
+    private Camera cachedCamera;
 
     // Pooled building list for patrol point calculation
     private readonly List<(Transform t, float radius)> buildingBuffer = new List<(Transform, float)>();
 
-    // Smooth gate traversal
-    private bool isTraversingLink = false;
-    private Vector3 linkEndPos;
+    // SetDestination throttle — max 3 per frame across all warriors
+    private static int setDestFrame = -1;
+    private static int setDestCount = 0;
+
+    bool TrySetDestination(Vector3 destination)
+    {
+        if (Time.frameCount != setDestFrame) { setDestFrame = Time.frameCount; setDestCount = 0; }
+        if (setDestCount >= 3) return false;
+        setDestCount++;
+        agent.SetDestination(destination);
+        return true;
+    }
 
     void Start()
     {
@@ -101,14 +127,14 @@ public class Warrior : MonoBehaviour
 
         // Configure NavMeshAgent for warrior movement
         agent.speed = moveSpeed;
-        agent.acceleration = 8f;
-        agent.angularSpeed = 180f;  // Fast turning for combat
+        agent.acceleration = 5f;  // Moderate acceleration for smoother movement (reduced from 8)
+        agent.angularSpeed = 120f;  // Smooth turning (reduced from 180 to prevent jitter)
         agent.stoppingDistance = attackRange - 1.0f;  // Stop before attack range for smoother movement
         agent.autoBraking = true;
         agent.radius = 0.5f;
         agent.obstacleAvoidanceType = ObstacleAvoidanceType.MedQualityObstacleAvoidance;  // Reduced from High for performance with many walls
+        agent.avoidancePriority = Random.Range(30, 70);  // Randomized priority to prevent synchronized yielding
         agent.updateRotation = true;  // Smooth rotation
-        agent.autoTraverseOffMeshLink = false;  // Manual traversal for smooth gate walking
 
         Debug.Log($"Warrior: NavMeshAgent configured - Speed: {agent.speed}, Accel: {agent.acceleration}");
 
@@ -128,6 +154,8 @@ public class Warrior : MonoBehaviour
         {
             CreateStateText();
         }
+
+        cachedCamera = Camera.main;
 
         // Setup 3D spatial audio for combat sounds
         SetupCombatAudioSource();
@@ -151,21 +179,132 @@ public class Warrior : MonoBehaviour
     {
         initialPatrolReady = true;
         currentPatrolPoint = GetRandomPatrolPoint();
+
+        // Initialize Utility AI after staggered delay
+        if (useUtilityAI)
+        {
+            InitializeUtilityAI();
+        }
+    }
+
+    void InitializeUtilityAI()
+    {
+        aiBrain = gameObject.AddComponent<AIBrain>();
+
+        var bb = new AIBlackboard();
+        bb.transform = transform;
+        bb.agent = agent;
+        bb.health = healthComponent;
+        bb.baseBuilding = baseBuilding;
+        bb.warrior = this;
+        bb.attackRange = attackRange;
+        bb.attackCooldown = attackCooldown;
+        bb.damage = damage;
+        bb.warriorSearchRadius = searchRadius;
+        bb.patrolRadius = patrolRadius;
+
+        // Setup StuckResolver
+        var stuckResolver = gameObject.AddComponent<StuckResolver>();
+        stuckResolver.Initialize(agent, activeList.IndexOf(this));
+        stuckResolver.onStuckReset = () =>
+        {
+            bb.currentTarget = null;
+            bb.currentTargetHealth = null;
+            bb.isInAttackRange = false;
+            if (agent.isOnNavMesh)
+            {
+                agent.ResetPath();
+                agent.isStopped = false;
+            }
+            aiBrain.ForceReeval();
+        };
+        bb.stuckResolver = stuckResolver;
+
+        // EnemyPresence is evaluated first in every action that needs it,
+        // so bb.nearestEnemy is always populated before other considerations read it.
+        var enemyScanner = new EnemyPresence(0f, ResponseCurve.Linear(1f, 0f));
+
+        var actions = new ActionOption[]
+        {
+            // Engage Enemy — enemies are CLOSE (within ~20m), charge in and fight
+            // EnemyProximity returns high when enemies are close, low when far
+            new ActionOption("Engage", new Consideration[]
+            {
+                enemyScanner,  // Populates bb.nearestEnemy, returns 1 if any enemy alive
+                new EnemyProximity(searchRadius, ResponseCurve.Logistic(8f, 0.4f)),  // Close = high
+                new HealthPercent(ResponseCurve.Linear(0.7f, 0.3f))  // Healthy = more willing
+            }, new EngageEnemyExecutor(), basePriority: 1.0f, momentumBonus: 0.25f),
+
+            // Intercept — enemies detected but FAR, rally at colony edge as a group
+            // EnemyProximity inverted: high when enemies are far, drops as they get close
+            new ActionOption("Intercept", new Consideration[]
+            {
+                enemyScanner,  // Enemies must exist
+                new EnemyProximity(searchRadius, ResponseCurve.InverseLinear(0.6f, 0.3f))  // Far = high
+            }, new InterceptExecutor(), basePriority: 0.7f, momentumBonus: 0.15f),
+
+            // Defend Wall — walls under attack, rush to defend
+            new ActionOption("DefendWall", new Consideration[]
+            {
+                new WallIntegrity(ResponseCurve.Linear(1f, 0f)),
+                new DistanceTo(DistanceTo.TargetType.WallUnderAttack, searchRadius, ResponseCurve.Linear(0.5f, 0.3f))
+            }, new DefendWallExecutor(), basePriority: 0.9f, momentumBonus: 0.15f),
+
+            // Patrol — no enemies at all, peacetime
+            // InverseLinear on EnemyPresence: 1 when no enemies, 0 when enemies exist
+            new ActionOption("Patrol", new Consideration[]
+            {
+                new EnemyPresence(0f, ResponseCurve.InverseLinear(0.8f, 0.2f))
+            }, new PatrolExecutor(), basePriority: 0.3f, momentumBonus: 0.1f),
+
+            // Retreat — low health, outnumbered, fall back to base
+            new ActionOption("Retreat", new Consideration[]
+            {
+                new HealthPercent(ResponseCurve.InverseLinear(1.5f, -0.2f)),
+                new ThreatNearby(2f, ResponseCurve.Linear(0.8f, 0.1f))
+            }, new RetreatExecutor(), basePriority: 0.7f, momentumBonus: 0.25f)
+        };
+
+        bb.brain = aiBrain;
+        aiBrain.Initialize(actions, bb);
+
+        // First-damage ForceReeval: immediately re-evaluate on first hit
+        bool hasBeenDamaged = false;
+        healthComponent.onDamaged.AddListener(() =>
+        {
+            if (!hasBeenDamaged)
+            {
+                hasBeenDamaged = true;
+                aiBrain.ForceReeval();
+            }
+        });
+
+        // Ally death: re-evaluate when a nearby warrior dies
+        OnAnyWarriorDied += OnAllyDiedUtilityAI;
+
+        // Wall/gate break: re-evaluate when walls are destroyed
+        Wall.OnAnyWallDestroyed += OnWallDestroyedUtilityAI;
+        Gate.OnAnyGateDestroyed += OnWallDestroyedUtilityAI;
     }
 
     void Update()
     {
+        // Utility AI mode: AIBrain drives behavior, we just update visuals
+        if (useUtilityAI && aiBrain != null)
+        {
+            if (showStateText && stateText != null)
+            {
+                UpdateStateTextUtilityAI();
+            }
+            return;
+        }
+
+        // --- Original state machine (when useUtilityAI = false) ---
+
         // Update state text
         if (showStateText && stateText != null)
         {
             UpdateStateText();
-        }
-
-        // Smooth gate traversal — handle OffMeshLink before all other logic
-        if (agent != null && agent.isOnOffMeshLink)
-        {
-            HandleOffMeshLinkTraversal();
-            return;
         }
 
         // Wait for staggered start
@@ -207,10 +346,16 @@ public class Warrior : MonoBehaviour
             }
             else
             {
-                // Found a new target - reset last position and resume movement
+                // Found a new target - but verify it still exists (could have been destroyed between find and use)
+                if (target == null)
+                {
+                    hasTarget = false;
+                    return;
+                }
+                // Reset last position and resume movement
                 lastTargetPosition = target.position;
                 agent.isStopped = false;  // Resume movement toward new target
-                agent.SetDestination(target.position);  // CRITICAL: Set path to new target
+                TrySetDestination(target.position);  // Throttled to prevent frame spikes
                 patrolDestinationSet = false;  // Reset so patrol can set destination when returning
             }
         }
@@ -229,20 +374,41 @@ public class Warrior : MonoBehaviour
             target = null;
             cachedTargetHealth = null;
             cachedTargetTransform = null;
+            isInAttackRange = false;  // Reset attack range state
             agent.isStopped = false;
             agent.ResetPath();
             patrolDestinationSet = false;
-            enemySearchTimer = 0f;  // Search immediately for next enemy
+            // Stagger search to prevent all warriors pathing simultaneously
+            enemySearchTimer = Random.Range(0f, enemySearchInterval * 0.5f);
             return;
         }
 
         // Move toward target
         MoveTowardTarget();
 
-        // Check if in attack range
+        // Check if in attack range (with hysteresis to prevent oscillation)
         float distanceToTarget = Vector3.Distance(transform.position, target.position);
 
-        if (distanceToTarget <= attackRange)
+        // Hysteresis: use different thresholds for entering vs exiting attack range
+        // This prevents stuttering when at the boundary
+        if (isInAttackRange)
+        {
+            // Already attacking - only exit if moved beyond buffer
+            if (distanceToTarget > attackRange + attackRangeBuffer)
+            {
+                isInAttackRange = false;
+            }
+        }
+        else
+        {
+            // Not attacking - enter attack range at normal threshold
+            if (distanceToTarget <= attackRange)
+            {
+                isInAttackRange = true;
+            }
+        }
+
+        if (isInAttackRange)
         {
             // In range - stop and attack
             agent.isStopped = true;
@@ -269,53 +435,9 @@ public class Warrior : MonoBehaviour
     }
 
     /// <summary>
-    /// Smoothly walk through gate OffMeshLinks instead of warping.
-    /// </summary>
-    void HandleOffMeshLinkTraversal()
-    {
-        OffMeshLinkData data = agent.currentOffMeshLinkData;
-
-        if (!isTraversingLink)
-        {
-            // First frame on link — determine walk direction
-            isTraversingLink = true;
-            Vector3 start = data.startPos;
-            Vector3 end = data.endPos;
-
-            // Walk toward whichever endpoint is farther from us (we're near the start)
-            if (Vector3.Distance(transform.position, end) < Vector3.Distance(transform.position, start))
-            {
-                // We're closer to end, swap so we walk start->end correctly
-                linkEndPos = start;
-            }
-            else
-            {
-                linkEndPos = end;
-            }
-        }
-
-        // Walk toward link end at normal move speed
-        transform.position = Vector3.MoveTowards(transform.position, linkEndPos, moveSpeed * Time.deltaTime);
-
-        // Smooth rotation toward movement direction
-        Vector3 dir = (linkEndPos - transform.position).normalized;
-        dir.y = 0f;
-        if (dir != Vector3.zero)
-        {
-            transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(dir), Time.deltaTime * 10f);
-        }
-
-        // Complete when close enough
-        if (Vector3.Distance(transform.position, linkEndPos) < 0.1f)
-        {
-            agent.CompleteOffMeshLink();
-            isTraversingLink = false;
-        }
-    }
-
-    /// <summary>
     /// Phase-through system: after 2s stuck at low velocity, temporarily shrink agent
     /// radius and disable avoidance so warriors can pass through each other.
+    /// Enforces a minimum phase duration to prevent oscillation.
     /// </summary>
     void CheckFaceToFaceStuck()
     {
@@ -324,10 +446,10 @@ public class Warrior : MonoBehaviour
         bool tryingToMove = agent.remainingDistance > agent.stoppingDistance + 1f;
         bool movingSlowly = agent.velocity.magnitude < 0.3f;
 
-        if (tryingToMove && movingSlowly)
+        if (tryingToMove && movingSlowly && !isPhasing)
         {
             faceToFaceTimer += Time.deltaTime;
-            if (faceToFaceTimer >= phaseThreshold && !isPhasing)
+            if (faceToFaceTimer >= phaseThreshold)
             {
                 // Enable phase-through
                 savedRadius = agent.radius;
@@ -335,16 +457,29 @@ public class Warrior : MonoBehaviour
                 agent.radius = 0.1f;
                 agent.obstacleAvoidanceType = ObstacleAvoidanceType.NoObstacleAvoidance;
                 isPhasing = true;
+                phaseActiveTimer = 0f;
             }
         }
-
-        // Restore when moving normally again
-        if (isPhasing && agent.velocity.magnitude > 0.5f)
+        else if (!isPhasing)
         {
-            agent.radius = savedRadius;
-            agent.obstacleAvoidanceType = savedAvoidance;
+            // Reset the trigger timer when not stuck (but only when not phasing)
             faceToFaceTimer = 0f;
-            isPhasing = false;
+        }
+
+        // While phasing, track how long we've been phased
+        if (isPhasing)
+        {
+            phaseActiveTimer += Time.deltaTime;
+
+            // Only restore after minimum duration AND moving well
+            if (phaseActiveTimer >= phaseMinDuration && agent.velocity.magnitude > 0.5f)
+            {
+                agent.radius = savedRadius;
+                agent.obstacleAvoidanceType = savedAvoidance;
+                faceToFaceTimer = 0f;
+                phaseActiveTimer = 0f;
+                isPhasing = false;
+            }
         }
     }
 
@@ -364,8 +499,8 @@ public class Warrior : MonoBehaviour
             Enemy enemy = Enemy.ActiveList[i];
             if (enemy == null) continue;
 
-            // Check if enemy is alive
-            Health enemyHealth = enemy.GetComponent<Health>();
+            // Check if enemy is alive (use CachedHealth to avoid GetComponent)
+            Health enemyHealth = enemy.CachedHealth;
             if (enemyHealth != null && !enemyHealth.IsAlive)
                 continue;
 
@@ -390,8 +525,8 @@ public class Warrior : MonoBehaviour
             // Hysteresis: if we already have a valid living target, don't switch too eagerly
             if (hasTarget && target != null)
             {
-                Health currentTargetHealth = target.GetComponent<Health>();
-                bool currentAlive = currentTargetHealth != null && currentTargetHealth.IsAlive;
+                // Use cached target health to avoid GetComponent
+                bool currentAlive = cachedTargetHealth != null && cachedTargetHealth.IsAlive;
 
                 if (currentAlive)
                 {
@@ -422,10 +557,26 @@ public class Warrior : MonoBehaviour
     /// Uses reflection-free approach by checking the enemy's NavMeshAgent destination
     /// against wall positions in the grid.
     /// </summary>
+    // Cached NavMeshAgent references for enemy wall-attack checks
+    private readonly Dictionary<Enemy, NavMeshAgent> enemyAgentCache = new Dictionary<Enemy, NavMeshAgent>();
+    private float enemyAgentCacheCleanTimer = 0f;
+
     bool IsEnemyAttackingWall(Enemy enemy)
     {
-        // Check the enemy's NavMeshAgent destination against wall grid
-        NavMeshAgent enemyAgent = enemy.GetComponent<NavMeshAgent>();
+        // Clear entire cache every 10 seconds to prevent unbounded growth from dead enemies
+        enemyAgentCacheCleanTimer += Time.deltaTime;
+        if (enemyAgentCacheCleanTimer >= 10f)
+        {
+            enemyAgentCacheCleanTimer = 0f;
+            enemyAgentCache.Clear();
+        }
+        // Check the enemy's NavMeshAgent destination against wall grid (cached lookup)
+        NavMeshAgent enemyAgent;
+        if (!enemyAgentCache.TryGetValue(enemy, out enemyAgent))
+        {
+            enemyAgent = enemy.GetComponent<NavMeshAgent>();
+            enemyAgentCache[enemy] = enemyAgent;
+        }
         if (enemyAgent == null || !enemyAgent.hasPath) return false;
 
         // Check if enemy destination is near a wall
@@ -442,15 +593,19 @@ public class Warrior : MonoBehaviour
     {
         if (agent != null && target != null)
         {
-            // Only update destination if target has moved significantly OR if path is invalid
-            // This reduces stuttering when enemy moves slightly
+            // Don't interrupt path calculation - this causes stuttering!
+            if (agent.pathPending) return;
+
+            // Only update destination if target has moved significantly OR if path is invalid/missing
             float distanceMoved = Vector3.Distance(target.position, lastTargetPosition);
-            bool needsNewPath = !agent.hasPath || agent.pathPending || agent.pathStatus == NavMeshPathStatus.PathInvalid;
+            bool needsNewPath = !agent.hasPath || agent.pathStatus == NavMeshPathStatus.PathInvalid;
 
             if (distanceMoved > destinationUpdateThreshold || needsNewPath)
             {
-                agent.SetDestination(target.position);
-                lastTargetPosition = target.position;
+                if (TrySetDestination(target.position))
+                {
+                    lastTargetPosition = target.position;
+                }
             }
         }
     }
@@ -488,8 +643,10 @@ public class Warrior : MonoBehaviour
             agent.isStopped = false;
             if (!patrolDestinationSet)
             {
-                agent.SetDestination(currentPatrolPoint);
-                patrolDestinationSet = true;
+                if (TrySetDestination(currentPatrolPoint))
+                {
+                    patrolDestinationSet = true;
+                }
             }
         }
     }
@@ -735,6 +892,9 @@ public class Warrior : MonoBehaviour
     {
         Debug.Log("Warrior: Defeated!");
 
+        // Fire static death event for nearby allies to react
+        OnAnyWarriorDied?.Invoke(transform.position);
+
         // Play death sound (3D spatial audio)
         PlayDeathSound();
 
@@ -747,9 +907,76 @@ public class Warrior : MonoBehaviour
         // Health component will handle destruction
     }
 
+    // --- Utility AI ForceReeval handlers ---
+
+    void OnAllyDiedUtilityAI(Vector3 deathPos)
+    {
+        if (useUtilityAI && aiBrain != null && transform != null
+            && Vector3.Distance(transform.position, deathPos) < 25f)
+        {
+            aiBrain.ForceReeval();
+        }
+    }
+
+    void OnWallDestroyedUtilityAI()
+    {
+        if (useUtilityAI && aiBrain != null)
+            aiBrain.ForceReeval();
+    }
+
+    // --- Public sound methods for Utility AI executors ---
+    public void PlayAttackSoundPublic() { PlayAttackSound(); }
+    public void PlayDeathSoundPublic() { PlayDeathSound(); }
+
+    // --- Utility AI state text ---
+    private string lastUtilityState = "";
+
+    void UpdateStateTextUtilityAI()
+    {
+        if (stateText == null) return;
+
+        // Billboard effect
+        if (cachedCamera != null)
+        {
+            stateTextObject.transform.LookAt(cachedCamera.transform);
+            stateTextObject.transform.Rotate(0, 180, 0);
+        }
+
+        string displayName = aiBrain.blackboard != null ? aiBrain.blackboard.stateDisplayName : "Initializing...";
+        if (displayName == null) displayName = "Initializing...";
+
+        if (displayName == lastUtilityState) return;
+        lastUtilityState = displayName;
+
+        stateText.text = displayName;
+
+        // Color based on action
+        if (displayName.Contains("Attacking") && displayName.Contains("Tower Buff"))
+            stateText.color = new Color(1f, 0.8f, 0f);
+        else if (displayName.Contains("Attacking"))
+            stateText.color = Color.red;
+        else if (displayName.Contains("Engaging") || displayName.Contains("defeated"))
+            stateText.color = Color.yellow;
+        else if (displayName.Contains("Defending") || displayName.Contains("Guarding"))
+            stateText.color = new Color(0.3f, 0.8f, 1f);
+        else if (displayName.Contains("Intercepting"))
+            stateText.color = new Color(1f, 0.6f, 0f);  // Orange for intercept/rally
+        else if (displayName.Contains("Retreating"))
+            stateText.color = new Color(1f, 0.4f, 0.4f);
+        else if (displayName.Contains("Patrolling"))
+            stateText.color = Color.cyan;
+        else
+            stateText.color = new Color(0.5f, 0.5f, 1f);
+    }
+
     void OnDestroy()
     {
         activeList.Remove(this);
+
+        // Unsubscribe from static events to prevent memory leaks
+        OnAnyWarriorDied -= OnAllyDiedUtilityAI;
+        Wall.OnAnyWallDestroyed -= OnWallDestroyedUtilityAI;
+        Gate.OnAnyGateDestroyed -= OnWallDestroyedUtilityAI;
     }
 
     void SetupCombatAudioSource()
@@ -815,9 +1042,9 @@ public class Warrior : MonoBehaviour
         if (stateText == null) return;
 
         // Billboard effect - always face camera (zero allocations)
-        if (Camera.main != null)
+        if (cachedCamera != null)
         {
-            stateTextObject.transform.LookAt(Camera.main.transform);
+            stateTextObject.transform.LookAt(cachedCamera.transform);
             stateTextObject.transform.Rotate(0, 180, 0);
         }
 

@@ -1,0 +1,302 @@
+using UnityEngine;
+using UnityEngine.AI;
+
+/// <summary>
+/// Worker executor: Move to best resource node, gather until full or node depleted.
+/// Ports existing Worker gather logic with resource scoring, claim system, and gather points.
+/// </summary>
+public class GatherExecutor : ActionExecutor
+{
+    public override string DisplayName => displayName;
+    private string displayName = "Gathering";
+
+    private enum GatherPhase { MovingToResource, Gathering }
+    private GatherPhase phase;
+
+    // Cached gather point
+    private Vector3 cachedGatherPoint;
+    private bool hasValidGatherPoint = false;
+
+    public override void OnEnter(AIBlackboard bb)
+    {
+        phase = GatherPhase.MovingToResource;
+        hasValidGatherPoint = false;
+        headingToBase = false;
+
+        // Find and claim best resource (already cached by ResourceAvailability consideration)
+        if (bb.bestResource != null)
+        {
+            // Release previous claim if any
+            if (bb.targetResource != null && bb.targetResource != bb.bestResource)
+            {
+                bb.targetResource.UnclaimNode(bb.worker);
+            }
+
+            bb.targetResource = bb.bestResource;
+            bb.targetResource.ClaimNode(bb.worker);
+
+            // Cache gather point
+            cachedGatherPoint = bb.targetResource.GetGatherPoint(bb.transform.position);
+            hasValidGatherPoint = true;
+
+            if (bb.agent.isOnNavMesh && bb.agent.enabled)
+            {
+                bb.agent.isStopped = false;
+                bb.agent.SetDestination(cachedGatherPoint);
+            }
+
+            if (bb.stuckResolver != null)
+                bb.stuckResolver.ResetStuckDetection();
+
+            displayName = "Moving to " + bb.assignedResourceType;
+        }
+    }
+
+    public override void OnUpdate(AIBlackboard bb)
+    {
+        switch (phase)
+        {
+            case GatherPhase.MovingToResource:
+                UpdateMovingToResource(bb);
+                break;
+            case GatherPhase.Gathering:
+                UpdateGathering(bb);
+                break;
+        }
+    }
+
+    void UpdateMovingToResource(AIBlackboard bb)
+    {
+        // Check if target still exists
+        if (bb.targetResource == null)
+        {
+            hasValidGatherPoint = false;
+            // Target destroyed — try to seamlessly pick up next best resource
+            if (TryPickupNewResource(bb)) return;
+            // No resource available — head toward base if carrying anything
+            StartHeadingToBase(bb);
+            return;
+        }
+
+        // Check if target depleted while we were walking to it
+        if (!bb.targetResource.HasResources())
+        {
+            bb.targetResource.UnclaimNode(bb.worker);
+            bb.targetResource = null;
+            hasValidGatherPoint = false;
+            if (TryPickupNewResource(bb)) return;
+            StartHeadingToBase(bb);
+            return;
+        }
+
+        // Stuck resolution
+        if (bb.stuckResolver != null)
+        {
+            bb.stuckResolver.UpdateMoving();
+        }
+
+        // Check if we've arrived
+        float distToCenter = Vector3.Distance(bb.transform.position, bb.targetResource.transform.position);
+        float distToGatherPt = hasValidGatherPoint
+            ? Vector3.Distance(bb.transform.position, cachedGatherPoint)
+            : distToCenter;
+        float distanceToResource = Mathf.Min(distToCenter, distToGatherPt);
+
+        if (distanceToResource <= bb.gatherDistance)
+        {
+            // Arrived at resource
+            bb.agent.ResetPath();
+            bb.targetResource.UnclaimNode(bb.worker);
+            hasValidGatherPoint = false;
+
+            if (bb.targetResource.RegisterWorker(bb.worker))
+            {
+                bb.isRegisteredAtNode = true;
+                phase = GatherPhase.Gathering;
+
+                if (bb.stuckResolver != null)
+                    bb.stuckResolver.ResetStuckDetection();
+
+                displayName = "Collecting " + bb.assignedResourceType;
+
+                // Start gathering sound
+                bb.worker.StartGatheringSoundPublic();
+            }
+            else
+            {
+                // Node empty on arrival — try next best resource
+                bb.targetResource = null;
+                if (!TryPickupNewResource(bb))
+                    StartHeadingToBase(bb);
+            }
+        }
+    }
+
+    void UpdateGathering(AIBlackboard bb)
+    {
+        if (bb.targetResource == null)
+        {
+            UnregisterFromNode(bb);
+            bb.worker.StopGatheringSoundPublic();
+            // Node destroyed — try to seamlessly pick up next best resource
+            if (!TryPickupNewResource(bb))
+                StartHeadingToBase(bb);
+            return;
+        }
+
+        // Check if full
+        if (bb.carryAmount >= bb.carryCapacity - 0.01f)
+        {
+            bb.carryAmount = bb.carryCapacity;
+            bb.worker.carryAmount = bb.carryAmount;
+            bb.worker.StopGatheringSoundPublic();
+            UnregisterFromNode(bb);
+            // Don't just return and wait — start walking toward base immediately
+            // so the worker isn't idle while the brain re-evaluates
+            StartHeadingToBase(bb);
+            return;
+        }
+
+        // Check if node empty
+        if (!bb.targetResource.HasResources())
+        {
+            bb.worker.StopGatheringSoundPublic();
+            UnregisterFromNode(bb);
+            bb.targetResource = null;
+            // Node depleted — try to seamlessly pick up next best resource
+            if (!TryPickupNewResource(bb))
+                StartHeadingToBase(bb);
+            return;
+        }
+
+        // Gather incrementally (same logic as original Worker)
+        float spaceInInventory = bb.carryCapacity - bb.carryAmount;
+        float wantToGather = bb.gatherRatePerSecond * Time.deltaTime;
+        float requestAmount = Mathf.Min(wantToGather, spaceInInventory);
+
+        float actuallyGathered = bb.targetResource.GatherResources(requestAmount);
+        bb.carryAmount += actuallyGathered;
+        bb.worker.carryAmount = bb.carryAmount;
+
+        // Snap to capacity if very close
+        if (bb.carryAmount >= bb.carryCapacity - 0.01f)
+        {
+            bb.carryAmount = bb.carryCapacity;
+            bb.worker.carryAmount = bb.carryAmount;
+        }
+
+        // Check post-gather conditions
+        bool isFull = bb.carryAmount >= bb.carryCapacity - 0.01f;
+        bool nodeEmpty = !bb.targetResource.HasResources();
+
+        if (isFull || nodeEmpty)
+        {
+            bb.worker.StopGatheringSoundPublic();
+            UnregisterFromNode(bb);
+
+            if (nodeEmpty)
+            {
+                bb.targetResource = null;
+            }
+
+            if (isFull)
+            {
+                // Full — head toward base, brain will switch to ReturnToBase
+                StartHeadingToBase(bb);
+            }
+            else if (nodeEmpty)
+            {
+                // Not full but node empty — find another resource
+                if (!TryPickupNewResource(bb))
+                    StartHeadingToBase(bb);
+            }
+        }
+    }
+
+    /// <summary>
+    /// When the current target is lost, try to seamlessly transition to the next best
+    /// resource node. bb.bestResource is populated by ResourceAvailability during brain
+    /// evaluation. Returns true if a new resource was picked up.
+    /// Will NOT pick up a resource if inventory is full (worker should return to base).
+    /// </summary>
+    bool TryPickupNewResource(AIBlackboard bb)
+    {
+        // Don't pick up new resources when inventory is full — worker should return to base
+        if (bb.carryAmount >= bb.carryCapacity - 0.01f)
+            return false;
+
+        if (bb.bestResource == null || !bb.bestResource.HasResources())
+            return false;
+
+        // Don't pick up the same depleted node
+        if (bb.targetResource == bb.bestResource)
+            return false;
+
+        bb.targetResource = bb.bestResource;
+        bb.targetResource.ClaimNode(bb.worker);
+
+        cachedGatherPoint = bb.targetResource.GetGatherPoint(bb.transform.position);
+        hasValidGatherPoint = true;
+
+        if (bb.agent.isOnNavMesh && bb.agent.enabled)
+        {
+            bb.agent.isStopped = false;
+            bb.agent.SetDestination(cachedGatherPoint);
+        }
+
+        phase = GatherPhase.MovingToResource;
+        displayName = "Moving to " + bb.assignedResourceType;
+
+        if (bb.stuckResolver != null)
+            bb.stuckResolver.ResetStuckDetection();
+
+        return true;
+    }
+
+    /// <summary>
+    /// Start walking toward base as a fallback so the worker isn't idle.
+    /// Only sets destination once (tracks via headingToBase flag).
+    /// Forces brain re-eval so ReturnToBase executor takes over properly.
+    /// </summary>
+    private bool headingToBase = false;
+
+    void StartHeadingToBase(AIBlackboard bb)
+    {
+        if (bb.carryAmount <= 0f) return; // Nothing to deliver, brain will switch to Idle
+        if (bb.baseBuilding == null) return;
+        if (!bb.agent.isOnNavMesh || !bb.agent.enabled) return;
+        if (headingToBase) return; // Already started heading to base
+
+        headingToBase = true;
+        bb.agent.isStopped = false;
+        bb.agent.SetDestination(bb.baseBuilding.transform.position);
+        displayName = "Returning to base";
+
+        // Force brain to re-evaluate immediately so ReturnToBase takes over
+        if (bb.brain != null)
+            bb.brain.ForceReeval();
+    }
+
+    void UnregisterFromNode(AIBlackboard bb)
+    {
+        if (bb.isRegisteredAtNode && bb.targetResource != null)
+        {
+            bb.targetResource.UnregisterWorker(bb.worker);
+            bb.isRegisteredAtNode = false;
+        }
+    }
+
+    public override void OnExit(AIBlackboard bb)
+    {
+        bb.worker.StopGatheringSoundPublic();
+
+        // Release claim
+        if (bb.targetResource != null)
+        {
+            bb.targetResource.UnclaimNode(bb.worker);
+        }
+        UnregisterFromNode(bb);
+        hasValidGatherPoint = false;
+        headingToBase = false;
+    }
+}

@@ -8,8 +8,11 @@ public class Enemy : MonoBehaviour
     private static readonly List<Enemy> activeList = new List<Enemy>();
     public static IReadOnlyList<Enemy> ActiveList => activeList;
 
+    // Static event: fires when any enemy dies (with death position for proximity checks)
+    public static event System.Action<Vector3> OnAnyEnemyDied;
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    static void ResetStatics() { activeList.Clear(); wallTargetCounts.Clear(); }
+    static void ResetStatics() { activeList.Clear(); wallTargetCounts.Clear(); cachedSpawner = null; spawnerCached = false; OnAnyEnemyDied = null; }
 
     void Awake() { activeList.Add(this); }
 
@@ -28,9 +31,15 @@ public class Enemy : MonoBehaviour
     public float buildingEngagementRange = 20f;  // Only engage buildings within this range
     public float retargetInterval = 1.5f;  // Re-evaluate targets this often
 
+    [Header("AI Mode")]
+    public bool useUtilityAI = true;  // Toggle between old state machine and new Utility AI
+
     [Header("State Display")]
     public bool showStateText = true;
     public float textHeightOffset = 2.5f;
+
+    // Utility AI components
+    private AIBrain aiBrain;
 
     // Private
     private NavMeshAgent agent;
@@ -39,6 +48,7 @@ public class Enemy : MonoBehaviour
     private float lastAttackTime = 0f;
     private bool hasTarget = false;
     private Health healthComponent;
+    public Health CachedHealth => healthComponent;
     private Health cachedTargetHealth;
     private Transform cachedTargetTransform;
     private TextMeshPro stateText;
@@ -58,6 +68,10 @@ public class Enemy : MonoBehaviour
     private bool justBreached = false;
     private float postBreachBuildingRange = 25f;
 
+    // Attack range hysteresis to prevent oscillation at boundary
+    private bool isInAttackRange = false;
+    private float attackRangeBuffer = 0.5f;  // Exit threshold is attackRange + this buffer
+
     // Static wall-target coordination: tracks how many enemies are targeting each wall/gate
     private static Dictionary<Transform, int> wallTargetCounts = new Dictionary<Transform, int>();
     private static readonly List<Transform> staleKeyBuffer = new List<Transform>();
@@ -70,6 +84,11 @@ public class Enemy : MonoBehaviour
 
     // Audio - 3D Spatial Sound
     private AudioSource combatAudioSource;
+    private Camera cachedCamera;
+
+    // Cached EnemySpawner reference (avoids FindFirstObjectByType on every death)
+    private static EnemySpawner cachedSpawner;
+    private static bool spawnerCached = false;
 
     // NavMesh.CalculatePath throttle — max 2 per frame across all enemies
     private static int calcPathFrame = -1;
@@ -142,9 +161,7 @@ public class Enemy : MonoBehaviour
         agent.autoBraking = true;
         agent.radius = 0.5f;             // Agent size for collision
         agent.obstacleAvoidanceType = ObstacleAvoidanceType.GoodQualityObstacleAvoidance;  // Reduced from High for performance
-
-        // Exclude gate passage area — enemies cannot walk through gates, only attack them
-        agent.areaMask = NavMesh.AllAreas & ~(1 << Gate.GateAreaIndex);
+        agent.avoidancePriority = Random.Range(30, 70);  // Randomized priority to prevent synchronized yielding
 
         Debug.Log($"Enemy: NavMeshAgent configured - Speed: {agent.speed}, Accel: {agent.acceleration}");
 
@@ -164,6 +181,8 @@ public class Enemy : MonoBehaviour
         {
             CreateStateText();
         }
+
+        cachedCamera = Camera.main;
 
         // Setup 3D spatial audio for combat sounds
         SetupCombatAudioSource();
@@ -189,6 +208,94 @@ public class Enemy : MonoBehaviour
         currentState = hasTarget ? $"Moving to {targetName}" : "Searching";
 
         Debug.Log($"Enemy: Spawned with {maxHealth} health. Target: {(hasTarget ? targetName : "None")}");
+
+        // Initialize Utility AI if enabled
+        if (useUtilityAI)
+        {
+            InitializeUtilityAI();
+        }
+    }
+
+    void InitializeUtilityAI()
+    {
+        aiBrain = gameObject.AddComponent<AIBrain>();
+
+        var bb = new AIBlackboard();
+        bb.transform = transform;
+        bb.agent = agent;
+        bb.health = healthComponent;
+        bb.enemy = this;
+        bb.attackRange = attackRange;
+        bb.attackCooldown = attackCooldown;
+        bb.damage = damage;
+        bb.warriorDetectionRange = warriorDetectionRange;
+        bb.buildingEngagementRange = buildingEngagementRange;
+
+        // Setup StuckResolver (same pattern as Worker/Warrior)
+        var stuckResolver = gameObject.AddComponent<StuckResolver>();
+        stuckResolver.Initialize(agent, activeList.IndexOf(this));
+        stuckResolver.onStuckReset = () =>
+        {
+            bb.currentTarget = null;
+            bb.currentTargetHealth = null;
+            bb.isInAttackRange = false;
+            bb.isAttackingWall = false;
+            if (agent.isOnNavMesh)
+            {
+                agent.ResetPath();
+                agent.isStopped = false;
+            }
+            aiBrain.ForceReeval();
+        };
+        bb.stuckResolver = stuckResolver;
+
+        // First-damage ForceReeval: immediately re-evaluate on first hit
+        bool hasBeenDamaged = false;
+        healthComponent.onDamaged.AddListener(() =>
+        {
+            if (!hasBeenDamaged)
+            {
+                hasBeenDamaged = true;
+                aiBrain.ForceReeval();
+            }
+        });
+
+        // Enemy-specific considerations for path-blocked detection
+        var pathBlockedConsideration = new PathBlocked(bb);
+
+        var actions = new ActionOption[]
+        {
+            // Attack Warrior (highest priority when warriors nearby)
+            new ActionOption("AttackWarrior", new Consideration[]
+            {
+                new EnemyHasTarget(EnemyHasTarget.TargetCategory.Warrior, ResponseCurve.Linear(1f, 0f)),
+                new DistanceTo(DistanceTo.TargetType.NearestEnemy, warriorDetectionRange, ResponseCurve.Constant(0.9f))
+            }, new AttackTargetExecutor(AttackTargetExecutor.TargetCategory.Warrior),
+            basePriority: 1.0f, momentumBonus: 0.2f),
+
+            // Attack Building (when no warriors, buildings reachable)
+            new ActionOption("AttackBuilding", new Consideration[]
+            {
+                new EnemyHasTarget(EnemyHasTarget.TargetCategory.Building, ResponseCurve.Linear(1f, 0f))
+            }, new AttackTargetExecutor(AttackTargetExecutor.TargetCategory.Building),
+            basePriority: 0.7f, momentumBonus: 0.15f),
+
+            // Breach Wall (when path is blocked by walls)
+            new ActionOption("BreachWall", new Consideration[]
+            {
+                pathBlockedConsideration
+            }, new BreachWallExecutor(), basePriority: 0.8f, momentumBonus: 0.3f),
+
+            // Attack Campfire (ultimate fallback objective)
+            new ActionOption("AttackCampfire", new Consideration[]
+            {
+                new EnemyHasTarget(EnemyHasTarget.TargetCategory.Campfire, ResponseCurve.Constant(0.3f))
+            }, new AttackTargetExecutor(AttackTargetExecutor.TargetCategory.Campfire),
+            basePriority: 0.3f, momentumBonus: 0.1f)
+        };
+
+        bb.brain = aiBrain;
+        aiBrain.Initialize(actions, bb);
     }
 
     void OnDestroy()
@@ -210,6 +317,19 @@ public class Enemy : MonoBehaviour
     /// </summary>
     void OnWallOrGateDestroyed()
     {
+        // Utility AI mode: force re-evaluation
+        if (useUtilityAI && aiBrain != null)
+        {
+            var bb = aiBrain.blackboard;
+            if (bb != null)
+            {
+                bb.isAttackingWall = false;
+            }
+            aiBrain.ForceReeval();
+            return;
+        }
+
+        // --- Original logic ---
         // Unregister from wall target tracking if we were attacking a wall
         if (isAttackingWall && target != null)
             UnregisterWallTarget(target);
@@ -224,6 +344,18 @@ public class Enemy : MonoBehaviour
 
     void Update()
     {
+        // Utility AI mode: AIBrain drives behavior, we just update visuals
+        if (useUtilityAI && aiBrain != null)
+        {
+            if (showStateText && stateText != null)
+            {
+                UpdateStateTextUtilityAI();
+            }
+            return;
+        }
+
+        // --- Original state machine (when useUtilityAI = false) ---
+
         // Update state text
         if (showStateText && stateText != null)
         {
@@ -252,6 +384,7 @@ public class Enemy : MonoBehaviour
             if (isAttackingWall && target != null)
                 UnregisterWallTarget(target);
             isAttackingWall = false;
+            isInAttackRange = false;  // Reset attack range state
             agent.isStopped = true;
             FindTarget();
             ApplyNewTarget();
@@ -363,7 +496,26 @@ public class Enemy : MonoBehaviour
         }
 #endif
 
-        if (distanceToTarget <= effectiveAttackRange)
+        // Hysteresis: use different thresholds for entering vs exiting attack range
+        // This prevents stuttering when at the boundary
+        if (isInAttackRange)
+        {
+            // Already attacking - only exit if moved beyond buffer
+            if (distanceToTarget > effectiveAttackRange + attackRangeBuffer)
+            {
+                isInAttackRange = false;
+            }
+        }
+        else
+        {
+            // Not attacking - enter attack range at normal threshold
+            if (distanceToTarget <= effectiveAttackRange)
+            {
+                isInAttackRange = true;
+            }
+        }
+
+        if (isInAttackRange)
         {
             // Stop moving and attack
             agent.isStopped = true;
@@ -396,12 +548,12 @@ public class Enemy : MonoBehaviour
 
         BaseBuilding campfire = null;
 
-        // Scan warriors
+        // Scan warriors (use CachedHealth to avoid GetComponent)
         for (int i = 0; i < Warrior.ActiveList.Count; i++)
         {
             Warrior warrior = Warrior.ActiveList[i];
             if (warrior == null) continue;
-            Health h = warrior.GetComponent<Health>();
+            Health h = warrior.CachedHealth;
             if (h != null && !h.IsAlive) continue;
 
             float distance = Vector3.Distance(transform.position, warrior.transform.position);
@@ -419,7 +571,7 @@ public class Enemy : MonoBehaviour
         {
             Hut hut = Hut.ActiveList[i];
             if (hut == null) continue;
-            Health h = hut.GetComponent<Health>();
+            Health h = hut.CachedHealth;
             if (h != null && !h.IsAlive) continue;
 
             float distance = Vector3.Distance(transform.position, hut.transform.position);
@@ -435,7 +587,7 @@ public class Enemy : MonoBehaviour
         {
             Watchtower tower = Watchtower.ActiveList[i];
             if (tower == null) continue;
-            Health h = tower.GetComponent<Health>();
+            Health h = tower.CachedHealth;
             if (h != null && !h.IsAlive) continue;
 
             float distance = Vector3.Distance(transform.position, tower.transform.position);
@@ -453,7 +605,7 @@ public class Enemy : MonoBehaviour
             campfire = BaseBuilding.ActiveList[0];
             if (campfire != null)
             {
-                Health h = campfire.GetComponent<Health>();
+                Health h = campfire.CachedHealth;
                 if (h != null && !h.IsAlive) campfire = null;
             }
         }
@@ -504,6 +656,10 @@ public class Enemy : MonoBehaviour
     bool IsTargetAlive(Transform t)
     {
         if (t == null) return false;
+        // Use already-cached health when checking current target (avoids GetComponent)
+        if (t == cachedTargetTransform && cachedTargetHealth != null)
+            return cachedTargetHealth.IsAlive;
+        // Fallback for other transforms (rare path)
         Health h = t.GetComponent<Health>();
         return h != null && h.IsAlive;
     }
@@ -513,6 +669,7 @@ public class Enemy : MonoBehaviour
         if (hasTarget && target != null)
         {
             lastTargetPosition = target.position;
+            isInAttackRange = false;  // Reset attack range state for new target
             agent.isStopped = false;
             agent.SetDestination(target.position);
         }
@@ -534,9 +691,12 @@ public class Enemy : MonoBehaviour
                 return;
             }
 
-            // Only update destination if target has moved significantly OR if path is invalid
+            // Don't interrupt path calculation - this causes stuttering!
+            if (agent.pathPending) return;
+
+            // Only update destination if target has moved significantly OR if path is invalid/missing
             float distanceMoved = Vector3.Distance(target.position, lastTargetPosition);
-            bool needsNewPath = !agent.hasPath || agent.pathPending || agent.pathStatus == NavMeshPathStatus.PathInvalid;
+            bool needsNewPath = !agent.hasPath || agent.pathStatus == NavMeshPathStatus.PathInvalid;
 
             if (distanceMoved > destinationUpdateThreshold || needsNewPath)
             {
@@ -586,7 +746,7 @@ public class Enemy : MonoBehaviour
         {
             Wall wall = Wall.ActiveList[i];
             if (wall == null) continue;
-            Health wallHealth = wall.GetComponent<Health>();
+            Health wallHealth = wall.CachedHealth;
             if (wallHealth == null || !wallHealth.IsAlive) continue;
 
             float dist = Vector3.Distance(transform.position, wall.transform.position);
@@ -600,7 +760,7 @@ public class Enemy : MonoBehaviour
         {
             Gate gate = Gate.ActiveList[i];
             if (gate == null) continue;
-            Health gateHealth = gate.GetComponent<Health>();
+            Health gateHealth = gate.CachedHealth;
             if (gateHealth == null || !gateHealth.IsAlive) continue;
 
             float dist = Vector3.Distance(transform.position, gate.transform.position);
@@ -686,6 +846,9 @@ public class Enemy : MonoBehaviour
     {
         Debug.Log("Enemy: Defeated!");
 
+        // Fire static death event for nearby units to react
+        OnAnyEnemyDied?.Invoke(transform.position);
+
         // Unregister from wall target tracking
         if (isAttackingWall && target != null)
             UnregisterWallTarget(target);
@@ -693,11 +856,15 @@ public class Enemy : MonoBehaviour
         // Play death sound (3D spatial audio)
         PlayDeathSound();
 
-        // Notify spawner
-        EnemySpawner spawner = FindFirstObjectByType<EnemySpawner>();
-        if (spawner != null)
+        // Notify spawner (cached reference — no scene scan)
+        if (!spawnerCached)
         {
-            spawner.NotifyEnemyKilled(gameObject);
+            cachedSpawner = FindFirstObjectByType<EnemySpawner>();
+            spawnerCached = true;
+        }
+        if (cachedSpawner != null)
+        {
+            cachedSpawner.NotifyEnemyKilled(gameObject);
         }
 
         // Notify GameManager for statistics
@@ -707,6 +874,91 @@ public class Enemy : MonoBehaviour
         }
 
         // Health component will handle destruction
+    }
+
+    /// <summary>
+    /// Called by Gate trigger when enemy walks into a gate.
+    /// Forces the enemy to stop and attack the gate.
+    /// </summary>
+    public void ForceAttackGate(Gate gate)
+    {
+        if (gate == null) return;
+
+        // Check if gate is still alive
+        Health gateHealth = gate.CachedHealth;
+        if (gateHealth == null || !gateHealth.IsAlive) return;
+
+        // Utility AI mode: force re-evaluation (breach executor will handle gate attacks)
+        if (useUtilityAI && aiBrain != null)
+        {
+            var bb = aiBrain.blackboard;
+            if (bb != null)
+            {
+                bb.currentTarget = gate.transform;
+                bb.currentTargetName = gate.gameObject.name;
+                bb.currentTargetHealth = gateHealth;
+                bb.isAttackingWall = true;
+            }
+            aiBrain.ForceReeval();
+            return;
+        }
+
+        // --- Original logic ---
+
+        // Unregister from previous wall target if we had one
+        if (isAttackingWall && target != null && target != gate.transform)
+            UnregisterWallTarget(target);
+
+        // Switch to attacking this gate
+        target = gate.transform;
+        targetName = gate.gameObject.name;
+        hasTarget = true;
+        isAttackingWall = true;
+        RegisterWallTarget(target);
+
+        // Stop moving and attack
+        agent.ResetPath();
+        agent.isStopped = true;
+        lastTargetPosition = target.position;
+        currentState = "Attacking " + targetName + "!";
+
+#if UNITY_EDITOR
+        Debug.Log($"Enemy: Caught by gate trigger! Attacking {targetName}");
+#endif
+    }
+
+    // --- Public sound methods for Utility AI executors ---
+    public void PlayAttackSoundPublic() { PlayAttackSound(); }
+    public void PlayDeathSoundPublic() { PlayDeathSound(); }
+
+    // --- Utility AI state text ---
+    private string lastUtilityEnemyState = "";
+
+    void UpdateStateTextUtilityAI()
+    {
+        if (stateText == null) return;
+
+        // Billboard effect
+        if (cachedCamera != null)
+        {
+            stateTextObject.transform.LookAt(cachedCamera.transform);
+            stateTextObject.transform.Rotate(0, 180, 0);
+        }
+
+        string displayName = aiBrain.blackboard != null ? aiBrain.blackboard.stateDisplayName : "Searching";
+        if (displayName == null) displayName = "Searching";
+
+        if (displayName == lastUtilityEnemyState) return;
+        lastUtilityEnemyState = displayName;
+
+        stateText.text = displayName;
+
+        if (displayName.Contains("Attacking"))
+            stateText.color = Color.red;
+        else if (displayName.Contains("Moving") || displayName.Contains("Breaching"))
+            stateText.color = Color.yellow;
+        else
+            stateText.color = Color.gray;
     }
 
     void SetupCombatAudioSource()
@@ -772,9 +1024,9 @@ public class Enemy : MonoBehaviour
         if (stateText == null) return;
 
         // Billboard effect - always face camera (zero allocations)
-        if (Camera.main != null)
+        if (cachedCamera != null)
         {
-            stateTextObject.transform.LookAt(Camera.main.transform);
+            stateTextObject.transform.LookAt(cachedCamera.transform);
             stateTextObject.transform.Rotate(0, 180, 0);
         }
 
