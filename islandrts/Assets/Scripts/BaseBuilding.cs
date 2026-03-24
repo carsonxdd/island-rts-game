@@ -5,18 +5,14 @@ using TMPro;
 
 public class BaseBuilding : MonoBehaviour
 {
-    // Static registry for O(1) lookup instead of FindObjectsByType
-    private static readonly List<BaseBuilding> activeList = new List<BaseBuilding>();
-    public static IReadOnlyList<BaseBuilding> ActiveList => activeList;
+    public static IReadOnlyList<BaseBuilding> ActiveList => ActiveRegistry<BaseBuilding>.List;
 
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    static void ResetStatics() { activeList.Clear(); }
-
-    void Awake() { activeList.Add(this); }
+    void Awake() { ActiveRegistry<BaseBuilding>.Register(this); }
 
     [Header("Health")]
     public float maxHealth = 200f;  // Campfire health
     private Health healthComponent;
+    public Health CachedHealth => healthComponent;
 
     [Header("UI Reference")]
     public WorkerAssignmentUI workerUI;  // Drag the UI object here in Inspector
@@ -45,6 +41,8 @@ public class BaseBuilding : MonoBehaviour
 
     [Header("Building Placement")]
     public float noBuildRadius = 2.5f;  // Creates 5x5 square no-build zone around campfire
+    [Tooltip("Visual-only radius for the red no-build border. Does not affect actual placement validation.")]
+    public float visualNoBuildRadius = 2.5f;
 
     [Header("Hover Effect")]
     public Color normalColor = Color.white;
@@ -69,6 +67,7 @@ public class BaseBuilding : MonoBehaviour
         healthComponent.maxHealth = maxHealth;
         healthComponent.currentHealth = maxHealth;
         healthComponent.destroyOnDeath = false;  // Don't destroy campfire, handle game over instead
+        healthComponent.hideWhenFull = true;
         healthComponent.onDeath.AddListener(OnCampfireDestroyed);
 
         Debug.Log($"BaseBuilding: Health system initialized - {maxHealth} HP");
@@ -328,10 +327,17 @@ public class BaseBuilding : MonoBehaviour
             }
         }
 
-        // Last resort: offset position with warning
+        // Last resort: offset position with NavMesh validation
         Debug.LogWarning("BaseBuilding: Could not find valid NavMesh spawn position! Using fallback.");
         Vector3 fallback = transform.position + new Vector3(spawnRadius + 1f, 0f, 0f);
         fallback.y = 1f;
+        // Bug 3: Validate fallback on NavMesh to prevent off-mesh spawns
+        if (NavMesh.SamplePosition(fallback, out hit, 5f, NavMesh.AllAreas))
+        {
+            Vector3 pos = hit.position;
+            pos.y = 1f;
+            return pos;
+        }
         return fallback;
     }
 
@@ -507,7 +513,7 @@ public class BaseBuilding : MonoBehaviour
 
     void OnDestroy()
     {
-        activeList.Remove(this);
+        ActiveRegistry<BaseBuilding>.Unregister(this);
     }
 
     // Visual helper in Scene view

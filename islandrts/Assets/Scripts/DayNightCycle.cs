@@ -27,6 +27,13 @@ public class DayNightCycle : MonoBehaviour
     private float timeSpeed;
     private bool wasNight = false;
 
+    // Cached OnGUI state to avoid per-frame allocations
+    private GUIStyle cachedGuiStyle;
+    private string cachedDebugInfo = "";
+    private int lastGuiDay = -1;
+    private bool lastGuiNight = false;
+    private float lastGuiTime = -1f;
+
     // Events for other systems to subscribe to
     public delegate void DayNightEvent();
     public static event DayNightEvent OnNightStart;
@@ -177,27 +184,39 @@ public class DayNightCycle : MonoBehaviour
         return currentDay;
     }
 
-    // Debug helper
+    // Debug helper — cached style and string to avoid GC allocations
     void OnGUI()
     {
-        if (Application.isPlaying)
+        if (!Application.isPlaying) return;
+
+        // Create style once
+        if (cachedGuiStyle == null)
         {
-            GUIStyle style = new GUIStyle();
-            style.fontSize = 18;
-            style.fontStyle = FontStyle.Bold;
-            style.alignment = TextAnchor.MiddleCenter;
-            style.normal.textColor = isNight ? Color.cyan : Color.yellow;
-
-            string timeString = isNight ? "NIGHT" : "DAY";
-            string debugInfo = $"Day {currentDay} - {timeString} (Time: {currentTimeOfDay:F2})";
-
-            // Center at top of screen
-            float width = 400;
-            float height = 40;
-            float x = (Screen.width - width) / 2;
-            float y = -3;
-
-            GUI.Label(new Rect(x, y, width, height), debugInfo, style);
+            cachedGuiStyle = new GUIStyle();
+            cachedGuiStyle.fontSize = 18;
+            cachedGuiStyle.fontStyle = FontStyle.Bold;
+            cachedGuiStyle.alignment = TextAnchor.MiddleCenter;
         }
+
+        // Only rebuild string when displayed values change
+        // Round time to 2 decimal places to reduce rebuilds
+        float roundedTime = Mathf.Round(currentTimeOfDay * 100f) / 100f;
+        if (currentDay != lastGuiDay || isNight != lastGuiNight || roundedTime != lastGuiTime)
+        {
+            lastGuiDay = currentDay;
+            lastGuiNight = isNight;
+            lastGuiTime = roundedTime;
+            cachedGuiStyle.normal.textColor = isNight ? Color.cyan : Color.yellow;
+            string timeString = isNight ? "NIGHT" : "DAY";
+            cachedDebugInfo = $"Day {currentDay} - {timeString} (Time: {roundedTime:F2})";
+        }
+
+        // Center at top of screen
+        float width = 400;
+        float height = 40;
+        float x = (Screen.width - width) / 2;
+        float y = -3;
+
+        GUI.Label(new Rect(x, y, width, height), cachedDebugInfo, cachedGuiStyle);
     }
 }

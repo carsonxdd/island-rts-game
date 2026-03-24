@@ -22,6 +22,8 @@ MonoBehaviour:
   finishedBuildingPrefab: {fileID: 5222481416697825286, guid: c8ceef2f4d08c8647b862a26b0a017f8, type: 3}
   buildingSize: {x: 2, y: 1.5, z: 2}
   noBuildRadius: 3.5
+  visualNoBuildRadius: 2.5
   placementHeight: 0.75
   maxHealth: 100
   blocksNavMesh: 0
+  isWall: 0

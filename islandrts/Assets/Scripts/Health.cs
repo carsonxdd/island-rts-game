@@ -16,6 +16,7 @@ public class Health : MonoBehaviour
     public bool showHealthText = true;
     public float healthTextHeight = 2.5f;
     public bool showObjectName = true;
+    public bool hideWhenFull = false;  // Buildings set true — hides HP text at full health
 
     [Header("Events")]
     public UnityEvent onDeath;  // Triggered when health reaches 0
@@ -25,6 +26,7 @@ public class Health : MonoBehaviour
     private TextMeshPro healthText;
     private GameObject healthTextObject;
     private float lastDisplayedHealth = -1f;
+    private Camera cachedCamera;
 
     // Public property to check if alive
     public bool IsAlive => currentHealth > 0;
@@ -44,6 +46,8 @@ public class Health : MonoBehaviour
         currentHealth = maxHealth;
         Debug.Log($"Health: {gameObject.name} initialized with {maxHealth} HP");
 
+        cachedCamera = Camera.main;
+
         // Create health text display
         if (showHealthText)
         {
@@ -55,6 +59,18 @@ public class Health : MonoBehaviour
     {
         if (showHealthText && healthText != null)
         {
+            // Hide text when at full health (buildings only)
+            if (hideWhenFull && currentHealth >= maxHealth)
+            {
+                if (healthTextObject.activeSelf)
+                    healthTextObject.SetActive(false);
+                return;
+            }
+
+            // Show text when damaged
+            if (!healthTextObject.activeSelf)
+                healthTextObject.SetActive(true);
+
             // Billboard rotation runs every frame (zero allocations)
             BillboardHealthText();
 
@@ -193,9 +209,9 @@ public class Health : MonoBehaviour
     void BillboardHealthText()
     {
         // Billboard effect - always face camera (zero allocations)
-        if (Camera.main != null)
+        if (cachedCamera != null)
         {
-            healthTextObject.transform.LookAt(Camera.main.transform);
+            healthTextObject.transform.LookAt(cachedCamera.transform);
             healthTextObject.transform.Rotate(0, 180, 0);
         }
     }

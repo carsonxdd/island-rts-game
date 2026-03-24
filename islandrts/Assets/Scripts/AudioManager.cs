@@ -58,6 +58,7 @@ public class AudioManager : MonoBehaviour
 
     // Private
     private Dictionary<string, float> soundCooldowns = new Dictionary<string, float>();
+    private readonly List<string> cooldownKeysBuffer = new List<string>();
     private AudioClip currentMusic;
     private bool isFadingMusic = false;
 
@@ -69,12 +70,48 @@ public class AudioManager : MonoBehaviour
             Instance = this;
             DontDestroyOnLoad(gameObject);
             InitializeAudioSources();
+            PreloadAllAudioClips();
             Debug.Log("AudioManager: Initialized");
         }
         else
         {
             Destroy(gameObject);
         }
+    }
+
+    /// <summary>
+    /// Force all audio clips into memory at startup so they don't cause
+    /// synchronous disk loads (184ms+ freezes) when played mid-gameplay.
+    /// </summary>
+    void PreloadAllAudioClips()
+    {
+        AudioClip[] allClips = new AudioClip[]
+        {
+            // Music
+            dayMusic, nightMusic, combatMusic,
+            // Ambient
+            dayAmbientSounds, nightAmbientSounds,
+            // Combat
+            warriorAttackSound, enemyAttackSound, hitSound,
+            warriorDeathSound, enemyDeathSound,
+            // UI
+            buttonClickSound, buildingPlacedSound, workerAssignedSound,
+            victorySound, defeatSound,
+            // Resources
+            gatherWoodSound, gatherFoodSound, gatherStoneSound
+        };
+
+        int preloaded = 0;
+        for (int i = 0; i < allClips.Length; i++)
+        {
+            if (allClips[i] != null && allClips[i].loadState != AudioDataLoadState.Loaded)
+            {
+                allClips[i].LoadAudioData();
+                preloaded++;
+            }
+        }
+
+        Debug.Log($"AudioManager: Preloaded {preloaded} audio clips into memory");
     }
 
     void Start()
@@ -154,30 +191,24 @@ public class AudioManager : MonoBehaviour
         if (sfxSource != null) sfxSource.volume = sfxVolume * masterVolume;
         if (resourceSoundSource != null) resourceSoundSource.volume = sfxVolume * masterVolume * 0.6f;
 
-        // Update cooldown timers
-        // Create a snapshot to avoid "Collection was modified" exception
-        var cooldownSnapshot = new Dictionary<string, float>(soundCooldowns);
-        List<string> keysToRemove = new List<string>();
-
-        foreach (var kvp in cooldownSnapshot)
+        // Update cooldown timers (zero allocations — uses pooled key buffer)
+        if (soundCooldowns.Count > 0)
         {
-            // Update the actual dictionary with the new value
-            float newValue = kvp.Value - Time.deltaTime;
+            // Collect keys into pooled buffer first to avoid modifying dictionary during iteration
+            cooldownKeysBuffer.Clear();
+            foreach (var kvp in soundCooldowns)
+                cooldownKeysBuffer.Add(kvp.Key);
 
-            if (soundCooldowns.ContainsKey(kvp.Key))
+            // Update cooldowns and remove expired entries
+            for (int i = cooldownKeysBuffer.Count - 1; i >= 0; i--)
             {
-                soundCooldowns[kvp.Key] = newValue;
-
-                if (newValue <= 0)
-                {
-                    keysToRemove.Add(kvp.Key);
-                }
+                string key = cooldownKeysBuffer[i];
+                float newValue = soundCooldowns[key] - Time.deltaTime;
+                if (newValue <= 0f)
+                    soundCooldowns.Remove(key);
+                else
+                    soundCooldowns[key] = newValue;
             }
-        }
-
-        foreach (var key in keysToRemove)
-        {
-            soundCooldowns.Remove(key);
         }
     }
 

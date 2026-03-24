@@ -10,6 +10,7 @@ public class Wall : MonoBehaviour
     [Header("Health")]
     public float maxHealth = 150f;  // Wooden=150, Stone=300
     private Health healthComponent;
+    public Health CachedHealth => healthComponent;
 
     [Header("Building Placement")]
     public float noBuildRadius = 0f;  // Walls have no no-build zone - they can be placed adjacent
@@ -20,14 +21,9 @@ public class Wall : MonoBehaviour
     // Static event fired when ANY wall is destroyed — enemies subscribe for breach detection
     public static event System.Action OnAnyWallDestroyed;
 
-    // Static registry for O(1) lookup instead of FindObjectsByType
-    private static readonly List<Wall> activeList = new List<Wall>();
-    public static IReadOnlyList<Wall> ActiveList => activeList;
+    public static IReadOnlyList<Wall> ActiveList => ActiveRegistry<Wall>.List;
 
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    static void ResetStatics() { activeList.Clear(); }
-
-    void Awake() { activeList.Add(this); }
+    void Awake() { ActiveRegistry<Wall>.Register(this); }
 
     void Start()
     {
@@ -43,13 +39,18 @@ public class Wall : MonoBehaviour
         healthComponent.destroyDelay = 0.5f;
         healthComponent.showHealthText = true;
         healthComponent.showObjectName = true;
+        healthComponent.hideWhenFull = true;
         healthComponent.onDeath.AddListener(OnWallDestroyed);
 
         // CRITICAL: Enable NavMeshObstacle carving for walls to block enemy pathfinding
         NavMeshObstacle obstacle = GetComponent<NavMeshObstacle>();
         if (obstacle != null)
         {
-            obstacle.carving = true;  // FORCE ENEMIES TO ATTACK WALLS
+            // Set size slightly smaller than 1x1 grid cell so gates have walkable gaps
+            obstacle.shape = NavMeshObstacleShape.Box;
+            obstacle.size = new Vector3(0.9f, 2f, 0.9f);
+            obstacle.center = new Vector3(0f, 1f, 0f);
+            obstacle.carving = true;
             obstacle.carveOnlyStationary = true;
             obstacle.carvingTimeToStationary = 0.1f;
         }
@@ -69,7 +70,7 @@ public class Wall : MonoBehaviour
 
     void OnDestroy()
     {
-        activeList.Remove(this);
+        ActiveRegistry<Wall>.Unregister(this);
         UnregisterFromGrid();
     }
 
@@ -108,15 +109,8 @@ public class Wall : MonoBehaviour
         gate.isStoneGate = stone;
         gate.maxHealth = stone ? 150f : 75f;
 
-        // Add NavMeshObstacle for gate (Gate.Start() will configure carving,
-        // but we add it here so it's ready before Start runs)
-        NavMeshObstacle gateObstacle = gateObj.AddComponent<NavMeshObstacle>();
-        gateObstacle.shape = NavMeshObstacleShape.Box;
-        gateObstacle.size = new Vector3(1f, 2f, 1f);
-        gateObstacle.center = new Vector3(0f, 1f, 0f);
-        gateObstacle.carving = true;
-        gateObstacle.carveOnlyStationary = true;
-        gateObstacle.carvingTimeToStationary = 0.1f;
+        // NOTE: Gates do NOT have NavMeshObstacle - friendlies walk through freely
+        // Enemies are caught by Gate's trigger collider and forced to attack
 
         // Add WallConnector for mesh generation
         gateObj.AddComponent<MeshFilter>();

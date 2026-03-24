@@ -3,18 +3,14 @@ using System.Collections.Generic;
 
 public class Hut : MonoBehaviour
 {
-    // Static registry for O(1) lookup instead of FindObjectsByType
-    private static readonly List<Hut> activeList = new List<Hut>();
-    public static IReadOnlyList<Hut> ActiveList => activeList;
+    public static IReadOnlyList<Hut> ActiveList => ActiveRegistry<Hut>.List;
 
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    static void ResetStatics() { activeList.Clear(); }
-
-    void Awake() { activeList.Add(this); }
+    void Awake() { ActiveRegistry<Hut>.Register(this); }
 
     [Header("Health")]
     public float maxHealth = 100f;  // Hut health (less than campfire)
     private Health healthComponent;
+    public Health CachedHealth => healthComponent;
 
     [Header("Building Placement")]
     public float noBuildRadius = 3.5f;  // Creates 7x7 square no-build zone (3 grid cell buffer)
@@ -36,6 +32,7 @@ public class Hut : MonoBehaviour
         healthComponent.destroyDelay = 1f;  // Small delay before destruction
         healthComponent.showHealthText = true;
         healthComponent.showObjectName = true;
+        healthComponent.hideWhenFull = true;
         healthComponent.onDeath.AddListener(OnHutDestroyed);
 
         // Enable NavMeshObstacle carving so workers path around the hut
@@ -79,7 +76,7 @@ public class Hut : MonoBehaviour
 
     void OnDestroy()
     {
-        activeList.Remove(this);
+        ActiveRegistry<Hut>.Unregister(this);
     }
 
     // Visual helper in Scene view

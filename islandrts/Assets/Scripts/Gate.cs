@@ -11,28 +11,24 @@ public class Gate : MonoBehaviour
     [Header("Health")]
     public float maxHealth = 75f;  // Gates are weaker: Wooden=75, Stone=150 (half of wall HP)
     private Health healthComponent;
+    public Health CachedHealth => healthComponent;
 
     [Header("Building Placement")]
     public float noBuildRadius = 0f;  // Gates have no no-build zone, like walls
 
-    // NavMesh area index for gate passages — friendlies can traverse, enemies cannot
-    public static readonly int GateAreaIndex = 3;
+    [Header("Trigger Settings")]
+    public float triggerSize = 1.5f;  // Size of the trigger collider that catches enemies
 
     private Vector2Int gridPos;
     private bool registered = false;
-    private NavMeshObstacle navObstacle;
+    private BoxCollider triggerCollider;
 
     // Static event fired when ANY gate is destroyed — enemies subscribe for breach detection
     public static event System.Action OnAnyGateDestroyed;
 
-    // Static registry for O(1) lookup instead of FindObjectsByType
-    private static readonly List<Gate> activeList = new List<Gate>();
-    public static IReadOnlyList<Gate> ActiveList => activeList;
+    public static IReadOnlyList<Gate> ActiveList => ActiveRegistry<Gate>.List;
 
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    static void ResetStatics() { activeList.Clear(); }
-
-    void Awake() { activeList.Add(this); }
+    void Awake() { ActiveRegistry<Gate>.Register(this); }
 
     void Start()
     {
@@ -49,24 +45,19 @@ public class Gate : MonoBehaviour
         healthComponent.destroyDelay = 0.5f;
         healthComponent.showHealthText = true;
         healthComponent.showObjectName = true;
+        healthComponent.hideWhenFull = true;
         healthComponent.onDeath.AddListener(OnGateDestroyed);
 
-        // Gates block enemies with NavMeshObstacle carving (same as walls)
-        // Friendly units traverse via OffMeshLinks (setup in SetupGateLinks)
-        navObstacle = GetComponent<NavMeshObstacle>();
-        if (navObstacle == null)
+        // Remove any NavMeshObstacle - gates should NOT block pathfinding
+        // Adjacent walls carve 0.9x0.9, leaving a walkable gap at the gate
+        NavMeshObstacle existingObstacle = GetComponent<NavMeshObstacle>();
+        if (existingObstacle != null)
         {
-            navObstacle = gameObject.AddComponent<NavMeshObstacle>();
-            navObstacle.shape = NavMeshObstacleShape.Box;
-            navObstacle.size = new Vector3(1f, 2f, 1f);
-            navObstacle.center = new Vector3(0f, 1f, 0f);
+            Destroy(existingObstacle);
         }
-        navObstacle.carving = true;
-        navObstacle.carveOnlyStationary = true;
-        navObstacle.carvingTimeToStationary = 0.1f;
 
-        // Setup OffMeshLinks so friendly units (warriors/workers) can pass through
-        SetupGateLinks();
+        // Setup trigger collider to catch enemies walking through
+        SetupTriggerCollider();
 
         // Register with WallGrid (neighbors connect to gates like walls)
         gridPos = WallGrid.Instance.WorldToGrid(transform.position);
@@ -76,50 +67,30 @@ public class Gate : MonoBehaviour
         Debug.Log($"Gate: Initialized {(isStoneGate ? "Stone" : "Wooden")} Gate with {maxHealth} HP at {transform.position}");
     }
 
-    /// <summary>
-    /// Create OffMeshLinks in both X and Z axes so that friendly units can
-    /// traverse through the gate regardless of wall orientation. Only the
-    /// link whose endpoints land on valid NavMesh (not carved by adjacent
-    /// walls) will be used by the pathfinder.
-    /// </summary>
-    void SetupGateLinks()
+    void SetupTriggerCollider()
     {
-        float linkOffset = 1.0f; // Must be outside the NavMeshObstacle carve zone (box half-extent = 0.5)
+        // Convert any existing colliders to triggers so units can pass through physically
+        Collider[] existingColliders = GetComponentsInChildren<Collider>();
+        foreach (Collider col in existingColliders)
+        {
+            col.isTrigger = true;
+        }
 
-        // X-axis link (perpendicular passage for N-S oriented walls)
-        CreateGateLink("GateLinkX",
-            new Vector3(linkOffset, 0f, 0f),
-            new Vector3(-linkOffset, 0f, 0f));
-
-        // Z-axis link (perpendicular passage for E-W oriented walls)
-        CreateGateLink("GateLinkZ",
-            new Vector3(0f, 0f, linkOffset),
-            new Vector3(0f, 0f, -linkOffset));
+        // Add our enemy-detection trigger collider
+        triggerCollider = gameObject.AddComponent<BoxCollider>();
+        triggerCollider.isTrigger = true;
+        triggerCollider.size = new Vector3(triggerSize, 2f, triggerSize);
+        triggerCollider.center = new Vector3(0f, 1f, 0f);
     }
 
-    void CreateGateLink(string linkName, Vector3 localStart, Vector3 localEnd)
+    void OnTriggerEnter(Collider other)
     {
-        GameObject linkObj = new GameObject(linkName);
-        linkObj.transform.parent = transform;
-        linkObj.transform.localPosition = Vector3.zero;
-        linkObj.transform.localRotation = Quaternion.identity;
-
-        GameObject startPt = new GameObject("Start");
-        startPt.transform.parent = linkObj.transform;
-        startPt.transform.localPosition = localStart;
-
-        GameObject endPt = new GameObject("End");
-        endPt.transform.parent = linkObj.transform;
-        endPt.transform.localPosition = localEnd;
-
-        OffMeshLink link = linkObj.AddComponent<OffMeshLink>();
-        link.startTransform = startPt.transform;
-        link.endTransform = endPt.transform;
-        link.area = GateAreaIndex;
-        link.biDirectional = true;
-        link.autoUpdatePositions = true;
-        link.costOverride = -1f;
-        link.activated = true;
+        // Check if it's an enemy - force them to attack the gate
+        Enemy enemy = other.GetComponent<Enemy>();
+        if (enemy != null)
+        {
+            enemy.ForceAttackGate(this);
+        }
     }
 
     void OnGateDestroyed()
@@ -132,7 +103,7 @@ public class Gate : MonoBehaviour
 
     void OnDestroy()
     {
-        activeList.Remove(this);
+        ActiveRegistry<Gate>.Unregister(this);
         UnregisterFromGrid();
     }
 
@@ -148,6 +119,6 @@ public class Gate : MonoBehaviour
     void OnDrawGizmosSelected()
     {
         Gizmos.color = new Color(0.3f, 0.8f, 0.3f, 0.3f);
-        Gizmos.DrawWireSphere(transform.position, 1f);
+        Gizmos.DrawWireCube(transform.position + Vector3.up, new Vector3(triggerSize, 2f, triggerSize));
     }
 }

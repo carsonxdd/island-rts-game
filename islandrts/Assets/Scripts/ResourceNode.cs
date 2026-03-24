@@ -21,21 +21,18 @@ public class ResourceNode : MonoBehaviour
     public Color highlightColor = Color.yellow;
     public bool scaleWithDepletion = true;  // Shrink as resources deplete
 
-    // Static registry for O(1) lookup instead of FindObjectsByType
-    private static readonly List<ResourceNode> activeList = new List<ResourceNode>();
-    public static IReadOnlyList<ResourceNode> ActiveList => activeList;
+    public static IReadOnlyList<ResourceNode> ActiveList => ActiveRegistry<ResourceNode>.List;
 
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    static void ResetStatics() { activeList.Clear(); }
-
-    void Awake() { activeList.Add(this); }
+    void Awake() { ActiveRegistry<ResourceNode>.Register(this); }
 
     private Renderer[] nodeRenderers;
     private Color[] originalColors;
     private bool isHighlighted = false;
     private List<Worker> activeWorkers = new List<Worker>();
+    private List<Worker> claimedWorkers = new List<Worker>();
     private Vector3 originalScale;
     private float lastUpdateTime;
+    private NavMeshObstacle cachedObstacle;
 
     void Start()
     {
@@ -44,6 +41,7 @@ public class ResourceNode : MonoBehaviour
 
         // Setup NavMeshObstacle for enemy pathfinding
         SetupNavMeshObstacle();
+        cachedObstacle = GetComponent<NavMeshObstacle>();
 
         // Get ALL renderers for visual feedback (tree has trunk + leaves)
         nodeRenderers = GetComponentsInChildren<Renderer>();
@@ -68,10 +66,12 @@ public class ResourceNode : MonoBehaviour
             obstacle = gameObject.AddComponent<NavMeshObstacle>();
         }
 
-        // Configure obstacle based on resource type
-        obstacle.carving = true;  // Enable carving so workers path around resource nodes
-        obstacle.carveOnlyStationary = true;  // Only carve when not moving (performance)
-        obstacle.shape = NavMeshObstacleShape.Capsule;  // Capsule works well for trees/rocks
+        // NO CARVING — resource nodes use local avoidance only.
+        // Carving caused constant NavMesh rebuilds every time a resource depleted/respawned,
+        // which invalidated paths for ALL nearby agents and caused synchronized stuttering.
+        // Workers already path to offset gather points, so carving is unnecessary.
+        obstacle.carving = false;
+        obstacle.shape = NavMeshObstacleShape.Capsule;
 
         // Size based on resource type
         switch (resourceType)
@@ -90,10 +90,7 @@ public class ResourceNode : MonoBehaviour
                 break;
         }
 
-        obstacle.carvingMoveThreshold = 0.1f;
-        obstacle.carvingTimeToStationary = 0.5f;
-
-        Debug.Log($"ResourceNode: NavMeshObstacle setup for {resourceType} - Radius: {obstacle.radius}, Carving: {obstacle.carving}");
+        Debug.Log($"ResourceNode: NavMeshObstacle setup for {resourceType} - Radius: {obstacle.radius}, Carving: false (local avoidance only)");
     }
 
     void Update()
@@ -212,6 +209,29 @@ public class ResourceNode : MonoBehaviour
         return activeWorkers.Count;
     }
 
+    // Claim system: track workers heading TO this node (not just gathering)
+    public void ClaimNode(Worker worker)
+    {
+        if (!claimedWorkers.Contains(worker))
+            claimedWorkers.Add(worker);
+    }
+
+    public void UnclaimNode(Worker worker)
+    {
+        claimedWorkers.Remove(worker);
+    }
+
+    public int GetClaimCount()
+    {
+        // Clean up null references (manual loop — no lambda allocation)
+        for (int i = claimedWorkers.Count - 1; i >= 0; i--)
+        {
+            if (claimedWorkers[i] == null)
+                claimedWorkers.RemoveAt(i);
+        }
+        return claimedWorkers.Count;
+    }
+
     /// <summary>
     /// Returns a valid NavMesh position on the nearest side of this resource node
     /// to the given worker position. This prevents workers from pathing to the far
@@ -219,9 +239,8 @@ public class ResourceNode : MonoBehaviour
     /// </summary>
     public Vector3 GetGatherPoint(Vector3 workerPosition)
     {
-        // Get the obstacle radius for offset calculation
-        NavMeshObstacle obstacle = GetComponent<NavMeshObstacle>();
-        float obstacleRadius = obstacle != null ? obstacle.radius : 0.5f;
+        // Get the obstacle radius for offset calculation (cached reference)
+        float obstacleRadius = cachedObstacle != null ? cachedObstacle.radius : 0.5f;
         float offset = obstacleRadius * 1.3f;  // Just outside the obstacle
 
         // Try direct approach: nearest side from worker
@@ -266,7 +285,7 @@ public class ResourceNode : MonoBehaviour
 
     void OnDestroy()
     {
-        activeList.Remove(this);
+        ActiveRegistry<ResourceNode>.Unregister(this);
     }
 
     // Manual gathering removed - workers only now!

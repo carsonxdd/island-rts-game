@@ -20,6 +20,8 @@ public class BuildingData : ScriptableObject
     [Header("Placement Settings")]
     public Vector3 buildingSize = new Vector3(2f, 1.5f, 2f);
     public float noBuildRadius = 3.5f;
+    [Tooltip("Visual-only radius for the red no-build border. Does not affect actual placement validation.")]
+    public float visualNoBuildRadius = 3.5f;
     public float placementHeight = 0.75f;
 
     [Header("Gameplay Stats")]

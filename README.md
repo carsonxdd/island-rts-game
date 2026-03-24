@@ -52,6 +52,9 @@ Think *Age of Empires* meets *Don't Starve* with a shipwreck survival twist, evo
 - [Phase 6.13 - Pathfinding Audit & Worker Freeze Fixes](#phase-613-complete----pathfinding-audit--worker-freeze-fixes)
 - [Phase 6.14 - Worker Return Logic & Delivery Fixes](#phase-614-complete----worker-return-logic--delivery-fixes)
 - [Phase 6.15 - AI Momentum & Stuck State Fixes](#phase-615-complete----ai-momentum--stuck-state-fixes)
+- [Phase 6.16 - Old State Machine Removal & Shared Utility Extraction](#phase-616-complete----old-state-machine-removal--shared-utility-extraction)
+- [Phase 6.17 - AI Tuning, Building HP Display, Audio & Enemy Targeting](#phase-617-complete----ai-tuning-building-hp-display-audio--enemy-targeting)
+- [Phase 6.18 - Worker Flee System Overhaul](#phase-618-complete----worker-flee-system-overhaul)
 
 ### Technical Documentation
 - [🔧 Technical Architecture](#-technical-architecture)
@@ -82,9 +85,9 @@ Think *Age of Empires* meets *Don't Starve* with a shipwreck survival twist, evo
 
 ## 🎮 Current Status
 
-**Development Phase:** Phase 6.15 - AI Momentum & Stuck State Fixes
+**Development Phase:** Phase 6.17 - AI Tuning, Building HP Display, Audio & Enemy Targeting
 **Last Updated:** March 2026
-**Build Status:** Fully playable with Utility AI decision-making (Workers, Warriors, Enemies), ReturnUrgency compound scoring (carry fullness + enemy/night pressure + drop-off efficiency), delivery race condition fix with timer-based fallback, 20% commitment threshold to prevent action flip-flopping, ForceReeval triggers on damage/ally-death/wall-break, enemy stuck recovery, CrowdPenalty for worker resource spreading, F3 debug overlay for AI score visualization, pathfinding audit with 9 bug fixes (timer accuracy, off-mesh recovery, phase-through max duration, false-positive guards, throttled enemy SetDestination), worker freeze fixes (seamless node transitions, immediate return-to-base on full inventory), simplified worker stuck detection, commit-based worker resource selection, movement smoothing for all units, staggered per-frame checks, preloaded audio (no mid-game disk loads), non-carving resource nodes, smart wall connections, simplified trigger-based gate system, building selection menu, defensive structures, visual effects, 3D spatial audio, housing management, optimized pathfinding, and deeply GC-optimized hot paths (zero per-frame allocations across all systems)
+**Build Status:** Fully playable with Utility AI decision-making (Workers, Warriors, Enemies), building HP text hidden at full health, warrior exterior wall patrol, balanced night gathering, enemy periodic retargeting (2s rescan for closer targets + proactive warrior detection), cooldown-based damage ForceReeval, desynchronized AI evaluation intervals, increased NavMesh throttle (12/frame), RTS-friendly gathering audio range, ReturnUrgency compound scoring (carry fullness + enemy/night pressure + drop-off efficiency), delivery race condition fix with timer-based fallback, 20% commitment threshold to prevent action flip-flopping, ForceReeval triggers on damage/ally-death/wall-break, enemy stuck recovery, CrowdPenalty for worker resource spreading, F3 debug overlay for AI score visualization, pathfinding audit with 9 bug fixes, worker freeze fixes, simplified worker stuck detection, commit-based worker resource selection, movement smoothing, staggered per-frame checks, preloaded audio, non-carving resource nodes, smart wall connections, simplified trigger-based gate system, building selection menu, defensive structures, visual effects, 3D spatial audio, housing management, optimized pathfinding, and deeply GC-optimized hot paths (zero per-frame allocations across all systems)
 
 ### What's Working Now:
 - ✅ Complete resource gathering system with autonomous workers (housing-based limits)
@@ -150,15 +153,15 @@ Think *Age of Empires* meets *Don't Starve* with a shipwreck survival twist, evo
 - ✅ **Audio Clip Preloading** - All 18 audio clips force-loaded into memory at startup (eliminates 184ms synchronous disk loads during music crossfades)
 - ✅ **Resource Node Carving Disabled** - Resources use local avoidance instead of NavMesh carving (eliminates constant NavMesh rebuilds from resource depletion/respawn)
 - ✅ **Utility AI System** - Scoring-based decision-making replaces hardcoded state machines for Workers, Warriors, and Enemies
-- ✅ **AIBrain Evaluation Loop** - Staggered 0.3s evaluation with max 5 evals/frame throttle, zero GC
+- ✅ **AIBrain Evaluation Loop** - Staggered 0.25-0.35s evaluation (randomized per unit) with max 5 evals/frame throttle, zero GC
 - ✅ **Multiplicative Consideration Scoring** - Actions scored by multiplying response-curved inputs (health, distance, threat, resources, time-of-day)
 - ✅ **Warrior Intercept Formation** - Warriors rally at colony perimeter facing enemy approach direction with lateral spread
 - ✅ **Warrior Retreat Behavior** - Warriors fall back to campfire when outnumbered or low health (NEW emergent behavior)
-- ✅ **A/B Testing Toggle** - `useUtilityAI` bool on each unit type; old state machines fully preserved behind toggle
+- ✅ **Utility AI Only** - Old state machines fully removed (Phase 6.16); Utility AI is the sole decision system
 - ✅ **Momentum/Hysteresis** - Small bonus to current action prevents rapid flip-flopping between decisions
 - ✅ **Commitment Threshold** - Actions must beat current by 20%+ to trigger a switch (the most important tuning knob)
 - ✅ **ForceReeval Bypass** - ForceReeval() skips both per-unit timer and per-frame throttle for instant response
-- ✅ **Damage ForceReeval** - First hit on any unit triggers immediate AI re-evaluation (workers flee, warriors re-engage)
+- ✅ **Damage ForceReeval** - Hits trigger AI re-evaluation (workers: first hit only; enemies: cooldown-based, max once/sec)
 - ✅ **Ally Death ForceReeval** - Nearby warrior death triggers re-evaluation for workers (20m) and warriors (25m)
 - ✅ **Wall Break ForceReeval** - Warriors immediately re-evaluate when walls/gates are destroyed
 - ✅ **Enemy StuckResolver** - Enemies in utility AI mode now have phase-through stuck recovery (was missing)
@@ -168,7 +171,7 @@ Think *Age of Empires* meets *Don't Starve* with a shipwreck survival twist, evo
 - ✅ **Off-Mesh Recovery** - Units that fall off NavMesh auto-warp back via SamplePosition (campfire fallback)
 - ✅ **Phase-Through Max Duration** - 10s hard cap prevents permanent phase-through when path is lost mid-phase
 - ✅ **Stationary Phase-Through Guard** - Warriors at defend/retreat/intercept positions no longer false-trigger phase-through
-- ✅ **Enemy SetDestination Throttle** - All enemy executors routed through AINavHelper (8/frame cap, was unthrottled)
+- ✅ **Enemy SetDestination Throttle** - All enemy executors routed through AINavHelper (12/frame cap, was unthrottled)
 - ✅ **BreachWall IsTargetAlive Fix** - Re-fetches Health component on null instead of returning true (prevents permanent lock)
 - ✅ **Worker Node Transition** - GatherExecutor seamlessly picks up next best resource when current node depletes mid-gather
 - ✅ **Worker Return-to-Base Fix** - Full workers immediately start walking home instead of freezing until brain re-evaluates
@@ -181,6 +184,18 @@ Think *Age of Empires* meets *Don't Starve* with a shipwreck survival twist, evo
 - ✅ **Flee Stuck Fix** - ThreatNearby yShift changed to 0 so Flee properly zeroes out when no enemies present (momentum can't keep dead action alive)
 - ✅ **Enemy Death ForceReeval** - Workers within 30m of a dying enemy instantly re-evaluate (stop fleeing when threats cleared)
 - ✅ **Delivery Distance Tightening** - Fallback delivery checks use additive offsets instead of multipliers (stays tight at any deliveryDistance setting)
+- ✅ **Old State Machine Removal** - Removed legacy FSM code from Worker, Warrior, Enemy; Utility AI is the only decision path
+- ✅ **Shared Utility Extraction** - StuckResolver, AINavHelper, FloatingText, ActiveRegistry extracted as shared components
+- ✅ **Building HP Text Hidden at Full** - `hideWhenFull` flag on Health component hides text when at max HP (all buildings enabled)
+- ✅ **Warrior Exterior Patrol** - Warriors patrol on the outside of walls (toward enemies), not inside toward campfire
+- ✅ **Night Gathering Balance** - ReturnUrgency nightBoost reduced by 75%; Gather TimeOfDay floor raised from 0.4 to 0.7 (workers no longer crippled at night)
+- ✅ **Enemy Damage ForceReeval Cooldown** - Enemies re-evaluate every second while being attacked (was one-shot only)
+- ✅ **Enemy Periodic Retargeting** - Every 2s, enemies re-scan for closer targets as they move (no more walking past nearby buildings)
+- ✅ **Enemy Proactive Warrior Detection** - Building/campfire executors check for warriors every 2s while moving (no waiting to be hit)
+- ✅ **AttackWarrior Scoring Fix** - basePriority 1.0→1.2 so warriors reliably overcome building momentum + commitment threshold
+- ✅ **Desynchronized AI Evaluation** - AIBrain evalInterval randomized 0.25-0.35s per unit (prevents synchronized enemy stuttering)
+- ✅ **SetDestination Throttle Increase** - AINavHelper limit raised from 8 to 12/frame (breathing room for 10+ enemies)
+- ✅ **Gathering Audio Range** - minDistance 5→15, maxDistance 25→50, doppler removed (consistent at RTS camera height)
 
 ### Known Issues & Bugs:
 1. **Warrior Stuttering** ✅ FIXED (Phase 5.3 + Phase 6.3)
@@ -1012,8 +1027,112 @@ The Utility AI's additive momentum bonus creates a score floor on the current ac
 | `Enemy.cs` | Added `OnAnyEnemyDied` static event, fired in `Die()` |
 | `Warrior.cs` | Set `bb.brain` reference |
 
+---
+
+### Phase 6.16 Complete! -- Old State Machine Removal & Shared Utility Extraction
+**Legacy FSM Removal, Shared Components - FINISHED**
+
+Removed all legacy state machine code from Worker, Warrior, and Enemy. Utility AI is now the only decision path. Extracted shared components (StuckResolver, AINavHelper, FloatingText, ActiveRegistry) that were previously duplicated across unit types.
+
+**Modified Files:** Worker.cs, Warrior.cs, Enemy.cs, StuckResolver.cs, AINavHelper.cs, FloatingText.cs, ActiveRegistry.cs
+
+---
+
+### Phase 6.17 Complete! -- AI Tuning, Building HP Display, Audio & Enemy Targeting
+**Post-Refactoring Playtesting Fixes + Enemy Retargeting Overhaul - FINISHED**
+
+Six issues found during playtesting after the state machine removal, plus an enemy targeting overhaul:
+
+**Fix 1: Building Health Text Hidden When Full**
+Buildings (campfire, huts, walls, gates, watchtowers) always showed HP text even at full health, cluttering the screen. Added `hideWhenFull` field to Health.cs that hides the text GameObject when `currentHealth >= maxHealth`. All building Start() methods set `hideWhenFull = true`. Text reappears when damaged.
+
+**Fix 2: Warrior Exterior Wall Patrol**
+PatrolExecutor offset warriors 1-2 units *toward* the campfire (interior side of walls). Warriors should intercept enemies on the *exterior*. Reversed the direction vector: `interiorDir = (wallPos - campfire)` instead of `(campfire - wallPos)`.
+
+**Fix 3: Worker Night Gathering Balance**
+Workers barely gathered at night (2/5 resources) due to two compounding penalties:
+- ReturnUrgency nightBoost was `carryRatio * nightPressure` — at 40% carry, nightBoost = 0.4, forcing early return
+- Gather's TimeOfDay curve `Linear(0.6, 0.4)` dropped Gather score by 40% at night
+
+Fix: nightBoost multiplied by 0.25 (now `carryRatio * nightPressure * 0.25f`), and TimeOfDay curve changed to `Linear(0.3, 0.7)` (night floor 0.7 instead of 0.4). Workers now gather full loads at night, with slight preference to return earlier than daytime.
+
+**Fix 4: Enemy Fights Back When Attacked**
+Enemies only ForceReeval'd on the very first damage hit (one-shot bool). After that, they ignored warriors attacking them. Changed to cooldown-based: re-evaluate max once per second while being hit. Also refactored EnemyHasTarget to find the closest warrior (was returning the first found).
+
+**Fix 5: Enemy Synchronized Stuttering**
+All enemies briefly froze at the same time because `evalInterval=0.3s` was identical for all, causing timer phase-locking. Combined with `SetDestination` throttle (8/frame), clustered evaluations caused path rejections. Fix: evalInterval randomized to 0.25-0.35s per unit; SetDestination throttle raised to 12/frame.
+
+**Fix 6: Gathering Audio Range**
+Camera AudioListener at y=15 meant workers directly below were already at 15m distance. With minDistance=5, that was 50% volume. Workers at any horizontal offset quickly went silent. Fix: minDistance 5→15, maxDistance 25→50, doppler 0.1→0 (irrelevant for slow workers in isometric view), base volume 0.15→0.2.
+
+**Fix 7: Enemy Periodic Retargeting & Proactive Warrior Detection**
+Enemies selected a target once in `OnEnter()` and never reconsidered while moving. An enemy 50m east would pick the nearest hut from *that* position, then walk through gates past the campfire and closer huts to reach the originally-selected target.
+
+Three changes:
+1. **Retarget timer (2s):** While moving, every 2 seconds the executor re-scans for a closer target of the same category from the enemy's *current* position. Zero NavMesh cost — just iterates small ActiveLists with Vector3.Distance.
+2. **Proactive warrior detection:** Building and Campfire executors check for warriors every 2s while moving. If a warrior enters detection range, triggers ForceReeval immediately.
+3. **AttackWarrior scoring fix:** basePriority raised from 1.0 to 1.2, DistanceTo constant from 0.9 to 1.0. Previously, AttackWarrior (0.9 max) could never overcome AttackBuilding with momentum (0.85 × 1.2 commitment = 1.02). Now warrior score = 1.2, reliably wins.
+
+**Modified Files (11):**
+| File | Changes |
+|------|---------|
+| `Health.cs` | Added `hideWhenFull` field; Update() hides/shows text based on health |
+| `BaseBuilding.cs` | Set `hideWhenFull = true` on Health component |
+| `Hut.cs` | Set `hideWhenFull = true` on Health component |
+| `Wall.cs` | Set `hideWhenFull = true` on Health component |
+| `Gate.cs` | Set `hideWhenFull = true` on Health component |
+| `Watchtower.cs` | Set `hideWhenFull = true` on Health component |
+| `PatrolExecutor.cs` | Reversed patrol offset direction (exterior patrol) |
+| `ReturnUrgency.cs` | nightBoost × 0.25 coefficient |
+| `Worker.cs` | TimeOfDay curve `Linear(0.3, 0.7)`, audio range `(0.2, 15, 50, 0)` |
+| `Enemy.cs` | Damage ForceReeval cooldown (1s), AttackWarrior basePriority 1.2 |
+| `EnemyHasTarget.cs` | Closest-warrior selection, proximity boost |
+| `AIBrain.cs` | evalInterval randomized 0.25-0.35s per unit |
+| `AINavHelper.cs` | SetDestination throttle 8→12/frame |
+| `AttackTargetExecutor.cs` | 2s retarget timer, proactive warrior scan, HasWarriorNearby() |
+
+### Phase 6.18 Complete! -- Worker Flee System Overhaul
+**Workers Now Flee Away From Enemies Instead of Freezing - FINISHED**
+
+Workers had a broken flee behavior — they tried to pathfind to huts, but if no huts existed they froze in place. Even with huts, they'd stop dead on arrival while enemies closed in. The entire flee scoring was gated behind nighttime, so daytime enemies were completely ignored.
+
+**Fix 1: FleeToHutExecutor → Dynamic Flee-From-Enemies**
+Complete rewrite of the flee executor. Instead of pathfinding to a static hut target:
+- Calculates average threat direction from all nearby enemies (closer enemies weighted more heavily via inverse distance)
+- Flees in the **opposite direction**, picking a NavMesh point 15 units away
+- **Recalculates every 0.5s** so the flee path updates as enemies move
+- Prefers huts as shelter if one is roughly in the flee direction (within 70°)
+- Falls back to base if no enemies are visible
+- Only stops moving when actually inside a shelter — no more freezing in the open
+
+**Fix 2: Flee Scoring — Threat-Driven, Not Time-Gated**
+The old Flee action required nighttime (TimeOfDay logistic gate), enemy presence, AND low health — all multiplicative. Full-health workers during daytime scored near zero regardless of enemy count.
+
+New scoring:
+- **Removed TimeOfDay** — enemies are dangerous day or night
+- **EnemyPresence(20u)** as first consideration — populates `bb.nearestEnemy` for the executor, returns 0 if no enemies within 20 units
+- **ThreatNearby(maxThreat=1, Logistic(12, 0.3))** — a single enemy saturates the input; aggressive logistic curve outputs ~0.95+ immediately
+- **HealthPercent(InverseLinear(0.3, 0.7))** — full HP scores 0.7 (modifier, not gate), wounded scores up to 1.0
+- **basePriority: 1.2** — beats Gather's 1.0 base when scores are comparable
+
+**Fix 3: Gather Hard-Suppressed by Threat**
+Changed Gather's ThreatNearby from `(5f, InverseLinear(0.8, 0.2))` to `(1f, InverseLinear(1.0, 0.0))`. One enemy in the density grid drives Gather to zero via early-out, ensuring workers immediately stop gathering and switch to Flee.
+
+**Net Scoring with 1 Enemy in Grid (~15 units):**
+| Action | Score | Result |
+|--------|-------|--------|
+| Gather | ~0 | ThreatNearby kills it |
+| Flee | ~0.8 (1.2 × 1.0 × 0.95 × 0.7) | Dominates |
+| Return | Moderate (carry-dependent) | Flee wins via basePriority |
+
+**Modified Files (2):**
+| File | Changes |
+|------|---------|
+| `FleeToHutExecutor.cs` | Complete rewrite: dynamic flee-from-enemies with directional NavMesh sampling, hut preference, 0.5s recalc |
+| `Worker.cs` | Flee: removed TimeOfDay gate, EnemyPresence(20u) + ThreatNearby(1, Logistic) + HealthPercent(0.7 floor), basePriority 1.2. Gather: ThreatNearby hard-suppression (1 enemy → 0) |
+
 ### Next Up:
-**Phase 7 - Building Progression** (Future)
+**Phase 6.19 - Building Progression** (Future)
 - Building upgrades (campfire → fortress)
 - Advanced buildings (storage, workshop)
 - Tool upgrade system
@@ -2175,11 +2294,11 @@ Assets/
 
 ---
 
-**Last Updated:** February 2026
-**Current Build:** Phase 6.15 Complete - AI Momentum & Stuck State Fixes
-**Status:** Fully Playable with Utility AI (ReturnUrgency compound scoring, drop-off efficiency), Commit-Based Worker AI, Movement Smoothing, Frame-Staggered Checks, Preloaded Audio, Non-Carving Resources, Building Menu, Defensive Structures, Trigger-Based Gate System, Visual Effects, 3D Spatial Audio, Housing Management, Optimized Pathfinding, and Zero Per-Frame GC Allocations
+**Last Updated:** March 2026
+**Current Build:** Phase 6.17 Complete - AI Tuning, Building HP Display, Audio & Enemy Targeting
+**Status:** Fully Playable with Utility AI (periodic enemy retargeting, proactive warrior detection, balanced night gathering, hidden building HP text, exterior wall patrol, desynchronized AI eval, RTS-friendly audio), Commit-Based Worker AI, Movement Smoothing, Frame-Staggered Checks, Preloaded Audio, Non-Carving Resources, Building Menu, Defensive Structures, Trigger-Based Gate System, Visual Effects, 3D Spatial Audio, Housing Management, Optimized Pathfinding, and Zero Per-Frame GC Allocations
 **Known Issues:** None game-breaking - all critical bugs fixed. Visual no-build border size is tunable per building type via `visualNoBuildRadius` in BuildingData. Resource nodes use local avoidance instead of NavMesh carving (agents may occasionally steer around resources at close range rather than pre-planning around them).
-**Next Milestone:** Phase 7 - Building Progression (Upgrades)
+**Next Milestone:** Phase 6.18 - Building Progression (Upgrades)
 
 *A shipwreck survival RTS game built in Unity*
 

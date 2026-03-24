@@ -11,6 +11,7 @@ public class BuildPlacement : MonoBehaviour
     public GameObject hutGhostPrefab;  // Legacy: Use BuildingDatabase instead
     public GameObject constructionSitePrefab;  // Shared construction site prefab
     public float ghostBuildingNoBuildRadius = 3.5f;  // Will be dynamically set from BuildingData
+    private float ghostBuildingVisualNoBuildRadius = 3.5f;  // Visual-only radius for ghost border
 
     [Header("Building Cost (Legacy - kept for backward compatibility)")]
     public int woodCost = 20;  // Legacy: Use BuildingDatabase instead
@@ -675,6 +676,7 @@ public class BuildPlacement : MonoBehaviour
         buildingSize = data.buildingSize;
         placementHeight = data.placementHeight;
         ghostBuildingNoBuildRadius = data.noBuildRadius;
+        ghostBuildingVisualNoBuildRadius = data.visualNoBuildRadius;
 
         // Initialize target position
         targetPosition = currentGhost.transform.position;
@@ -979,6 +981,7 @@ public class BuildPlacement : MonoBehaviour
         buildingSize = data.buildingSize;
         placementHeight = data.placementHeight;
         ghostBuildingNoBuildRadius = data.noBuildRadius;
+        ghostBuildingVisualNoBuildRadius = data.visualNoBuildRadius;
 
         // Initialize target position
         targetPosition = currentGhost.transform.position;
@@ -1056,6 +1059,14 @@ public class BuildPlacement : MonoBehaviour
         }
 
         return false;
+    }
+
+    // Get visual no-build radius for a building type from BuildingData
+    float GetVisualNoBuildRadius(BuildingType type, float fallback)
+    {
+        if (BuildingDatabase.Instance == null) return fallback;
+        BuildingData data = BuildingDatabase.Instance.GetBuildingData(type);
+        return data != null ? data.visualNoBuildRadius : fallback;
     }
 
     // Check if a building type is a wall using BuildingData.isWall flag
@@ -1167,38 +1178,41 @@ public class BuildPlacement : MonoBehaviour
     // Create individual zone visuals for each building (original behavior)
     void CreateIndividualNoBuildZones()
     {
-        // Create circles for all BaseBuilding objects
+        // Create circles for all BaseBuilding objects (campfire - uses its own visualNoBuildRadius)
         BaseBuilding[] baseBuildings = FindObjectsByType<BaseBuilding>(FindObjectsSortMode.None);
         foreach (BaseBuilding building in baseBuildings)
         {
             if (building == null) continue;
-            CreateCircleVisual(building.transform.position, building.noBuildRadius);
+            CreateCircleVisual(building.transform.position, building.visualNoBuildRadius);
         }
 
-        // Create circles for all ConstructionSite objects
+        // Create circles for all ConstructionSite objects (look up from BuildingData)
         ConstructionSite[] constructionSites = FindObjectsByType<ConstructionSite>(FindObjectsSortMode.None);
         foreach (ConstructionSite site in constructionSites)
         {
             if (site == null) continue;
-            CreateCircleVisual(site.transform.position, site.noBuildRadius);
+            float visualRadius = GetVisualNoBuildRadius(site.buildingType, site.noBuildRadius);
+            CreateCircleVisual(site.transform.position, visualRadius);
         }
 
-        // Create circles for all Hut objects (finished buildings)
+        // Create circles for all Hut objects (look up from BuildingData)
         Hut[] huts = FindObjectsByType<Hut>(FindObjectsSortMode.None);
         foreach (Hut hut in huts)
         {
             if (hut == null) continue;
-            CreateCircleVisual(hut.transform.position, hut.noBuildRadius);
+            float visualRadius = GetVisualNoBuildRadius(BuildingType.Hut, hut.noBuildRadius);
+            CreateCircleVisual(hut.transform.position, visualRadius);
         }
 
         // Walls intentionally have no no-build zone visuals so they can be placed adjacent
 
-        // Create circles for all Watchtower objects
+        // Create circles for all Watchtower objects (look up from BuildingData)
         Watchtower[] watchtowers = FindObjectsByType<Watchtower>(FindObjectsSortMode.None);
         foreach (Watchtower tower in watchtowers)
         {
             if (tower == null) continue;
-            CreateCircleVisual(tower.transform.position, tower.noBuildRadius);
+            float visualRadius = GetVisualNoBuildRadius(BuildingType.Watchtower, tower.noBuildRadius);
+            CreateCircleVisual(tower.transform.position, visualRadius);
         }
     }
 
@@ -1208,25 +1222,29 @@ public class BuildPlacement : MonoBehaviour
         // Collect all building zones
         List<ZoneData> zones = new List<ZoneData>();
 
+        // Campfire uses its own visualNoBuildRadius (no BuildingData entry)
         BaseBuilding[] baseBuildings = FindObjectsByType<BaseBuilding>(FindObjectsSortMode.None);
         foreach (BaseBuilding building in baseBuildings)
         {
             if (building == null) continue;
-            zones.Add(new ZoneData { position = building.transform.position, radius = building.noBuildRadius });
+            zones.Add(new ZoneData { position = building.transform.position, radius = building.visualNoBuildRadius });
         }
 
+        // All other buildings look up visual radius from BuildingData
         ConstructionSite[] constructionSites = FindObjectsByType<ConstructionSite>(FindObjectsSortMode.None);
         foreach (ConstructionSite site in constructionSites)
         {
             if (site == null) continue;
-            zones.Add(new ZoneData { position = site.transform.position, radius = site.noBuildRadius });
+            float visualRadius = GetVisualNoBuildRadius(site.buildingType, site.noBuildRadius);
+            zones.Add(new ZoneData { position = site.transform.position, radius = visualRadius });
         }
 
         Hut[] huts = FindObjectsByType<Hut>(FindObjectsSortMode.None);
         foreach (Hut hut in huts)
         {
             if (hut == null) continue;
-            zones.Add(new ZoneData { position = hut.transform.position, radius = hut.noBuildRadius });
+            float visualRadius = GetVisualNoBuildRadius(BuildingType.Hut, hut.noBuildRadius);
+            zones.Add(new ZoneData { position = hut.transform.position, radius = visualRadius });
         }
 
         // Walls excluded from no-build zones - they can be placed adjacent
@@ -1235,7 +1253,8 @@ public class BuildPlacement : MonoBehaviour
         foreach (Watchtower tower in watchtowers)
         {
             if (tower == null) continue;
-            zones.Add(new ZoneData { position = tower.transform.position, radius = tower.noBuildRadius });
+            float visualRadius = GetVisualNoBuildRadius(BuildingType.Watchtower, tower.noBuildRadius);
+            zones.Add(new ZoneData { position = tower.transform.position, radius = visualRadius });
         }
 
         if (zones.Count == 0) return;
@@ -1484,7 +1503,7 @@ public class BuildPlacement : MonoBehaviour
         GameObject zoneObj = new GameObject("GhostNoBuildZone");
         zoneObj.transform.position = new Vector3(currentGhost.transform.position.x, 0.05f, currentGhost.transform.position.z);
 
-        float radius = ghostBuildingNoBuildRadius;
+        float radius = ghostBuildingVisualNoBuildRadius;
 
         if (showNoBuildFills)
         {

@@ -70,8 +70,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   buildTime: 5
   finishedBuildingPrefab: {fileID: 5222481416697825286, guid: c8ceef2f4d08c8647b862a26b0a017f8, type: 3}
+  targetHealth: 100
+  buildingType: 0
   progress: 0
   noBuildRadius: 3.5
+  visualNoBuildRadius: 2.5
+  showProgressText: 1
+  progressTextHeight: 2.5
 --- !u!208 &2460944454976037065
 NavMeshObstacle:
   m_ObjectHideFlags: 0

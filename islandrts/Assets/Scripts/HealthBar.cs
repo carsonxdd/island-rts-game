@@ -29,6 +29,9 @@ public class HealthBar : MonoBehaviour
     private GameObject healthFillBar;
     private MeshRenderer backgroundRenderer;
     private MeshRenderer fillRenderer;
+    private Camera cachedCamera;
+    private float lastHealthPercent = -1f;
+    private bool lastShouldShow = true;
 
     void Start()
     {
@@ -41,6 +44,8 @@ public class HealthBar : MonoBehaviour
             return;
         }
 
+        cachedCamera = Camera.main;
+
         if (showHealthBar)
         {
             CreateHealthBar();
@@ -52,7 +57,20 @@ public class HealthBar : MonoBehaviour
         if (healthFillBar == null || healthComponent == null)
             return;
 
-        UpdateHealthBar();
+        // Billboard rotation every frame (zero allocations)
+        if (cachedCamera != null && barContainer != null && barContainer.activeSelf)
+        {
+            barContainer.transform.LookAt(cachedCamera.transform);
+            barContainer.transform.Rotate(0, 180, 0);
+        }
+
+        // Only update bar content when health actually changes
+        float currentPercent = healthComponent.GetHealthPercentage();
+        if (currentPercent != lastHealthPercent)
+        {
+            lastHealthPercent = currentPercent;
+            UpdateHealthBar();
+        }
     }
 
     void CreateHealthBar()
@@ -103,7 +121,7 @@ public class HealthBar : MonoBehaviour
         if (healthComponent == null || healthFillBar == null)
             return;
 
-        float healthPercent = healthComponent.GetHealthPercentage();
+        float healthPercent = lastHealthPercent;
 
         // Update fill bar scale (shrink from left to right)
         Vector3 fillScale = healthFillBar.transform.localScale;
@@ -141,16 +159,10 @@ public class HealthBar : MonoBehaviour
             shouldShow = false;
         }
 
-        if (barContainer != null)
+        if (barContainer != null && shouldShow != lastShouldShow)
         {
+            lastShouldShow = shouldShow;
             barContainer.SetActive(shouldShow);
-        }
-
-        // Billboard effect - always face camera
-        if (Camera.main != null && barContainer != null)
-        {
-            barContainer.transform.LookAt(Camera.main.transform);
-            barContainer.transform.Rotate(0, 180, 0);
         }
     }
 

@@ -63,7 +63,7 @@ public class ReturnUrgency : Consideration
         if (AIWorldState.Instance != null)
         {
             float nightPressure = 1f - AIWorldState.Instance.dayProgress;
-            nightBoost = carryRatio * nightPressure;
+            nightBoost = carryRatio * nightPressure * 0.25f;
         }
 
         // 4) Drop-off efficiency: if base is closer than the next resource and

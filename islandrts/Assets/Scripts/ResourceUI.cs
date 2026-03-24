@@ -14,6 +14,10 @@ public class ResourceUI : MonoBehaviour
 
     private float timeSinceUpdate = 0f;
 
+    // Dirty checking to avoid string rebuilds when values haven't changed
+    private int lastWood = -1, lastFood = -1, lastStone = -1;
+    private int lastPopWorkers = -1, lastPopCapacity = -1;
+
     void Update()
     {
         // Only update UI periodically (not every frame for performance)
@@ -34,20 +38,27 @@ public class ResourceUI : MonoBehaviour
             return;
         }
 
-        // Update text displays
-        if (woodText != null)
+        // Only rebuild text when values actually change (avoids string allocations)
+        int wood = ResourceManager.Instance.GetWood();
+        int food = ResourceManager.Instance.GetFood();
+        int stone = ResourceManager.Instance.GetStone();
+
+        if (woodText != null && wood != lastWood)
         {
-            woodText.text = $"Wood: {ResourceManager.Instance.GetWood()}";
+            lastWood = wood;
+            woodText.text = $"Wood: {wood}";
         }
 
-        if (foodText != null)
+        if (foodText != null && food != lastFood)
         {
-            foodText.text = $"Food: {ResourceManager.Instance.GetFood()}";
+            lastFood = food;
+            foodText.text = $"Food: {food}";
         }
 
-        if (stoneText != null)
+        if (stoneText != null && stone != lastStone)
         {
-            stoneText.text = $"Stone: {ResourceManager.Instance.GetStone()}";
+            lastStone = stone;
+            stoneText.text = $"Stone: {stone}";
         }
 
         // Update population display
@@ -56,23 +67,25 @@ public class ResourceUI : MonoBehaviour
             int currentWorkers = PopulationManager.Instance.GetCurrentWorkers();
             int housingCapacity = PopulationManager.Instance.GetHousingCapacity();
 
-            populationText.text = $"Workers: {currentWorkers}/{housingCapacity}";
+            if (currentWorkers != lastPopWorkers || housingCapacity != lastPopCapacity)
+            {
+                lastPopWorkers = currentWorkers;
+                lastPopCapacity = housingCapacity;
+                populationText.text = $"Workers: {currentWorkers}/{housingCapacity}";
 
-            // Color code based on housing status
-            if (PopulationManager.Instance.HasHomelessWorkers())
-            {
-                // Red if workers are homeless
-                populationText.color = Color.red;
-            }
-            else if (currentWorkers >= housingCapacity)
-            {
-                // Yellow if at capacity
-                populationText.color = Color.yellow;
-            }
-            else
-            {
-                // White if there's room
-                populationText.color = Color.white;
+                // Color code based on housing status
+                if (PopulationManager.Instance.HasHomelessWorkers())
+                {
+                    populationText.color = Color.red;
+                }
+                else if (currentWorkers >= housingCapacity)
+                {
+                    populationText.color = Color.yellow;
+                }
+                else
+                {
+                    populationText.color = Color.white;
+                }
             }
         }
     }

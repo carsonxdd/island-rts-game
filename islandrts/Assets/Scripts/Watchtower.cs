@@ -7,6 +7,7 @@ public class Watchtower : MonoBehaviour
     [Header("Health")]
     public float maxHealth = 200f;
     private Health healthComponent;
+    public Health CachedHealth => healthComponent;
 
     [Header("Building Placement")]
     public float noBuildRadius = 3.0f;
@@ -21,14 +22,9 @@ public class Watchtower : MonoBehaviour
     [Tooltip("Damage multiplier for warriors in range (1.25 = 25% buff)")]
     public float damageMultiplier = 1.25f;
 
-    // Static registry for O(1) lookup instead of FindObjectsByType
-    private static readonly List<Watchtower> activeList = new List<Watchtower>();
-    public static IReadOnlyList<Watchtower> ActiveList => activeList;
+    public static IReadOnlyList<Watchtower> ActiveList => ActiveRegistry<Watchtower>.List;
 
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    static void ResetStatics() { activeList.Clear(); }
-
-    void Awake() { activeList.Add(this); }
+    void Awake() { ActiveRegistry<Watchtower>.Register(this); }
 
     void Start()
     {
@@ -44,6 +40,7 @@ public class Watchtower : MonoBehaviour
         healthComponent.destroyDelay = 1f;
         healthComponent.showHealthText = true;
         healthComponent.showObjectName = true;
+        healthComponent.hideWhenFull = true;
         healthComponent.onDeath.AddListener(OnWatchtowerDestroyed);
 
         // Disable NavMeshObstacle carving (like other buildings - enemies can surround)
@@ -65,12 +62,11 @@ public class Watchtower : MonoBehaviour
     {
         float bestMultiplier = 1f;
 
-        for (int i = 0; i < activeList.Count; i++)
+        for (int i = 0; i < ActiveList.Count; i++)
         {
-            Watchtower tower = activeList[i];
+            Watchtower tower = ActiveList[i];
             if (tower == null) continue;
-            Health towerHealth = tower.GetComponent<Health>();
-            if (towerHealth != null && !towerHealth.IsAlive) continue;
+            if (tower.healthComponent != null && !tower.healthComponent.IsAlive) continue;
 
             float distance = Vector3.Distance(position, tower.transform.position);
             if (distance <= tower.buffRadius && tower.damageMultiplier > bestMultiplier)
@@ -95,7 +91,7 @@ public class Watchtower : MonoBehaviour
 
     void OnDestroy()
     {
-        activeList.Remove(this);
+        ActiveRegistry<Watchtower>.Unregister(this);
     }
 
     // Visual feedback in Scene view

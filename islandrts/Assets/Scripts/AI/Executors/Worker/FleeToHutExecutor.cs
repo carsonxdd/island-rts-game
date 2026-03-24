@@ -1,0 +1,196 @@
+using UnityEngine;
+using UnityEngine.AI;
+
+/// <summary>
+/// Worker executor: Flee away from enemies.
+/// Continuously recalculates a flee point in the opposite direction from the nearest threat.
+/// Prefers huts as shelter if one is roughly in the flee direction; otherwise just runs away.
+/// </summary>
+public class FleeToHutExecutor : ActionExecutor
+{
+    public override string DisplayName => "Fleeing!";
+
+    private const float FleeDistance = 15f;        // How far ahead to pick the flee point
+    private const float RecalcInterval = 0.5f;     // How often to recalculate flee direction
+    private const float HutPreferAngle = 70f;      // Max angle from flee dir to still prefer a hut
+    private const float HutArrivalDist = 3f;       // Close enough to hut to count as sheltered
+    private const float ShelterSlowDist = 2f;      // Stop at shelter
+
+    private float recalcTimer;
+    private Transform shelterTarget; // hut we're heading toward (if any)
+
+    public override void OnEnter(AIBlackboard bb)
+    {
+        // Release resource claims
+        if (bb.targetResource != null)
+        {
+            bb.targetResource.UnclaimNode(bb.worker);
+            if (bb.isRegisteredAtNode)
+            {
+                bb.targetResource.UnregisterWorker(bb.worker);
+                bb.isRegisteredAtNode = false;
+            }
+        }
+
+        bb.worker.StopGatheringSoundPublic();
+
+        if (bb.stuckResolver != null)
+            bb.stuckResolver.ResetStuckDetection();
+
+        shelterTarget = null;
+        recalcTimer = 0f; // calculate immediately
+
+        SetFleeDestination(bb);
+    }
+
+    public override void OnUpdate(AIBlackboard bb)
+    {
+        if (bb.stuckResolver != null)
+            bb.stuckResolver.UpdateMoving();
+
+        // If we reached a hut shelter, stop and stay safe
+        if (shelterTarget != null)
+        {
+            float dist = Vector3.Distance(bb.transform.position, shelterTarget.position);
+            if (dist < ShelterSlowDist)
+            {
+                if (bb.agent.isOnNavMesh) bb.agent.ResetPath();
+                return;
+            }
+        }
+
+        // Periodically recalculate flee direction as enemies move
+        recalcTimer -= Time.deltaTime;
+        if (recalcTimer <= 0f)
+        {
+            recalcTimer = RecalcInterval;
+            SetFleeDestination(bb);
+        }
+    }
+
+    void SetFleeDestination(AIBlackboard bb)
+    {
+        if (!bb.agent.isOnNavMesh || !bb.agent.enabled) return;
+
+        Vector3 myPos = bb.transform.position;
+
+        // Find the average threat direction from nearby enemies
+        Vector3 threatDir = GetThreatDirection(bb, myPos);
+
+        if (threatDir == Vector3.zero)
+        {
+            // No enemies visible — flee toward base as fallback
+            if (bb.baseBuilding != null)
+            {
+                bb.agent.isStopped = false;
+                bb.agent.SetDestination(bb.baseBuilding.transform.position);
+                shelterTarget = bb.baseBuilding.transform;
+            }
+            return;
+        }
+
+        // Flee direction is opposite of threat
+        Vector3 fleeDir = -threatDir.normalized;
+
+        // Check if any hut is roughly in the flee direction
+        Transform bestHut = FindHutInFleeDirection(bb, myPos, fleeDir);
+
+        if (bestHut != null)
+        {
+            shelterTarget = bestHut;
+            bb.agent.isStopped = false;
+            bb.agent.SetDestination(bestHut.position);
+        }
+        else
+        {
+            shelterTarget = null;
+
+            // Pick a point on the NavMesh in the flee direction
+            Vector3 fleePoint = myPos + fleeDir * FleeDistance;
+
+            if (NavMesh.SamplePosition(fleePoint, out NavMeshHit hit, FleeDistance, NavMesh.AllAreas))
+            {
+                bb.agent.isStopped = false;
+                bb.agent.SetDestination(hit.position);
+            }
+            else
+            {
+                // Can't find a point in the ideal direction — try a shorter distance
+                fleePoint = myPos + fleeDir * (FleeDistance * 0.5f);
+                if (NavMesh.SamplePosition(fleePoint, out hit, FleeDistance * 0.5f, NavMesh.AllAreas))
+                {
+                    bb.agent.isStopped = false;
+                    bb.agent.SetDestination(hit.position);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Returns the average direction FROM the worker TOWARD nearby enemies.
+    /// </summary>
+    Vector3 GetThreatDirection(AIBlackboard bb, Vector3 myPos)
+    {
+        Vector3 threatSum = Vector3.zero;
+        int count = 0;
+        float detectRange = bb.searchRadius > 0f ? bb.searchRadius : 30f;
+
+        for (int i = 0; i < Enemy.ActiveList.Count; i++)
+        {
+            Enemy enemy = Enemy.ActiveList[i];
+            if (enemy == null) continue;
+            Health h = enemy.CachedHealth;
+            if (h != null && !h.IsAlive) continue;
+
+            Vector3 toEnemy = enemy.transform.position - myPos;
+            float dist = toEnemy.magnitude;
+            if (dist < detectRange && dist > 0.1f)
+            {
+                // Weight closer enemies more heavily (inverse distance)
+                threatSum += toEnemy.normalized * (1f / dist);
+                count++;
+            }
+        }
+
+        return count > 0 ? threatSum.normalized : Vector3.zero;
+    }
+
+    /// <summary>
+    /// Find a hut that is roughly in the flee direction (within HutPreferAngle degrees).
+    /// Returns the nearest qualifying hut, or null.
+    /// </summary>
+    Transform FindHutInFleeDirection(AIBlackboard bb, Vector3 myPos, Vector3 fleeDir)
+    {
+        Transform best = null;
+        float bestDist = float.MaxValue;
+
+        for (int i = 0; i < Hut.ActiveList.Count; i++)
+        {
+            Hut hut = Hut.ActiveList[i];
+            if (hut == null) continue;
+            if (hut.CachedHealth != null && !hut.CachedHealth.IsAlive) continue;
+
+            Vector3 toHut = hut.transform.position - myPos;
+            float dist = toHut.magnitude;
+            if (dist < 1f) continue; // already here
+
+            float angle = Vector3.Angle(fleeDir, toHut);
+            if (angle < HutPreferAngle && dist < bestDist)
+            {
+                bestDist = dist;
+                best = hut.transform;
+            }
+        }
+
+        return best;
+    }
+
+    public override void OnExit(AIBlackboard bb)
+    {
+        shelterTarget = null;
+        if (bb.agent != null && bb.agent.isOnNavMesh)
+        {
+            bb.agent.isStopped = false;
+        }
+    }
+}

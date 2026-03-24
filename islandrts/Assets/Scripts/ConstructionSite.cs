@@ -27,6 +27,8 @@ public class ConstructionSite : MonoBehaviour
     private bool isComplete = false;
     private TextMeshPro progressText;
     private GameObject progressTextObject;
+    private Camera cachedCamera;
+    private int lastDisplayedProgressHP = -1;
 
     // WallGrid registration
     private Vector2Int gridPos;
@@ -34,6 +36,8 @@ public class ConstructionSite : MonoBehaviour
 
     void Start()
     {
+        cachedCamera = Camera.main;
+
         // Make sure NavMesh Obstacle is enabled for runtime pathfinding
         NavMeshObstacle obstacle = GetComponent<NavMeshObstacle>();
         if (obstacle != null)
@@ -41,6 +45,20 @@ public class ConstructionSite : MonoBehaviour
             obstacle.enabled = true;
             obstacle.carving = true;
             obstacle.carveOnlyStationary = true;
+
+            // For walls, use smaller carve size so gates have walkable gaps
+            bool isWallType = false;
+            if (BuildingDatabase.Instance != null)
+            {
+                BuildingData data = BuildingDatabase.Instance.GetBuildingData(buildingType);
+                isWallType = data != null && data.isWall;
+            }
+            if (isWallType)
+            {
+                obstacle.shape = NavMeshObstacleShape.Box;
+                obstacle.size = new Vector3(0.9f, 2f, 0.9f);
+                obstacle.center = new Vector3(0f, 1f, 0f);
+            }
         }
 
         // Create progress text display
@@ -201,36 +219,41 @@ public class ConstructionSite : MonoBehaviour
         if (progressText == null)
             return;
 
-        // Calculate current "health" based on progress
-        float currentProgress = progress * targetHealth;
+        // Billboard effect - always face camera (every frame, zero allocations)
+        if (cachedCamera != null)
+        {
+            progressTextObject.transform.LookAt(cachedCamera.transform);
+            progressTextObject.transform.Rotate(0, 180, 0);
+        }
+
+        // Only rebuild text when the displayed HP integer changes
+        int currentHP = Mathf.RoundToInt(progress * targetHealth);
+        if (currentHP == lastDisplayedProgressHP) return;
+        lastDisplayedProgressHP = currentHP;
 
         // Update text content
-        progressText.text = $"Building...\n{currentProgress:F0} / {targetHealth:F0} HP";
-
-        // Color based on progress
         if (progress >= 1f)
         {
             progressText.text = "Complete!";
             progressText.color = Color.green;
         }
-        else if (progress >= 0.66f)
-        {
-            progressText.color = Color.green;
-        }
-        else if (progress >= 0.33f)
-        {
-            progressText.color = Color.yellow;
-        }
         else
         {
-            progressText.color = Color.cyan;
-        }
+            progressText.text = $"Building...\n{currentHP} / {targetHealth:F0} HP";
 
-        // Billboard effect - always face camera
-        if (Camera.main != null)
-        {
-            progressTextObject.transform.LookAt(Camera.main.transform);
-            progressTextObject.transform.Rotate(0, 180, 0);  // Flip to face camera correctly
+            // Color based on progress
+            if (progress >= 0.66f)
+            {
+                progressText.color = Color.green;
+            }
+            else if (progress >= 0.33f)
+            {
+                progressText.color = Color.yellow;
+            }
+            else
+            {
+                progressText.color = Color.cyan;
+            }
         }
     }
 
