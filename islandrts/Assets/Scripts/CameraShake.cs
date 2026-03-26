@@ -1,8 +1,10 @@
 using UnityEngine;
 
 /// <summary>
-/// Handles camera shake effects for combat impacts
-/// Attach to main camera
+/// Handles camera shake effects for combat impacts.
+/// Attach to main camera.
+/// Uses a pure offset approach: reads the current position each frame,
+/// adds a shake offset, then removes it next frame — never fights CameraController.
 /// </summary>
 public class CameraShake : MonoBehaviour
 {
@@ -12,7 +14,6 @@ public class CameraShake : MonoBehaviour
     public bool enableShake = true;
     public float shakeDuration = 0.2f;
     public float shakeIntensity = 0.1f;
-    public float shakeDecay = 1f; // How quickly shake fades
 
     [Header("Shake Types")]
     public float lightShakeIntensity = 0.05f;   // UI clicks, minor hits
@@ -20,9 +21,10 @@ public class CameraShake : MonoBehaviour
     public float heavyShakeIntensity = 0.25f;   // Deaths, explosions
 
     // Private
-    private Vector3 originalPosition;
     private float currentShakeDuration = 0f;
     private float currentShakeIntensity = 0f;
+    private float initialShakeDuration = 0f;  // For decay calculation
+    private Vector3 lastShakeOffset = Vector3.zero;  // Offset applied last frame (to undo it)
 
     void Awake()
     {
@@ -36,15 +38,16 @@ public class CameraShake : MonoBehaviour
         }
     }
 
-    void Start()
-    {
-        // Store original camera position
-        originalPosition = transform.localPosition;
-    }
-
     void LateUpdate()
     {
-        if (!enableShake || currentShakeDuration <= 0)
+        // Undo last frame's shake offset first (restores true camera position)
+        if (lastShakeOffset != Vector3.zero)
+        {
+            transform.localPosition -= lastShakeOffset;
+            lastShakeOffset = Vector3.zero;
+        }
+
+        if (!enableShake || currentShakeDuration <= 0f)
         {
             return;
         }
@@ -52,10 +55,10 @@ public class CameraShake : MonoBehaviour
         // Decrease shake duration
         currentShakeDuration -= Time.deltaTime;
 
-        if (currentShakeDuration > 0)
+        if (currentShakeDuration > 0f)
         {
-            // Calculate shake amount
-            float shakeAmount = currentShakeIntensity * (currentShakeDuration / shakeDuration);
+            // Calculate shake amount with linear decay
+            float shakeAmount = currentShakeIntensity * (currentShakeDuration / initialShakeDuration);
 
             // Random shake offset
             Vector3 shakeOffset = new Vector3(
@@ -64,14 +67,13 @@ public class CameraShake : MonoBehaviour
                 0f
             );
 
-            // Apply shake
-            transform.localPosition = originalPosition + shakeOffset;
+            // Apply offset additively (will be undone next frame)
+            transform.localPosition += shakeOffset;
+            lastShakeOffset = shakeOffset;
         }
         else
         {
-            // Reset to original position
             currentShakeDuration = 0f;
-            transform.localPosition = originalPosition;
         }
     }
 
@@ -82,14 +84,9 @@ public class CameraShake : MonoBehaviour
     {
         if (!enableShake) return;
 
-        // Store current position when shake starts (not the original Start position)
-        if (currentShakeDuration <= 0)
-        {
-            originalPosition = transform.localPosition;
-        }
-
         currentShakeIntensity = intensity;
         currentShakeDuration = duration;
+        initialShakeDuration = duration;
     }
 
     /// <summary>
@@ -117,19 +114,15 @@ public class CameraShake : MonoBehaviour
     }
 
     /// <summary>
-    /// Reset camera to original position
+    /// Reset camera shake immediately
     /// </summary>
     public void ResetPosition()
     {
+        if (lastShakeOffset != Vector3.zero)
+        {
+            transform.localPosition -= lastShakeOffset;
+            lastShakeOffset = Vector3.zero;
+        }
         currentShakeDuration = 0f;
-        transform.localPosition = originalPosition;
-    }
-
-    /// <summary>
-    /// Update the stored original position (call if camera moves)
-    /// </summary>
-    public void UpdateOriginalPosition()
-    {
-        originalPosition = transform.localPosition;
     }
 }

@@ -62,6 +62,11 @@ public class BuildPlacement : MonoBehaviour
     // L-shaped path mode
     private bool xFirst = true;  // true = go along X first, then Z; toggled with R
 
+    // Demolish mode (Delete key)
+    private bool isDemolishing = false;
+    private GameObject demolishHighlight;  // Red highlight on targeted building
+    private static readonly Color demolishColor = new Color(1f, 0.2f, 0.2f, 0.4f);
+
     void Start()
     {
         mainCam = Camera.main;
@@ -73,6 +78,29 @@ public class BuildPlacement : MonoBehaviour
 
     void Update()
     {
+        // Delete key: toggle demolish mode (works outside build mode)
+        if (Input.GetKeyDown(KeyCode.Delete) || Input.GetKeyDown(KeyCode.X))
+        {
+            if (isDemolishing)
+            {
+                ExitDemolishMode();
+            }
+            else
+            {
+                // Cancel build mode if active, then enter demolish
+                if (isPlacing) CancelPlacement();
+                EnterDemolishMode();
+            }
+            return;
+        }
+
+        // Demolish mode update
+        if (isDemolishing)
+        {
+            UpdateDemolishMode();
+            return;
+        }
+
         // Start placement mode when B is pressed
         if (Input.GetKeyDown(startBuildKey) && !isPlacing)
         {
@@ -88,7 +116,7 @@ public class BuildPlacement : MonoBehaviour
             if (Input.GetKeyDown(KeyCode.Alpha3)) SelectBuilding(BuildingType.StoneWall);
             if (Input.GetKeyDown(KeyCode.Alpha4)) SelectBuilding(BuildingType.Watchtower);
 
-            // G key: convert hovered wall to gate
+            // G key: convert wall under cursor to gate (grid-based detection)
             if (Input.GetKeyDown(KeyCode.G))
             {
                 TryConvertWallToGate();
@@ -592,46 +620,252 @@ public class BuildPlacement : MonoBehaviour
     // =============================================
 
     /// <summary>
-    /// Raycast under mouse; if a Wall is hit, convert it to a Gate (costs 5 wood).
+    /// Convert the wall at the mouse's grid position to a gate (costs 5 wood).
+    /// Uses WallGrid lookup instead of raycast so it works regardless of camera angle.
     /// </summary>
     void TryConvertWallToGate()
     {
-        if (mainCam == null) return;
+        if (WallGrid.Instance == null) return;
 
+        // Get the grid cell under the mouse cursor
+        Vector3 snapped;
+        if (!GetSnappedMousePosition(out snapped)) return;
+
+        Vector2Int gridPos = WallGrid.Instance.WorldToGrid(snapped);
+
+        // Look up what's at this grid position
+        MonoBehaviour occupant = WallGrid.Instance.GetWallAt(gridPos);
+        if (occupant == null)
+        {
+            Debug.Log("BuildPlacement: No wall at cursor position to convert.");
+            return;
+        }
+
+        // Must be a Wall (not already a Gate or ConstructionSite)
+        Wall wall = occupant as Wall;
+        if (wall == null)
+        {
+            if (occupant is Gate)
+                Debug.Log("BuildPlacement: Already a gate!");
+            else
+                Debug.Log("BuildPlacement: Can only convert finished walls to gates.");
+            return;
+        }
+
+        // Check cost: 5 wood
+        if (ResourceManager.Instance == null) return;
+
+        if (!ResourceManager.Instance.CanAfford(5, 0, 0))
+        {
+            Debug.Log("BuildPlacement: Not enough wood to convert wall to gate! Need 5 Wood.");
+            return;
+        }
+
+        ResourceManager.Instance.SpendResources(5, 0, 0);
+
+        // Play sound
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlayBuildingPlaced();
+        }
+
+        wall.UpgradeToGate();
+        Debug.Log("BuildPlacement: Wall converted to Gate!");
+    }
+
+    // =============================================
+    // Demolish Mode (Delete/X key)
+    // =============================================
+
+    void EnterDemolishMode()
+    {
+        isDemolishing = true;
+        Debug.Log("BuildPlacement: Demolish mode ON. Click a building to demolish (50% refund). Delete/X/ESC to exit.");
+    }
+
+    void ExitDemolishMode()
+    {
+        isDemolishing = false;
+        if (demolishHighlight != null)
+        {
+            Destroy(demolishHighlight);
+            demolishHighlight = null;
+        }
+        Debug.Log("BuildPlacement: Demolish mode OFF.");
+    }
+
+    void UpdateDemolishMode()
+    {
+        // ESC or right-click exits demolish mode
+        if (Input.GetKeyDown(KeyCode.Escape) || Input.GetMouseButtonDown(1))
+        {
+            ExitDemolishMode();
+            return;
+        }
+
+        // Raycast to find building under cursor
+        if (mainCam == null) return;
         Ray ray = mainCam.ScreenPointToRay(Input.mousePosition);
         RaycastHit hit;
 
+        GameObject targetObj = null;
+        BuildingType? targetType = null;
+        string targetName = null;
+
         if (Physics.Raycast(ray, out hit, 1000f))
         {
+            // Try to identify the building type
             Wall wall = hit.collider.GetComponent<Wall>();
             if (wall == null) wall = hit.collider.GetComponentInParent<Wall>();
-
             if (wall != null)
             {
-                // Check cost: 5 wood
-                if (ResourceManager.Instance == null) return;
-
-                if (!ResourceManager.Instance.CanAfford(5, 0, 0))
-                {
-                    Debug.Log("BuildPlacement: Not enough wood to convert wall to gate! Need 5 Wood.");
-                    return;
-                }
-
-                ResourceManager.Instance.SpendResources(5, 0, 0);
-
-                // Play sound
-                if (AudioManager.Instance != null)
-                {
-                    AudioManager.Instance.PlayBuildingPlaced();
-                }
-
-                wall.UpgradeToGate();
-                Debug.Log("BuildPlacement: Wall converted to Gate!");
+                targetObj = wall.gameObject;
+                targetType = wall.isStoneWall ? BuildingType.StoneWall : BuildingType.WoodenWall;
+                targetName = wall.isStoneWall ? "Stone Wall" : "Wooden Wall";
             }
-            else
+
+            if (targetObj == null)
             {
-                Debug.Log("BuildPlacement: No wall under cursor to convert.");
+                Gate gate = hit.collider.GetComponent<Gate>();
+                if (gate == null) gate = hit.collider.GetComponentInParent<Gate>();
+                if (gate != null)
+                {
+                    targetObj = gate.gameObject;
+                    targetType = gate.isStoneGate ? BuildingType.StoneWall : BuildingType.WoodenWall;
+                    targetName = gate.isStoneGate ? "Stone Gate" : "Wooden Gate";
+                }
             }
+
+            if (targetObj == null)
+            {
+                Hut hut = hit.collider.GetComponent<Hut>();
+                if (hut == null) hut = hit.collider.GetComponentInParent<Hut>();
+                if (hut != null)
+                {
+                    targetObj = hut.gameObject;
+                    targetType = BuildingType.Hut;
+                    targetName = "Hut";
+                }
+            }
+
+            if (targetObj == null)
+            {
+                Watchtower tower = hit.collider.GetComponent<Watchtower>();
+                if (tower == null) tower = hit.collider.GetComponentInParent<Watchtower>();
+                if (tower != null)
+                {
+                    targetObj = tower.gameObject;
+                    targetType = BuildingType.Watchtower;
+                    targetName = "Watchtower";
+                }
+            }
+
+            if (targetObj == null)
+            {
+                ConstructionSite site = hit.collider.GetComponent<ConstructionSite>();
+                if (site == null) site = hit.collider.GetComponentInParent<ConstructionSite>();
+                if (site != null)
+                {
+                    targetObj = site.gameObject;
+                    targetType = site.buildingType;
+                    targetName = "Construction Site";
+                }
+            }
+
+            // Don't allow demolishing the campfire
+            if (targetObj == null || targetType == null)
+            {
+                BaseBuilding bb = hit.collider.GetComponent<BaseBuilding>();
+                if (bb == null) bb = hit.collider.GetComponentInParent<BaseBuilding>();
+                if (bb != null)
+                {
+                    targetObj = null; // Block campfire demolish
+                }
+            }
+        }
+
+        // Update highlight
+        UpdateDemolishHighlight(targetObj);
+
+        // Left click: demolish
+        if (Input.GetMouseButtonDown(0) && targetObj != null && targetType.HasValue)
+        {
+            DemolishBuilding(targetObj, targetType.Value, targetName);
+        }
+    }
+
+    void UpdateDemolishHighlight(GameObject target)
+    {
+        if (target == null)
+        {
+            if (demolishHighlight != null)
+            {
+                Destroy(demolishHighlight);
+                demolishHighlight = null;
+            }
+            return;
+        }
+
+        // Create or reposition highlight
+        if (demolishHighlight == null)
+        {
+            demolishHighlight = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            demolishHighlight.name = "DemolishHighlight";
+            Destroy(demolishHighlight.GetComponent<Collider>());
+            MeshRenderer mr = demolishHighlight.GetComponent<MeshRenderer>();
+            mr.material = new Material(Shader.Find("Sprites/Default"));
+            mr.material.color = demolishColor;
+        }
+
+        // Scale highlight to match target bounds
+        Renderer targetRenderer = target.GetComponentInChildren<Renderer>();
+        if (targetRenderer != null)
+        {
+            Bounds bounds = targetRenderer.bounds;
+            demolishHighlight.transform.position = bounds.center;
+            demolishHighlight.transform.localScale = bounds.size + Vector3.one * 0.2f;
+        }
+        else
+        {
+            demolishHighlight.transform.position = target.transform.position + Vector3.up;
+            demolishHighlight.transform.localScale = new Vector3(1.2f, 2.2f, 1.2f);
+        }
+    }
+
+    void DemolishBuilding(GameObject buildingObj, BuildingType type, string name)
+    {
+        if (ResourceManager.Instance == null || BuildingDatabase.Instance == null) return;
+
+        // Get building data for refund calculation
+        BuildingData data = BuildingDatabase.Instance.GetBuildingData(type);
+        if (data != null)
+        {
+            // 50% refund
+            int woodRefund = Mathf.FloorToInt(data.woodCost * 0.5f);
+            int foodRefund = Mathf.FloorToInt(data.foodCost * 0.5f);
+            int stoneRefund = Mathf.FloorToInt(data.stoneCost * 0.5f);
+
+            if (woodRefund > 0) ResourceManager.Instance.AddWood(woodRefund);
+            if (foodRefund > 0) ResourceManager.Instance.AddFood(foodRefund);
+            if (stoneRefund > 0) ResourceManager.Instance.AddStone(stoneRefund);
+
+            Debug.Log($"BuildPlacement: Demolished {name}! Refunded {woodRefund}W {foodRefund}F {stoneRefund}S");
+        }
+
+        // Play sound
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlayBuildingPlaced();
+        }
+
+        // Destroy the building (OnDestroy handlers in Wall/Gate/Hut handle grid unregistration)
+        Destroy(buildingObj);
+
+        // Clear highlight
+        if (demolishHighlight != null)
+        {
+            Destroy(demolishHighlight);
+            demolishHighlight = null;
         }
     }
 

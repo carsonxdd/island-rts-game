@@ -55,6 +55,8 @@ Think *Age of Empires* meets *Don't Starve* with a shipwreck survival twist, evo
 - [Phase 6.16 - Old State Machine Removal & Shared Utility Extraction](#phase-616-complete----old-state-machine-removal--shared-utility-extraction)
 - [Phase 6.17 - AI Tuning, Building HP Display, Audio & Enemy Targeting](#phase-617-complete----ai-tuning-building-hp-display-audio--enemy-targeting)
 - [Phase 6.18 - Worker Flee System Overhaul](#phase-618-complete----worker-flee-system-overhaul)
+- [Phase 6.19 - Gate Conversion Fix, Demolish System & Camera Shake Fix](#phase-619-complete----gate-conversion-fix-demolish-system--camera-shake-fix)
+- [Phase 6.20 - Warrior Heal at Campfire & Retreat Fix](#phase-620-complete----warrior-heal-at-campfire--retreat-fix)
 
 ### Technical Documentation
 - [🔧 Technical Architecture](#-technical-architecture)
@@ -1131,8 +1133,81 @@ Changed Gather's ThreatNearby from `(5f, InverseLinear(0.8, 0.2))` to `(1f, Inve
 | `FleeToHutExecutor.cs` | Complete rewrite: dynamic flee-from-enemies with directional NavMesh sampling, hut preference, 0.5s recalc |
 | `Worker.cs` | Flee: removed TimeOfDay gate, EnemyPresence(20u) + ThreatNearby(1, Logistic) + HealthPercent(0.7 floor), basePriority 1.2. Gather: ThreatNearby hard-suppression (1 enemy → 0) |
 
+### Phase 6.19 Complete! -- Gate Conversion Fix, Demolish System & Camera Shake Fix
+**Reliable Gate Conversion, Building Deletion with Refund, Stutter-Free Camera Shake - FINISHED**
+
+Three quality-of-life improvements to building placement and camera feel:
+
+**Fix 1: Gate Conversion Now Uses Grid Detection**
+The wall-to-gate conversion (G key) used a physics raycast against the wall's thin procedural mesh — easy to miss depending on camera angle or which side of the wall the cursor was on. Players had to click a specific side of the wall for it to register.
+
+Fix: Replaced raycast with **WallGrid lookup**. Now uses the grid-snapped mouse position to find the wall via `WallGrid.GetWallAt()` — O(1) dictionary lookup that works regardless of camera angle. Also validates the target is a Wall (not already a Gate or ConstructionSite) with clear feedback messages.
+
+**Fix 2: Building Demolish System (Delete/X Key)**
+New demolish mode for removing unwanted buildings with partial resource recovery:
+- Press **Delete** or **X** to enter demolish mode (works outside build mode)
+- Hover over any building to see a **red highlight** showing what will be demolished
+- Left-click to destroy with **50% resource refund**
+- Works on: Walls, Gates, Huts, Watchtowers, Construction Sites
+- **Campfire is protected** — cannot be demolished
+- Press Delete/X, Escape, or right-click to exit
+- Existing `OnDestroy` handlers handle WallGrid unregistration automatically
+
+**Fix 3: Camera Shake No Longer Causes Stutter During WASD Movement**
+Screen shake during combat caused visible stuttering when the player was panning the camera with WASD. Root cause: the shake system captured `originalPosition` at shake start and overwrote `transform.localPosition` back to it every LateUpdate — undoing the WASD movement from that frame's Update(), causing the camera to snap back and forth.
+
+Fix: Rewrote CameraShake to use a **pure offset approach**:
+- Each LateUpdate, undo last frame's offset, then apply a new one
+- Never stores or restores a "home" position — works additively with whatever position CameraController sets
+- Shake decays linearly and cleans up with zero residual offset
+- Camera panning is now perfectly smooth during combat shake
+
+**Modified Files (2):**
+| File | Changes |
+|------|---------|
+| `BuildPlacement.cs` | Grid-based gate conversion via WallGrid lookup; demolish mode with Delete/X key, red highlight, 50% refund |
+| `CameraShake.cs` | Complete rewrite: pure offset approach (undo-then-apply), no stored originalPosition, stutter-free with WASD movement |
+
+### Phase 6.20 Complete! -- Warrior Heal at Campfire & Retreat Fix
+**Warriors Regenerate HP at Campfire Between Waves - FINISHED**
+
+Warriors had no way to recover health between combat waves, and the Retreat action got stuck permanently due to scoring issues.
+
+**Feature: Heal at Campfire Action**
+New warrior behavior: after all enemies are killed, wounded warriors walk to the campfire and regenerate health at **5 HP/sec**. A 75 HP warrior heals from near-death to full in ~15 seconds.
+
+Scoring design:
+- **EnemyPresence inverted** — scores 1.0 when no enemies alive, 0 when any enemy exists. Warriors never break off combat to heal.
+- **HealthPercent with inverted logistic curve (slope=-20, center=0.95)** — any meaningful damage (below ~95% HP) triggers healing. At 80% HP scores 0.76, easily beating Patrol's 0.3.
+- **Auto-exits at full HP** — executor calls `ForceReeval()` when health reaches 100%, Patrol takes over cleanly (Patrol 0.3 > Heal 0.22 at full HP, passes commitment threshold).
+
+Display: green "Healing..." text while regenerating, "Moving to Campfire" while walking there.
+
+**Fix: Retreat No Longer Gets Stuck**
+Two issues caused warriors to stay in Retreat forever after enemies died:
+1. **ThreatNearby had yShift 0.1** — even with 0 enemies nearby, Retreat scored a non-zero floor that momentum kept alive. Changed yShift to **0** so Retreat cleanly early-outs to 0 when enemies are gone.
+2. **momentumBonus was 0.25** (highest of all warrior actions) — made Retreat too sticky. Reduced to **0.15**.
+
+**Transition Flow:**
+| State | Enemies | HP | Winner |
+|-------|---------|-----|--------|
+| Combat | alive | 20% | Retreat (runs to base) |
+| Wave cleared | dead | 20% | Heal (walks to campfire, regens) |
+| Healing | dead | 80% | Heal (still regenerating) |
+| Fully healed | dead | 100% | Patrol (resumes wall patrol) |
+
+**New Files (1):**
+| File | Changes |
+|------|---------|
+| `HealAtCampfireExecutor.cs` | New executor: walk to campfire, regen 5 HP/sec, ForceReeval at full HP, stoppingDistance management |
+
+**Modified Files (1):**
+| File | Changes |
+|------|---------|
+| `Warrior.cs` | Added Heal action with inverted logistic HealthPercent curve; Retreat ThreatNearby yShift 0→0, momentum 0.25→0.15; green "Healing..." state text color |
+
 ### Next Up:
-**Phase 6.19 - Building Progression** (Future)
+**Phase 6.21 - Building Progression** (Future)
 - Building upgrades (campfire → fortress)
 - Advanced buildings (storage, workshop)
 - Tool upgrade system

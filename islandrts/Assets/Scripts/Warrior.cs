@@ -170,12 +170,27 @@ public class Warrior : MonoBehaviour
                 new EnemyPresence(0f, ResponseCurve.InverseLinear(0.8f, 0.2f))
             }, new PatrolExecutor(), basePriority: 0.3f, momentumBonus: 0.1f),
 
-            // Retreat — low health, outnumbered, fall back to base
+            // Retreat — low health + enemies nearby, fall back to base
+            // ThreatNearby yShift=0 so Retreat zeroes out when enemies are gone
             new ActionOption("Retreat", new Consideration[]
             {
                 new HealthPercent(ResponseCurve.InverseLinear(1.5f, -0.2f)),
-                new ThreatNearby(2f, ResponseCurve.Linear(0.8f, 0.1f))
-            }, new RetreatExecutor(), basePriority: 0.7f, momentumBonus: 0.25f)
+                new ThreatNearby(2f, ResponseCurve.Linear(0.8f, 0f))  // 0 enemies = 0 score, clean exit
+            }, new RetreatExecutor(), basePriority: 0.7f, momentumBonus: 0.15f),
+
+            // Heal at Campfire — any damage + no enemies alive, regen 5 HP/sec at campfire
+            // EnemyPresence inverted: 1.0 when no enemies, 0 when enemies exist
+            // HealthPercent: Logistic curve centered at 0.95 — sharp step near full HP
+            //   100% HP → logistic(20, 0.95) at 1.0 = 1/(1+e^(-20*0.05)) ≈ 0.73 → inverted ~0.27 → score 0.22
+            //     BUT full HP exits via ForceReeval in executor, so this is fine
+            //   95% HP → 0.5 → inverted 0.5 → score 0.40 (beats Patrol 0.3)
+            //   80% HP → ~0.05 → inverted 0.95 → score 0.76 (strong heal)
+            //   Full HP auto-exits via ForceReeval in executor
+            new ActionOption("Heal", new Consideration[]
+            {
+                new EnemyPresence(0f, ResponseCurve.InverseLinear(1f, 0f)),   // No enemies = 1.0, any enemies = 0
+                new HealthPercent(ResponseCurve.Logistic(-20f, 0.95f))        // Inverted logistic: <95% → high, full → low
+            }, new HealAtCampfireExecutor(), basePriority: 0.8f, momentumBonus: 0.1f)
         };
 
         bb.brain = aiBrain;
@@ -270,6 +285,8 @@ public class Warrior : MonoBehaviour
             color = new Color(1f, 0.6f, 0f);  // Orange for intercept/rally
         else if (displayName.Contains("Retreating"))
             color = new Color(1f, 0.4f, 0.4f);
+        else if (displayName.Contains("Healing"))
+            color = new Color(0.4f, 1f, 0.4f);  // Green for healing
         else if (displayName.Contains("Patrolling"))
             color = Color.cyan;
         else
