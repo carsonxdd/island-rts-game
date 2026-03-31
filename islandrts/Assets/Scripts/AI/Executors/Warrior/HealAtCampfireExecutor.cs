@@ -10,8 +10,8 @@ public class HealAtCampfireExecutor : ActionExecutor
     public override string DisplayName => isHealing ? "Healing..." : "Moving to Campfire";
 
     private const float HealRate = 5f;         // HP per second
-    private const float HealRange = 5f;        // Distance to campfire to start healing
-    private const float StoppingDistance = 2f;  // NavMesh stopping distance near campfire
+    private const float HealRange = 3f;        // Must be close to campfire to heal
+    private const float StoppingDistance = 1.5f; // NavMesh stopping distance near campfire
 
     private bool isHealing = false;
     private bool destinationSet = false;
@@ -43,6 +43,7 @@ public class HealAtCampfireExecutor : ActionExecutor
     public override void OnUpdate(AIBlackboard bb)
     {
         if (bb.baseBuilding == null || bb.health == null) return;
+        if (!bb.agent.isOnNavMesh || !bb.agent.enabled) return;
 
         float distToCampfire = Vector3.Distance(bb.transform.position, bb.baseBuilding.transform.position);
 
@@ -67,12 +68,17 @@ public class HealAtCampfireExecutor : ActionExecutor
         }
         else
         {
-            // Still walking to campfire
+            // Still walking to campfire — ensure agent is moving
             isHealing = false;
+            bb.agent.isStopped = false;
 
-            if (!destinationSet && bb.agent.isOnNavMesh && bb.agent.enabled)
+            // Retry destination if agent has no path or stopped moving
+            bool needsPath = !destinationSet
+                || !bb.agent.hasPath
+                || bb.agent.velocity.sqrMagnitude < 0.01f;
+
+            if (needsPath)
             {
-                bb.agent.isStopped = false;
                 bb.agent.SetDestination(bb.baseBuilding.transform.position);
                 destinationSet = true;
             }

@@ -180,17 +180,17 @@ public class Warrior : MonoBehaviour
 
             // Heal at Campfire — any damage + no enemies alive, regen 5 HP/sec at campfire
             // EnemyPresence inverted: 1.0 when no enemies, 0 when enemies exist
-            // HealthPercent: Logistic curve centered at 0.95 — sharp step near full HP
-            //   100% HP → logistic(20, 0.95) at 1.0 = 1/(1+e^(-20*0.05)) ≈ 0.73 → inverted ~0.27 → score 0.22
-            //     BUT full HP exits via ForceReeval in executor, so this is fine
-            //   95% HP → 0.5 → inverted 0.5 → score 0.40 (beats Patrol 0.3)
-            //   80% HP → ~0.05 → inverted 0.95 → score 0.76 (strong heal)
-            //   Full HP auto-exits via ForceReeval in executor
+            // HealthPercent InverseLinear(2.0, 0.0):
+            //   100% HP → 0.0 → early-out, exits immediately (no momentum to fight)
+            //   90% HP → 0.2 → Heal = 0.9 * 0.2 = 0.18 (borderline vs Patrol 0.3)
+            //   80% HP → 0.4 → Heal = 0.9 * 0.4 = 0.36 (beats Patrol 0.3)
+            //   50% HP → 1.0 → Heal = 0.9 * 1.0 = 0.9 (strong heal)
+            // Zero momentum ensures clean exit at full HP — no stickiness
             new ActionOption("Heal", new Consideration[]
             {
                 new EnemyPresence(0f, ResponseCurve.InverseLinear(1f, 0f)),   // No enemies = 1.0, any enemies = 0
-                new HealthPercent(ResponseCurve.Logistic(-20f, 0.95f))        // Inverted logistic: <95% → high, full → low
-            }, new HealAtCampfireExecutor(), basePriority: 0.8f, momentumBonus: 0.1f)
+                new HealthPercent(ResponseCurve.InverseLinear(2f, 0f))        // 100%→0 (exits), 80%→0.4, 50%→1.0
+            }, new HealAtCampfireExecutor(), basePriority: 0.9f, momentumBonus: 0f)
         };
 
         bb.brain = aiBrain;
