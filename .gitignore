@@ -71,6 +71,19 @@ crashlytics-build.properties
 [Aa]ssets/[Ss]treamingAssets/aa.meta
 [Aa]ssets/[Ss]treamingAssets/aa/*
 
+# Plastic SCM workspace metadata (contains personal email)
+.plastic/
+
+# IDE / editor local config
+.vscode/
+.idea/
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Stray Windows nul redirect artifact
+nul
+
 # OS generated files
 .DS_Store
 .DS_Store?
