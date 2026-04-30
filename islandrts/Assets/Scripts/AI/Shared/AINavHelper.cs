@@ -7,9 +7,10 @@ using UnityEngine.AI;
 /// </summary>
 public static class AINavHelper
 {
-    // SetDestination throttle — max 12 per frame across all units (increased for combat with many enemies)
+    // SetDestination throttle — max 20 per frame across all units (Phase 6.21: bumped from 12 to handle mass retarget events when multiple enemies finish a hut simultaneously)
     private static int setDestFrame = -1;
     private static int setDestCount = 0;
+    private const int SetDestPerFrameLimit = 20;
 
     // CalculatePath throttle — max 2 per frame across all units
     private static int calcPathFrame = -1;
@@ -25,8 +26,11 @@ public static class AINavHelper
     }
 
     /// <summary>
-    /// Throttled SetDestination. Returns true if the call was allowed.
-    /// Max 12 calls per frame across all units.
+    /// Throttled SetDestination. Returns Unity's actual SetDestination result
+    /// (false if throttled OR if Unity rejected the destination — e.g. unmappable
+    /// during NavMesh recalc). Callers must respect false and retry next frame
+    /// rather than assuming the destination was queued.
+    /// Max 20 calls per frame across all units.
     /// </summary>
     public static bool TrySetDestination(NavMeshAgent agent, Vector3 destination)
     {
@@ -37,10 +41,13 @@ public static class AINavHelper
             setDestFrame = Time.frameCount;
             setDestCount = 0;
         }
-        if (setDestCount >= 12) return false;
+        if (setDestCount >= SetDestPerFrameLimit) return false;
         setDestCount++;
-        agent.SetDestination(destination);
-        return true;
+        // Propagate Unity's actual result: SetDestination returns false if the
+        // destination can't be mapped onto the NavMesh (e.g. the NavMesh is
+        // mid-recalc after a carving obstacle was just disabled). Callers need
+        // to know so they can retry next frame instead of pretending success.
+        return agent.SetDestination(destination);
     }
 
     /// <summary>

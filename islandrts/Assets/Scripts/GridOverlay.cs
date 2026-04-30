@@ -96,7 +96,6 @@ public class GridOverlay : MonoBehaviour
         // If show is false, don't create new lines
         if (!show)
         {
-            Debug.Log("GridOverlay: Grid hidden (cleared all lines)");
             return;
         }
 
@@ -113,8 +112,6 @@ public class GridOverlay : MonoBehaviour
         for (int j = -halfExtent; j <= halfExtent; j++)
             CreateLine(new Vector3(-halfExtent*cellSize, 0f, j*cellSize),
                        new Vector3( halfExtent*cellSize, 0f, j*cellSize));
-
-        Debug.Log($"GridOverlay: Grid shown (created {lines.Count} lines)");
 
         void CreateLine(Vector3 a, Vector3 b)
         {

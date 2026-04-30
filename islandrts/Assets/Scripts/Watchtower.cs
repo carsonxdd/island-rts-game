@@ -48,10 +48,7 @@ public class Watchtower : MonoBehaviour
         if (obstacle != null)
         {
             obstacle.carving = false;  // Enemies can surround it from all sides
-            Debug.Log("Watchtower: NavMeshObstacle carving disabled for combat");
         }
-
-        Debug.Log($"Watchtower: Initialized with {maxHealth} HP and {detectionRadius}m detection radius at {transform.position}");
     }
 
     /// <summary>
@@ -80,8 +77,6 @@ public class Watchtower : MonoBehaviour
 
     void OnWatchtowerDestroyed()
     {
-        Debug.Log($"Watchtower: Destroyed at {transform.position}");
-
         // Play destruction sound if AudioManager exists
         if (AudioManager.Instance != null)
         {

@@ -148,8 +148,6 @@ Better luck next time!";
 
     void OnContinueClicked()
     {
-        Debug.Log("VictoryDefeatUI: Continue button clicked");
-
         if (GameManager.Instance != null)
         {
             GameManager.Instance.ContinuePlaying();
@@ -158,8 +156,6 @@ Better luck next time!";
 
     void OnRestartClicked()
     {
-        Debug.Log("VictoryDefeatUI: Restart button clicked");
-
         if (GameManager.Instance != null)
         {
             GameManager.Instance.RestartGame();
@@ -168,8 +164,6 @@ Better luck next time!";
 
     void OnQuitClicked()
     {
-        Debug.Log("VictoryDefeatUI: Quit button clicked");
-
         if (GameManager.Instance != null)
         {
             GameManager.Instance.QuitGame();

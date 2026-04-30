@@ -63,8 +63,6 @@ public class Gate : MonoBehaviour
         gridPos = WallGrid.Instance.WorldToGrid(transform.position);
         WallGrid.Instance.Register(gridPos, this);
         registered = true;
-
-        Debug.Log($"Gate: Initialized {(isStoneGate ? "Stone" : "Wooden")} Gate with {maxHealth} HP at {transform.position}");
     }
 
     void SetupTriggerCollider()
@@ -96,9 +94,16 @@ public class Gate : MonoBehaviour
     void OnGateDestroyed()
     {
         UnregisterFromGrid();
+
+        // Immediately disable trigger + any residual colliders so enemies walking
+        // over the dying gate during its 0.5s fade-out aren't re-forced onto it
+        // by OnTriggerEnter, and can retarget freely. (Gates have no
+        // NavMeshObstacle — removed in Start — so only colliders to clear.)
+        Collider[] cols = GetComponentsInChildren<Collider>();
+        for (int i = 0; i < cols.Length; i++) cols[i].enabled = false;
+
         // Notify all enemies that a gate was destroyed (breach detection)
         OnAnyGateDestroyed?.Invoke();
-        Debug.Log($"Gate: Destroyed at {transform.position}");
     }
 
     void OnDestroy()

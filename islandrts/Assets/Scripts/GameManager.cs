@@ -190,14 +190,12 @@ public class GameManager : MonoBehaviour
     {
         // Update defeat screen with statistics
         // This will be connected to UI elements in the defeat screen
-        Debug.Log($"Defeat Stats: Survived {currentNight} nights");
     }
 
     void UpdateVictoryStats()
     {
         // Update victory screen with statistics
         // This will be connected to UI elements in the victory screen
-        Debug.Log($"Victory Stats: Survived {nightsToSurvive} nights! Max workers: {maxWorkers}, Max warriors: {maxWarriors}");
     }
 
     /// <summary>
@@ -205,8 +203,6 @@ public class GameManager : MonoBehaviour
     /// </summary>
     public void RestartGame()
     {
-        Debug.Log("GameManager: Restarting game...");
-
         // Unpause the game
         Time.timeScale = 1f;
 
@@ -219,8 +215,6 @@ public class GameManager : MonoBehaviour
     /// </summary>
     public void QuitGame()
     {
-        Debug.Log("GameManager: Quitting game...");
-
         // Unpause the game
         Time.timeScale = 1f;
 
@@ -238,8 +232,6 @@ public class GameManager : MonoBehaviour
     /// </summary>
     public void ContinuePlaying()
     {
-        Debug.Log("GameManager: Continuing in sandbox mode...");
-
         // Unpause the game
         Time.timeScale = 1f;
 

@@ -67,8 +67,6 @@ public class Warrior : MonoBehaviour
         agent.avoidancePriority = Random.Range(30, 70);  // Randomized priority to prevent synchronized yielding
         agent.updateRotation = true;  // Smooth rotation
 
-        Debug.Log($"Warrior: NavMeshAgent configured - Speed: {agent.speed}, Accel: {agent.acceleration}");
-
         // Setup Health component
         healthComponent = GetComponent<Health>();
         if (healthComponent == null)
@@ -92,8 +90,6 @@ public class Warrior : MonoBehaviour
 
         // Setup 3D spatial audio for combat sounds
         SetupCombatAudioSource();
-
-        Debug.Log($"Warrior: Spawned with {maxHealth} health at {transform.position}");
 
         // Stagger initial AI start so not all warriors path at the same time
         float startDelay = Random.Range(0.5f, 2f);
@@ -226,8 +222,6 @@ public class Warrior : MonoBehaviour
 
     void Die()
     {
-        Debug.Log("Warrior: Defeated!");
-
         // Fire static death event for nearby allies to react
         OnAnyWarriorDied?.Invoke(transform.position);
 

@@ -9,12 +9,6 @@ public class NavMeshTest : MonoBehaviour
     void Start()
     {
         agent = GetComponent<NavMeshAgent>();
-
-        if (agent != null)
-        {
-            // Walk to a random position on click
-            Debug.Log("NavMeshTest: Click anywhere on the ground to make worker walk there!");
-        }
     }
 
     void Update()
@@ -27,7 +21,6 @@ public class NavMeshTest : MonoBehaviour
             if (Physics.Raycast(ray, out hit))
             {
                 agent.SetDestination(hit.point);
-                Debug.Log($"NavMeshTest: Walking to {hit.point}");
             }
         }
     }

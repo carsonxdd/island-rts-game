@@ -38,7 +38,6 @@ public class AIDebugOverlay : MonoBehaviour
         if (instance != null) return;
         var go = new GameObject("[AIDebugOverlay]");
         instance = go.AddComponent<AIDebugOverlay>();
-        DontDestroyOnLoad(go);
     }
 
     void Awake()

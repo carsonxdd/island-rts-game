@@ -195,8 +195,6 @@ public class WorkerAssignmentUI : MonoBehaviour
     /// </summary>
     void OnPlusClicked(ResourceNode.ResourceType resourceType)
     {
-        Debug.Log($"WorkerAssignmentUI: + button clicked for {resourceType}!");
-
         if (baseBuilding == null)
         {
             Debug.LogError("WorkerAssignmentUI: No baseBuilding reference!");
@@ -205,7 +203,6 @@ public class WorkerAssignmentUI : MonoBehaviour
 
         // Add worker through BaseBuilding (it will check housing capacity internally)
         baseBuilding.AssignWorker(resourceType);
-        Debug.Log($"WorkerAssignmentUI: Worker assigned! New count: {baseBuilding.GetTotalWorkers()}");
 
         // Play worker assigned sound
         if (AudioManager.Instance != null)
@@ -223,8 +220,6 @@ public class WorkerAssignmentUI : MonoBehaviour
     /// </summary>
     void OnMinusClicked(ResourceNode.ResourceType resourceType)
     {
-        Debug.Log($"WorkerAssignmentUI: - button clicked for {resourceType}!");
-
         if (baseBuilding == null)
         {
             Debug.LogError("WorkerAssignmentUI: No baseBuilding reference!");
@@ -233,7 +228,6 @@ public class WorkerAssignmentUI : MonoBehaviour
 
         // Remove worker through BaseBuilding
         baseBuilding.UnassignWorker(resourceType);
-        Debug.Log($"WorkerAssignmentUI: Worker removed! New count: {baseBuilding.GetTotalWorkers()}");
 
         // Play button click sound
         if (AudioManager.Instance != null)
@@ -251,8 +245,6 @@ public class WorkerAssignmentUI : MonoBehaviour
     /// </summary>
     void OnWarriorPlusClicked()
     {
-        Debug.Log("WorkerAssignmentUI: Warrior + button clicked!");
-
         if (baseBuilding == null)
         {
             Debug.LogError("WorkerAssignmentUI: No baseBuilding reference!");
@@ -262,7 +254,6 @@ public class WorkerAssignmentUI : MonoBehaviour
         // Check if at max warriors
         if (baseBuilding.GetWarriorCount() >= baseBuilding.maxWarriors)
         {
-            Debug.Log("WorkerAssignmentUI: Cannot recruit more warriors - at maximum!");
             return;
         }
 
@@ -270,13 +261,11 @@ public class WorkerAssignmentUI : MonoBehaviour
         if (ResourceManager.Instance.wood < baseBuilding.warriorCost_Wood ||
             ResourceManager.Instance.food < baseBuilding.warriorCost_Food)
         {
-            Debug.Log($"WorkerAssignmentUI: Not enough resources! Need {baseBuilding.warriorCost_Wood} wood and {baseBuilding.warriorCost_Food} food");
             return;
         }
 
         // Spawn warrior through BaseBuilding
         baseBuilding.SpawnWarrior();
-        Debug.Log($"WorkerAssignmentUI: Warrior recruited! Total: {baseBuilding.GetWarriorCount()}");
 
         // Play button click sound
         if (AudioManager.Instance != null)
@@ -294,8 +283,6 @@ public class WorkerAssignmentUI : MonoBehaviour
     /// </summary>
     void OnWarriorMinusClicked()
     {
-        Debug.Log("WorkerAssignmentUI: Warrior - button clicked!");
-
         if (baseBuilding == null)
         {
             Debug.LogError("WorkerAssignmentUI: No baseBuilding reference!");
@@ -304,7 +291,6 @@ public class WorkerAssignmentUI : MonoBehaviour
 
         // Remove warrior through BaseBuilding
         baseBuilding.RemoveWarrior();
-        Debug.Log($"WorkerAssignmentUI: Warrior removed! Remaining: {baseBuilding.GetWarriorCount()}");
 
         // Play button click sound
         if (AudioManager.Instance != null)

@@ -112,8 +112,6 @@ public class HealthBar : MonoBehaviour
 
         // Remove collider
         Destroy(healthFillBar.GetComponent<Collider>());
-
-        Debug.Log($"HealthBar: Created for {gameObject.name}");
     }
 
     void UpdateHealthBar()

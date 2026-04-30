@@ -33,12 +33,6 @@ public class EnemySpawner : MonoBehaviour
         // Subscribe to day/night events
         DayNightCycle.OnNightStart += HandleNightStart;
         DayNightCycle.OnDayStart += HandleDayStart;
-        Debug.Log("EnemySpawner: Subscribed to day/night events");
-    }
-
-    void Start()
-    {
-        Debug.Log($"EnemySpawner: Initialized. Enemy prefab assigned: {enemyPrefab != null}");
     }
 
     void OnDisable()
@@ -51,7 +45,6 @@ public class EnemySpawner : MonoBehaviour
     void HandleNightStart()
     {
         currentNight++;
-        Debug.Log($"EnemySpawner: Night {currentNight} - Spawning enemies...");
 
         // Calculate how many enemies to spawn this night
         int enemiesToSpawn = CalculateEnemyCount();
@@ -62,7 +55,6 @@ public class EnemySpawner : MonoBehaviour
 
     void HandleDayStart()
     {
-        Debug.Log($"EnemySpawner: Day breaks - Despawning remaining enemies");
         CancelInvoke();  // Stop any pending spawns
         DespawnAllEnemies();
     }
@@ -119,8 +111,6 @@ public class EnemySpawner : MonoBehaviour
 
         // Track active enemies
         activeEnemies.Add(enemy);
-
-        Debug.Log($"EnemySpawner: Spawned enemy at {spawnPos}. Total active: {activeEnemies.Count}");
     }
 
     Vector3 GetRandomSpawnPosition()
@@ -152,22 +142,18 @@ public class EnemySpawner : MonoBehaviour
         }
 
         activeEnemies.Clear();
-        Debug.Log("EnemySpawner: All enemies despawning (staggered)");
     }
 
     // Called when an enemy is killed (for tracking)
     public void NotifyEnemyKilled(GameObject enemy)
     {
         activeEnemies.Remove(enemy);
-        Debug.Log($"EnemySpawner: Enemy killed. {activeEnemies.Count} enemies remaining");
 
         // Check if all enemies are dead
         for (int i = activeEnemies.Count - 1; i >= 0; i--)
             if (activeEnemies[i] == null) activeEnemies.RemoveAt(i);
         if (activeEnemies.Count == 0)
         {
-            Debug.Log("EnemySpawner: All enemies defeated! Returning to ambient sounds.");
-
             // Return to appropriate music based on time of day
             if (AudioManager.Instance != null)
             {

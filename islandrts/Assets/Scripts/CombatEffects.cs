@@ -36,9 +36,7 @@ public class CombatEffects : MonoBehaviour
         if (Instance == null)
         {
             Instance = this;
-            DontDestroyOnLoad(gameObject);
             cachedParticleMaterial = new Material(Shader.Find("Sprites/Default"));
-            Debug.Log("CombatEffects: Initialized");
         }
         else
         {

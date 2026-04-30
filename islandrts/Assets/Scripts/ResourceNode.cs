@@ -89,8 +89,6 @@ public class ResourceNode : MonoBehaviour
                 obstacle.height = 1.0f;
                 break;
         }
-
-        Debug.Log($"ResourceNode: NavMeshObstacle setup for {resourceType} - Radius: {obstacle.radius}, Carving: false (local avoidance only)");
     }
 
     void Update()
@@ -183,8 +181,6 @@ public class ResourceNode : MonoBehaviour
         // Destroy node if empty
         if (currentAmount <= 0.01f)  // Small threshold for floating point
         {
-            Debug.Log($"ResourceNode: {resourceType} depleted! Destroying...");
-
             // Notify the spawner so it can respawn this resource
             if (ResourceSpawner.Instance != null)
             {

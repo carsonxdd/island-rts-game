@@ -27,7 +27,6 @@ public class ResourceManager : MonoBehaviour
         }
 
         Instance = this;
-        DontDestroyOnLoad(gameObject);  // Persist across scene loads
 
         // Initialize resources
         wood = startingWood;
@@ -51,19 +50,16 @@ public class ResourceManager : MonoBehaviour
     public void AddWood(int amount)
     {
         wood += amount;
-        Debug.Log($"ResourceManager: +{amount} Wood. Total: {wood}");
     }
 
     public void AddFood(int amount)
     {
         food += amount;
-        Debug.Log($"ResourceManager: +{amount} Food. Total: {food}");
     }
 
     public void AddStone(int amount)
     {
         stone += amount;
-        Debug.Log($"ResourceManager: +{amount} Stone. Total: {stone}");
     }
 
     // Remove resources (returns true if successful, false if not enough)
@@ -72,12 +68,10 @@ public class ResourceManager : MonoBehaviour
         if (wood >= amount)
         {
             wood -= amount;
-            Debug.Log($"ResourceManager: -{amount} Wood. Remaining: {wood}");
             return true;
         }
         else
         {
-            Debug.Log($"ResourceManager: Not enough wood! Need {amount}, have {wood}");
             return false;
         }
     }
@@ -87,12 +81,10 @@ public class ResourceManager : MonoBehaviour
         if (food >= amount)
         {
             food -= amount;
-            Debug.Log($"ResourceManager: -{amount} Food. Remaining: {food}");
             return true;
         }
         else
         {
-            Debug.Log($"ResourceManager: Not enough food! Need {amount}, have {food}");
             return false;
         }
     }
@@ -102,12 +94,10 @@ public class ResourceManager : MonoBehaviour
         if (stone >= amount)
         {
             stone -= amount;
-            Debug.Log($"ResourceManager: -{amount} Stone. Remaining: {stone}");
             return true;
         }
         else
         {
-            Debug.Log($"ResourceManager: Not enough stone! Need {amount}, have {stone}");
             return false;
         }
     }
@@ -123,7 +113,6 @@ public class ResourceManager : MonoBehaviour
     {
         if (!CanAfford(woodCost, foodCost, stoneCost))
         {
-            Debug.Log($"ResourceManager: Cannot afford! Need W:{woodCost} F:{foodCost} S:{stoneCost}, Have W:{wood} F:{food} S:{stone}");
             return false;
         }
 
@@ -131,7 +120,6 @@ public class ResourceManager : MonoBehaviour
         food -= foodCost;
         stone -= stoneCost;
 
-        Debug.Log($"ResourceManager: Spent W:{woodCost} F:{foodCost} S:{stoneCost}. Remaining W:{wood} F:{food} S:{stone}");
         return true;
     }
 

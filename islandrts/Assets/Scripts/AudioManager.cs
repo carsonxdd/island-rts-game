@@ -68,10 +68,8 @@ public class AudioManager : MonoBehaviour
         if (Instance == null)
         {
             Instance = this;
-            DontDestroyOnLoad(gameObject);
             InitializeAudioSources();
             PreloadAllAudioClips();
-            Debug.Log("AudioManager: Initialized");
         }
         else
         {
@@ -111,7 +109,6 @@ public class AudioManager : MonoBehaviour
             }
         }
 
-        Debug.Log($"AudioManager: Preloaded {preloaded} audio clips into memory");
     }
 
     void Start()
@@ -130,13 +127,11 @@ public class AudioManager : MonoBehaviour
         {
             // Start with night audio
             PlayNightMusic();
-            Debug.Log("AudioManager: Starting with night audio");
         }
         else
         {
             // Start with day audio (default)
             PlayDayMusic();
-            Debug.Log("AudioManager: Starting with day audio");
         }
     }
 
@@ -312,7 +307,6 @@ public class AudioManager : MonoBehaviour
         {
             resourceSoundSource.clip = clipToPlay;
             resourceSoundSource.Play();
-            Debug.Log($"AudioManager: Started gathering sound for {resourceType}");
         }
         else if (clipToPlay != null && !resourceSoundSource.isPlaying)
         {
@@ -328,7 +322,6 @@ public class AudioManager : MonoBehaviour
         {
             resourceSoundSource.Stop();
             resourceSoundSource.clip = null;
-            Debug.Log("AudioManager: Stopped gathering sound");
         }
     }
 
@@ -394,8 +387,6 @@ public class AudioManager : MonoBehaviour
 
         // Play night ambient sounds
         PlayAmbientSounds(nightAmbientSounds);
-
-        Debug.Log("AudioManager: Night ambience only (no music)");
     }
 
     public void PlayCombatMusic()
@@ -408,12 +399,7 @@ public class AudioManager : MonoBehaviour
 
         if (currentMusic != combatMusic)
         {
-            Debug.Log("AudioManager: Starting combat music");
             FadeToMusic(combatMusic);
-        }
-        else
-        {
-            Debug.Log("AudioManager: Combat music already playing");
         }
     }
 
@@ -459,12 +445,7 @@ public class AudioManager : MonoBehaviour
 
         if (!isFadingMusic)
         {
-            Debug.Log($"AudioManager: Fading to music: {newClip.name}");
             StartCoroutine(CrossfadeMusic(newClip));
-        }
-        else
-        {
-            Debug.Log("AudioManager: Already fading music, queuing next clip");
         }
     }
 

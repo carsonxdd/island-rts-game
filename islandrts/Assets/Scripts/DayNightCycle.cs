@@ -45,11 +45,7 @@ public class DayNightCycle : MonoBehaviour
         if (sunLight == null)
         {
             sunLight = FindFirstObjectByType<Light>();
-            if (sunLight != null && sunLight.type == LightType.Directional)
-            {
-                Debug.Log("DayNightCycle: Found directional light for sun");
-            }
-            else
+            if (sunLight == null || sunLight.type != LightType.Directional)
             {
                 Debug.LogWarning("DayNightCycle: No directional light found! Assign sun light manually.");
             }
@@ -57,8 +53,6 @@ public class DayNightCycle : MonoBehaviour
 
         // Calculate time speed based on day/night lengths
         UpdateTimeSpeed();
-
-        Debug.Log($"DayNightCycle: Started! Day length: {dayLengthInSeconds}s, Night length: {nightLengthInSeconds}s");
     }
 
     void Update()
@@ -71,7 +65,6 @@ public class DayNightCycle : MonoBehaviour
         {
             currentTimeOfDay = 0f;
             currentDay++;
-            Debug.Log($"DayNightCycle: Day {currentDay} begins!");
         }
 
         // Update lighting based on time of day

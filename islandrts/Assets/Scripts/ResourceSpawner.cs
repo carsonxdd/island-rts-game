@@ -65,7 +65,6 @@ public class ResourceSpawner : MonoBehaviour
         if (campfire != null)
         {
             campfirePosition = campfire.transform.position;
-            Debug.Log($"ResourceSpawner: Found campfire at {campfirePosition}");
         }
         else
         {
@@ -78,8 +77,6 @@ public class ResourceSpawner : MonoBehaviour
 
     void SpawnAllResources()
     {
-        Debug.Log("ResourceSpawner: Starting resource spawn...");
-
         // Spawn trees in clusters (forests)
         SpawnTreeClusters();
 
@@ -91,8 +88,6 @@ public class ResourceSpawner : MonoBehaviour
 
         // Spawn rocks (scattered)
         SpawnResourceType(rockNodePrefab, rockNodeCount, "RockNode");
-
-        Debug.Log($"ResourceSpawner: Spawned {spawnedPositions.Count} total resource nodes!");
     }
 
     void SpawnTreeClusters()
@@ -156,10 +151,7 @@ public class ResourceSpawner : MonoBehaviour
                 }
             }
 
-            Debug.Log($"ResourceSpawner: Spawned forest cluster {cluster + 1} with {spawned} trees near {clusterCenter}");
         }
-
-        Debug.Log($"ResourceSpawner: Spawned {totalTreesSpawned} trees in {treeClusters} clusters");
     }
 
     void SpawnScatteredTrees()
@@ -219,8 +211,6 @@ public class ResourceSpawner : MonoBehaviour
             spawnedPositions.Add(randomPos);
             spawned++;
         }
-
-        Debug.Log($"ResourceSpawner: Spawned {spawned} scattered trees");
     }
 
     Vector3 FindClusterCenter()
@@ -330,10 +320,6 @@ public class ResourceSpawner : MonoBehaviour
         {
             Debug.LogWarning($"ResourceSpawner: Only spawned {spawned}/{count} {resourceName}s (ran out of valid positions)");
         }
-        else
-        {
-            Debug.Log($"ResourceSpawner: Spawned {spawned} {resourceName}s");
-        }
     }
 
     bool IsPositionValid(Vector3 position)
@@ -422,14 +408,11 @@ public class ResourceSpawner : MonoBehaviour
     {
         if (!enableRespawning)
         {
-            Debug.Log($"ResourceSpawner: {resourceType} depleted but respawning is disabled.");
             return;
         }
 
         // Remove the depleted position from tracking
         spawnedPositions.Remove(depletedPosition);
-
-        Debug.Log($"ResourceSpawner: {resourceType} depleted at {depletedPosition}. Scheduling respawn in {respawnDelay}s...");
 
         // Store the resource type for respawning the same type
         pendingRespawns.Enqueue(resourceType);
@@ -497,8 +480,6 @@ public class ResourceSpawner : MonoBehaviour
                 spawnedNode.transform.parent = transform;
 
                 spawnedPositions.Add(randomPos);
-
-                Debug.Log($"ResourceSpawner: Respawned {resourceName} at {randomPos}");
                 return;
             }
         }
@@ -533,8 +514,6 @@ public class ResourceSpawner : MonoBehaviour
                 spawnedNode.transform.parent = transform;
 
                 spawnedPositions.Add(treePos);
-
-                Debug.Log($"ResourceSpawner: Respawned {resourceName} near forest cluster at {treePos}");
                 return true;
             }
         }

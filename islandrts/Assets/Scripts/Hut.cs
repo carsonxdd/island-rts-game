@@ -5,6 +5,13 @@ public class Hut : MonoBehaviour
 {
     public static IReadOnlyList<Hut> ActiveList => ActiveRegistry<Hut>.List;
 
+    // Static event: fires when any hut dies. Enemies subscribe to ForceReeval
+    // so they retarget immediately instead of waiting ~0.25s for the next brain tick.
+    public static event System.Action OnAnyHutDestroyed;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetStatics() { OnAnyHutDestroyed = null; }
+
     void Awake() { ActiveRegistry<Hut>.Register(this); }
 
     [Header("Health")]
@@ -41,22 +48,28 @@ public class Hut : MonoBehaviour
         {
             obstacle.carving = true;  // Carve NavMesh so agents path around
             obstacle.carveOnlyStationary = true;  // Only carve when not moving (performance)
-            Debug.Log($"Hut: NavMeshObstacle carving enabled for pathfinding");
         }
 
         // Register housing capacity with PopulationManager
         if (PopulationManager.Instance != null)
         {
             PopulationManager.Instance.AddHousing(workerCapacity);
-            Debug.Log($"Hut: Registered {workerCapacity} housing slots");
         }
-
-        Debug.Log($"Hut: Initialized at {transform.position} with {maxHealth} HP and no-build radius {noBuildRadius}");
     }
 
     void OnHutDestroyed()
     {
-        Debug.Log($"Hut: {gameObject.name} has been destroyed!");
+        // Immediately release the NavMesh carve and disable colliders so stacked
+        // enemies can path out during the 1s fade-out instead of being trapped
+        // inside the corpse's carved footprint. Fixes 3-4s retarget freeze.
+        UnityEngine.AI.NavMeshObstacle obstacle = GetComponent<UnityEngine.AI.NavMeshObstacle>();
+        if (obstacle != null) obstacle.enabled = false;
+        Collider[] cols = GetComponentsInChildren<Collider>();
+        for (int i = 0; i < cols.Length; i++) cols[i].enabled = false;
+
+        // Notify enemies so they retarget instantly (destroyDelay keeps this object
+        // in ActiveList for ~1s, but FindNearestBuilding already filters by IsAlive).
+        OnAnyHutDestroyed?.Invoke();
 
         // Remove housing capacity from PopulationManager
         if (PopulationManager.Instance != null)

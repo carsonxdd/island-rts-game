@@ -372,6 +372,10 @@ public class Worker : MonoBehaviour
     {
         ActiveRegistry<Worker>.Unregister(this);
 
+        // Decrement population count so dead workers don't bloat the housing tally
+        if (PopulationManager.Instance != null)
+            PopulationManager.Instance.RemoveWorker();
+
         // Unsubscribe from static events to prevent memory leaks
         Warrior.OnAnyWarriorDied -= OnAllyDiedUtilityAI;
         Enemy.OnAnyEnemyDied -= OnEnemyDiedUtilityAI;

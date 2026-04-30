@@ -64,6 +64,15 @@ public class Wall : MonoBehaviour
     void OnWallDestroyed()
     {
         UnregisterFromGrid();
+
+        // Immediately release the NavMesh carve and disable colliders so stacked
+        // enemies can path through the breach during the 0.5s fade-out instead of
+        // being wedged against the corpse. Fixes retarget freeze on wall death.
+        NavMeshObstacle obstacle = GetComponent<NavMeshObstacle>();
+        if (obstacle != null) obstacle.enabled = false;
+        Collider[] cols = GetComponentsInChildren<Collider>();
+        for (int i = 0; i < cols.Length; i++) cols[i].enabled = false;
+
         // Notify all enemies that a wall was destroyed (breach detection)
         OnAnyWallDestroyed?.Invoke();
     }
@@ -123,8 +132,6 @@ public class Wall : MonoBehaviour
         // Gate.Start() initializes health, so we need to apply ratio after
         Gate gateComponent = gateObj.GetComponent<Gate>();
         gateComponent.StartCoroutine(ApplyHealthRatioNextFrame(gateObj, healthRatio));
-
-        Debug.Log($"Wall: Upgraded to {(stone ? "Stone" : "Wooden")} Gate at {pos}");
 
         // Destroy original wall
         Destroy(gameObject);

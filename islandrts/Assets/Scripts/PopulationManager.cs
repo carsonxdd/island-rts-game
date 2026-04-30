@@ -26,10 +26,6 @@ public class PopulationManager : MonoBehaviour
         }
 
         Instance = this;
-        DontDestroyOnLoad(gameObject);
-
-        if (showDebugLogs)
-            Debug.Log("PopulationManager: Initialized!");
     }
 
     void Start()
@@ -67,9 +63,6 @@ public class PopulationManager : MonoBehaviour
         }
 
         housingCapacity = totalCapacity;
-
-        if (showDebugLogs)
-            Debug.Log($"PopulationManager: Recalculated housing capacity = {housingCapacity}");
     }
 
     /// <summary>
@@ -79,9 +72,6 @@ public class PopulationManager : MonoBehaviour
     public void AddHousing(int capacity)
     {
         housingCapacity += capacity;
-
-        if (showDebugLogs)
-            Debug.Log($"PopulationManager: Added {capacity} housing. Total capacity: {housingCapacity}");
     }
 
     /// <summary>
@@ -91,9 +81,6 @@ public class PopulationManager : MonoBehaviour
     public void RemoveHousing(int capacity)
     {
         housingCapacity -= capacity;
-
-        if (showDebugLogs)
-            Debug.Log($"PopulationManager: Removed {capacity} housing. Total capacity: {housingCapacity}");
     }
 
     /// <summary>
@@ -118,9 +105,6 @@ public class PopulationManager : MonoBehaviour
     public void AddWorker()
     {
         currentWorkers++;
-
-        if (showDebugLogs)
-            Debug.Log($"PopulationManager: Worker added. {currentWorkers}/{housingCapacity}");
     }
 
     /// <summary>
@@ -129,9 +113,6 @@ public class PopulationManager : MonoBehaviour
     public void RemoveWorker()
     {
         currentWorkers--;
-
-        if (showDebugLogs)
-            Debug.Log($"PopulationManager: Worker removed. {currentWorkers}/{housingCapacity}");
     }
 
     /// <summary>

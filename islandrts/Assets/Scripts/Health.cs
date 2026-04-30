@@ -44,7 +44,6 @@ public class Health : MonoBehaviour
     {
         // Initialize health to max
         currentHealth = maxHealth;
-        Debug.Log($"Health: {gameObject.name} initialized with {maxHealth} HP");
 
         cachedCamera = Camera.main;
 
@@ -95,10 +94,6 @@ public class Health : MonoBehaviour
         currentHealth -= damageAmount;
         currentHealth = Mathf.Max(currentHealth, 0); // Clamp to 0
 
-#if UNITY_EDITOR
-        Debug.Log($"Health: {gameObject.name} took {damageAmount} damage. Health: {currentHealth}/{maxHealth}");
-#endif
-
         // Spawn hit visual effect
         if (CombatEffects.Instance != null)
         {
@@ -139,10 +134,6 @@ public class Health : MonoBehaviour
 
         currentHealth += healAmount;
         currentHealth = Mathf.Min(currentHealth, maxHealth); // Clamp to max
-
-#if UNITY_EDITOR
-        Debug.Log($"Health: {gameObject.name} healed {healAmount}. Health: {currentHealth}/{maxHealth}");
-#endif
     }
 
     /// <summary>
@@ -155,8 +146,6 @@ public class Health : MonoBehaviour
 
     void Die()
     {
-        Debug.Log($"Health: {gameObject.name} has died!");
-
         // Spawn death visual effect
         if (CombatEffects.Instance != null)
         {

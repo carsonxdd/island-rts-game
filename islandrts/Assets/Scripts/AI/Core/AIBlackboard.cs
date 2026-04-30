@@ -35,7 +35,6 @@ public class AIBlackboard
     // Enemy fields
     public Enemy enemy;
     public float warriorDetectionRange;
-    public float buildingEngagementRange;
 
     // --- Per-evaluation cached data (updated by AIBrain before scoring) ---
 
@@ -46,6 +45,7 @@ public class AIBlackboard
     public Transform currentTarget;
     public Health currentTargetHealth;
     public string currentTargetName;
+    public Collider currentTargetCollider;  // Cached for ClosestPoint edge-distance checks (Phase 6.21)
 
     // Resource node (workers)
     public ResourceNode targetResource;
@@ -54,7 +54,13 @@ public class AIBlackboard
     // Combat state
     public float lastAttackTime;
     public bool isInAttackRange;
-    public bool isAttackingWall;
+
+    // Enemy gate-trigger override: Gate.OnTriggerEnter calls Enemy.ForceAttackGate,
+    // which stamps this forcedTarget with a short expiry. EnemyAttackExecutor's
+    // PickTarget honors it before the normal priority scan. Gates don't carve the
+    // NavMesh, so without this hint enemies walk past live gates.
+    public Transform forcedTarget;
+    public float forcedTargetExpiry;
 
     // Nearest enemy cache (refreshed by AIBrain)
     public Transform nearestEnemy;

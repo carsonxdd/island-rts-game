@@ -4,7 +4,7 @@ A Unity-based real-time strategy survival game. Manage autonomous workers, gathe
 
 **Genre:** Top-down RTS + Survival  
 **Setting:** Age of Sail shipwreck on an uncharted island  
-**Status:** Playable alpha (Phase 6.20)
+**Status:** Playable alpha (Phase 6.22)
 
 ---
 
@@ -74,7 +74,7 @@ islandrts/Assets/
 │   │   ├── Executors/
 │   │   │   ├── Worker/          # Gather, Return, Flee, Idle
 │   │   │   ├── Warrior/         # Engage, Intercept, Defend, Patrol, Retreat, Heal
-│   │   │   └── Enemy/           # BreachWall, AttackTarget
+│   │   │   └── Enemy/           # EnemyAttack (single action + priority-based targeting)
 │   │   ├── Shared/              # NavMesh throttling, stuck detection
 │   │   └── Debug/               # F3 debug overlay
 │   ├── GameManager.cs           # Victory/defeat, statistics
@@ -113,7 +113,7 @@ All units (Workers, Warriors, Enemies) use a **scoring-based Utility AI** — no
 
 - **ActiveRegistry\<T\>** — Generic static registry for O(1) entity lookups (Workers, Enemies, Walls, etc.)
 - **Singletons** — ResourceManager, AudioManager, WallGrid, AIWorldState, GameManager
-- **NavMesh throttling** — Max 12 SetDestination/frame, 2 CalculatePath/frame
+- **NavMesh throttling** — Max 20 SetDestination/frame, 2 CalculatePath/frame
 - **Zero GC in hot paths** — No per-frame heap allocations in Update or AI evaluation
 - **Event-driven** — Static events for day/night transitions, unit deaths, wall destruction
 
@@ -141,6 +141,18 @@ All units (Workers, Warriors, Enemies) use a **scoring-based Utility AI** — no
 
 ---
 
+## Logging
+
+The console is intentionally quiet. Only three categories of log fire at runtime:
+
+1. **Errors** (`Debug.LogError`) — missing prefabs, null refs, misconfigured scene objects. Should never appear in a healthy build.
+2. **Warnings** (`Debug.LogWarning`) — recoverable misconfigurations (missing audio clip, no renderer for hover, homeless workers after hut loss, resource spawner fallbacks).
+3. **Key lifecycle events** (`Debug.Log`) — day/night transitions, wave spawn summary, night-survived progress, victory/defeat banners, campfire destroyed banner, resource-manager init line.
+
+Everything else (per-unit spawn/death, per-damage, per-resource tick, per-button-click, audio fades, build-placement chatter) has been removed. See [`.claude/CLAUDE.md`](.claude/CLAUDE.md) **Logging Conventions** for the full keep-list and rules when adding new logs.
+
+---
+
 ## Development
 
 For detailed technical documentation, AI system internals, balancing data, phase history, and gotchas, see [`.claude/CLAUDE.md`](.claude/CLAUDE.md).
@@ -149,7 +161,13 @@ Future roadmap:
 - **Phase 7:** Building upgrades, workshop, storage
 - **Phase 8:** Worker night hide behavior, archer units
 - **Phase 9:** Player character (Admiral), crafting, tech tree
-- **Phase 10:** Art upgrade (low-poly models)
+- **Phase 10: Visual Overhaul** — stylized low-poly tropical aesthetic in the Bad North / Townscaper / Islanders family. Five stages:
+  - **Stage 1** — URP post-processing pass (bloom, ACES, warm grading, vignette) + warm sunset directional light + gradient ambient
+  - **Stage 2** — Asset replacement: bought pack (Synty POLYGON Pirates / Quaternius / KayKit) for environment filler, custom-modeled hero assets (units, buildings, campfire, shipwreck) in Blender
+  - **Stage 3** — Stylized URP water shader (Shader Graph): Gerstner displacement, depth-blended turquoise, shoreline foam, quantized sun specular, flat-shaded normals
+  - **Stage 4** — Lighting bake (mixed mode), exponential fog, shadow cascade tuning, optional SSAO
+  - **Stage 5** — Sequencing: post-processing now, water shader as Phase 7–8 side project, full asset swap during Phase 10 proper
+  - Full spec: [`PHASE_10_VISUAL_OVERHAUL.md`](PHASE_10_VISUAL_OVERHAUL.md)
 
 ---
 

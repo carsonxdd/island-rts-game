@@ -21,7 +21,7 @@ public class Enemy : MonoBehaviour
     [Header("Stats")]
     public float maxHealth = 50f;
     public float damage = 10f;
-    public float attackRange = 3.5f;  // Increased to account for building size
+    public float attackRange = 4f;  // Increased to account for building size (Phase 6.21: bumped from 3.5 to fix enemies stuck outside hut attack range)
     public float attackCooldown = 1.5f;
 
     [Header("Movement")]
@@ -29,7 +29,6 @@ public class Enemy : MonoBehaviour
 
     [Header("Targeting")]
     public float warriorDetectionRange = 15f;  // Only engage warriors within this range
-    public float buildingEngagementRange = 20f;  // Only engage buildings within this range
 
     [Header("State Display")]
     public bool showStateText = true;
@@ -61,13 +60,11 @@ public class Enemy : MonoBehaviour
         agent.speed = moveSpeed;
         agent.acceleration = 4f;         // Low acceleration to prevent ice skating
         agent.angularSpeed = 90f;        // Slower turning for more weight
-        agent.stoppingDistance = attackRange - 1f;  // Stop a bit before attack range
+        agent.stoppingDistance = 0.5f;  // Minimal — EnemyAttackExecutor uses ClosestPoint edge-distance to trip attack state
         agent.autoBraking = true;
         agent.radius = 0.5f;             // Agent size for collision
         agent.obstacleAvoidanceType = ObstacleAvoidanceType.GoodQualityObstacleAvoidance;  // Reduced from High for performance
         agent.avoidancePriority = Random.Range(30, 70);  // Randomized priority to prevent synchronized yielding
-
-        Debug.Log($"Enemy: NavMeshAgent configured - Speed: {agent.speed}, Accel: {agent.acceleration}");
 
         // Setup Health component
         healthComponent = GetComponent<Health>();
@@ -93,12 +90,6 @@ public class Enemy : MonoBehaviour
         // Setup 3D spatial audio for combat sounds
         SetupCombatAudioSource();
 
-        // Subscribe to wall/gate destroy events for immediate breach detection
-        Wall.OnAnyWallDestroyed += OnWallOrGateDestroyed;
-        Gate.OnAnyGateDestroyed += OnWallOrGateDestroyed;
-
-        Debug.Log($"Enemy: Spawned with {maxHealth} health at {transform.position}");
-
         // Initialize Utility AI
         InitializeUtilityAI();
     }
@@ -116,69 +107,39 @@ public class Enemy : MonoBehaviour
         bb.attackCooldown = attackCooldown;
         bb.damage = damage;
         bb.warriorDetectionRange = warriorDetectionRange;
-        bb.buildingEngagementRange = buildingEngagementRange;
 
         // Setup StuckResolver (same pattern as Worker/Warrior)
         var stuckResolver = gameObject.AddComponent<StuckResolver>();
         stuckResolver.Initialize(agent, ActiveRegistry<Enemy>.IndexOf(this));
         stuckResolver.onStuckReset = () =>
         {
+            // Clear target and let PickTarget choose fresh. Reachability is tested
+            // at pick-time, so the truly unreachable target won't be re-picked
+            // immediately — no blacklist needed.
             bb.currentTarget = null;
             bb.currentTargetHealth = null;
+            bb.currentTargetCollider = null;
             bb.isInAttackRange = false;
-            bb.isAttackingWall = false;
             if (agent.isOnNavMesh)
             {
                 agent.ResetPath();
                 agent.isStopped = false;
             }
+            // Re-roll avoidance priority to break ORCA ties between stacked enemies.
+            agent.avoidancePriority = Random.Range(30, 70);
             aiBrain.ForceReeval();
         };
         bb.stuckResolver = stuckResolver;
 
-        // Damage ForceReeval: re-evaluate when hit (cooldown-based, max once per second)
-        float lastDamageReeval = 0f;
-        healthComponent.onDamaged.AddListener(() =>
-        {
-            if (Time.time - lastDamageReeval > 1f)
-            {
-                lastDamageReeval = Time.time;
-                aiBrain.ForceReeval();
-            }
-        });
-
-        // Enemy-specific considerations for path-blocked detection
-        var pathBlockedConsideration = new PathBlocked(bb);
-
+        // Single "Attack" action. Priority-based target selection lives inside the
+        // executor (see EnemyAttackExecutor.PickTarget), not in competing
+        // ActionOptions. Empty consideration array → basePriority is the final
+        // score, so this action is always selected.
         var actions = new ActionOption[]
         {
-            // Attack Warrior (highest priority when warriors nearby — must beat building momentum + commitment)
-            new ActionOption("AttackWarrior", new Consideration[]
-            {
-                new EnemyHasTarget(EnemyHasTarget.TargetCategory.Warrior, ResponseCurve.Linear(1f, 0f)),
-                new DistanceTo(DistanceTo.TargetType.NearestEnemy, warriorDetectionRange, ResponseCurve.Constant(1f))
-            }, new AttackTargetExecutor(AttackTargetExecutor.TargetCategory.Warrior),
-            basePriority: 1.2f, momentumBonus: 0.2f),
-
-            // Attack Building (when no warriors, buildings reachable)
-            new ActionOption("AttackBuilding", new Consideration[]
-            {
-                new EnemyHasTarget(EnemyHasTarget.TargetCategory.Building, ResponseCurve.Linear(1f, 0f))
-            }, new AttackTargetExecutor(AttackTargetExecutor.TargetCategory.Building),
-            basePriority: 0.7f, momentumBonus: 0.15f),
-
-            // Breach Wall (when path is blocked by walls)
-            new ActionOption("BreachWall", new Consideration[]
-            {
-                pathBlockedConsideration
-            }, new BreachWallExecutor(), basePriority: 0.8f, momentumBonus: 0.3f),
-
-            // Attack Campfire (ultimate fallback objective)
-            new ActionOption("AttackCampfire", new Consideration[]
-            {
-                new EnemyHasTarget(EnemyHasTarget.TargetCategory.Campfire, ResponseCurve.Constant(0.3f))
-            }, new AttackTargetExecutor(AttackTargetExecutor.TargetCategory.Campfire),
-            basePriority: 0.3f, momentumBonus: 0.1f)
+            new ActionOption("Attack", new Consideration[0],
+                new EnemyAttackExecutor(),
+                basePriority: 1f, momentumBonus: 0f)
         };
 
         bb.brain = aiBrain;
@@ -188,27 +149,6 @@ public class Enemy : MonoBehaviour
     void OnDestroy()
     {
         ActiveRegistry<Enemy>.Unregister(this);
-
-        // Unsubscribe from static events to prevent memory leaks
-        Wall.OnAnyWallDestroyed -= OnWallOrGateDestroyed;
-        Gate.OnAnyGateDestroyed -= OnWallOrGateDestroyed;
-    }
-
-    /// <summary>
-    /// Called when any wall or gate is destroyed. Forces immediate path recheck
-    /// so ALL enemies can funnel through breaches.
-    /// </summary>
-    void OnWallOrGateDestroyed()
-    {
-        if (aiBrain != null)
-        {
-            var bb = aiBrain.blackboard;
-            if (bb != null)
-            {
-                bb.isAttackingWall = false;
-            }
-            aiBrain.ForceReeval();
-        }
     }
 
     void Update()
@@ -222,8 +162,6 @@ public class Enemy : MonoBehaviour
 
     void Die()
     {
-        Debug.Log("Enemy: Defeated!");
-
         // Fire static death event for nearby units to react
         OnAnyEnemyDied?.Invoke(transform.position);
 
@@ -251,29 +189,26 @@ public class Enemy : MonoBehaviour
     }
 
     /// <summary>
-    /// Called by Gate trigger when enemy walks into a gate.
-    /// Forces the enemy to stop and attack the gate.
+    /// Called by Gate trigger when enemy walks into a gate. Gates don't carve
+    /// the NavMesh, so without this override enemies can path through a live
+    /// gate toward the campfire. Stamp forcedTarget with a short expiry; the
+    /// executor's PickTarget honors it. Trigger fires repeatedly while the enemy
+    /// is inside the gate volume, refreshing the lock naturally.
     /// </summary>
     public void ForceAttackGate(Gate gate)
     {
         if (gate == null) return;
-
-        // Check if gate is still alive
         Health gateHealth = gate.CachedHealth;
         if (gateHealth == null || !gateHealth.IsAlive) return;
+        if (aiBrain == null || aiBrain.blackboard == null) return;
 
-        if (aiBrain != null)
-        {
-            var bb = aiBrain.blackboard;
-            if (bb != null)
-            {
-                bb.currentTarget = gate.transform;
-                bb.currentTargetName = gate.gameObject.name;
-                bb.currentTargetHealth = gateHealth;
-                bb.isAttackingWall = true;
-            }
-            aiBrain.ForceReeval();
-        }
+        var bb = aiBrain.blackboard;
+        // Only stamp + reeval if the forced target actually changed, so repeated
+        // trigger ticks don't hammer ForceReeval every frame.
+        bool isNew = bb.forcedTarget != gate.transform;
+        bb.forcedTarget = gate.transform;
+        bb.forcedTargetExpiry = Time.time + 1.5f;
+        if (isNew) aiBrain.ForceReeval();
     }
 
     // --- Public sound methods for Utility AI executors ---
@@ -331,9 +266,5 @@ public class Enemy : MonoBehaviour
         // Draw warrior detection range
         Gizmos.color = Color.magenta;
         Gizmos.DrawWireSphere(transform.position, warriorDetectionRange);
-
-        // Draw building engagement range
-        Gizmos.color = Color.yellow;
-        Gizmos.DrawWireSphere(transform.position, buildingEngagementRange);
     }
 }

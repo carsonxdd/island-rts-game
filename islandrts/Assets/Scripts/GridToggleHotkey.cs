@@ -32,8 +32,6 @@ public class GridToggleHotkey : MonoBehaviour
 
             // Rebuild the grid to apply the change
             grid.Rebuild();
-
-            Debug.Log($"Grid toggled: {(grid.show ? "ON" : "OFF")}");
         }
     }
 }

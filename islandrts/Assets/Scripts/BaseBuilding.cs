@@ -56,8 +56,6 @@ public class BaseBuilding : MonoBehaviour
 
     void Start()
     {
-        Debug.Log("BaseBuilding: Campfire initialized!");
-
         // Setup Health component
         healthComponent = GetComponent<Health>();
         if (healthComponent == null)
@@ -70,13 +68,10 @@ public class BaseBuilding : MonoBehaviour
         healthComponent.hideWhenFull = true;
         healthComponent.onDeath.AddListener(OnCampfireDestroyed);
 
-        Debug.Log($"BaseBuilding: Health system initialized - {maxHealth} HP");
-
         // Register housing capacity with PopulationManager
         if (PopulationManager.Instance != null)
         {
             PopulationManager.Instance.AddHousing(workerCapacity);
-            Debug.Log($"BaseBuilding: Registered {workerCapacity} housing slots");
         }
 
         // Get ALL renderers BEFORE creating health text (checks this object AND all children)
@@ -92,8 +87,6 @@ public class BaseBuilding : MonoBehaviour
                 buildingRenderers[i].material = new Material(buildingRenderers[i].material);
                 originalColors[i] = buildingRenderers[i].material.color;
             }
-
-            Debug.Log($"BaseBuilding: Found {buildingRenderers.Length} renderer(s) for hover effect!");
         }
         else
         {
@@ -105,10 +98,6 @@ public class BaseBuilding : MonoBehaviour
         if (col == null)
         {
             Debug.LogError("BaseBuilding: NO COLLIDER FOUND! Add a Box Collider or Capsule Collider to make this clickable!");
-        }
-        else
-        {
-            Debug.Log($"BaseBuilding: Collider found: {col.GetType().Name}");
         }
 
         // Enable NavMeshObstacle carving so workers/units path AROUND the campfire
@@ -152,8 +141,6 @@ public class BaseBuilding : MonoBehaviour
     void OnMouseDown()
     {
         // When clicked, open worker assignment UI
-        Debug.Log("BaseBuilding: Clicked! Opening worker UI...");
-
         if (workerUI != null)
         {
             workerUI.OpenPanel(this);
@@ -170,7 +157,6 @@ public class BaseBuilding : MonoBehaviour
         // Check housing capacity via PopulationManager (this is now the only limit)
         if (PopulationManager.Instance != null && !PopulationManager.Instance.HasAvailableHousing())
         {
-            Debug.Log($"BaseBuilding: No housing available! Build more huts. ({PopulationManager.Instance.GetCurrentWorkers()}/{PopulationManager.Instance.GetHousingCapacity()})");
             return;
         }
 
@@ -233,12 +219,6 @@ public class BaseBuilding : MonoBehaviour
 
             // Destroy the worker GameObject
             Destroy(workerToRemove.gameObject);
-
-            Debug.Log($"BaseBuilding: Removed 1 {resourceType} worker");
-        }
-        else
-        {
-            Debug.Log($"BaseBuilding: No {resourceType} workers to remove!");
         }
     }
 
@@ -270,8 +250,6 @@ public class BaseBuilding : MonoBehaviour
             {
                 PopulationManager.Instance.AddWorker();
             }
-
-            Debug.Log($"BaseBuilding: Spawned {resourceType} worker at {spawnPos}");
         }
         else
         {
@@ -352,14 +330,12 @@ public class BaseBuilding : MonoBehaviour
     {
         if (currentWarriors >= maxWarriors)
         {
-            Debug.Log("BaseBuilding: Max warriors reached!");
             return;
         }
 
         // Check if we have enough resources
         if (ResourceManager.Instance.wood < warriorCost_Wood || ResourceManager.Instance.food < warriorCost_Food)
         {
-            Debug.Log($"BaseBuilding: Not enough resources! Need {warriorCost_Wood} wood and {warriorCost_Food} food");
             return;
         }
 
@@ -387,8 +363,6 @@ public class BaseBuilding : MonoBehaviour
             warrior.baseBuilding = this;
             activeWarriors.Add(warrior);
             currentWarriors++;
-
-            Debug.Log($"BaseBuilding: Spawned warrior #{currentWarriors} at {spawnPos}");
         }
         else
         {
@@ -401,7 +375,6 @@ public class BaseBuilding : MonoBehaviour
     {
         if (currentWarriors <= 0 || activeWarriors.Count == 0)
         {
-            Debug.Log("BaseBuilding: No warriors to remove!");
             return;
         }
 
@@ -421,8 +394,6 @@ public class BaseBuilding : MonoBehaviour
             activeWarriors.Remove(warriorToRemove);
             currentWarriors--;
             Destroy(warriorToRemove.gameObject);
-
-            Debug.Log($"BaseBuilding: Removed 1 warrior. {currentWarriors} warriors remaining");
         }
     }
 
@@ -434,7 +405,6 @@ public class BaseBuilding : MonoBehaviour
         {
             activeWarriors.Remove(warriorComponent);
             currentWarriors--;
-            Debug.Log($"BaseBuilding: Warrior killed. {currentWarriors} warriors remaining");
         }
     }
 
@@ -462,13 +432,11 @@ public class BaseBuilding : MonoBehaviour
         // Visual feedback - darken the campfire
         if (buildingRenderers != null && buildingRenderers.Length > 0)
         {
-            Debug.Log($"BaseBuilding: Turning {buildingRenderers.Length} renderers black...");
             foreach (Renderer renderer in buildingRenderers)
             {
                 if (renderer != null && renderer.material != null)
                 {
                     renderer.material.color = Color.black;
-                    Debug.Log($"BaseBuilding: Renderer {renderer.name} turned black");
                 }
             }
         }
@@ -482,7 +450,6 @@ public class BaseBuilding : MonoBehaviour
         if (col != null)
         {
             col.enabled = false;
-            Debug.Log("BaseBuilding: Collider disabled");
         }
 
         // Trigger game over through GameManager
@@ -497,7 +464,6 @@ public class BaseBuilding : MonoBehaviour
 
         // Disable worker spawning
         enabled = false;
-        Debug.Log("BaseBuilding: Component disabled");
     }
 
     // Public method to get current health (for UI later)

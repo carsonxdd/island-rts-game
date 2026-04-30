@@ -26,21 +26,18 @@ public class WorkerSpawnTest : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.Alpha1))
         {
             campfire.AssignWorker(ResourceNode.ResourceType.Wood);
-            Debug.Log("Spawned Wood Worker! Press 1 for more.");
         }
 
         // Press 2 to spawn food worker
         if (Input.GetKeyDown(KeyCode.Alpha2))
         {
             campfire.AssignWorker(ResourceNode.ResourceType.Food);
-            Debug.Log("Spawned Food Worker! Press 2 for more.");
         }
 
         // Press 3 to spawn stone worker
         if (Input.GetKeyDown(KeyCode.Alpha3))
         {
             campfire.AssignWorker(ResourceNode.ResourceType.Stone);
-            Debug.Log("Spawned Stone Worker! Press 3 for more.");
         }
     }
 }

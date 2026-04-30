@@ -18,9 +18,6 @@ public class BuildingDatabase : MonoBehaviour
         }
 
         Instance = this;
-        DontDestroyOnLoad(gameObject);
-
-        Debug.Log($"BuildingDatabase: Initialized with {buildings.Length} building types");
     }
 
     /// <summary>

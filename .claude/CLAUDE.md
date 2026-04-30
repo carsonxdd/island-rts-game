@@ -34,15 +34,15 @@ V:/islandrtsgame/                    # Repository root
 ├── Utility_AI_Implementation_Plan.md
 └── islandrts/                       # Unity project root
     ├── Assets/
-    │   ├── Scripts/                 # All C# source (75 files)
-    │   │   ├── AI/                  # Utility AI system (35 files)
+    │   ├── Scripts/                 # All C# source
+    │   │   ├── AI/                  # Utility AI system
     │   │   │   ├── Core/            # AIBrain, ActionOption, Consideration, ResponseCurve, AIBlackboard
     │   │   │   ├── WorldState/      # AIWorldState (enemy density grid, day progress)
-    │   │   │   ├── Considerations/  # 13 scoring inputs (HealthPercent, ThreatNearby, etc.)
+    │   │   │   ├── Considerations/  # Scoring inputs (HealthPercent, ThreatNearby, etc.)
     │   │   │   ├── Executors/
     │   │   │   │   ├── Worker/      # Gather, Return, Flee, Idle
     │   │   │   │   ├── Warrior/     # Engage, Intercept, DefendWall, Patrol, Retreat, HealAtCampfire
-    │   │   │   │   └── Enemy/       # BreachWall, AttackTarget
+    │   │   │   │   └── Enemy/       # EnemyAttack (single action, priority-based targeting)
     │   │   │   ├── Shared/          # AINavHelper (throttling), StuckResolver
     │   │   │   └── Debug/           # AIDebugOverlay (F3 in editor)
     │   │   └── *.cs                 # 40 root-level scripts (game systems)
@@ -103,7 +103,7 @@ AIBrain (per unit)
 
 **Worker actions:** Gather, Return, Idle, Flee
 **Warrior actions:** Engage, Intercept, DefendWall, Patrol, Retreat, Heal
-**Enemy actions:** AttackWarrior, AttackBuilding, BreachWall, AttackCampfire
+**Enemy actions:** Attack (single action; targeting handled by imperative priority function inside the executor, not by competing ActionOptions — see Phase 6.22)
 
 ### Singleton Pattern
 Used by: ResourceManager, AudioManager, WallGrid, AIWorldState, PopulationManager, GameManager, CombatEffects, CameraShake, BuildingDatabase
@@ -113,7 +113,7 @@ Used by: ResourceManager, AudioManager, WallGrid, AIWorldState, PopulationManage
 
 ### Performance Conventions
 - Zero GC allocations in hot paths (Update, AI evaluation)
-- NavMesh throttling: max 12 SetDestination/frame, 2 CalculatePath/frame (AINavHelper)
+- NavMesh throttling: max 20 SetDestination/frame, 2 CalculatePath/frame (AINavHelper)
 - Enemy density grid (AIWorldState): CELL_SIZE=10, 3x3 lookup ≈ 30x30 units
 - Dirty checking on UI text (ResourceUI, FloatingText, Health)
 - Audio clip preloading at startup (eliminates 184ms synchronous disk loads)
@@ -148,6 +148,27 @@ Used by: ResourceManager, AudioManager, WallGrid, AIWorldState, PopulationManage
 - Worker Flee: ThreatNearby yShift must be 0, otherwise momentum keeps dead flee action alive with 0 enemies
 - Warrior Heal: must use zero momentum and a curve that scores exactly 0 at full HP, otherwise commitment threshold blocks Patrol from taking over
 - CameraShake uses pure offset (undo-then-apply each LateUpdate) — never stores a "home" position, so it doesn't fight CameraController's WASD movement
+- Enemy/Wall attack destinations use `Collider.ClosestPoint(enemyPos)`, not `target.position`. Center-point destinations land inside the NavMesh carve and the agent stops short of `attackRange` — looks like a freeze. Cache the collider on target assignment (`bb.currentTargetCollider`) and also use it for the distance-based attack-range check
+- After using `ClosestPoint` on a carving obstacle's collider, **snap the result to the NavMesh via `NavMesh.SamplePosition`** before passing to `SetDestination`. ClosestPoint sits on the carve boundary — right after an adjacent obstacle uncarves (e.g. another hut dies), the NavMesh is briefly in recalc and `SetDestination` silently rejects boundary points. Symptom: enemy freezes ~3s until StuckResolver saves it. Fix lives in `EnemyAttackExecutor.GetApproachPoint`
+- `AINavHelper.TrySetDestination` returns Unity's actual `NavMeshAgent.SetDestination` result — do NOT ignore the return. A false return means Unity rejected the destination; caller must retry next frame. Pretending success causes "ghost moving" state where `isStopped=false` but `pathPending=false` and velocity stays zero
+- When using priority-ordered imperative target selection (as in `EnemyAttackExecutor.PickTarget`), test reachability against a `NavMesh.SamplePosition`-anchored point near the target, NOT the target's center. Carving obstacles make center-based `CalculatePath` always return `PathPartial`, causing every candidate to be rejected
+- Re-roll `NavMeshAgent.avoidancePriority` whenever an enemy retargets from a dead target. Multiple enemies sharing a target will have similar ORCA priorities and mutually yield (stuck dance) on disperse otherwise. `Random.Range(30, 70)` per retarget breaks ties cleanly
+- For enemies, replacing four competing ActionOptions (AttackWarrior/AttackBuilding/BreachWall/AttackCampfire) with ONE action + priority function eliminated a whole class of stutter bugs where sibling actions + momentum + commitment threshold fought on target death. Generalize this pattern when competing actions share most of their logic and differ mainly in "what target?"
+- Singletons in single-scene games should NOT use `DontDestroyOnLoad` — it causes stale state (worker counts, audio cooldowns, etc.) to survive scene reloads on restart. Only add it back if you introduce a main menu scene
+- `Worker.OnDestroy` must call `PopulationManager.Instance?.RemoveWorker()` — the PopulationManager doesn't auto-detect deaths
+
+### Visual / Art Gotchas (Phase 10 prep)
+
+These apply once Phase 10 (Visual Overhaul) work begins — see `PHASE_10_VISUAL_OVERHAUL.md` for the full spec.
+
+- **Don't chase the menu mockup composition.** The Castaway Colony main menu image uses macro DOF and a low/cinematic camera; the gameplay camera will never frame the world that way. Match palette, water quality, and silhouette readability — not composition or DOF.
+- **No DOF in gameplay.** Depth of field works against RTS clarity. Skip it in the Global Volume even though it's tempting from beauty shots.
+- **Water must stay real-time.** Don't mark water as Static, don't include it in the lightmap bake. Vertex displacement (Gerstner/sine) is dynamic geometry by definition.
+- **Per-triangle normals are the "low-poly water" look.** Without per-triangle (flat-shaded) normals you get smooth-shaded water that visually breaks the stylized aesthetic. Either recalc normals in the fragment shader or use a low-density mesh with hard edges.
+- **NavMesh re-bake after mesh swaps if collider bounds change.** Phase 10 swaps meshes/materials on existing prefabs. If the new mesh's collider footprint differs, carving regions move and pathing breaks until the bake is refreshed.
+- **Keep gameplay prefab GameObject hierarchy stable during art swaps.** `Health`, `AIBrain`, `NavMeshAgent`, `ActiveRegistry<T>` registrations, and event subscriptions all reference these GameObjects. Swap meshes/materials only — don't reparent, rename, or replace the root GameObject.
+- **Test stylized lighting at the RTS camera angle, not in a beauty-shot view.** What looks great at a 30° tilt or scene-view fly-through can look flat or muddy from the actual gameplay camera height. Validate in Play mode at the real camera transform.
+- **DayNightCycle drives lighting presets, not just sun rotation.** When Phase 10 lands, `DayNightCycle.cs` will lerp sun color, ambient gradient, fog color, and water shader properties between day/night `LightingPreset` ScriptableObjects. Don't bypass it with one-off Lerps — extend the preset SO instead.
 
 ## Key Conventions
 
@@ -158,6 +179,52 @@ Used by: ResourceManager, AudioManager, WallGrid, AIWorldState, PopulationManage
 - Wall scoring: `dist * (1 + attackers * 0.5f)`, gates at `0.3x` distance
 - Public sound methods: `StartGatheringSoundPublic()`, `PlayAttackSoundPublic()`, etc.
 - `StuckResolver` is a shared component (Worker, Warrior, Enemy all use it)
+
+---
+
+## Logging Conventions
+
+The console is kept intentionally quiet so real problems are visible. A full trim pass (Phase 6.22) cut logging from 212 calls → 65. **Before adding any `Debug.Log`, check it against the keep-list below. If it doesn't fit, don't add it.**
+
+### What we log (the full keep-list)
+
+**1. All `Debug.LogError`** — always OK. Missing prefabs, null refs, setup failures. Should never fire in a healthy build; when they do, they indicate a real bug.
+
+**2. `Debug.LogWarning` for recoverable misconfigurations only:**
+- `Hut.cs` — homeless workers after hut loss
+- `ResourceSpawner.cs` — campfire not found, prefab missing, spawn failures
+- `ResourceManager.cs` — duplicate singleton / instance being destroyed
+- `BaseBuilding.cs` — no Renderers for hover, NavMesh spawn fallback, no UI assigned
+- `DayNightCycle.cs` — no directional light found
+- `AudioManager.cs` — combat music missing / null clip
+- `HealthBar.cs` — no Health component
+- `GameManager.cs` — no defeat/victory screen assigned
+- `BuildPlacement.cs` — cannot select building (not in placement mode)
+- `BuildingSelectionUI.cs` — null BuildingData
+
+**3. `Debug.Log` for key lifecycle events ONLY:**
+- `DayNightCycle` — "Night N begins" / "Day N begins" (the day/night transition pair at lines 144/157 only — not the Start() banner)
+- `EnemySpawner` — "Spawning N enemies for night N..." (wave summary, one line per night — not per-enemy)
+- `GameManager` — init line, "Survived night N" progress, VICTORY banner (3 lines), DEFEAT banner (3 lines)
+- `BaseBuilding` — CAMPFIRE DESTROYED banner (3 lines)
+- `ResourceManager` — init line with starting amounts (one line, line 36)
+
+### What we do NOT log (the never-list)
+
+If you catch yourself adding any of these, delete instead:
+- **Per-unit spawn/init/defeated** (Enemy, Warrior, Worker, Hut, Gate, Watchtower spawning or dying)
+- **Per-damage / per-heal / per-death** on `Health` (thousands of these per combat)
+- **Per-resource tick** on `ResourceManager` (+Wood, -Wood, Not enough, Spent) — UI shows this
+- **Per-button-click** confirmations (`WorkerAssignmentUI`, `VictoryDefeatUI`, etc.)
+- **Audio chatter** (clip started, crossfade, queued, stopped)
+- **Per-placement events** (L-path mode toggled, wall line started, selected building, rotated, placed N walls) — too frequent in build mode
+- **Init banners** for helper components (BuildingDatabase, CombatEffects, HealthBar created, NavMesh obstacle setup)
+- **PopulationManager** per-worker / per-housing add/remove
+- **NavMeshAgent configured** dumps on unit spawn
+
+### Rule of thumb
+
+Ask: "would this log spam the console during a normal 5-minute play session?" If yes, it's noise — use the AIDebugOverlay (F3) for live state inspection, not `Debug.Log`. Reserve logs for rare events (once per night, once per game, or one-off failures).
 
 ---
 
@@ -186,7 +253,7 @@ Used by: ResourceManager, AudioManager, WallGrid, AIWorldState, PopulationManage
 
 ---
 
-## Current State (Phase 6.20)
+## Current State (Phase 6.22)
 
 **What's built and working:**
 - Full resource economy (wood, food, stone) with autonomous worker AI
@@ -264,3 +331,65 @@ Grid-based gate conversion (WallGrid lookup replaces raycast). Building demolish
 
 ### Phase 6.20 (Warrior Heal)
 Warriors heal at campfire between waves (5 HP/sec). Fixed Retreat stuck state (ThreatNearby yShift 0, reduced momentum). Heal uses InverseLinear(2,0) with zero momentum for clean full-HP exit.
+
+### Phase 6.21 (Enemy Attack + Restart Fix)
+Enemies now target nearest point on building collider (`Collider.ClosestPoint`) instead of center. Fixes enemies piling on one side of huts, freezing outside NavMesh carve, and not tripping attack-range check. `AttackTargetExecutor` + `BreachWallExecutor` both use new `GetApproachPoint`/`GetEdgeDistance` helpers. Enemy `stoppingDistance` reduced to 0.5 (was `attackRange - 1 = 3`) since edge-distance check handles stop logic. Enemy `attackRange` bumped 3.5 → 4. `StuckResolver.stuckCheckInterval` tightened 3s → 1.5s (triggers in ~3s now).
+
+Removed `DontDestroyOnLoad` from PopulationManager, ResourceManager, AudioManager, BuildingDatabase, CombatEffects, AIDebugOverlay — prevents stale state across scene reloads. Added `PopulationManager.RemoveWorker()` call in `Worker.OnDestroy` so dead workers free housing slots (was a bug *within* a playthrough too).
+
+Cached `currentTargetCollider` on `AIBlackboard` for ClosestPoint without per-frame GetComponent.
+
+### Phase 6.22 (Enemy Targeting Refactor)
+Replaced the 4-way enemy ActionOption competition (AttackWarrior / AttackBuilding / BreachWall / AttackCampfire) with a **single `EnemyAttack` action** whose executor owns target selection via an imperative priority function. Eliminated a class of stutter bugs where sibling actions + momentum + 20% commitment threshold fought on every target death.
+
+**Target priority (`EnemyAttackExecutor.PickTarget`):**
+1. Gate-trigger override (`bb.forcedTarget` with 1.5s expiry — set by `Enemy.ForceAttackGate`)
+2. Nearest live warrior in `warriorDetectionRange`
+3. Campfire proximity commit (within 5m of campfire → finish the job)
+4. Nearest reachable hut/watchtower (no range filter — huts are always preferred over distant campfire)
+5. Nearest wall/gate (gates at 0.3× distance preference)
+6. Campfire fallback (no huts alive)
+
+**Retarget triggers — only two:** 1s timer in executor; `bb.currentTarget` died (detected each `OnUpdate` via `IsTargetAlive`).
+
+**Three critical bugs found + fixed during the refactor:**
+
+1. **Reachability test rejected every hut.** `CalculatePath` to `hut.position` or collider `ClosestPoint` returns `PathPartial`/`PathInvalid` because huts have `NavMeshObstacle.carving=true` (center sits in carved hole; ClosestPoint sits on hole boundary). Fix: path-test to a point from `NavMesh.SamplePosition(hut.position, 3f)` — guaranteed walkable.
+
+2. **`AINavHelper.TrySetDestination` ignored Unity's return value.** Always returned `true` even when Unity's `NavMeshAgent.SetDestination` returned `false` (destination unmappable during NavMesh recalc). Caller set `isStopped=false` without a path being queued → "ghost moving" state, enemy frozen until StuckResolver rescued it ~3s later. Fix: propagate actual return.
+
+3. **`GetApproachPoint` returned raw `ClosestPoint` on collider**. Same hole-boundary issue — when *adjacent* huts uncarved, boundary points were briefly rejected. Fix: snap `ClosestPoint` output through `NavMesh.SamplePosition(raw, 2f)` before passing to `SetDestination`.
+
+Also: re-roll `agent.avoidancePriority = Random.Range(30, 70)` whenever an enemy retargets from a dead target, so enemies sharing a dying hut don't mutually yield (ORCA stuck-dance) on disperse.
+
+**Deleted files:** `AttackTargetExecutor.cs`, `BreachWallExecutor.cs`, `CampfireProximity.cs`, `EnemyHasTarget.cs`, `PathBlocked.cs` (all enemy-specific and now unused).
+
+**Removed from `AIBlackboard`:** `unreachableTargets` dict (blacklist no longer needed — reachability tested at pick-time), `isAttackingWall` flag (no longer has meaning with single action), `buildingEngagementRange` (dropped — huts always preferred). Added `forcedTarget` / `forcedTargetExpiry` for gate-trigger override.
+
+**Removed from `Enemy.cs`:** `OnAnyWallDestroyed` / `OnAnyGateDestroyed` / `OnAnyHutDestroyed` event subscriptions (retarget on current-target death handles all cases naturally). `onDamaged` ForceReeval also removed (priority function already picks warriors first when in range; damage-retargeting caused ping-pong between attackers).
+
+Net effect: enemies now chew through huts en route to the campfire instead of jogging past them, retarget cleanly the same frame a hut dies, and disperse immediately from shared targets with no 2-4s freeze.
+
+### Phase 10 (Planned): Visual Overhaul
+
+**Status:** Planned. Full spec in `PHASE_10_VISUAL_OVERHAUL.md` at repo root — that file is the source of truth; this entry is a summary.
+
+**Goal:** Replace primitive geometry and default lighting with a cohesive stylized low-poly aesthetic in the Bad North / Townscaper / Islanders / Synty POLYGON Pirates family. Visual reference is the Castaway Colony main menu mockup (sunset palette, low-poly islands, stylized water, soft DOF on background) — but tuned for top-down RTS framing: no DOF, no macro lensing, readable silhouettes from gameplay camera height.
+
+**Tech foundation already in place:** Unity 6000.0.25f1 + URP 17.0.3 (Volume system, Shader Graph), `DayNightCycle.cs` ready to drive sun rotation, sun color, ambient gradient, fog, and water shader properties between day/night `LightingPreset` ScriptableObjects.
+
+**Five stages:**
+
+1. **Post-Processing Pass (~1 evening, can be done anytime).** Global Volume in `SampleScene` with Bloom (~0.5 / threshold 1.0), Color Adjustments (post-exposure +0.2, contrast +10, slight saturation), White Balance (temperature +15), ACES tonemapping, Vignette (0.25 / 0.4). **No DOF** — works against RTS clarity. Lower sun angle (15–25° elevation), warm gold sun color, gradient ambient (warm sky / neutral equator / cool ground) for the warm-light-cool-shadow split. `DayNightCycle` lerps between day/night `LightingPreset` SOs.
+
+2. **Asset Replacement (Hybrid Strategy).** Bought pack for filler/environment (Synty POLYGON Pirates / POLYGON Tropical $30–60, or free Quaternius CC0 / KayKit alternatives) — palms, rocks, bushes, grass, props. Custom-modeled in Blender for hero/identity assets — campfire, Worker, Warrior, Enemy, Hut, Wooden/Stone Wall, Gate, Watchtower, shipwreck. Imphenzia low-poly modeling series as reference. Workflow: create `Assets/Art/` tree, replace one prefab category at a time, swap meshes/materials only (never touch `Health`, `AIBrain`, `NavMeshAgent`, registry components), re-validate NavMesh after each category swap.
+
+3. **Stylized Water Shader (Shader Graph).** Build as a side project during Phase 7–8 downtime to de-risk the hardest visual piece. Components: vertex displacement (Gerstner waves or stacked sine, amplitude 0.05–0.15 — calm tropical, not open ocean); depth-based color blend (camera depth texture, shallow turquoise → deep blue); shoreline foam (thin band where depth difference is small, modulated by scrolling noise + threshold); quantized sun specular (Blinn-Phong with smoothstep for hard-edge stylized highlight); per-triangle normal recalc for flat-shaded "low-poly water" look. References: Daniel Ilett URP stylized water tutorial, NedMakesGames Shader Graph series, Stylized Water 2 (Asset Store) as reference. **Time budget: 1 weekend rough + 1 weekend polish — do not exceed.**
+
+4. **Lighting Bake & Final Polish.** Mark static geometry (terrain, rocks, trees, buildings) as Static; Mixed lighting mode; bake lightmaps for soft indirect bounce. Dynamic units and wave-displaced water stay real-time. Add URP exponential distance fog for atmospheric depth. Tune shadow distance / cascades for RTS camera range. Test SSAO — keep only if it helps stylized reads rather than muddying them.
+
+5. **Recommended Sequencing.** Stage 1 anytime (free morale win). Stage 3 water shader during Phase 7–8 downtime. Pre–Phase 10: buy Synty pack, build single test scene to validate look. Phase 10 proper: Stage 2 asset replacement (categorical), Stage 4 lighting bake, polish.
+
+**Success criteria:** game looks visually cohesive at gameplay camera angle (top-down RTS); water has depth-blended color, foam, and sun specular at minimum; day/night lerps sun + sky + fog + water shader smoothly; ≥60 fps with bake + post-processing active; hero assets bespoke, environment bought-pack; a new player describes the aesthetic in the same family as Bad North / Townscaper / Islanders.
+
+**Anti-patterns to avoid** are captured in the new "Visual / Art Gotchas (Phase 10 prep)" subsection above — most critical: don't chase the menu mockup's DOF/composition (only its palette, water, and silhouettes), don't bake the water, and keep gameplay prefab hierarchies stable during mesh/material swaps.

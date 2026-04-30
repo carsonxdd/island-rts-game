@@ -175,7 +175,6 @@ public class BuildPlacement : MonoBehaviour
             if (Input.GetKeyDown(KeyCode.R))
             {
                 xFirst = !xFirst;
-                Debug.Log($"BuildPlacement: L-path mode = {(xFirst ? "X-first" : "Z-first")}");
             }
 
             // Color ghost based on whether this cell is occupied
@@ -201,7 +200,6 @@ public class BuildPlacement : MonoBehaviour
                 wallLineStart = snapped;
                 isDrawingWallLine = true;
                 currentGhost.SetActive(false);  // Hide cursor ghost; line ghosts take over
-                Debug.Log($"BuildPlacement: Wall line started at {wallLineStart}");
             }
 
             // Cancel: exit build mode
@@ -217,7 +215,6 @@ public class BuildPlacement : MonoBehaviour
             if (Input.GetKeyDown(KeyCode.R))
             {
                 xFirst = !xFirst;
-                Debug.Log($"BuildPlacement: L-path mode = {(xFirst ? "X-first" : "Z-first")}");
             }
 
             UpdateWallLinePreview(snapped);
@@ -496,7 +493,6 @@ public class BuildPlacement : MonoBehaviour
 
         if (validPositions.Count == 0)
         {
-            Debug.Log("BuildPlacement: No valid positions in wall line.");
             CancelWallLine();
             return;
         }
@@ -508,7 +504,6 @@ public class BuildPlacement : MonoBehaviour
 
         if (!ResourceManager.Instance.CanAfford(totalWood, totalFood, totalStone))
         {
-            Debug.Log($"BuildPlacement: Can't afford {validPositions.Count} walls! Need {totalWood}W {totalFood}F {totalStone}S");
             return;
         }
 
@@ -538,8 +533,6 @@ public class BuildPlacement : MonoBehaviour
         {
             AudioManager.Instance.PlayBuildingPlaced();
         }
-
-        Debug.Log($"BuildPlacement: Placed {validPositions.Count} walls!");
 
         // Clean up and return to cursor mode for next line
         ClearWallLineGhosts();
@@ -572,8 +565,6 @@ public class BuildPlacement : MonoBehaviour
             bool canAfford = ResourceManager.Instance.CanAfford(data.woodCost, data.foodCost, data.stoneCost);
             selectionUI.UpdateDisplay(data, canAfford);
         }
-
-        Debug.Log("BuildPlacement: Wall line cancelled.");
     }
 
     /// <summary>
@@ -637,7 +628,6 @@ public class BuildPlacement : MonoBehaviour
         MonoBehaviour occupant = WallGrid.Instance.GetWallAt(gridPos);
         if (occupant == null)
         {
-            Debug.Log("BuildPlacement: No wall at cursor position to convert.");
             return;
         }
 
@@ -645,10 +635,6 @@ public class BuildPlacement : MonoBehaviour
         Wall wall = occupant as Wall;
         if (wall == null)
         {
-            if (occupant is Gate)
-                Debug.Log("BuildPlacement: Already a gate!");
-            else
-                Debug.Log("BuildPlacement: Can only convert finished walls to gates.");
             return;
         }
 
@@ -657,7 +643,6 @@ public class BuildPlacement : MonoBehaviour
 
         if (!ResourceManager.Instance.CanAfford(5, 0, 0))
         {
-            Debug.Log("BuildPlacement: Not enough wood to convert wall to gate! Need 5 Wood.");
             return;
         }
 
@@ -670,7 +655,6 @@ public class BuildPlacement : MonoBehaviour
         }
 
         wall.UpgradeToGate();
-        Debug.Log("BuildPlacement: Wall converted to Gate!");
     }
 
     // =============================================
@@ -680,7 +664,6 @@ public class BuildPlacement : MonoBehaviour
     void EnterDemolishMode()
     {
         isDemolishing = true;
-        Debug.Log("BuildPlacement: Demolish mode ON. Click a building to demolish (50% refund). Delete/X/ESC to exit.");
     }
 
     void ExitDemolishMode()
@@ -691,7 +674,6 @@ public class BuildPlacement : MonoBehaviour
             Destroy(demolishHighlight);
             demolishHighlight = null;
         }
-        Debug.Log("BuildPlacement: Demolish mode OFF.");
     }
 
     void UpdateDemolishMode()
@@ -848,8 +830,6 @@ public class BuildPlacement : MonoBehaviour
             if (woodRefund > 0) ResourceManager.Instance.AddWood(woodRefund);
             if (foodRefund > 0) ResourceManager.Instance.AddFood(foodRefund);
             if (stoneRefund > 0) ResourceManager.Instance.AddStone(stoneRefund);
-
-            Debug.Log($"BuildPlacement: Demolished {name}! Refunded {woodRefund}W {foodRefund}F {stoneRefund}S");
         }
 
         // Play sound
@@ -939,8 +919,6 @@ public class BuildPlacement : MonoBehaviour
             selectionUI.UpdateDisplay(data, canAfford);
             selectionUI.Show();
         }
-
-        Debug.Log($"BuildPlacement: Started with {data.buildingName}! Press 1-4 to switch buildings. Left-click to place, ESC to cancel.");
     }
 
     void MoveGhostToMouse()
@@ -1030,7 +1008,6 @@ public class BuildPlacement : MonoBehaviour
         // Only allow placement if position is valid
         if (!isValidPlacement)
         {
-            Debug.Log("BuildPlacement: Cannot place here - overlapping with another building!");
             return;
         }
 
@@ -1057,7 +1034,6 @@ public class BuildPlacement : MonoBehaviour
 
         if (!ResourceManager.Instance.CanAfford(data.woodCost, data.foodCost, data.stoneCost))
         {
-            Debug.Log($"BuildPlacement: Not enough resources! Need {data.woodCost}W {data.foodCost}F {data.stoneCost}S");
             return;
         }
 
@@ -1066,7 +1042,6 @@ public class BuildPlacement : MonoBehaviour
 
         // Use target position (where ghost is moving to) not current position
         Vector3 buildPosition = targetPosition;
-        Debug.Log($"BuildPlacement: Spawning ConstructionSite for {data.buildingName} at {buildPosition}");
 
         // Spawn the construction site with the ghost's rotation
         GameObject constructionSite = Instantiate(
@@ -1109,14 +1084,10 @@ public class BuildPlacement : MonoBehaviour
         currentGhost = null;
         ghostRenderer = null;
         isPlacing = false;
-
-        Debug.Log($"BuildPlacement: {data.buildingName} construction started! Press B to place another.");
     }
 
     void CancelPlacement()
     {
-        Debug.Log("BuildPlacement: Cancelled.");
-
         // Clean up wall line ghosts if any
         ClearWallLineGhosts();
         isDrawingWallLine = false;
@@ -1236,8 +1207,6 @@ public class BuildPlacement : MonoBehaviour
             bool canAfford = ResourceManager.Instance.CanAfford(data.woodCost, data.foodCost, data.stoneCost);
             selectionUI.UpdateDisplay(data, canAfford);
         }
-
-        Debug.Log($"BuildPlacement: Selected {data.buildingName} (Cost: {data.woodCost}W {data.foodCost}F {data.stoneCost}S)");
     }
 
     /// <summary>
@@ -1252,8 +1221,6 @@ public class BuildPlacement : MonoBehaviour
         {
             currentGhost.transform.rotation = Quaternion.Euler(0f, currentRotation, 0f);
         }
-
-        Debug.Log($"BuildPlacement: Rotated to {currentRotation}°");
     }
 
     // =============================================

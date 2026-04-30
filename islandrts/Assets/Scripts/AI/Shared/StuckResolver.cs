@@ -21,7 +21,7 @@ public class StuckResolver : MonoBehaviour
     // Stuck detection
     private Vector3 lastPosition;
     private float stuckTimer = 0f;
-    private float stuckCheckInterval = 3f;
+    private float stuckCheckInterval = 1.5f;  // Phase 6.21: tightened from 3s (triggers in ~3s with 2 consecutive stuck checks)
     private bool wasStuckLastCheck = false;
 
     // Path invalidation grace period
