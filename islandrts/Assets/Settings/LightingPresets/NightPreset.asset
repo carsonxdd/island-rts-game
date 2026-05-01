@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ace6d295877c718438501ca2a265d03f, type: 3}
+  m_Name: NightPreset
+  m_EditorClassIdentifier: 
+  sunColor: {r: 1, g: 1, b: 1, a: 1}
+  sunIntensity: 1
+  ambientSky: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+  ambientEquator: {r: 0.4, g: 0.4, b: 0.4, a: 1}
+  ambientGround: {r: 0.3, g: 0.3, b: 0.3, a: 1}
+  ambientIntensity: 1

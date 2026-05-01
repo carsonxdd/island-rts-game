@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Rendering;
 
 public class DayNightCycle : MonoBehaviour
 {
@@ -10,10 +11,10 @@ public class DayNightCycle : MonoBehaviour
 
     [Header("Lighting")]
     public Light sunLight;                     // Main directional light (sun)
-    public Color dayColor = new Color(1f, 0.95f, 0.8f);      // Warm daylight
-    public Color nightColor = new Color(0.2f, 0.2f, 0.5f);   // Cool moonlight
-    public float dayIntensity = 1.5f;
-    public float nightIntensity = 0.3f;
+
+    [Header("Lighting Presets")]
+    public LightingPreset dayPreset;
+    public LightingPreset nightPreset;
 
     [Header("Sun Rotation")]
     public float sunriseAngle = -90f;          // Sun position at sunrise (below horizon)
@@ -49,6 +50,16 @@ public class DayNightCycle : MonoBehaviour
             {
                 Debug.LogWarning("DayNightCycle: No directional light found! Assign sun light manually.");
             }
+        }
+
+        // Force ambient to Gradient (Trilight) mode so the preset's sky/equator/ground
+        // colors are what RenderSettings actually consumes. Otherwise Unity may be
+        // sampling the skybox or a flat ambient color and our writes are ignored.
+        RenderSettings.ambientMode = AmbientMode.Trilight;
+
+        if (dayPreset == null || nightPreset == null)
+        {
+            Debug.LogError("DayNightCycle: Day/Night LightingPreset references are missing. Assign them in the Inspector.");
         }
 
         // Calculate time speed based on day/night lengths
@@ -121,9 +132,17 @@ public class DayNightCycle : MonoBehaviour
             dayProgress = 0f;
         }
 
-        // Interpolate light properties
-        sunLight.color = Color.Lerp(nightColor, dayColor, dayProgress);
-        sunLight.intensity = Mathf.Lerp(nightIntensity, dayIntensity, dayProgress);
+        // Lerp all preset values from night -> day based on dayProgress.
+        if (dayPreset != null && nightPreset != null)
+        {
+            sunLight.color = Color.Lerp(nightPreset.sunColor, dayPreset.sunColor, dayProgress);
+            sunLight.intensity = Mathf.Lerp(nightPreset.sunIntensity, dayPreset.sunIntensity, dayProgress);
+
+            RenderSettings.ambientSkyColor = Color.Lerp(nightPreset.ambientSky, dayPreset.ambientSky, dayProgress);
+            RenderSettings.ambientEquatorColor = Color.Lerp(nightPreset.ambientEquator, dayPreset.ambientEquator, dayProgress);
+            RenderSettings.ambientGroundColor = Color.Lerp(nightPreset.ambientGround, dayPreset.ambientGround, dayProgress);
+            RenderSettings.ambientIntensity = Mathf.Lerp(nightPreset.ambientIntensity, dayPreset.ambientIntensity, dayProgress);
+        }
 
         // Update isNight flag
         isNight = currentTimeOfDay < 0.25f || currentTimeOfDay > 0.75f;

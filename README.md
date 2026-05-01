@@ -4,7 +4,7 @@ A Unity-based real-time strategy survival game. Manage autonomous workers, gathe
 
 **Genre:** Top-down RTS + Survival  
 **Setting:** Age of Sail shipwreck on an uncharted island  
-**Status:** Playable alpha (Phase 6.22)
+**Status:** Playable alpha (Phase 6.22) — Phase 10 Stage 1 (post-processing + lighting presets) shipped
 
 ---
 
@@ -162,7 +162,7 @@ Future roadmap:
 - **Phase 8:** Worker night hide behavior, archer units
 - **Phase 9:** Player character (Admiral), crafting, tech tree
 - **Phase 10: Visual Overhaul** — stylized low-poly tropical aesthetic in the Bad North / Townscaper / Islanders family. Five stages:
-  - **Stage 1** — URP post-processing pass (bloom, ACES, warm grading, vignette) + warm sunset directional light + gradient ambient
+  - **Stage 1 ✓ shipped** — URP Global Volume (Bloom, Color Adjustments, White Balance, ACES Tonemapping, Vignette) + warm directional light + ambient gradient. New `LightingPreset` ScriptableObject drives day/night via `DayNightCycle` (replaces old `dayColor`/`nightColor` inspector fields). Campfire has HDR emission so it blooms with threshold at spec value.
   - **Stage 2** — Asset replacement: bought pack (Synty POLYGON Pirates / Quaternius / KayKit) for environment filler, custom-modeled hero assets (units, buildings, campfire, shipwreck) in Blender
   - **Stage 3** — Stylized URP water shader (Shader Graph): Gerstner displacement, depth-blended turquoise, shoreline foam, quantized sun specular, flat-shaded normals
   - **Stage 4** — Lighting bake (mixed mode), exponential fog, shadow cascade tuning, optional SSAO

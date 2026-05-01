@@ -62,7 +62,8 @@ V:/islandrtsgame/                    # Repository root
 | `GameManager.cs` | Victory/defeat (survive 5 nights), statistics |
 | `ResourceManager.cs` | Singleton: wood/food/stone pool |
 | `PopulationManager.cs` | Worker housing capacity tracking |
-| `DayNightCycle.cs` | 120s day / 60s night, lighting, static events |
+| `DayNightCycle.cs` | 120s day / 60s night, lerps `LightingPreset` SOs, static events |
+| `LightingPreset.cs` | ScriptableObject: sun + ambient gradient values for one moment of the cycle |
 | `BaseBuilding.cs` | Campfire: worker/warrior spawning, housing |
 | `Health.cs` | Universal HP, damage events, floating text display |
 | `BuildPlacement.cs` | Ghost placement, wall line drawing, gate conversion, demolish mode |
@@ -157,9 +158,9 @@ Used by: ResourceManager, AudioManager, WallGrid, AIWorldState, PopulationManage
 - Singletons in single-scene games should NOT use `DontDestroyOnLoad` — it causes stale state (worker counts, audio cooldowns, etc.) to survive scene reloads on restart. Only add it back if you introduce a main menu scene
 - `Worker.OnDestroy` must call `PopulationManager.Instance?.RemoveWorker()` — the PopulationManager doesn't auto-detect deaths
 
-### Visual / Art Gotchas (Phase 10 prep)
+### Visual / Art Gotchas
 
-These apply once Phase 10 (Visual Overhaul) work begins — see `PHASE_10_VISUAL_OVERHAUL.md` for the full spec.
+Phase 10 spec is in `PHASE_10_VISUAL_OVERHAUL.md`. Stage 1 (post-processing + lighting presets) is shipped; remaining stages are planned.
 
 - **Don't chase the menu mockup composition.** The Castaway Colony main menu image uses macro DOF and a low/cinematic camera; the gameplay camera will never frame the world that way. Match palette, water quality, and silhouette readability — not composition or DOF.
 - **No DOF in gameplay.** Depth of field works against RTS clarity. Skip it in the Global Volume even though it's tempting from beauty shots.
@@ -168,7 +169,10 @@ These apply once Phase 10 (Visual Overhaul) work begins — see `PHASE_10_VISUAL
 - **NavMesh re-bake after mesh swaps if collider bounds change.** Phase 10 swaps meshes/materials on existing prefabs. If the new mesh's collider footprint differs, carving regions move and pathing breaks until the bake is refreshed.
 - **Keep gameplay prefab GameObject hierarchy stable during art swaps.** `Health`, `AIBrain`, `NavMeshAgent`, `ActiveRegistry<T>` registrations, and event subscriptions all reference these GameObjects. Swap meshes/materials only — don't reparent, rename, or replace the root GameObject.
 - **Test stylized lighting at the RTS camera angle, not in a beauty-shot view.** What looks great at a 30° tilt or scene-view fly-through can look flat or muddy from the actual gameplay camera height. Validate in Play mode at the real camera transform.
-- **DayNightCycle drives lighting presets, not just sun rotation.** When Phase 10 lands, `DayNightCycle.cs` will lerp sun color, ambient gradient, fog color, and water shader properties between day/night `LightingPreset` ScriptableObjects. Don't bypass it with one-off Lerps — extend the preset SO instead.
+- **`LightingPreset` SO is the runtime source of truth for sun + ambient.** `DayNightCycle.cs` takes a `dayPreset` and `nightPreset` reference and lerps all values between them via `dayProgress`. The values you set in `Window > Rendering > Lighting > Environment` are now **Scene-view fallback only** — they're overridden the first frame `DayNightCycle.Start()` runs. Don't bypass the preset with one-off Lerps; extend the SO type instead.
+- **`DayNightCycle.Start()` forces `RenderSettings.ambientMode = AmbientMode.Trilight`.** Whatever ambient mode you pick in the Lighting Settings window is overridden at runtime. Don't waste time tuning Skybox or Flat ambient — change `LightingPreset.cs` instead if you need a different blending shape.
+- **Bloom should fire only on HDR-emissive hero assets.** Don't lower Bloom Threshold below 1.0 to "make the campfire glow" — that makes anything moderately bright bloom (UI text, bright resources, etc., all gain a halo). Instead give hero materials HDR Emission with intensity ~3 so they exceed threshold while normal scene surfaces stay below it. Threshold 1.0 + emissive hero = clean bloom.
+- **Orthographic + flat ground = exponential fog whitewashes.** Orthographic projection over a flat playfield gives no depth gradient for `Mode: Exponential` fog to work against, so the fog reads as a uniform white veil over everything (close objects fogged the same as far ones). If fog returns in Stage 4, use **Linear** with Start ~30 / End ~80 so only far edges fade.
 
 ## Key Conventions
 
@@ -272,7 +276,7 @@ Ask: "would this log spam the console during a normal 5-minute play session?" If
 - Phase 7: Building upgrades (campfire -> fortress), workshop, storage
 - Phase 8: Worker night hide behavior, archer units
 - Phase 9: Player character (Admiral), crafting, tech tree
-- Phase 10: Art upgrade (replace primitives with low-poly models)
+- Phase 10: Visual overhaul — Stage 1 (post-processing + lighting presets) shipped; Stages 2-5 (asset swap, water shader, lighting bake) ahead
 - Phase 11: Content polish, save/load, main menu
 
 ---
@@ -370,9 +374,9 @@ Also: re-roll `agent.avoidancePriority = Random.Range(30, 70)` whenever an enemy
 
 Net effect: enemies now chew through huts en route to the campfire instead of jogging past them, retarget cleanly the same frame a hut dies, and disperse immediately from shared targets with no 2-4s freeze.
 
-### Phase 10 (Planned): Visual Overhaul
+### Phase 10 (In Progress): Visual Overhaul
 
-**Status:** Planned. Full spec in `PHASE_10_VISUAL_OVERHAUL.md` at repo root — that file is the source of truth; this entry is a summary.
+**Status:** Stage 1 shipped (post-processing + lighting presets). Stages 2-5 planned. Full spec in `PHASE_10_VISUAL_OVERHAUL.md` at repo root — that file is the source of truth; this entry is a summary.
 
 **Goal:** Replace primitive geometry and default lighting with a cohesive stylized low-poly aesthetic in the Bad North / Townscaper / Islanders / Synty POLYGON Pirates family. Visual reference is the Castaway Colony main menu mockup (sunset palette, low-poly islands, stylized water, soft DOF on background) — but tuned for top-down RTS framing: no DOF, no macro lensing, readable silhouettes from gameplay camera height.
 
@@ -392,4 +396,24 @@ Net effect: enemies now chew through huts en route to the campfire instead of jo
 
 **Success criteria:** game looks visually cohesive at gameplay camera angle (top-down RTS); water has depth-blended color, foam, and sun specular at minimum; day/night lerps sun + sky + fog + water shader smoothly; ≥60 fps with bake + post-processing active; hero assets bespoke, environment bought-pack; a new player describes the aesthetic in the same family as Bad North / Townscaper / Islanders.
 
-**Anti-patterns to avoid** are captured in the new "Visual / Art Gotchas (Phase 10 prep)" subsection above — most critical: don't chase the menu mockup's DOF/composition (only its palette, water, and silhouettes), don't bake the water, and keep gameplay prefab hierarchies stable during mesh/material swaps.
+**Anti-patterns to avoid** are captured in the "Visual / Art Gotchas" subsection above — most critical: don't chase the menu mockup's DOF/composition (only its palette, water, and silhouettes), don't bake the water, and keep gameplay prefab hierarchies stable during mesh/material swaps.
+
+### Phase 10 Stage 1 (Complete): Post-Processing + Lighting Foundation
+
+URP Global Volume on `SampleScene` with five overrides — Bloom, Color Adjustments, White Balance, ACES Tonemapping, Vignette. Warm directional light (rotation X≈20°, gold color, intensity 1.5). Ambient gradient (warm sky / neutral equator / cool ground).
+
+**New file:** `Assets/Scripts/LightingPreset.cs` — `[CreateAssetMenu]` ScriptableObject holding sun color + intensity and ambient sky/equator/ground colors + intensity for one moment in the day/night cycle.
+
+**`DayNightCycle.cs` refactor:** removed the four old inspector fields (`dayColor`, `nightColor`, `dayIntensity`, `nightIntensity`) — replaced by two `LightingPreset` references (`dayPreset`, `nightPreset`). `UpdateSunLighting()` lerps sun color, sun intensity, and `RenderSettings.ambientSkyColor` / `ambientEquatorColor` / `ambientGroundColor` / `ambientIntensity` between presets via the existing `dayProgress` curve. `Start()` forces `RenderSettings.ambientMode = AmbientMode.Trilight` so the gradient values are what `RenderSettings` actually consumes; `Debug.LogError` if either preset reference is missing.
+
+Two SO assets created in scene: `DayPreset.asset` (warm gold sun + warm-yellow / neutral / cool-blue ambient) and `NightPreset.asset` (cool blue sun + dark-navy / dark-blue / near-black ambient). User tunes values in the Project window; scene Inspector references them on `DayNightCycle`.
+
+Campfire material now has HDR Emission (intensity ~3) so it blooms at Bloom Threshold = 1.0 — preferred over dropping threshold globally, since only true HDR-emissive hero assets should bloom.
+
+Fog disabled. Orthographic + flat ground meant `Mode: Exponential` was reading as a uniform white veil (no depth gradient to work against). Revisit in Stage 4 with **Linear** fog (Start ~30 / End ~80) tuned to far edges only.
+
+**Outstanding (intentionally deferred):**
+- Post-FX values currently conservative (Sat 2, Contrast 6, Temp 10, Vignette 0.12) vs spec values (5 / 10 / 15 / 0.25). Stylistic choice — can push closer to spec for more drama later.
+- Fog hooks not in `LightingPreset` SO yet — wait until Stage 4 so we know what shape they need.
+- Water shader properties not in `LightingPreset` yet — Stage 3 dependency.
+- Sun rotation (`sunriseAngle` / `sunsetAngle`) intentionally NOT in the preset; rotation is a continuous time-of-day mechanic, the preset is for discrete day-state vs night-state values.
