@@ -130,14 +130,4 @@ public class BuildingSelectionUI : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Toggle the selection panel visibility
-    /// </summary>
-    public void Toggle()
-    {
-        if (selectionPanel != null)
-        {
-            selectionPanel.SetActive(!selectionPanel.activeSelf);
-        }
-    }
 }

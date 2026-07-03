@@ -18,7 +18,6 @@ public class GameManager : MonoBehaviour
     [Header("Statistics")]
     public int currentNight = 0;
     public int totalEnemiesKilled = 0;
-    public int totalResourcesGathered = 0;
     public int maxWorkers = 0;
     public int maxWarriors = 0;
 
@@ -143,7 +142,6 @@ public class GameManager : MonoBehaviour
         if (defeatScreen != null)
         {
             defeatScreen.SetActive(true);
-            UpdateDefeatStats();
         }
         else
         {
@@ -178,24 +176,11 @@ public class GameManager : MonoBehaviour
         if (victoryScreen != null)
         {
             victoryScreen.SetActive(true);
-            UpdateVictoryStats();
         }
         else
         {
             Debug.LogWarning("GameManager: No victory screen assigned!");
         }
-    }
-
-    void UpdateDefeatStats()
-    {
-        // Update defeat screen with statistics
-        // This will be connected to UI elements in the defeat screen
-    }
-
-    void UpdateVictoryStats()
-    {
-        // Update victory screen with statistics
-        // This will be connected to UI elements in the victory screen
     }
 
     /// <summary>
@@ -249,12 +234,6 @@ public class GameManager : MonoBehaviour
         totalEnemiesKilled++;
     }
 
-    // Track resources gathered
-    public void NotifyResourceGathered(int amount)
-    {
-        totalResourcesGathered += amount;
-    }
-
     // Public getters for UI
     public int GetNightsSurvived()
     {
@@ -264,10 +243,5 @@ public class GameManager : MonoBehaviour
     public int GetEnemiesKilled()
     {
         return totalEnemiesKilled;
-    }
-
-    public int GetResourcesGathered()
-    {
-        return totalResourcesGathered;
     }
 }

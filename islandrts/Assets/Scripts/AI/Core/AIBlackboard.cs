@@ -62,18 +62,21 @@ public class AIBlackboard
     public Transform forcedTarget;
     public float forcedTargetExpiry;
 
-    // Nearest enemy cache (refreshed by AIBrain)
+    // Nearest enemy cache (refreshed by the EnemyPresence consideration)
     public Transform nearestEnemy;
     public float nearestEnemyDistance;
-    public int nearbyEnemyCount;
+
+    // Frame-stamped full enemy scan (see EnemyPresence). Warriors evaluate up to
+    // four EnemyPresence instances per brain tick — this lets them share one scan.
+    public int enemyScanFrame = -1;
+    public Transform scannedNearestEnemy;
+    public float scannedNearestEnemyDist = float.MaxValue;
 
     // Nearest resource cache (refreshed periodically)
     public ResourceNode bestResource;
-    public float bestResourceScore;
 
     // Wall-under-attack cache
     public Transform wallUnderAttack;
-    public float wallUnderAttackDistance;
 
     // Stuck resolution
     public StuckResolver stuckResolver;

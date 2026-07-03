@@ -39,6 +39,7 @@ public class Enemy : MonoBehaviour
 
     // Private
     private NavMeshAgent agent;
+    public NavMeshAgent CachedAgent => agent;
     private Health healthComponent;
     public Health CachedHealth => healthComponent;
     private FloatingText floatingText;

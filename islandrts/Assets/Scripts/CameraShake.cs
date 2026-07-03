@@ -18,7 +18,6 @@ public class CameraShake : MonoBehaviour
     [Header("Shake Types")]
     public float lightShakeIntensity = 0.05f;   // UI clicks, minor hits
     public float mediumShakeIntensity = 0.1f;   // Combat hits
-    public float heavyShakeIntensity = 0.25f;   // Deaths, explosions
 
     // Private
     private float currentShakeDuration = 0f;
@@ -105,24 +104,4 @@ public class CameraShake : MonoBehaviour
         Shake(mediumShakeIntensity, shakeDuration);
     }
 
-    /// <summary>
-    /// Heavy shake (deaths, explosions)
-    /// </summary>
-    public void ShakeHeavy()
-    {
-        Shake(heavyShakeIntensity, shakeDuration * 1.5f);
-    }
-
-    /// <summary>
-    /// Reset camera shake immediately
-    /// </summary>
-    public void ResetPosition()
-    {
-        if (lastShakeOffset != Vector3.zero)
-        {
-            transform.localPosition -= lastShakeOffset;
-            lastShakeOffset = Vector3.zero;
-        }
-        currentShakeDuration = 0f;
-    }
 }

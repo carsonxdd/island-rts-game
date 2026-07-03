@@ -13,9 +13,6 @@ public class PopulationManager : MonoBehaviour
     [SerializeField] private int currentWorkers = 0;  // Total workers alive
     [SerializeField] private int housingCapacity = 0;  // Total housing slots available
 
-    [Header("Debug")]
-    public bool showDebugLogs = true;
-
     void Awake()
     {
         // Singleton setup
@@ -28,42 +25,9 @@ public class PopulationManager : MonoBehaviour
         Instance = this;
     }
 
-    void Start()
-    {
-        // Recalculate housing capacity from all buildings in scene
-        RecalculateHousingCapacity();
-    }
-
-    /// <summary>
-    /// Recalculates total housing capacity by scanning all buildings in the scene.
-    /// Call this when buildings are constructed or destroyed.
-    /// </summary>
-    public void RecalculateHousingCapacity()
-    {
-        int totalCapacity = 0;
-
-        // Check all BaseBuilding objects (Campfire)
-        BaseBuilding[] baseBuildings = FindObjectsByType<BaseBuilding>(FindObjectsSortMode.None);
-        foreach (BaseBuilding building in baseBuildings)
-        {
-            if (building != null && building.enabled)
-            {
-                totalCapacity += building.workerCapacity;
-            }
-        }
-
-        // Check all Hut objects (finished buildings)
-        Hut[] huts = FindObjectsByType<Hut>(FindObjectsSortMode.None);
-        foreach (Hut hut in huts)
-        {
-            if (hut != null && hut.enabled)
-            {
-                totalCapacity += hut.workerCapacity;
-            }
-        }
-
-        housingCapacity = totalCapacity;
-    }
+    // Housing capacity is owned entirely by the buildings: every BaseBuilding/Hut
+    // calls AddHousing in its Start and RemoveHousing on destruction. No scene
+    // rescan here — a Start-order-dependent recalculation used to double-count.
 
     /// <summary>
     /// Adds a building's housing capacity to the total.

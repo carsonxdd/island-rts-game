@@ -41,7 +41,6 @@ public class Watchtower : MonoBehaviour
         healthComponent.showHealthText = true;
         healthComponent.showObjectName = true;
         healthComponent.hideWhenFull = true;
-        healthComponent.onDeath.AddListener(OnWatchtowerDestroyed);
 
         // Disable NavMeshObstacle carving (like other buildings - enemies can surround)
         NavMeshObstacle obstacle = GetComponent<NavMeshObstacle>();
@@ -73,15 +72,6 @@ public class Watchtower : MonoBehaviour
         }
 
         return bestMultiplier;
-    }
-
-    void OnWatchtowerDestroyed()
-    {
-        // Play destruction sound if AudioManager exists
-        if (AudioManager.Instance != null)
-        {
-            // AudioManager.Instance.PlayWatchtowerDestroyed();  // TODO: Add sound
-        }
     }
 
     void OnDestroy()

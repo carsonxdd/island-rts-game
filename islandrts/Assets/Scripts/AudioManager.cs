@@ -99,16 +99,13 @@ public class AudioManager : MonoBehaviour
             gatherWoodSound, gatherFoodSound, gatherStoneSound
         };
 
-        int preloaded = 0;
         for (int i = 0; i < allClips.Length; i++)
         {
             if (allClips[i] != null && allClips[i].loadState != AudioDataLoadState.Loaded)
             {
                 allClips[i].LoadAudioData();
-                preloaded++;
             }
         }
-
     }
 
     void Start()
@@ -325,34 +322,6 @@ public class AudioManager : MonoBehaviour
         }
     }
 
-    // Legacy one-shot methods (kept for backwards compatibility if needed elsewhere)
-    public void PlayGatherWood()
-    {
-        if (CanPlaySound("gather_wood"))
-        {
-            PlaySFX(gatherWoodSound, 0.3f);
-            SetSoundCooldown("gather_wood", 0.5f);
-        }
-    }
-
-    public void PlayGatherFood()
-    {
-        if (CanPlaySound("gather_food"))
-        {
-            PlaySFX(gatherFoodSound, 0.3f);
-            SetSoundCooldown("gather_food", 0.5f);
-        }
-    }
-
-    public void PlayGatherStone()
-    {
-        if (CanPlaySound("gather_stone"))
-        {
-            PlaySFX(gatherStoneSound, 0.3f);
-            SetSoundCooldown("gather_stone", 0.5f);
-        }
-    }
-
     #endregion
 
     #region Music & Ambient
@@ -423,14 +392,6 @@ public class AudioManager : MonoBehaviour
 
         // Fade to new ambient sounds
         StartCoroutine(CrossfadeAmbient(ambientClip));
-    }
-
-    public void StopAmbientSounds()
-    {
-        if (ambientSource != null && ambientSource.isPlaying)
-        {
-            StartCoroutine(FadeOutAmbient());
-        }
     }
 
     void FadeToMusic(AudioClip newClip)
@@ -537,21 +498,6 @@ public class AudioManager : MonoBehaviour
         ambientSource.volume = targetVolume;
     }
 
-    System.Collections.IEnumerator FadeOutAmbient()
-    {
-        float startVolume = ambientSource.volume;
-        float elapsed = 0f;
-
-        while (elapsed < musicFadeTime)
-        {
-            elapsed += Time.deltaTime;
-            ambientSource.volume = Mathf.Lerp(startVolume, 0f, elapsed / musicFadeTime);
-            yield return null;
-        }
-
-        ambientSource.Stop();
-    }
-
     #endregion
 
     #region Helper Methods
@@ -577,22 +523,4 @@ public class AudioManager : MonoBehaviour
 
     #endregion
 
-    #region Public Utility
-
-    public void SetMasterVolume(float volume)
-    {
-        masterVolume = Mathf.Clamp01(volume);
-    }
-
-    public void SetMusicVolume(float volume)
-    {
-        musicVolume = Mathf.Clamp01(volume);
-    }
-
-    public void SetSFXVolume(float volume)
-    {
-        sfxVolume = Mathf.Clamp01(volume);
-    }
-
-    #endregion
 }

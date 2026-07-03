@@ -45,7 +45,7 @@ V:/islandrtsgame/                    # Repository root
     │   │   │   │   └── Enemy/       # EnemyAttack (single action, priority-based targeting)
     │   │   │   ├── Shared/          # AINavHelper (throttling), StuckResolver
     │   │   │   └── Debug/           # AIDebugOverlay (F3 in editor)
-    │   │   └── *.cs                 # 40 root-level scripts (game systems)
+    │   │   └── *.cs                 # 38 root-level scripts (game systems)
     │   ├── Prefabs/                 # Worker, Warrior, Enemy, buildings, resources
     │   ├── Materials/
     │   ├── Audio/
@@ -110,7 +110,7 @@ AIBrain (per unit)
 Used by: ResourceManager, AudioManager, WallGrid, AIWorldState, PopulationManager, GameManager, CombatEffects, CameraShake, BuildingDatabase
 
 ### ActiveRegistry Pattern
-`ActiveRegistry<T>` provides O(1) static lists for: Worker, Warrior, Enemy, BaseBuilding, Hut, Wall, Gate, Watchtower, ResourceNode. Units register in Awake, unregister in OnDestroy.
+`ActiveRegistry<T>` provides O(1) static lists for: Worker, Warrior, Enemy, BaseBuilding, Hut, Wall, Gate, Watchtower, ResourceNode, ConstructionSite. Units register in Awake, unregister in OnDestroy. `FindObjectsByType` is banned in this codebase — every scan site was converted to registries; use `X.ActiveList` with an index loop.
 
 ### Performance Conventions
 - Zero GC allocations in hot paths (Update, AI evaluation)
@@ -148,6 +148,7 @@ Used by: ResourceManager, AudioManager, WallGrid, AIWorldState, PopulationManage
 - `ForceReeval()` on AIBlackboard's brain reference lets executors trigger instant re-evaluation
 - Worker Flee: ThreatNearby yShift must be 0, otherwise momentum keeps dead flee action alive with 0 enemies
 - Warrior Heal: must use zero momentum and a curve that scores exactly 0 at full HP, otherwise commitment threshold blocks Patrol from taking over
+- ANY destination on a carving obstacle (campfire, huts, towers) must use the ClosestPoint→SamplePosition→edge-distance pattern — not just enemy attacks. HealAtCampfireExecutor originally targeted/measured the campfire CENTER: agents stop at the carve boundary, center-distance never drops below the arrival threshold, unit sticks on "moving" forever
 - CameraShake uses pure offset (undo-then-apply each LateUpdate) — never stores a "home" position, so it doesn't fight CameraController's WASD movement
 - Enemy/Wall attack destinations use `Collider.ClosestPoint(enemyPos)`, not `target.position`. Center-point destinations land inside the NavMesh carve and the agent stops short of `attackRange` — looks like a freeze. Cache the collider on target assignment (`bb.currentTargetCollider`) and also use it for the distance-based attack-range check
 - After using `ClosestPoint` on a carving obstacle's collider, **snap the result to the NavMesh via `NavMesh.SamplePosition`** before passing to `SetDestination`. ClosestPoint sits on the carve boundary — right after an adjacent obstacle uncarves (e.g. another hut dies), the NavMesh is briefly in recalc and `SetDestination` silently rejects boundary points. Symptom: enemy freezes ~3s until StuckResolver saves it. Fix lives in `EnemyAttackExecutor.GetApproachPoint`
@@ -156,7 +157,8 @@ Used by: ResourceManager, AudioManager, WallGrid, AIWorldState, PopulationManage
 - Re-roll `NavMeshAgent.avoidancePriority` whenever an enemy retargets from a dead target. Multiple enemies sharing a target will have similar ORCA priorities and mutually yield (stuck dance) on disperse otherwise. `Random.Range(30, 70)` per retarget breaks ties cleanly
 - For enemies, replacing four competing ActionOptions (AttackWarrior/AttackBuilding/BreachWall/AttackCampfire) with ONE action + priority function eliminated a whole class of stutter bugs where sibling actions + momentum + commitment threshold fought on target death. Generalize this pattern when competing actions share most of their logic and differ mainly in "what target?"
 - Singletons in single-scene games should NOT use `DontDestroyOnLoad` — it causes stale state (worker counts, audio cooldowns, etc.) to survive scene reloads on restart. Only add it back if you introduce a main menu scene
-- `Worker.OnDestroy` must call `PopulationManager.Instance?.RemoveWorker()` — the PopulationManager doesn't auto-detect deaths
+- Worker bookkeeping has ONE owner: `Worker.OnDestroy` → `BaseBuilding.NotifyWorkerRemoved(this)`, which removes from `activeWorkers` (roster membership is the idempotence guard), decrements the wood/food/stone counter, and calls `PopulationManager.RemoveWorker()`. Never decrement population or counters anywhere else — `UnassignWorker` used to do its own bookkeeping *and* Destroy, double-decrementing the population
+- Housing capacity has ONE owner: buildings call `AddHousing` in Start and release via `Hut.ReleaseHousing()` (flag-guarded, called from both death and `OnDestroy` so demolish counts too). PopulationManager must NOT rescan the scene at Start — the old `RecalculateHousingCapacity` double-counted depending on Start order
 
 ### Visual / Art Gotchas
 
@@ -257,7 +259,7 @@ Ask: "would this log spam the console during a normal 5-minute play session?" If
 
 ---
 
-## Current State (Phase 6.22)
+## Current State (Phase 6.23)
 
 **What's built and working:**
 - Full resource economy (wood, food, stone) with autonomous worker AI
@@ -373,6 +375,34 @@ Also: re-roll `agent.avoidancePriority = Random.Range(30, 70)` whenever an enemy
 **Removed from `Enemy.cs`:** `OnAnyWallDestroyed` / `OnAnyGateDestroyed` / `OnAnyHutDestroyed` event subscriptions (retarget on current-target death handles all cases naturally). `onDamaged` ForceReeval also removed (priority function already picks warriors first when in range; damage-retargeting caused ping-pong between attackers).
 
 Net effect: enemies now chew through huts en route to the campfire instead of jogging past them, retarget cleanly the same frame a hut dies, and disperse immediately from shared targets with no 2-4s freeze.
+
+### Phase 6.23 (Code Health Pass)
+
+Full-codebase review (4 parallel read agents) followed by three fix batches. Compiles with zero errors and zero warnings.
+
+**Bookkeeping bug fixes (single-owner pattern):**
+1. `UnassignWorker` double-decremented population (it called `RemoveWorker()` AND destroyed the worker, whose `OnDestroy` decremented again).
+2. Workers killed by enemies never left `BaseBuilding.activeWorkers` or their wood/food/stone counter.
+3. Housing capacity was Start-order dependent (`PopulationManager.Start` re-summed buildings while buildings also `AddHousing` in their Start).
+4. Demolishing a hut leaked its housing (demolish calls `Destroy()` directly, skipping the Health death event where `RemoveHousing` lived).
+
+Fixes: new `BaseBuilding.NotifyWorkerRemoved(Worker)` (roster membership = idempotence guard) called from `Worker.OnDestroy`; `UnassignWorker` just destroys; `RecalculateHousingCapacity` deleted; `Hut.ReleaseHousing()` flag-guarded, called from both death and `OnDestroy`.
+
+**Warrior heal stuck fix:** `HealAtCampfireExecutor` targeted and measured the campfire CENTER — inside its 2x2 NavMesh carve, so agents stalled at the boundary outside `HealRange` on "Moving to Campfire" forever. Now uses `ClosestPoint` → `SamplePosition` → edge-distance (same pattern as `EnemyAttackExecutor`) and routes through `AINavHelper.TrySetDestination` respecting its return.
+
+**Performance:**
+- `FindObjectsByType` eliminated codebase-wide (was 4 scans/frame in `BuildPlacement.IsTooCloseToExistingBuilding` while placing, 5 per spawn candidate in `ResourceSpawner`, more in zone visuals). `ConstructionSite` gained an `ActiveRegistry`.
+- `EnemyPresence` scan frame-cached on the blackboard (`enemyScanFrame`) — warriors ran the full enemy-list scan ~4x per brain tick (Engage/Intercept/Patrol/Heal); now once. Loop uses `sqrMagnitude`. Range cutoff semantics preserved (strict `<`).
+- `WorkerAssignmentUI` + `VictoryDefeatUI` now dirty-check (were rebuilding strings every frame; victory/defeat screens build once on show).
+- `BuildingDatabase.GetBuildingData` is a dictionary (was linear scan on per-frame paths). `Enemy.CachedAgent` added; `AIWorldState` uses it instead of per-enemy `GetComponent` every second. Damage numbers cache `Camera.main`. Merged no-build-zone grid uses `Vector2Int`/tuple keys (was `HashSet<string>` with `$"{x},{z}"` + `Split`/`Parse`).
+
+**Dead-code sweep** (~20 members, all grep-verified callerless): AudioManager legacy gather one-shots + volume setters + `StopAmbientSounds`/`FadeOutAmbient`; GameManager resources-gathered stat path + empty stats stubs; `CameraShake.ShakeHeavy`/`ResetPosition` + `heavyShakeIntensity`; write-only blackboard fields (`nearbyEnemyCount`, `bestResourceScore`, `wallUnderAttackDistance`); dead `destinationSet` flags (Intercept/Retreat); `Gate.isGate`; BuildPlacement legacy inspector fields + demolish name tracking; `EnemySpawner.GetActiveEnemyCount`; `ResourceUI.ForceUpdate`; `BuildingSelectionUI.Toggle`; `PopulationManager.showDebugLogs`. Deleted `WorkerSpawnTest.cs` + `NavMeshTest.cs` (unreferenced in scenes). `DayNightCycle.OnGUI` wrapped in `#if UNITY_EDITOR`. `WallGrid` obsolete `FindObjectOfType` → `FindFirstObjectByType`.
+
+**Notable discovery:** the multi-worker gather speed bonus was never implemented — `ResourceNode.gatherRatePerWorker`/`speedMultiplier` fed a discarded local. Deleted (default was "no bonus", so no behavior change). If stacking-worker bonuses are wanted, design deliberately as a balance feature.
+
+**Kept deliberately:** `DistanceTo`'s unused enum branches (coherent parameterized utility); redundant `currentHealth` inits in unit Starts (removing creates Start-order dependency on `Health.Start`); worker executors still bypass `AINavHelper` (behavior-touching — needs its own pass with playtesting).
+
+**Refactors still queued:** `BuildPlacement` split (WallLinePlacer / GhostPlacer / DemolishTool / NoBuildZoneRenderer), `UnitBase` extraction for Worker/Warrior/Enemy boilerplate, audio crossfade coroutine dedup.
 
 ### Phase 10 (In Progress): Visual Overhaul
 

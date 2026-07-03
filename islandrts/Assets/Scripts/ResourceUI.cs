@@ -90,9 +90,4 @@ public class ResourceUI : MonoBehaviour
         }
     }
 
-    // Force immediate update (useful when resources change)
-    public void ForceUpdate()
-    {
-        UpdateUI();
-    }
 }

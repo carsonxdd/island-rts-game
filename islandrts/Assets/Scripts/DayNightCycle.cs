@@ -196,7 +196,9 @@ public class DayNightCycle : MonoBehaviour
         return currentDay;
     }
 
-    // Debug helper — cached style and string to avoid GC allocations
+#if UNITY_EDITOR
+    // Debug helper — cached style and string to avoid GC allocations.
+    // Editor-only: builds should get a real HUD element instead (Phase 11).
     void OnGUI()
     {
         if (!Application.isPlaying) return;
@@ -231,4 +233,5 @@ public class DayNightCycle : MonoBehaviour
 
         GUI.Label(new Rect(x, y, width, height), cachedDebugInfo, cachedGuiStyle);
     }
+#endif
 }

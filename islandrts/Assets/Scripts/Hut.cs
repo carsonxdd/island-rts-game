@@ -25,6 +25,8 @@ public class Hut : MonoBehaviour
     [Header("Population & Housing")]
     public int workerCapacity = 2;  // Huts provide 2 worker slots
 
+    private bool housingReleased = false;  // Guards against double RemoveHousing (death + destroy)
+
     void Start()
     {
         // Setup Health component
@@ -71,25 +73,38 @@ public class Hut : MonoBehaviour
         // in ActiveList for ~1s, but FindNearestBuilding already filters by IsAlive).
         OnAnyHutDestroyed?.Invoke();
 
-        // Remove housing capacity from PopulationManager
-        if (PopulationManager.Instance != null)
-        {
-            PopulationManager.Instance.RemoveHousing(workerCapacity);
+        ReleaseHousing();
 
-            // Check if workers are now homeless
-            if (PopulationManager.Instance.HasHomelessWorkers())
-            {
-                int homelessCount = PopulationManager.Instance.GetHomelessCount();
-                Debug.LogWarning($"Hut: {homelessCount} workers are now HOMELESS! Build more huts.");
-            }
+        // Check if workers are now homeless
+        if (PopulationManager.Instance != null && PopulationManager.Instance.HasHomelessWorkers())
+        {
+            int homelessCount = PopulationManager.Instance.GetHomelessCount();
+            Debug.LogWarning($"Hut: {homelessCount} workers are now HOMELESS! Build more huts.");
         }
 
         // Could add visual effects, resource drops, etc. here
     }
 
+    /// <summary>
+    /// Removes this hut's housing from the PopulationManager exactly once,
+    /// whether the hut died in combat (OnHutDestroyed) or was demolished /
+    /// destroyed directly (OnDestroy).
+    /// </summary>
+    void ReleaseHousing()
+    {
+        if (housingReleased) return;
+        housingReleased = true;
+
+        if (PopulationManager.Instance != null)
+        {
+            PopulationManager.Instance.RemoveHousing(workerCapacity);
+        }
+    }
+
     void OnDestroy()
     {
         ActiveRegistry<Hut>.Unregister(this);
+        ReleaseHousing();
     }
 
     // Visual helper in Scene view

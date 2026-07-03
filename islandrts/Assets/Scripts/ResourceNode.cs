@@ -14,8 +14,6 @@ public class ResourceNode : MonoBehaviour
     public float currentAmount = 10f;   // Current resources remaining (can be fractional)
 
     [Header("Gathering")]
-    public float gatherRatePerWorker = 1f;  // Resources per second per worker
-    public float speedMultiplier = 1f;      // Bonus speed when multiple workers (1 = no bonus)
 
     [Header("Visual Feedback")]
     public Color highlightColor = Color.yellow;
@@ -31,7 +29,6 @@ public class ResourceNode : MonoBehaviour
     private List<Worker> activeWorkers = new List<Worker>();
     private List<Worker> claimedWorkers = new List<Worker>();
     private Vector3 originalScale;
-    private float lastUpdateTime;
     private NavMeshObstacle cachedObstacle;
 
     void Start()
@@ -54,7 +51,6 @@ public class ResourceNode : MonoBehaviour
 
         // Save original scale for depletion visual
         originalScale = transform.localScale;
-        lastUpdateTime = Time.time;
     }
 
     void SetupNavMeshObstacle()
@@ -166,17 +162,11 @@ public class ResourceNode : MonoBehaviour
             return 0f;
         }
 
-        // Calculate gather rate bonus from multiple workers
-        float workerBonus = 1f + (activeWorkers.Count - 1) * speedMultiplier;
-        float actualGatherRate = gatherRatePerWorker * workerBonus;
-
         // Can't gather more than what's available
         float amountGathered = Mathf.Min(requestedAmount, currentAmount);
 
         // Deplete the node
         currentAmount -= amountGathered;
-
-        // Debug.Log($"ResourceNode: Gathered {amountGathered:F2} {resourceType}. {currentAmount:F2} remaining. ({activeWorkers.Count} workers, {workerBonus:F1}x speed)");
 
         // Destroy node if empty
         if (currentAmount <= 0.01f)  // Small threshold for floating point
@@ -283,6 +273,4 @@ public class ResourceNode : MonoBehaviour
     {
         ActiveRegistry<ResourceNode>.Unregister(this);
     }
-
-    // Manual gathering removed - workers only now!
 }

@@ -46,10 +46,7 @@ public class EnemySpawner : MonoBehaviour
     {
         currentNight++;
 
-        // Calculate how many enemies to spawn this night
-        int enemiesToSpawn = CalculateEnemyCount();
-
-        // Start spawning enemies after a delay
+        // Start spawning enemies after a delay (StartSpawning computes the count)
         Invoke(nameof(StartSpawning), spawnDelay);
     }
 
@@ -173,13 +170,6 @@ public class EnemySpawner : MonoBehaviour
     }
 
     // Public getters
-    public int GetActiveEnemyCount()
-    {
-        for (int i = activeEnemies.Count - 1; i >= 0; i--)
-            if (activeEnemies[i] == null) activeEnemies.RemoveAt(i);
-        return activeEnemies.Count;
-    }
-
     public int GetCurrentNight()
     {
         return currentNight;

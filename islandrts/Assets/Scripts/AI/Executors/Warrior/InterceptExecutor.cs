@@ -13,7 +13,6 @@ public class InterceptExecutor : ActionExecutor
     public override string DisplayName => "Intercepting";
 
     private Vector3 rallyPoint;
-    private bool destinationSet = false;
     private float recalcTimer = 0f;
     private float recalcInterval = 2f; // Recalculate rally point every 2s as enemies move
 
@@ -28,7 +27,6 @@ public class InterceptExecutor : ActionExecutor
 
     public override void OnEnter(AIBlackboard bb)
     {
-        destinationSet = false;
         recalcTimer = 0f;
         CalculateRallyPoint(bb);
         MoveToRally(bb);
@@ -177,7 +175,6 @@ public class InterceptExecutor : ActionExecutor
         {
             bb.agent.isStopped = false;
             AINavHelper.TrySetDestination(bb.agent, rallyPoint);
-            destinationSet = true;
 
             if (bb.stuckResolver != null)
                 bb.stuckResolver.ResetStuckDetection();
@@ -186,7 +183,6 @@ public class InterceptExecutor : ActionExecutor
 
     public override void OnExit(AIBlackboard bb)
     {
-        destinationSet = false;
         if (bb.agent.isOnNavMesh)
             bb.agent.isStopped = false;
     }

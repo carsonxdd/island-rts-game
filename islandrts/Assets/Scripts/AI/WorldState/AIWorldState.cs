@@ -185,7 +185,7 @@ public class AIWorldState : MonoBehaviour
             if (enemy == null) continue;
 
             // We check via the enemy's agent destination against WallGrid
-            UnityEngine.AI.NavMeshAgent enemyAgent = enemy.GetComponent<UnityEngine.AI.NavMeshAgent>();
+            UnityEngine.AI.NavMeshAgent enemyAgent = enemy.CachedAgent;
             if (enemyAgent == null || !enemyAgent.hasPath) continue;
 
             if (WallGrid.Instance != null)

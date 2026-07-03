@@ -220,12 +220,16 @@ public class DamageNumberAnimator : MonoBehaviour
     private float riseSpeed;
     private float timer = 0f;
     private TextMeshPro tmp;
+    private Transform cachedCameraTransform;
 
     public void Initialize(float dur, float speed)
     {
         duration = dur;
         riseSpeed = speed;
         tmp = GetComponent<TextMeshPro>();
+
+        Camera mainCamera = Camera.main;
+        cachedCameraTransform = mainCamera != null ? mainCamera.transform : null;
     }
 
     void Update()
@@ -243,9 +247,9 @@ public class DamageNumberAnimator : MonoBehaviour
         }
 
         // Billboard effect
-        if (Camera.main != null)
+        if (cachedCameraTransform != null)
         {
-            transform.LookAt(Camera.main.transform);
+            transform.LookAt(cachedCameraTransform);
             transform.Rotate(0, 180, 0);
         }
     }

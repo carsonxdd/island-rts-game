@@ -1,9 +1,14 @@
 using UnityEngine;
 using UnityEngine.AI;
 using TMPro;
+using System.Collections.Generic;
 
 public class ConstructionSite : MonoBehaviour
 {
+    public static IReadOnlyList<ConstructionSite> ActiveList => ActiveRegistry<ConstructionSite>.List;
+
+    void Awake() { ActiveRegistry<ConstructionSite>.Register(this); }
+
     [Header("Construction Settings")]
     public float buildTime = 5f;  // Seconds to auto-complete
     public GameObject finishedBuildingPrefab;  // Legacy: What to spawn when done (use BuildingDatabase instead)
@@ -192,6 +197,7 @@ public class ConstructionSite : MonoBehaviour
 
     void OnDestroy()
     {
+        ActiveRegistry<ConstructionSite>.Unregister(this);
         UnregisterFromGrid();
     }
 

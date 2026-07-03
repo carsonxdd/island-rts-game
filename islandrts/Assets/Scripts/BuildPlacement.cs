@@ -7,16 +7,7 @@ public class BuildPlacement : MonoBehaviour
     public BuildingType selectedBuildingType = BuildingType.Hut;
     public BuildingSelectionUI selectionUI;  // Optional: Visual feedback for building selection
 
-    [Header("Building Prefabs (Legacy - kept for backward compatibility)")]
-    public GameObject hutGhostPrefab;  // Legacy: Use BuildingDatabase instead
-    public GameObject constructionSitePrefab;  // Shared construction site prefab
-    public float ghostBuildingNoBuildRadius = 3.5f;  // Will be dynamically set from BuildingData
-    private float ghostBuildingVisualNoBuildRadius = 3.5f;  // Visual-only radius for ghost border
-
-    [Header("Building Cost (Legacy - kept for backward compatibility)")]
-    public int woodCost = 20;  // Legacy: Use BuildingDatabase instead
-    public int foodCost = 10;  // Legacy: Use BuildingDatabase instead
-    public int stoneCost = 0;  // Legacy: Use BuildingDatabase instead
+    private float ghostBuildingVisualNoBuildRadius = 3.5f;  // Visual-only radius for ghost border (set from BuildingData)
 
     [Header("Grid Settings")]
     public float cellSize = 1f;  // Match your grid size
@@ -692,7 +683,6 @@ public class BuildPlacement : MonoBehaviour
 
         GameObject targetObj = null;
         BuildingType? targetType = null;
-        string targetName = null;
 
         if (Physics.Raycast(ray, out hit, 1000f))
         {
@@ -703,7 +693,6 @@ public class BuildPlacement : MonoBehaviour
             {
                 targetObj = wall.gameObject;
                 targetType = wall.isStoneWall ? BuildingType.StoneWall : BuildingType.WoodenWall;
-                targetName = wall.isStoneWall ? "Stone Wall" : "Wooden Wall";
             }
 
             if (targetObj == null)
@@ -714,7 +703,6 @@ public class BuildPlacement : MonoBehaviour
                 {
                     targetObj = gate.gameObject;
                     targetType = gate.isStoneGate ? BuildingType.StoneWall : BuildingType.WoodenWall;
-                    targetName = gate.isStoneGate ? "Stone Gate" : "Wooden Gate";
                 }
             }
 
@@ -726,7 +714,6 @@ public class BuildPlacement : MonoBehaviour
                 {
                     targetObj = hut.gameObject;
                     targetType = BuildingType.Hut;
-                    targetName = "Hut";
                 }
             }
 
@@ -738,7 +725,6 @@ public class BuildPlacement : MonoBehaviour
                 {
                     targetObj = tower.gameObject;
                     targetType = BuildingType.Watchtower;
-                    targetName = "Watchtower";
                 }
             }
 
@@ -750,7 +736,6 @@ public class BuildPlacement : MonoBehaviour
                 {
                     targetObj = site.gameObject;
                     targetType = site.buildingType;
-                    targetName = "Construction Site";
                 }
             }
 
@@ -772,7 +757,7 @@ public class BuildPlacement : MonoBehaviour
         // Left click: demolish
         if (Input.GetMouseButtonDown(0) && targetObj != null && targetType.HasValue)
         {
-            DemolishBuilding(targetObj, targetType.Value, targetName);
+            DemolishBuilding(targetObj, targetType.Value);
         }
     }
 
@@ -814,7 +799,7 @@ public class BuildPlacement : MonoBehaviour
         }
     }
 
-    void DemolishBuilding(GameObject buildingObj, BuildingType type, string name)
+    void DemolishBuilding(GameObject buildingObj, BuildingType type)
     {
         if (ResourceManager.Instance == null || BuildingDatabase.Instance == null) return;
 
@@ -889,7 +874,6 @@ public class BuildPlacement : MonoBehaviour
         // Update building properties from data
         buildingSize = data.buildingSize;
         placementHeight = data.placementHeight;
-        ghostBuildingNoBuildRadius = data.noBuildRadius;
         ghostBuildingVisualNoBuildRadius = data.visualNoBuildRadius;
 
         // Initialize target position
@@ -1185,7 +1169,6 @@ public class BuildPlacement : MonoBehaviour
         // Update building size and placement height for collision detection
         buildingSize = data.buildingSize;
         placementHeight = data.placementHeight;
-        ghostBuildingNoBuildRadius = data.noBuildRadius;
         ghostBuildingVisualNoBuildRadius = data.visualNoBuildRadius;
 
         // Initialize target position
@@ -1239,9 +1222,9 @@ public class BuildPlacement : MonoBehaviour
         // Fallback if WallGrid not yet initialized
         float threshold = cellSize * 0.4f;
 
-        Wall[] walls = FindObjectsByType<Wall>(FindObjectsSortMode.None);
-        foreach (Wall wall in walls)
+        for (int i = 0; i < Wall.ActiveList.Count; i++)
         {
+            Wall wall = Wall.ActiveList[i];
             if (wall == null) continue;
             float dx = Mathf.Abs(position.x - wall.transform.position.x);
             float dz = Mathf.Abs(position.z - wall.transform.position.z);
@@ -1249,9 +1232,9 @@ public class BuildPlacement : MonoBehaviour
                 return true;
         }
 
-        ConstructionSite[] sites = FindObjectsByType<ConstructionSite>(FindObjectsSortMode.None);
-        foreach (ConstructionSite site in sites)
+        for (int i = 0; i < ConstructionSite.ActiveList.Count; i++)
         {
+            ConstructionSite site = ConstructionSite.ActiveList[i];
             if (site == null) continue;
             float dx = Mathf.Abs(position.x - site.transform.position.x);
             float dz = Mathf.Abs(position.z - site.transform.position.z);
@@ -1290,9 +1273,9 @@ public class BuildPlacement : MonoBehaviour
         float gridBuffer = cellSize * 0.1f;
 
         // Check all BaseBuilding objects (Campfire, etc.)
-        BaseBuilding[] baseBuildings = FindObjectsByType<BaseBuilding>(FindObjectsSortMode.None);
-        foreach (BaseBuilding building in baseBuildings)
+        for (int i = 0; i < BaseBuilding.ActiveList.Count; i++)
         {
+            BaseBuilding building = BaseBuilding.ActiveList[i];
             if (building == null) continue;
 
             float deltaX = Mathf.Abs(position.x - building.transform.position.x);
@@ -1305,9 +1288,9 @@ public class BuildPlacement : MonoBehaviour
         }
 
         // Check all ConstructionSite objects
-        ConstructionSite[] constructionSites = FindObjectsByType<ConstructionSite>(FindObjectsSortMode.None);
-        foreach (ConstructionSite site in constructionSites)
+        for (int i = 0; i < ConstructionSite.ActiveList.Count; i++)
         {
+            ConstructionSite site = ConstructionSite.ActiveList[i];
             if (site == null) continue;
 
             float deltaX = Mathf.Abs(position.x - site.transform.position.x);
@@ -1320,9 +1303,9 @@ public class BuildPlacement : MonoBehaviour
         }
 
         // Check all Hut objects (finished buildings)
-        Hut[] huts = FindObjectsByType<Hut>(FindObjectsSortMode.None);
-        foreach (Hut hut in huts)
+        for (int i = 0; i < Hut.ActiveList.Count; i++)
         {
+            Hut hut = Hut.ActiveList[i];
             if (hut == null) continue;
 
             float deltaX = Mathf.Abs(position.x - hut.transform.position.x);
@@ -1337,9 +1320,9 @@ public class BuildPlacement : MonoBehaviour
         // Walls have noBuildRadius=0 so this check is effectively skipped for them
 
         // Check all Watchtower objects (finished towers)
-        Watchtower[] watchtowers = FindObjectsByType<Watchtower>(FindObjectsSortMode.None);
-        foreach (Watchtower tower in watchtowers)
+        for (int i = 0; i < Watchtower.ActiveList.Count; i++)
         {
+            Watchtower tower = Watchtower.ActiveList[i];
             if (tower == null) continue;
 
             float deltaX = Mathf.Abs(position.x - tower.transform.position.x);
@@ -1380,26 +1363,26 @@ public class BuildPlacement : MonoBehaviour
     void CreateIndividualNoBuildZones()
     {
         // Create circles for all BaseBuilding objects (campfire - uses its own visualNoBuildRadius)
-        BaseBuilding[] baseBuildings = FindObjectsByType<BaseBuilding>(FindObjectsSortMode.None);
-        foreach (BaseBuilding building in baseBuildings)
+        for (int i = 0; i < BaseBuilding.ActiveList.Count; i++)
         {
+            BaseBuilding building = BaseBuilding.ActiveList[i];
             if (building == null) continue;
             CreateCircleVisual(building.transform.position, building.visualNoBuildRadius);
         }
 
         // Create circles for all ConstructionSite objects (look up from BuildingData)
-        ConstructionSite[] constructionSites = FindObjectsByType<ConstructionSite>(FindObjectsSortMode.None);
-        foreach (ConstructionSite site in constructionSites)
+        for (int i = 0; i < ConstructionSite.ActiveList.Count; i++)
         {
+            ConstructionSite site = ConstructionSite.ActiveList[i];
             if (site == null) continue;
             float visualRadius = GetVisualNoBuildRadius(site.buildingType, site.noBuildRadius);
             CreateCircleVisual(site.transform.position, visualRadius);
         }
 
         // Create circles for all Hut objects (look up from BuildingData)
-        Hut[] huts = FindObjectsByType<Hut>(FindObjectsSortMode.None);
-        foreach (Hut hut in huts)
+        for (int i = 0; i < Hut.ActiveList.Count; i++)
         {
+            Hut hut = Hut.ActiveList[i];
             if (hut == null) continue;
             float visualRadius = GetVisualNoBuildRadius(BuildingType.Hut, hut.noBuildRadius);
             CreateCircleVisual(hut.transform.position, visualRadius);
@@ -1408,9 +1391,9 @@ public class BuildPlacement : MonoBehaviour
         // Walls intentionally have no no-build zone visuals so they can be placed adjacent
 
         // Create circles for all Watchtower objects (look up from BuildingData)
-        Watchtower[] watchtowers = FindObjectsByType<Watchtower>(FindObjectsSortMode.None);
-        foreach (Watchtower tower in watchtowers)
+        for (int i = 0; i < Watchtower.ActiveList.Count; i++)
         {
+            Watchtower tower = Watchtower.ActiveList[i];
             if (tower == null) continue;
             float visualRadius = GetVisualNoBuildRadius(BuildingType.Watchtower, tower.noBuildRadius);
             CreateCircleVisual(tower.transform.position, visualRadius);
@@ -1424,25 +1407,25 @@ public class BuildPlacement : MonoBehaviour
         List<ZoneData> zones = new List<ZoneData>();
 
         // Campfire uses its own visualNoBuildRadius (no BuildingData entry)
-        BaseBuilding[] baseBuildings = FindObjectsByType<BaseBuilding>(FindObjectsSortMode.None);
-        foreach (BaseBuilding building in baseBuildings)
+        for (int i = 0; i < BaseBuilding.ActiveList.Count; i++)
         {
+            BaseBuilding building = BaseBuilding.ActiveList[i];
             if (building == null) continue;
             zones.Add(new ZoneData { position = building.transform.position, radius = building.visualNoBuildRadius });
         }
 
         // All other buildings look up visual radius from BuildingData
-        ConstructionSite[] constructionSites = FindObjectsByType<ConstructionSite>(FindObjectsSortMode.None);
-        foreach (ConstructionSite site in constructionSites)
+        for (int i = 0; i < ConstructionSite.ActiveList.Count; i++)
         {
+            ConstructionSite site = ConstructionSite.ActiveList[i];
             if (site == null) continue;
             float visualRadius = GetVisualNoBuildRadius(site.buildingType, site.noBuildRadius);
             zones.Add(new ZoneData { position = site.transform.position, radius = visualRadius });
         }
 
-        Hut[] huts = FindObjectsByType<Hut>(FindObjectsSortMode.None);
-        foreach (Hut hut in huts)
+        for (int i = 0; i < Hut.ActiveList.Count; i++)
         {
+            Hut hut = Hut.ActiveList[i];
             if (hut == null) continue;
             float visualRadius = GetVisualNoBuildRadius(BuildingType.Hut, hut.noBuildRadius);
             zones.Add(new ZoneData { position = hut.transform.position, radius = visualRadius });
@@ -1450,9 +1433,9 @@ public class BuildPlacement : MonoBehaviour
 
         // Walls excluded from no-build zones - they can be placed adjacent
 
-        Watchtower[] watchtowers = FindObjectsByType<Watchtower>(FindObjectsSortMode.None);
-        foreach (Watchtower tower in watchtowers)
+        for (int i = 0; i < Watchtower.ActiveList.Count; i++)
         {
+            Watchtower tower = Watchtower.ActiveList[i];
             if (tower == null) continue;
             float visualRadius = GetVisualNoBuildRadius(BuildingType.Watchtower, tower.noBuildRadius);
             zones.Add(new ZoneData { position = tower.transform.position, radius = visualRadius });
@@ -1460,24 +1443,8 @@ public class BuildPlacement : MonoBehaviour
 
         if (zones.Count == 0) return;
 
-        // Find bounds in grid coordinates
-        int minGridX = int.MaxValue, maxGridX = int.MinValue;
-        int minGridZ = int.MaxValue, maxGridZ = int.MinValue;
-
-        foreach (var zone in zones)
-        {
-            int centerGridX = Mathf.FloorToInt(zone.position.x / cellSize);
-            int centerGridZ = Mathf.FloorToInt(zone.position.z / cellSize);
-            int cellsToExtend = Mathf.FloorToInt(zone.radius / cellSize);
-
-            minGridX = Mathf.Min(minGridX, centerGridX - cellsToExtend);
-            maxGridX = Mathf.Max(maxGridX, centerGridX + cellsToExtend);
-            minGridZ = Mathf.Min(minGridZ, centerGridZ - cellsToExtend);
-            maxGridZ = Mathf.Max(maxGridZ, centerGridZ + cellsToExtend);
-        }
-
         // Create a HashSet of filled grid cells
-        HashSet<string> filledCells = new HashSet<string>();
+        HashSet<Vector2Int> filledCells = new HashSet<Vector2Int>();
 
         foreach (var zone in zones)
         {
@@ -1489,21 +1456,13 @@ public class BuildPlacement : MonoBehaviour
             {
                 for (int z = centerGridZ - cellsToExtend; z <= centerGridZ + cellsToExtend; z++)
                 {
-                    filledCells.Add($"{x},{z}");
+                    filledCells.Add(new Vector2Int(x, z));
                 }
             }
         }
 
         // Now draw edges around the filled region
-        DrawPerimeterEdgesFromGrid(filledCells, minGridX, maxGridX, minGridZ, maxGridZ);
-    }
-
-    // Helper class for grid-based edge data
-    class GridEdgeData
-    {
-        public Vector3 worldP1;
-        public Vector3 worldP2;
-        public int count;
+        DrawPerimeterEdgesFromGrid(filledCells);
     }
 
     // Helper struct for zone data
@@ -1514,41 +1473,35 @@ public class BuildPlacement : MonoBehaviour
     }
 
     // Draw perimeter edges around all filled cells
-    void DrawPerimeterEdgesFromGrid(HashSet<string> filledCells, int minX, int maxX, int minZ, int maxZ)
+    void DrawPerimeterEdgesFromGrid(HashSet<Vector2Int> filledCells)
     {
-        Dictionary<string, GridEdgeData> uniqueEdges = new Dictionary<string, GridEdgeData>();
+        HashSet<(int x1, int z1, int x2, int z2)> drawnEdges = new HashSet<(int, int, int, int)>();
 
-        foreach (string cellKey in filledCells)
+        foreach (Vector2Int cell in filledCells)
         {
-            string[] parts = cellKey.Split(',');
-            int x = int.Parse(parts[0]);
-            int z = int.Parse(parts[1]);
+            int x = cell.x;
+            int z = cell.y;
 
-            if (!filledCells.Contains($"{x},{z - 1}"))
+            if (!filledCells.Contains(new Vector2Int(x, z - 1)))
             {
-                AddGridEdge(uniqueEdges, x, z, x + 1, z);
+                AddGridEdge(drawnEdges, x, z, x + 1, z);
             }
-            if (!filledCells.Contains($"{x + 1},{z}"))
+            if (!filledCells.Contains(new Vector2Int(x + 1, z)))
             {
-                AddGridEdge(uniqueEdges, x + 1, z, x + 1, z + 1);
+                AddGridEdge(drawnEdges, x + 1, z, x + 1, z + 1);
             }
-            if (!filledCells.Contains($"{x},{z + 1}"))
+            if (!filledCells.Contains(new Vector2Int(x, z + 1)))
             {
-                AddGridEdge(uniqueEdges, x, z + 1, x + 1, z + 1);
+                AddGridEdge(drawnEdges, x, z + 1, x + 1, z + 1);
             }
-            if (!filledCells.Contains($"{x - 1},{z}"))
+            if (!filledCells.Contains(new Vector2Int(x - 1, z)))
             {
-                AddGridEdge(uniqueEdges, x, z, x, z + 1);
+                AddGridEdge(drawnEdges, x, z, x, z + 1);
             }
-        }
-
-        foreach (var edge in uniqueEdges.Values)
-        {
-            DrawEdgeSegment(edge.worldP1, edge.worldP2);
         }
     }
 
-    void AddGridEdge(Dictionary<string, GridEdgeData> edges, int gridX1, int gridZ1, int gridX2, int gridZ2)
+    void AddGridEdge(HashSet<(int x1, int z1, int x2, int z2)> drawnEdges, int gridX1, int gridZ1, int gridX2, int gridZ2)
     {
         int x1, z1, x2, z2;
         if (gridX1 < gridX2 || (gridX1 == gridX2 && gridZ1 < gridZ2))
@@ -1562,16 +1515,14 @@ public class BuildPlacement : MonoBehaviour
             x2 = gridX1; z2 = gridZ1;
         }
 
-        string key = $"{x1},{z1}|{x2},{z2}";
-
-        if (!edges.ContainsKey(key))
+        if (drawnEdges.Add((x1, z1, x2, z2)))
         {
             float centeringOffset = 0.5f;
             float offset = cellSize;
             Vector3 worldP1 = new Vector3((x1 + centeringOffset) * cellSize - offset, 0, (z1 + centeringOffset) * cellSize - offset);
             Vector3 worldP2 = new Vector3((x2 + centeringOffset) * cellSize - offset, 0, (z2 + centeringOffset) * cellSize - offset);
 
-            edges[key] = new GridEdgeData { worldP1 = worldP1, worldP2 = worldP2, count = 1 };
+            DrawEdgeSegment(worldP1, worldP2);
         }
     }
 

@@ -194,31 +194,38 @@ public class BaseBuilding : MonoBehaviour
 
         if (workerToRemove != null)
         {
-            // Decrease counter
-            switch (resourceType)
-            {
-                case ResourceNode.ResourceType.Wood:
-                    if (woodWorkers > 0) woodWorkers--;
-                    break;
-                case ResourceNode.ResourceType.Food:
-                    if (foodWorkers > 0) foodWorkers--;
-                    break;
-                case ResourceNode.ResourceType.Stone:
-                    if (stoneWorkers > 0) stoneWorkers--;
-                    break;
-            }
-
-            // Remove from list
-            activeWorkers.Remove(workerToRemove);
-
-            // Unregister worker with PopulationManager
-            if (PopulationManager.Instance != null)
-            {
-                PopulationManager.Instance.RemoveWorker();
-            }
-
-            // Destroy the worker GameObject
+            // All bookkeeping (roster, counters, population) happens in
+            // NotifyWorkerRemoved via Worker.OnDestroy — destroying is enough.
             Destroy(workerToRemove.gameObject);
+        }
+    }
+
+    /// <summary>
+    /// Called from Worker.OnDestroy so every destruction path (killed by enemy,
+    /// unassigned via UI, scene teardown) updates the roster, assignment counters,
+    /// and population count exactly once. Roster membership is the guard.
+    /// </summary>
+    public void NotifyWorkerRemoved(Worker worker)
+    {
+        if (!activeWorkers.Remove(worker))
+            return;  // Already processed (or never tracked by this building)
+
+        switch (worker.assignedResourceType)
+        {
+            case ResourceNode.ResourceType.Wood:
+                if (woodWorkers > 0) woodWorkers--;
+                break;
+            case ResourceNode.ResourceType.Food:
+                if (foodWorkers > 0) foodWorkers--;
+                break;
+            case ResourceNode.ResourceType.Stone:
+                if (stoneWorkers > 0) stoneWorkers--;
+                break;
+        }
+
+        if (PopulationManager.Instance != null)
+        {
+            PopulationManager.Instance.RemoveWorker();
         }
     }
 

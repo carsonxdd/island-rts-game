@@ -6,7 +6,6 @@ public class Gate : MonoBehaviour
 {
     [Header("Gate Type")]
     public bool isStoneGate = false;  // false = wooden gate, true = stone gate
-    public bool isGate = true;  // Tag so workers/warriors can identify gates vs walls
 
     [Header("Health")]
     public float maxHealth = 75f;  // Gates are weaker: Wooden=75, Stone=150 (half of wall HP)

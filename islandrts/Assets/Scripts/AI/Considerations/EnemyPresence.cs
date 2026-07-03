@@ -18,28 +18,42 @@ public class EnemyPresence : Consideration
 
     public override float ScoreRaw(AIBlackboard bb)
     {
-        Transform nearest = null;
-        float nearestDist = maxRange > 0f ? maxRange : float.MaxValue;
-
-        for (int i = 0; i < Enemy.ActiveList.Count; i++)
+        // Full scan runs once per unit per frame; every EnemyPresence instance
+        // sharing this blackboard (Engage/Intercept/Patrol/Heal) reuses the result
+        // and only applies its own maxRange cutoff.
+        if (bb.enemyScanFrame != Time.frameCount)
         {
-            Enemy enemy = Enemy.ActiveList[i];
-            if (enemy == null) continue;
-            Health h = enemy.CachedHealth;
-            if (h != null && !h.IsAlive) continue;
+            Transform nearest = null;
+            float nearestSqrDist = float.MaxValue;
+            Vector3 myPos = bb.transform.position;
 
-            float dist = Vector3.Distance(bb.transform.position, enemy.transform.position);
-            if (dist < nearestDist)
+            for (int i = 0; i < Enemy.ActiveList.Count; i++)
             {
-                nearestDist = dist;
-                nearest = enemy.transform;
+                Enemy enemy = Enemy.ActiveList[i];
+                if (enemy == null) continue;
+                Health h = enemy.CachedHealth;
+                if (h != null && !h.IsAlive) continue;
+
+                float sqrDist = (enemy.transform.position - myPos).sqrMagnitude;
+                if (sqrDist < nearestSqrDist)
+                {
+                    nearestSqrDist = sqrDist;
+                    nearest = enemy.transform;
+                }
             }
+
+            bb.scannedNearestEnemy = nearest;
+            bb.scannedNearestEnemyDist = nearest != null ? Mathf.Sqrt(nearestSqrDist) : float.MaxValue;
+            bb.enemyScanFrame = Time.frameCount;
         }
 
-        // Cache for other systems (EngageEnemyExecutor, InterceptExecutor)
-        bb.nearestEnemy = nearest;
-        bb.nearestEnemyDistance = nearest != null ? nearestDist : float.MaxValue;
+        bool inRange = bb.scannedNearestEnemy != null &&
+                       (maxRange <= 0f || bb.scannedNearestEnemyDist < maxRange);
 
-        return nearest != null ? 1f : 0f;
+        // Cache for other systems (EngageEnemyExecutor, InterceptExecutor)
+        bb.nearestEnemy = inRange ? bb.scannedNearestEnemy : null;
+        bb.nearestEnemyDistance = inRange ? bb.scannedNearestEnemyDist : float.MaxValue;
+
+        return inRange ? 1f : 0f;
     }
 }

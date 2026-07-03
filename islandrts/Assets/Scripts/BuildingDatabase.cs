@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 public class BuildingDatabase : MonoBehaviour
 {
@@ -7,6 +8,9 @@ public class BuildingDatabase : MonoBehaviour
     [Header("Building Configurations")]
     [Tooltip("Assign BuildingData ScriptableObjects here (one for each building type)")]
     public BuildingData[] buildings;
+
+    // O(1) lookup — GetBuildingData is called from per-frame placement/UI paths
+    private Dictionary<BuildingType, BuildingData> lookup;
 
     void Awake()
     {
@@ -18,6 +22,15 @@ public class BuildingDatabase : MonoBehaviour
         }
 
         Instance = this;
+
+        lookup = new Dictionary<BuildingType, BuildingData>();
+        foreach (BuildingData data in buildings)
+        {
+            if (data != null)
+            {
+                lookup[data.buildingType] = data;
+            }
+        }
     }
 
     /// <summary>
@@ -25,12 +38,9 @@ public class BuildingDatabase : MonoBehaviour
     /// </summary>
     public BuildingData GetBuildingData(BuildingType type)
     {
-        foreach (BuildingData data in buildings)
+        if (lookup != null && lookup.TryGetValue(type, out BuildingData data))
         {
-            if (data != null && data.buildingType == type)
-            {
-                return data;
-            }
+            return data;
         }
 
         Debug.LogError($"BuildingDatabase: No BuildingData found for type {type}!");

@@ -9,17 +9,12 @@ public class RetreatExecutor : ActionExecutor
 {
     public override string DisplayName => "Retreating!";
 
-    private bool destinationSet = false;
-
     public override void OnEnter(AIBlackboard bb)
     {
-        destinationSet = false;
-
         if (bb.baseBuilding != null && bb.agent.isOnNavMesh && bb.agent.enabled)
         {
             bb.agent.isStopped = false;
             bb.agent.SetDestination(bb.baseBuilding.transform.position);
-            destinationSet = true;
 
             if (bb.stuckResolver != null)
                 bb.stuckResolver.ResetStuckDetection();
@@ -51,7 +46,6 @@ public class RetreatExecutor : ActionExecutor
 
     public override void OnExit(AIBlackboard bb)
     {
-        destinationSet = false;
         bb.agent.isStopped = false;
     }
 }

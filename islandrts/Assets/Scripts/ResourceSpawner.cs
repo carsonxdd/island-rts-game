@@ -353,9 +353,9 @@ public class ResourceSpawner : MonoBehaviour
     bool IsPositionClearOfBuildings(Vector3 position)
     {
         // Check BaseBuilding (Campfire)
-        BaseBuilding[] baseBuildings = FindObjectsByType<BaseBuilding>(FindObjectsSortMode.None);
-        foreach (BaseBuilding building in baseBuildings)
+        for (int i = 0; i < BaseBuilding.ActiveList.Count; i++)
         {
+            BaseBuilding building = BaseBuilding.ActiveList[i];
             if (building == null) continue;
             float clearance = Mathf.Max(minDistanceFromBuildings, building.noBuildRadius);
             if (Vector3.Distance(position, building.transform.position) < clearance)
@@ -363,9 +363,9 @@ public class ResourceSpawner : MonoBehaviour
         }
 
         // Check Huts
-        Hut[] huts = FindObjectsByType<Hut>(FindObjectsSortMode.None);
-        foreach (Hut hut in huts)
+        for (int i = 0; i < Hut.ActiveList.Count; i++)
         {
+            Hut hut = Hut.ActiveList[i];
             if (hut == null) continue;
             float clearance = Mathf.Max(minDistanceFromBuildings, hut.noBuildRadius);
             if (Vector3.Distance(position, hut.transform.position) < clearance)
@@ -373,9 +373,9 @@ public class ResourceSpawner : MonoBehaviour
         }
 
         // Check ConstructionSites
-        ConstructionSite[] constructionSites = FindObjectsByType<ConstructionSite>(FindObjectsSortMode.None);
-        foreach (ConstructionSite site in constructionSites)
+        for (int i = 0; i < ConstructionSite.ActiveList.Count; i++)
         {
+            ConstructionSite site = ConstructionSite.ActiveList[i];
             if (site == null) continue;
             float clearance = Mathf.Max(minDistanceFromBuildings, site.noBuildRadius);
             if (Vector3.Distance(position, site.transform.position) < clearance)
@@ -383,18 +383,18 @@ public class ResourceSpawner : MonoBehaviour
         }
 
         // Check Walls
-        Wall[] walls = FindObjectsByType<Wall>(FindObjectsSortMode.None);
-        foreach (Wall wall in walls)
+        for (int i = 0; i < Wall.ActiveList.Count; i++)
         {
+            Wall wall = Wall.ActiveList[i];
             if (wall == null) continue;
             if (Vector3.Distance(position, wall.transform.position) < minDistanceFromBuildings)
                 return false;
         }
 
         // Check Watchtowers
-        Watchtower[] watchtowers = FindObjectsByType<Watchtower>(FindObjectsSortMode.None);
-        foreach (Watchtower tower in watchtowers)
+        for (int i = 0; i < Watchtower.ActiveList.Count; i++)
         {
+            Watchtower tower = Watchtower.ActiveList[i];
             if (tower == null) continue;
             if (Vector3.Distance(position, tower.transform.position) < minDistanceFromBuildings)
                 return false;

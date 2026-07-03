@@ -56,18 +56,26 @@ public class VictoryDefeatUI : MonoBehaviour
         }
     }
 
+    // The stats are frozen once the game ends, so each screen only needs to be
+    // built the frame it becomes visible — not rebuilt every frame after.
+    private bool victoryWasVisible = false;
+    private bool defeatWasVisible = false;
+
     void Update()
     {
-        // Update screens if they're visible
-        if (victoryPanel != null && victoryPanel.activeSelf)
+        bool victoryVisible = victoryPanel != null && victoryPanel.activeSelf;
+        if (victoryVisible && !victoryWasVisible)
         {
             UpdateVictoryScreen();
         }
+        victoryWasVisible = victoryVisible;
 
-        if (defeatPanel != null && defeatPanel.activeSelf)
+        bool defeatVisible = defeatPanel != null && defeatPanel.activeSelf;
+        if (defeatVisible && !defeatWasVisible)
         {
             UpdateDefeatScreen();
         }
+        defeatWasVisible = defeatVisible;
     }
 
     void UpdateVictoryScreen()

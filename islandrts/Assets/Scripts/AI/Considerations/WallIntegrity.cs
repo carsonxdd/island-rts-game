@@ -16,7 +16,6 @@ public class WallIntegrity : Consideration
         float distance;
         bb.wallUnderAttack = AIWorldState.Instance.GetNearestWallUnderAttack(
             bb.transform.position, out distance);
-        bb.wallUnderAttackDistance = distance;
 
         if (bb.wallUnderAttack == null) return 0f;
 

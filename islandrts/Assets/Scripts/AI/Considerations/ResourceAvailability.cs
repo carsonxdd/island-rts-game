@@ -37,7 +37,6 @@ public class ResourceAvailability : Consideration
 
         // Cache in blackboard
         bb.bestResource = bestNode;
-        bb.bestResourceScore = bestScore;
 
         if (bestNode == null) return 0f;
 

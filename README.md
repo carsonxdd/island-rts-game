@@ -4,7 +4,7 @@ A Unity-based real-time strategy survival game. Manage autonomous workers, gathe
 
 **Genre:** Top-down RTS + Survival  
 **Setting:** Age of Sail shipwreck on an uncharted island  
-**Status:** Playable alpha (Phase 6.22) — Phase 10 Stage 1 (post-processing + lighting presets) shipped
+**Status:** Playable alpha (Phase 6.23) — Phase 10 Stage 1 (post-processing + lighting presets) shipped
 
 ---
 
@@ -87,7 +87,7 @@ islandrts/Assets/
 │   ├── WallConnector.cs         # Procedural wall mesh generation
 │   ├── Health.cs                # Universal health component
 │   ├── DayNightCycle.cs         # Day/night with lighting
-│   └── ...                      # 40 root-level scripts total
+│   └── ...                      # 38 root-level scripts total
 ├── Prefabs/                     # Units, buildings, resources
 ├── Materials/
 ├── Audio/
@@ -111,7 +111,7 @@ All units (Workers, Warriors, Enemies) use a **scoring-based Utility AI** — no
 
 ### Key Patterns
 
-- **ActiveRegistry\<T\>** — Generic static registry for O(1) entity lookups (Workers, Enemies, Walls, etc.)
+- **ActiveRegistry\<T\>** — Generic static registry for O(1) entity lookups (Workers, Enemies, Walls, etc.). The codebase contains zero `FindObjectsByType` scene scans — every lookup goes through a registry.
 - **Singletons** — ResourceManager, AudioManager, WallGrid, AIWorldState, GameManager
 - **NavMesh throttling** — Max 20 SetDestination/frame, 2 CalculatePath/frame
 - **Zero GC in hot paths** — No per-frame heap allocations in Update or AI evaluation
@@ -156,6 +156,8 @@ Everything else (per-unit spawn/death, per-damage, per-resource tick, per-button
 ## Development
 
 For detailed technical documentation, AI system internals, balancing data, phase history, and gotchas, see [`.claude/CLAUDE.md`](.claude/CLAUDE.md).
+
+Recent: **Phase 6.23** (code health pass) — fixed four population/housing bookkeeping bugs and a warrior-heal stuck state, eliminated all `FindObjectsByType` scene scans, added UI dirty-checking, deduplicated the warrior enemy scan (~4x fewer list scans per AI tick), and removed ~20 dead members plus two leftover test scripts. The project compiles with zero warnings.
 
 Future roadmap:
 - **Phase 7:** Building upgrades, workshop, storage

@@ -39,6 +39,14 @@ public class WorkerAssignmentUI : MonoBehaviour
     // Reference to the Campfire building
     private BaseBuilding baseBuilding;
 
+    // Dirty-check caches so UpdateDisplay only rebuilds strings when a value changes
+    private int lastWoodWorkers = -1;
+    private int lastFoodWorkers = -1;
+    private int lastStoneWorkers = -1;
+    private int lastTotalWorkers = -1;
+    private int lastHousingCapacity = -1;
+    private int lastWarriorCount = -1;
+
     void Start()
     {
         // Hide the panel when game starts
@@ -108,6 +116,16 @@ public class WorkerAssignmentUI : MonoBehaviour
     {
         baseBuilding = building;
 
+        // Invalidate dirty caches so everything refreshes for this building
+        lastWoodWorkers = lastFoodWorkers = lastStoneWorkers = -1;
+        lastTotalWorkers = lastHousingCapacity = lastWarriorCount = -1;
+
+        // Warrior cost never changes while the panel is open — set it once here
+        if (warriorCostText != null)
+        {
+            warriorCostText.text = $"Cost: {building.warriorCost_Wood} Wood, {building.warriorCost_Food} Food";
+        }
+
         if (uiPanel != null)
         {
             uiPanel.SetActive(true);
@@ -149,21 +167,24 @@ public class WorkerAssignmentUI : MonoBehaviour
         if (baseBuilding == null) return;
 
         // Update wood count
-        if (woodCountText != null)
+        if (woodCountText != null && baseBuilding.woodWorkers != lastWoodWorkers)
         {
-            woodCountText.text = $"Wood: {baseBuilding.woodWorkers}";
+            lastWoodWorkers = baseBuilding.woodWorkers;
+            woodCountText.text = $"Wood: {lastWoodWorkers}";
         }
 
         // Update food count
-        if (foodCountText != null)
+        if (foodCountText != null && baseBuilding.foodWorkers != lastFoodWorkers)
         {
-            foodCountText.text = $"Food: {baseBuilding.foodWorkers}";
+            lastFoodWorkers = baseBuilding.foodWorkers;
+            foodCountText.text = $"Food: {lastFoodWorkers}";
         }
 
         // Update stone count
-        if (stoneCountText != null)
+        if (stoneCountText != null && baseBuilding.stoneWorkers != lastStoneWorkers)
         {
-            stoneCountText.text = $"Stone: {baseBuilding.stoneWorkers}";
+            lastStoneWorkers = baseBuilding.stoneWorkers;
+            stoneCountText.text = $"Stone: {lastStoneWorkers}";
         }
 
         // Update total workers count (just the numbers, not the label)
@@ -171,21 +192,23 @@ public class WorkerAssignmentUI : MonoBehaviour
         {
             int total = baseBuilding.GetTotalWorkers();
             int max = PopulationManager.Instance != null ? PopulationManager.Instance.GetHousingCapacity() : 10;
-            totalWorkersCountText.text = $"{total} / {max}";
+            if (total != lastTotalWorkers || max != lastHousingCapacity)
+            {
+                lastTotalWorkers = total;
+                lastHousingCapacity = max;
+                totalWorkersCountText.text = $"{total} / {max}";
+            }
         }
 
         // Update warrior count
         if (warriorCountText != null)
         {
             int current = baseBuilding.GetWarriorCount();
-            int max = baseBuilding.maxWarriors;
-            warriorCountText.text = $"Warriors: {current} / {max}";
-        }
-
-        // Update warrior cost text
-        if (warriorCostText != null)
-        {
-            warriorCostText.text = $"Cost: {baseBuilding.warriorCost_Wood} Wood, {baseBuilding.warriorCost_Food} Food";
+            if (current != lastWarriorCount)
+            {
+                lastWarriorCount = current;
+                warriorCountText.text = $"Warriors: {current} / {baseBuilding.maxWarriors}";
+            }
         }
     }
 
