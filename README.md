@@ -4,7 +4,7 @@ A Unity-based real-time strategy survival game. Manage autonomous workers, gathe
 
 **Genre:** Top-down RTS + Survival  
 **Setting:** Age of Sail shipwreck on an uncharted island  
-**Status:** Playable alpha (Phase 6.23) — Phase 10 Stage 1 (post-processing + lighting presets) shipped. Phase 6.24 refactors implemented, pending playtest before commit.
+**Status:** Playable alpha (Phase 6.24) — Phase 10 Stage 1 (post-processing + lighting presets) shipped. Now on Unity 6000.5.9f1; the Phase 6.24 refactors are committed but still awaiting a playtest.
 
 ---
 
@@ -12,8 +12,10 @@ A Unity-based real-time strategy survival game. Manage autonomous workers, gathe
 
 1. Clone the repo
 2. Open `islandrts/` in Unity Hub (requires **Unity 6000.5.9f1**)
-3. Open scene: `Assets/Scenes/SampleScene.unity`
+3. Open scene: `Assets/MainIsland.unity`
 4. Press Play
+
+> **Note:** `Assets/Scenes/SampleScene.unity` is the leftover stock Unity scene (3 objects) and is *not* the game. Build Settings still points at it — fix that before making a build.
 
 ### First Game
 
@@ -88,12 +90,16 @@ islandrts/Assets/
 │   ├── Health.cs                # Universal health component
 │   ├── DayNightCycle.cs         # Day/night with lighting
 │   └── ...                      # 38 root-level scripts total
+├── Editor/
+│   └── LowPoly/                 # Procedural low-poly asset generator (editor-only)
+├── Art/                         # Phase 10 low-poly art library + showcase scene
 ├── Prefabs/                     # Units, buildings, resources
 ├── Materials/
 ├── Audio/
+├── MainIsland.unity             # Main game scene
 ├── Scenes/
-│   └── SampleScene.unity        # Main game scene
-└── Settings/                    # URP pipeline configs
+│   └── SampleScene.unity        # Stock Unity scene, unused
+└── Settings/                    # URP pipeline configs + LightingPresets
 ```
 
 ---
@@ -157,7 +163,9 @@ Everything else (per-unit spawn/death, per-damage, per-resource tick, per-button
 
 For detailed technical documentation, AI system internals, balancing data, phase history, and gotchas, see [`.claude/CLAUDE.md`](.claude/CLAUDE.md).
 
-In progress: **Phase 6.24** (queued refactors — *implemented, pending playtest, not yet committed*) — four structural cleanups that preserve behavior: deduplicated `AudioManager`'s fade coroutines; extracted a `UnitBase<T>` base for Worker/Warrior/Enemy boilerplate (component type names unchanged, so prefabs are unaffected); split the 1729-line `BuildPlacement` into a thin coordinator plus four plain helper classes (`WallLinePlacer`, `GhostPlacer`, `DemolishTool`, `NoBuildZoneRenderer` — no scene edits needed); and routed the worker executors' movement through `AINavHelper` so a throttled/rejected `SetDestination` retries instead of faking success. Compiles with zero warnings; needs a Unity playtest (worker movement, wall building, demolish, day/night audio) before commit.
+Latest: **Unity 6000.5.9f1 upgrade** — the project moved up from 6000.0.25f1. All 76 runtime scripts and the 9 editor scripts compile with zero errors and zero warnings; the only source change needed was swapping 11 `FindFirstObjectByType<T>()` calls (obsolete as of 6000.5) for `FindAnyObjectByType<T>()`. Packages were pinned to the editor's defaults up front — URP 17.0.3 → 17.5.0, uGUI 2.0.0 → 2.5.0, Input System 1.11.2 → 1.20.0, AI Navigation 2.0.9 → 2.0.14. Not yet run in Play mode.
+
+In progress: **Phase 6.24** (queued refactors — *committed, still pending playtest*) — four structural cleanups that preserve behavior: deduplicated `AudioManager`'s fade coroutines; extracted a `UnitBase<T>` base for Worker/Warrior/Enemy boilerplate (component type names unchanged, so prefabs are unaffected); split the 1729-line `BuildPlacement` into a thin coordinator plus four plain helper classes (`WallLinePlacer`, `GhostPlacer`, `DemolishTool`, `NoBuildZoneRenderer` — no scene edits needed); and routed the worker executors' movement through `AINavHelper` so a throttled/rejected `SetDestination` retries instead of faking success. Compiles with zero warnings; still needs a Unity playtest (worker movement, wall building, demolish, day/night audio), which now doubles as the engine-upgrade playtest.
 
 Recent: **Phase 6.23** (code health pass) — fixed four population/housing bookkeeping bugs and a warrior-heal stuck state, eliminated all `FindObjectsByType` scene scans, added UI dirty-checking, deduplicated the warrior enemy scan (~4x fewer list scans per AI tick), and removed ~20 dead members plus two leftover test scripts. The project compiles with zero warnings.
 

@@ -49,7 +49,10 @@ V:/islandrtsgame/                    # Repository root
     │   ├── Prefabs/                 # Worker, Warrior, Enemy, buildings, resources
     │   ├── Materials/
     │   ├── Audio/
-    │   ├── Scenes/                  # SampleScene.unity (main scene)
+    │   ├── MainIsland.unity         # MAIN GAME SCENE (274 objects)
+    │   ├── Scenes/                  # SampleScene.unity — stock Unity scene, unused
+    │   ├── Art/                     # Phase 10 low-poly art library + showcase scene
+    │   ├── Editor/LowPoly/          # Procedural low-poly asset generator (editor-only)
     │   └── Settings/                # URP render pipeline configs
     ├── ProjectSettings/
     └── islandrts.sln                # VS solution
@@ -238,7 +241,7 @@ Ask: "would this log spam the console during a normal 5-minute play session?" If
 ## How to Run
 
 1. Open `islandrts/` folder in Unity Hub (Unity 6000.5.9f1)
-2. Open scene: `Assets/Scenes/SampleScene.unity`
+2. Open scene: `Assets/MainIsland.unity` (**not** `Assets/Scenes/SampleScene.unity` — that is the leftover stock Unity scene, 3 objects, and is not the game)
 3. Press Play
 4. Click campfire to assign workers, press B to build, recruit warriors before nightfall
 
@@ -514,6 +517,8 @@ Also: Unity 6.5 emits a new-format `islandrts.slnx` solution file. `.gitignore` 
 - Unity 6 moves the editor log to a **project-relative** `Logs/Editor.log` almost immediately; `%LOCALAPPDATA%\Unity\Editor\Editor.log` only holds the boot preamble and a pointer to it. Read the project-relative one.
 - Scripts can be compile-verified against a new editor **without converting the project** — point Roslyn (`Editor/Data/DotNetSdk/sdk/*/Roslyn/bincore/csc.dll`) at `Editor/Data/Managed/UnityEngine/*.dll`. Do NOT also reference `Editor/Data/Managed/UnityEditor.dll` alongside the `UnityEditor.*Module.dll` files — that produces spurious `CS0433` ambiguous-type errors (e.g. `EditorApplication`) which Unity itself never sees, because the real `UnityEditor.dll` is a type-forwarding facade.
 
-**Pre-existing drift spotted (not caused by the upgrade, not changed):** `EditorBuildSettings.asset` still ships `Assets/Scenes/SampleScene.unity`, but the actual gameplay scene is `Assets/MainIsland.unity` (that is what the editor opens). The "How to Run" section above still says SampleScene. Decide which is authoritative and fix build settings + docs together.
+**Pre-existing drift spotted (not caused by the upgrade) — docs fixed, build settings still WRONG.** The real gameplay scene is `Assets/MainIsland.unity` (941 KB, 274 GameObjects, actively edited). `Assets/Scenes/SampleScene.unity` is the leftover stock Unity scene — 11 KB, 3 GameObjects, untouched since July 2024. README and this file both pointed at SampleScene and have been corrected.
+
+> ⚠️ **`EditorBuildSettings.asset` still lists only `Assets/Scenes/SampleScene.unity`.** Left alone deliberately — changing which scene ships in a build is a project decision, not a doc fix. **A build made right now would ship the empty scene.** Fix via *File > Build Profiles* (add `MainIsland`, remove/disable `SampleScene`) before building anything.
 
 **Playtest checklist:** the Phase 6.24 checklist now covers both the refactors and the engine upgrade — worker gather/return/deliver and flee; wall line drawing (L-path, Shift staircase, R toggle, G gate-convert); single-building placement / rotate / cancel / type-switch; demolish mode; day-night music + ambient crossfades. On top of that, verify specifically for the upgrade: post-processing still reads correctly (Bloom on the HDR-emissive campfire, no blown-out vignette or tonemap shift from URP 17.5), the day/night `LightingPreset` lerp still drives sun + ambient, NavMesh agents still path (AI Navigation 2.0.14), and TextMeshPro UI still renders (uGUI 2.0.0 → 2.5.0 is the largest single package jump).
