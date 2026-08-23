@@ -3,12 +3,8 @@ using UnityEngine.AI;
 using System.Collections;
 using System.Collections.Generic;
 
-public class Worker : MonoBehaviour
+public class Worker : UnitBase<Worker>
 {
-    public static IReadOnlyList<Worker> ActiveList => ActiveRegistry<Worker>.List;
-
-    void Awake() { ActiveRegistry<Worker>.Register(this); }
-
     [Header("Assignment")]
     public ResourceNode.ResourceType assignedResourceType = ResourceNode.ResourceType.Wood;
     public BaseBuilding baseBuilding;  // Reference to campfire
@@ -23,18 +19,7 @@ public class Worker : MonoBehaviour
     [Header("Current State")]
     public float carryAmount = 0f;  // Resources currently carrying (can be fractional)
 
-    [Header("Visual Feedback")]
-    public bool showStateText = true;
-    public float textHeightOffset = 2f;  // How high above worker to show text
-
-    // Utility AI components
-    private AIBrain aiBrain;
-
-    private NavMeshAgent agent;
     private bool isInitialized = false;
-
-    // Visual state display
-    private FloatingText floatingText;
 
     // Audio - 3D Spatial Sound
     private AudioSource gatheringAudioSource;
@@ -43,13 +28,7 @@ public class Worker : MonoBehaviour
 
     void Start()
     {
-        agent = GetComponent<NavMeshAgent>();
-
-        if (agent == null)
-        {
-            Debug.LogError("Worker: No NavMeshAgent found!");
-        }
-        else
+        if (FetchAgent())
         {
             // Configure NavMeshAgent for smooth navigation around obstacles
             agent.stoppingDistance = gatherDistance * 0.8f;  // Stop slightly before gather distance
@@ -61,14 +40,7 @@ public class Worker : MonoBehaviour
         }
 
         // Create floating state text
-        if (showStateText)
-        {
-            floatingText = gameObject.AddComponent<FloatingText>();
-            floatingText.heightOffset = textHeightOffset;
-            floatingText.fontSize = 3f;
-            floatingText.initialText = "Idle";
-            floatingText.initialColor = Color.white;
-        }
+        CreateStateText(3f, "Idle", Color.white);
 
         // Setup 3D spatial audio for gathering sounds
         SetupGatheringAudioSource();
@@ -91,7 +63,7 @@ public class Worker : MonoBehaviour
         var bb = new AIBlackboard();
         bb.transform = transform;
         bb.agent = agent;
-        bb.health = GetComponent<Health>();
+        bb.health = CachedHealth;
         bb.baseBuilding = baseBuilding;
         bb.worker = this;
         bb.assignedResourceType = assignedResourceType;
@@ -103,8 +75,7 @@ public class Worker : MonoBehaviour
         bb.carryAmount = carryAmount;
 
         // Setup StuckResolver
-        var stuckResolver = gameObject.AddComponent<StuckResolver>();
-        stuckResolver.Initialize(agent, ActiveRegistry<Worker>.IndexOf(this));
+        var stuckResolver = CreateStuckResolver();
         stuckResolver.onStuckReset = () =>
         {
             // Release claims and reset
@@ -338,8 +309,7 @@ public class Worker : MonoBehaviour
     void UpdateStateText()
     {
         // Get display name from brain
-        string displayName = aiBrain != null && aiBrain.blackboard != null ? aiBrain.blackboard.stateDisplayName : "Thinking";
-        if (displayName == null) displayName = "Thinking";
+        string displayName = StateDisplayName("Thinking");
 
         // Include carry info if carrying
         string fullText;
@@ -368,9 +338,9 @@ public class Worker : MonoBehaviour
         floatingText.SetText(fullText, color);
     }
 
-    void OnDestroy()
+    protected override void OnDestroy()
     {
-        ActiveRegistry<Worker>.Unregister(this);
+        base.OnDestroy();
 
         // Single cleanup path: the base building removes us from its roster,
         // decrements the assignment counter, and frees the population slot

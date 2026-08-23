@@ -413,52 +413,14 @@ public class AudioManager : MonoBehaviour
     System.Collections.IEnumerator CrossfadeMusic(AudioClip newClip)
     {
         isFadingMusic = true;
-        float targetVolume = musicVolume * masterVolume;
-
-        // Fade out current music
-        if (musicSource.isPlaying)
-        {
-            float startVolume = musicSource.volume;
-            float elapsed = 0f;
-
-            while (elapsed < musicFadeTime / 2f)
-            {
-                elapsed += Time.deltaTime;
-                musicSource.volume = Mathf.Lerp(startVolume, 0f, elapsed / (musicFadeTime / 2f));
-                yield return null;
-            }
-        }
-
-        // Switch to new clip
-        musicSource.clip = newClip;
-        musicSource.Play();
-
-        // Fade in new music
-        float elapsedFadeIn = 0f;
-        while (elapsedFadeIn < musicFadeTime / 2f)
-        {
-            elapsedFadeIn += Time.deltaTime;
-            musicSource.volume = Mathf.Lerp(0f, targetVolume, elapsedFadeIn / (musicFadeTime / 2f));
-            yield return null;
-        }
-
-        musicSource.volume = targetVolume;
+        yield return StartCoroutine(CrossfadeSource(musicSource, newClip, musicVolume * masterVolume));
         isFadingMusic = false;
     }
 
     System.Collections.IEnumerator FadeOutMusic()
     {
         isFadingMusic = true;
-        float startVolume = musicSource.volume;
-        float elapsed = 0f;
-
-        while (elapsed < musicFadeTime)
-        {
-            elapsed += Time.deltaTime;
-            musicSource.volume = Mathf.Lerp(startVolume, 0f, elapsed / musicFadeTime);
-            yield return null;
-        }
-
+        yield return StartCoroutine(FadeVolume(musicSource, 0f, musicFadeTime));
         musicSource.Stop();
         currentMusic = null;
         isFadingMusic = false;
@@ -466,36 +428,36 @@ public class AudioManager : MonoBehaviour
 
     System.Collections.IEnumerator CrossfadeAmbient(AudioClip newClip)
     {
-        float targetVolume = ambientVolume * masterVolume;
+        yield return StartCoroutine(CrossfadeSource(ambientSource, newClip, ambientVolume * masterVolume));
+    }
 
-        // Fade out current ambient
-        if (ambientSource.isPlaying)
+    // Shared crossfade skeleton: fade out (if playing), swap clip, fade in
+    System.Collections.IEnumerator CrossfadeSource(AudioSource source, AudioClip newClip, float targetVolume)
+    {
+        if (source.isPlaying)
         {
-            float startVolume = ambientSource.volume;
-            float elapsed = 0f;
-
-            while (elapsed < musicFadeTime / 2f)
-            {
-                elapsed += Time.deltaTime;
-                ambientSource.volume = Mathf.Lerp(startVolume, 0f, elapsed / (musicFadeTime / 2f));
-                yield return null;
-            }
+            yield return StartCoroutine(FadeVolume(source, 0f, musicFadeTime / 2f));
         }
 
-        // Switch to new ambient clip
-        ambientSource.clip = newClip;
-        ambientSource.Play();
+        source.clip = newClip;
+        source.Play();
 
-        // Fade in new ambient
-        float elapsedFadeIn = 0f;
-        while (elapsedFadeIn < musicFadeTime / 2f)
+        yield return StartCoroutine(FadeVolume(source, targetVolume, musicFadeTime / 2f));
+    }
+
+    System.Collections.IEnumerator FadeVolume(AudioSource source, float targetVolume, float duration)
+    {
+        float startVolume = source.volume;
+        float elapsed = 0f;
+
+        while (elapsed < duration)
         {
-            elapsedFadeIn += Time.deltaTime;
-            ambientSource.volume = Mathf.Lerp(0f, targetVolume, elapsedFadeIn / (musicFadeTime / 2f));
+            elapsed += Time.deltaTime;
+            source.volume = Mathf.Lerp(startVolume, targetVolume, elapsed / duration);
             yield return null;
         }
 
-        ambientSource.volume = targetVolume;
+        source.volume = targetVolume;
     }
 
     #endregion

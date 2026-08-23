@@ -59,18 +59,24 @@ public class FleeToHutExecutor : ActionExecutor
             }
         }
 
-        // Periodically recalculate flee direction as enemies move
+        // Periodically recalculate flee direction as enemies move.
+        // If the throttle/NavMesh rejected the destination, retry next frame
+        // instead of standing still for the full recalc interval.
         recalcTimer -= Time.deltaTime;
         if (recalcTimer <= 0f)
         {
-            recalcTimer = RecalcInterval;
-            SetFleeDestination(bb);
+            recalcTimer = SetFleeDestination(bb) ? RecalcInterval : 0f;
         }
     }
 
-    void SetFleeDestination(AIBlackboard bb)
+    /// <summary>
+    /// Pick and set a flee destination. Returns false only when
+    /// AINavHelper.TrySetDestination rejected the set (throttled or
+    /// unmappable) so the caller can retry next frame.
+    /// </summary>
+    bool SetFleeDestination(AIBlackboard bb)
     {
-        if (!bb.agent.isOnNavMesh || !bb.agent.enabled) return;
+        if (!bb.agent.isOnNavMesh || !bb.agent.enabled) return false;
 
         Vector3 myPos = bb.transform.position;
 
@@ -82,11 +88,12 @@ public class FleeToHutExecutor : ActionExecutor
             // No enemies visible — flee toward base as fallback
             if (bb.baseBuilding != null)
             {
+                if (!AINavHelper.TrySetDestination(bb.agent, bb.baseBuilding.transform.position))
+                    return false;
                 bb.agent.isStopped = false;
-                bb.agent.SetDestination(bb.baseBuilding.transform.position);
                 shelterTarget = bb.baseBuilding.transform;
             }
-            return;
+            return true;
         }
 
         // Flee direction is opposite of threat
@@ -97,33 +104,37 @@ public class FleeToHutExecutor : ActionExecutor
 
         if (bestHut != null)
         {
+            if (!AINavHelper.TrySetDestination(bb.agent, bestHut.position))
+                return false;
             shelterTarget = bestHut;
             bb.agent.isStopped = false;
-            bb.agent.SetDestination(bestHut.position);
+            return true;
+        }
+
+        shelterTarget = null;
+
+        // Pick a point on the NavMesh in the flee direction
+        Vector3 fleePoint = myPos + fleeDir * FleeDistance;
+
+        if (NavMesh.SamplePosition(fleePoint, out NavMeshHit hit, FleeDistance, NavMesh.AllAreas))
+        {
+            if (!AINavHelper.TrySetDestination(bb.agent, hit.position))
+                return false;
+            bb.agent.isStopped = false;
         }
         else
         {
-            shelterTarget = null;
-
-            // Pick a point on the NavMesh in the flee direction
-            Vector3 fleePoint = myPos + fleeDir * FleeDistance;
-
-            if (NavMesh.SamplePosition(fleePoint, out NavMeshHit hit, FleeDistance, NavMesh.AllAreas))
+            // Can't find a point in the ideal direction — try a shorter distance
+            fleePoint = myPos + fleeDir * (FleeDistance * 0.5f);
+            if (NavMesh.SamplePosition(fleePoint, out hit, FleeDistance * 0.5f, NavMesh.AllAreas))
             {
+                if (!AINavHelper.TrySetDestination(bb.agent, hit.position))
+                    return false;
                 bb.agent.isStopped = false;
-                bb.agent.SetDestination(hit.position);
-            }
-            else
-            {
-                // Can't find a point in the ideal direction — try a shorter distance
-                fleePoint = myPos + fleeDir * (FleeDistance * 0.5f);
-                if (NavMesh.SamplePosition(fleePoint, out hit, FleeDistance * 0.5f, NavMesh.AllAreas))
-                {
-                    bb.agent.isStopped = false;
-                    bb.agent.SetDestination(hit.position);
-                }
             }
         }
+
+        return true;
     }
 
     /// <summary>

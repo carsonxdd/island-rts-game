@@ -2,17 +2,13 @@ using UnityEngine;
 using UnityEngine.AI;
 using System.Collections.Generic;
 
-public class Warrior : MonoBehaviour
+public class Warrior : UnitBase<Warrior>
 {
-    public static IReadOnlyList<Warrior> ActiveList => ActiveRegistry<Warrior>.List;
-
     // Static event: fires when any warrior dies (with death position for proximity checks)
     public static event System.Action<Vector3> OnAnyWarriorDied;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void ResetStatics() { OnAnyWarriorDied = null; }
-
-    void Awake() { ActiveRegistry<Warrior>.Register(this); }
 
     [Header("Stats")]
     public float maxHealth = 75f;
@@ -27,32 +23,14 @@ public class Warrior : MonoBehaviour
     public float searchRadius = 50f;  // How far to search for enemies
     public float patrolRadius = 8f;  // Patrol radius around campfire when idle
 
-    [Header("State Display")]
-    public bool showStateText = true;
-    public float textHeightOffset = 2.5f;
-
     [Header("References")]
     public BaseBuilding baseBuilding;  // Reference to campfire
-
-    // Utility AI components
-    private AIBrain aiBrain;
-
-    // Private
-    private NavMeshAgent agent;
-    private Health healthComponent;
-    public Health CachedHealth => healthComponent;
-    private FloatingText floatingText;
-
-    // Audio - 3D Spatial Sound
-    private AudioSource combatAudioSource;
 
     void Start()
     {
         // Get NavMeshAgent component
-        agent = GetComponent<NavMeshAgent>();
-        if (agent == null)
+        if (!FetchAgent())
         {
-            Debug.LogError("Warrior: No NavMeshAgent found!");
             return;
         }
 
@@ -68,28 +46,13 @@ public class Warrior : MonoBehaviour
         agent.updateRotation = true;  // Smooth rotation
 
         // Setup Health component
-        healthComponent = GetComponent<Health>();
-        if (healthComponent == null)
-        {
-            healthComponent = gameObject.AddComponent<Health>();
-        }
-        healthComponent.maxHealth = maxHealth;
-        healthComponent.currentHealth = maxHealth;
-        healthComponent.destroyOnDeath = true;
-        healthComponent.onDeath.AddListener(Die);
+        SetupHealth(maxHealth, Die);
 
         // Create floating state text
-        if (showStateText)
-        {
-            floatingText = gameObject.AddComponent<FloatingText>();
-            floatingText.heightOffset = textHeightOffset;
-            floatingText.fontSize = 2f;
-            floatingText.initialText = "Initializing...";
-            floatingText.initialColor = Color.blue;
-        }
+        CreateStateText(2f, "Initializing...", Color.blue);
 
         // Setup 3D spatial audio for combat sounds
-        SetupCombatAudioSource();
+        SetupCombatAudio(0.5f);
 
         // Stagger initial AI start so not all warriors path at the same time
         float startDelay = Random.Range(0.5f, 2f);
@@ -113,8 +76,7 @@ public class Warrior : MonoBehaviour
         bb.patrolRadius = patrolRadius;
 
         // Setup StuckResolver
-        var stuckResolver = gameObject.AddComponent<StuckResolver>();
-        stuckResolver.Initialize(agent, ActiveRegistry<Warrior>.IndexOf(this));
+        var stuckResolver = CreateStuckResolver();
         stuckResolver.onStuckReset = () =>
         {
             bb.currentTarget = null;
@@ -262,8 +224,7 @@ public class Warrior : MonoBehaviour
 
     void UpdateStateText()
     {
-        string displayName = aiBrain != null && aiBrain.blackboard != null ? aiBrain.blackboard.stateDisplayName : "Initializing...";
-        if (displayName == null) displayName = "Initializing...";
+        string displayName = StateDisplayName("Initializing...");
 
         // Color based on action
         Color color;
@@ -289,9 +250,9 @@ public class Warrior : MonoBehaviour
         floatingText.SetText(displayName, color);
     }
 
-    void OnDestroy()
+    protected override void OnDestroy()
     {
-        ActiveRegistry<Warrior>.Unregister(this);
+        base.OnDestroy();
 
         // Unsubscribe from static events to prevent memory leaks
         OnAnyWarriorDied -= OnAllyDiedUtilityAI;
@@ -301,24 +262,19 @@ public class Warrior : MonoBehaviour
 
     // --- Audio ---
 
-    void SetupCombatAudioSource()
-    {
-        combatAudioSource = AudioHelper.CreateSpatialAudioSource(gameObject, 0.5f, 8f, 35f);
-    }
-
     void PlayAttackSound()
     {
-        if (combatAudioSource != null && AudioManager.Instance != null && AudioManager.Instance.warriorAttackSound != null)
+        if (AudioManager.Instance != null)
         {
-            combatAudioSource.PlayOneShot(AudioManager.Instance.warriorAttackSound, 0.6f);
+            PlayCombatClip(AudioManager.Instance.warriorAttackSound, 0.6f);
         }
     }
 
     void PlayDeathSound()
     {
-        if (combatAudioSource != null && AudioManager.Instance != null && AudioManager.Instance.warriorDeathSound != null)
+        if (AudioManager.Instance != null)
         {
-            combatAudioSource.PlayOneShot(AudioManager.Instance.warriorDeathSound, 1f);
+            PlayCombatClip(AudioManager.Instance.warriorDeathSound, 1f);
         }
     }
 

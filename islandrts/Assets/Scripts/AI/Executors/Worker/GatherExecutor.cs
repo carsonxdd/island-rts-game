@@ -16,11 +16,13 @@ public class GatherExecutor : ActionExecutor
     // Cached gather point
     private Vector3 cachedGatherPoint;
     private bool hasValidGatherPoint = false;
+    private bool destinationQueued = false;  // false = throttle/NavMesh rejected the set, retry next frame
 
     public override void OnEnter(AIBlackboard bb)
     {
         phase = GatherPhase.MovingToResource;
         hasValidGatherPoint = false;
+        destinationQueued = false;
         headingToBase = false;
 
         // Find and claim best resource (already cached by ResourceAvailability consideration)
@@ -39,10 +41,10 @@ public class GatherExecutor : ActionExecutor
             cachedGatherPoint = bb.targetResource.GetGatherPoint(bb.transform.position);
             hasValidGatherPoint = true;
 
-            if (bb.agent.isOnNavMesh && bb.agent.enabled)
+            destinationQueued = AINavHelper.TrySetDestination(bb.agent, cachedGatherPoint);
+            if (destinationQueued)
             {
                 bb.agent.isStopped = false;
-                bb.agent.SetDestination(cachedGatherPoint);
             }
 
             if (bb.stuckResolver != null)
@@ -87,6 +89,17 @@ public class GatherExecutor : ActionExecutor
             if (TryPickupNewResource(bb)) return;
             StartHeadingToBase(bb);
             return;
+        }
+
+        // Retry if the throttle or NavMesh rejected the destination earlier —
+        // never pretend success, that's the "ghost moving" freeze
+        if (!destinationQueued && hasValidGatherPoint)
+        {
+            destinationQueued = AINavHelper.TrySetDestination(bb.agent, cachedGatherPoint);
+            if (destinationQueued)
+            {
+                bb.agent.isStopped = false;
+            }
         }
 
         // Stuck resolution
@@ -238,10 +251,10 @@ public class GatherExecutor : ActionExecutor
         cachedGatherPoint = bb.targetResource.GetGatherPoint(bb.transform.position);
         hasValidGatherPoint = true;
 
-        if (bb.agent.isOnNavMesh && bb.agent.enabled)
+        destinationQueued = AINavHelper.TrySetDestination(bb.agent, cachedGatherPoint);
+        if (destinationQueued)
         {
             bb.agent.isStopped = false;
-            bb.agent.SetDestination(cachedGatherPoint);
         }
 
         phase = GatherPhase.MovingToResource;
@@ -264,13 +277,16 @@ public class GatherExecutor : ActionExecutor
     {
         if (bb.carryAmount <= 0f) return; // Nothing to deliver, brain will switch to Idle
         if (bb.baseBuilding == null) return;
-        if (!bb.agent.isOnNavMesh || !bb.agent.enabled) return;
         if (headingToBase) return; // Already started heading to base
 
-        headingToBase = true;
-        bb.agent.isStopped = false;
-        bb.agent.SetDestination(bb.baseBuilding.transform.position);
-        displayName = "Returning to base";
+        // Only latch headingToBase on success so a rejected set can retry;
+        // the ForceReeval below hands over to ReturnToBase either way
+        if (AINavHelper.TrySetDestination(bb.agent, bb.baseBuilding.transform.position))
+        {
+            headingToBase = true;
+            bb.agent.isStopped = false;
+            displayName = "Returning to base";
+        }
 
         // Force brain to re-evaluate immediately so ReturnToBase takes over
         if (bb.brain != null)

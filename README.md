@@ -4,7 +4,7 @@ A Unity-based real-time strategy survival game. Manage autonomous workers, gathe
 
 **Genre:** Top-down RTS + Survival  
 **Setting:** Age of Sail shipwreck on an uncharted island  
-**Status:** Playable alpha (Phase 6.23) — Phase 10 Stage 1 (post-processing + lighting presets) shipped
+**Status:** Playable alpha (Phase 6.23) — Phase 10 Stage 1 (post-processing + lighting presets) shipped. Phase 6.24 refactors implemented, pending playtest before commit.
 
 ---
 
@@ -156,6 +156,8 @@ Everything else (per-unit spawn/death, per-damage, per-resource tick, per-button
 ## Development
 
 For detailed technical documentation, AI system internals, balancing data, phase history, and gotchas, see [`.claude/CLAUDE.md`](.claude/CLAUDE.md).
+
+In progress: **Phase 6.24** (queued refactors — *implemented, pending playtest, not yet committed*) — four structural cleanups that preserve behavior: deduplicated `AudioManager`'s fade coroutines; extracted a `UnitBase<T>` base for Worker/Warrior/Enemy boilerplate (component type names unchanged, so prefabs are unaffected); split the 1729-line `BuildPlacement` into a thin coordinator plus four plain helper classes (`WallLinePlacer`, `GhostPlacer`, `DemolishTool`, `NoBuildZoneRenderer` — no scene edits needed); and routed the worker executors' movement through `AINavHelper` so a throttled/rejected `SetDestination` retries instead of faking success. Compiles with zero warnings; needs a Unity playtest (worker movement, wall building, demolish, day/night audio) before commit.
 
 Recent: **Phase 6.23** (code health pass) — fixed four population/housing bookkeeping bugs and a warrior-heal stuck state, eliminated all `FindObjectsByType` scene scans, added UI dirty-checking, deduplicated the warrior enemy scan (~4x fewer list scans per AI tick), and removed ~20 dead members plus two leftover test scripts. The project compiles with zero warnings.
 

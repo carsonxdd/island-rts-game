@@ -37,9 +37,12 @@ public class ReturnToBaseExecutor : ActionExecutor
         // right up to the dropoff point instead of stopping 2m short
         bb.agent.stoppingDistance = 0.5f;
 
+        // If the throttle/NavMesh rejects this, OnUpdate's !hasPath retry self-heals
         Vector3 dropoffPoint = GetNearestDropoffPoint(bb);
-        bb.agent.isStopped = false;
-        bb.agent.SetDestination(dropoffPoint);
+        if (AINavHelper.TrySetDestination(bb.agent, dropoffPoint))
+        {
+            bb.agent.isStopped = false;
+        }
 
         if (bb.stuckResolver != null)
             bb.stuckResolver.ResetStuckDetection();
@@ -96,8 +99,10 @@ public class ReturnToBaseExecutor : ActionExecutor
         // Only retry path if agent has lost its path
         if (bb.agent.isOnNavMesh && bb.agent.enabled && !bb.agent.hasPath && !bb.agent.pathPending)
         {
-            bb.agent.isStopped = false;
-            bb.agent.SetDestination(GetNearestDropoffPoint(bb));
+            if (AINavHelper.TrySetDestination(bb.agent, GetNearestDropoffPoint(bb)))
+            {
+                bb.agent.isStopped = false;
+            }
         }
     }
 

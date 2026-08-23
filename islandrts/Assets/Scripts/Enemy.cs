@@ -2,10 +2,8 @@ using UnityEngine;
 using UnityEngine.AI;
 using System.Collections.Generic;
 
-public class Enemy : MonoBehaviour
+public class Enemy : UnitBase<Enemy>
 {
-    public static IReadOnlyList<Enemy> ActiveList => ActiveRegistry<Enemy>.List;
-
     // Static event: fires when any enemy dies (with death position for proximity checks)
     public static event System.Action<Vector3> OnAnyEnemyDied;
 
@@ -15,8 +13,6 @@ public class Enemy : MonoBehaviour
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void ResetStatics() { cachedSpawner = null; spawnerCached = false; OnAnyEnemyDied = null; }
-
-    void Awake() { ActiveRegistry<Enemy>.Register(this); }
 
     [Header("Stats")]
     public float maxHealth = 50f;
@@ -30,30 +26,11 @@ public class Enemy : MonoBehaviour
     [Header("Targeting")]
     public float warriorDetectionRange = 15f;  // Only engage warriors within this range
 
-    [Header("State Display")]
-    public bool showStateText = true;
-    public float textHeightOffset = 2.5f;
-
-    // Utility AI components
-    private AIBrain aiBrain;
-
-    // Private
-    private NavMeshAgent agent;
-    public NavMeshAgent CachedAgent => agent;
-    private Health healthComponent;
-    public Health CachedHealth => healthComponent;
-    private FloatingText floatingText;
-
-    // Audio - 3D Spatial Sound
-    private AudioSource combatAudioSource;
-
     void Start()
     {
         // Get NavMeshAgent component
-        agent = GetComponent<NavMeshAgent>();
-        if (agent == null)
+        if (!FetchAgent())
         {
-            Debug.LogError("Enemy: No NavMeshAgent found!");
             return;
         }
 
@@ -68,28 +45,13 @@ public class Enemy : MonoBehaviour
         agent.avoidancePriority = Random.Range(30, 70);  // Randomized priority to prevent synchronized yielding
 
         // Setup Health component
-        healthComponent = GetComponent<Health>();
-        if (healthComponent == null)
-        {
-            healthComponent = gameObject.AddComponent<Health>();
-        }
-        healthComponent.maxHealth = maxHealth;
-        healthComponent.currentHealth = maxHealth;
-        healthComponent.destroyOnDeath = true;  // Enemies are destroyed on death
-        healthComponent.onDeath.AddListener(Die);
+        SetupHealth(maxHealth, Die);
 
         // Create floating state text
-        if (showStateText)
-        {
-            floatingText = gameObject.AddComponent<FloatingText>();
-            floatingText.heightOffset = textHeightOffset;
-            floatingText.fontSize = 2f;
-            floatingText.initialText = "Searching";
-            floatingText.initialColor = Color.red;
-        }
+        CreateStateText(2f, "Searching", Color.red);
 
         // Setup 3D spatial audio for combat sounds
-        SetupCombatAudioSource();
+        SetupCombatAudio(0.45f);
 
         // Initialize Utility AI
         InitializeUtilityAI();
@@ -110,8 +72,7 @@ public class Enemy : MonoBehaviour
         bb.warriorDetectionRange = warriorDetectionRange;
 
         // Setup StuckResolver (same pattern as Worker/Warrior)
-        var stuckResolver = gameObject.AddComponent<StuckResolver>();
-        stuckResolver.Initialize(agent, ActiveRegistry<Enemy>.IndexOf(this));
+        var stuckResolver = CreateStuckResolver();
         stuckResolver.onStuckReset = () =>
         {
             // Clear target and let PickTarget choose fresh. Reachability is tested
@@ -145,11 +106,6 @@ public class Enemy : MonoBehaviour
 
         bb.brain = aiBrain;
         aiBrain.Initialize(actions, bb);
-    }
-
-    void OnDestroy()
-    {
-        ActiveRegistry<Enemy>.Unregister(this);
     }
 
     void Update()
@@ -220,8 +176,7 @@ public class Enemy : MonoBehaviour
 
     void UpdateStateText()
     {
-        string displayName = aiBrain != null && aiBrain.blackboard != null ? aiBrain.blackboard.stateDisplayName : "Searching";
-        if (displayName == null) displayName = "Searching";
+        string displayName = StateDisplayName("Searching");
 
         Color color;
         if (displayName.Contains("Attacking"))
@@ -236,24 +191,19 @@ public class Enemy : MonoBehaviour
 
     // --- Audio ---
 
-    void SetupCombatAudioSource()
-    {
-        combatAudioSource = AudioHelper.CreateSpatialAudioSource(gameObject, 0.45f, 8f, 35f);
-    }
-
     void PlayAttackSound()
     {
-        if (combatAudioSource != null && AudioManager.Instance != null && AudioManager.Instance.enemyAttackSound != null)
+        if (AudioManager.Instance != null)
         {
-            combatAudioSource.PlayOneShot(AudioManager.Instance.enemyAttackSound, 0.6f);
+            PlayCombatClip(AudioManager.Instance.enemyAttackSound, 0.6f);
         }
     }
 
     void PlayDeathSound()
     {
-        if (combatAudioSource != null && AudioManager.Instance != null && AudioManager.Instance.enemyDeathSound != null)
+        if (AudioManager.Instance != null)
         {
-            combatAudioSource.PlayOneShot(AudioManager.Instance.enemyDeathSound, 1f);
+            PlayCombatClip(AudioManager.Instance.enemyDeathSound, 1f);
         }
     }
 

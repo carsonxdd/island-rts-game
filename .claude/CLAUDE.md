@@ -259,7 +259,9 @@ Ask: "would this log spam the console during a normal 5-minute play session?" If
 
 ---
 
-## Current State (Phase 6.23)
+## Current State (Phase 6.24 — pending playtest)
+
+> ⚠️ Phase 6.24 (four queued refactors) is implemented and compiles clean but is **not yet playtested or committed**. See the Phase 6.24 entry in Phase History for the playtest checklist. Everything below was true as of Phase 6.23 and is unaffected by the refactors (behavior-preserving).
 
 **What's built and working:**
 - Full resource economy (wood, food, stone) with autonomous worker AI
@@ -273,6 +275,9 @@ Ask: "would this log spam the console during a normal 5-minute play session?" If
 - Warrior healing at campfire between waves
 - Worker flee from enemies (day or night)
 - Zero GC in hot paths, staggered AI evaluation
+
+**What's next (immediate):**
+- Playtest Phase 6.24 refactors (see checklist in Phase History), then commit.
 
 **What's next (future phases):**
 - Phase 7: Building upgrades (campfire -> fortress), workshop, storage
@@ -402,7 +407,25 @@ Fixes: new `BaseBuilding.NotifyWorkerRemoved(Worker)` (roster membership = idemp
 
 **Kept deliberately:** `DistanceTo`'s unused enum branches (coherent parameterized utility); redundant `currentHealth` inits in unit Starts (removing creates Start-order dependency on `Health.Start`); worker executors still bypass `AINavHelper` (behavior-touching — needs its own pass with playtesting).
 
-**Refactors still queued:** `BuildPlacement` split (WallLinePlacer / GhostPlacer / DemolishTool / NoBuildZoneRenderer), `UnitBase` extraction for Worker/Warrior/Enemy boilerplate, audio crossfade coroutine dedup.
+**Refactors still queued:** all four cleared in Phase 6.24 below (BuildPlacement split, UnitBase extraction, audio crossfade dedup, worker executors through AINavHelper).
+
+### Phase 6.24 (Queued Refactors — ⚠️ PENDING PLAYTEST, NOT COMMITTED)
+
+**Status:** Implemented and compile-verified (0 errors / 0 warnings via Unity 6000.0.25f1's bundled Roslyn), but **not yet playtested and not yet committed** — user needed to restart before testing. Next session: playtest, then commit. Net diff at time of writing: 279 insertions, 1752 deletions across 8 modified files + 5 new files.
+
+Cleared all four "Refactors still queued" from Phase 6.23. No scene/prefab edits were required (deliberate design choice per refactor).
+
+1. **Audio crossfade coroutine dedup.** `AudioManager.CrossfadeMusic` / `FadeOutMusic` / `CrossfadeAmbient` collapsed onto two shared coroutines: `CrossfadeSource(source, clip, targetVol)` (fade out → swap clip → fade in) and `FadeVolume(source, target, duration)`. The `isFadingMusic` flag handling stayed in the thin wrappers, so the "skip a second music crossfade while already fading" behavior is unchanged.
+
+2. **`UnitBase<T>` extraction (conservative — clearly-identical code only).** New `Assets/Scripts/UnitBase.cs`: abstract CRTP generic (`Worker : UnitBase<Worker>`, `Warrior : UnitBase<Warrior>`, `Enemy : UnitBase<Enemy>`) so each subclass keeps its own `ActiveRegistry<T>` list. Pulled up ONLY verbatim-shared members: registry `Awake`/`OnDestroy` register/unregister, `ActiveList`, `showStateText`/`textHeightOffset` fields, `CachedHealth` (now lazy-fetch) / `CachedAgent`, `FetchAgent`, `SetupHealth(maxHP, onDeath)`, `CreateStateText(fontSize, text, color)`, `StateDisplayName(fallback)`, `CreateStuckResolver`, `SetupCombatAudio` / `PlayCombatClip`. Component TYPE NAMES are unchanged → prefabs and `AddComponent<Worker>()` etc. unaffected. Serialized field names unchanged → Inspector values preserved. Subclass `OnDestroy` overrides now call `base.OnDestroy()` first. Cosmetic-only: Worker's `textHeightOffset` moved from its "Visual Feedback" header (default 2) to the base's "State Display" header (default 2.5) — the prefab's serialized value (2) still wins, but if the field ever shows as "empty override" re-confirm it reads 2.
+
+3. **`BuildPlacement` four-way split.** 1729-line class → ~380-line coordinator + four **plain C# helper classes** (NOT MonoBehaviours — so zero scene edits, no component wiring): `WallLinePlacer.cs` (click-start/click-end wall lines, L-path + Bresenham, cursor ghost), `GhostPlacer.cs` (single-building follow/rotate/validity/confirm), `DemolishTool.cs` (Delete/X highlight + 50% refund demolish), `NoBuildZoneRenderer.cs` (merged/individual red zone outlines + blue ghost preview zone). Coordinator keeps all serialized `[Header]` fields, `Update` mode-dispatch, `StartPlacement`/`SelectBuilding`/`CancelPlacement`/`TryConvertWallToGate`/`GetSnappedMousePosition`/`IsWallType`. Shared runtime state (`currentGhost`, `ghostRenderer`, `isPlacing`, `mainCam`, helper refs) is `internal` on `BuildPlacement` — internal fields are not Unity-serialized, so the Inspector is unchanged. Also deduped the copy-pasted quad-mesh / transparent-material / square-border blocks inside the zone renderer.
+
+4. **Worker executors routed through `AINavHelper`** (the behavior-touching one — done last per plan). All 9 raw `bb.agent.SetDestination(...)` calls in `GatherExecutor` / `ReturnToBaseExecutor` / `FleeToHutExecutor` now go through `AINavHelper.TrySetDestination` and **honor its bool return** — `isStopped = false` fires only on success, so the "ghost moving" freeze (isStopped=false with no queued path) can't occur. Each site has a retry: Gather tracks a `destinationQueued` flag and retries each frame in `UpdateMovingToResource`; Return relies on its existing `!hasPath && !pathPending` retry; Flee's `SetFleeDestination` now returns bool and keeps `recalcTimer` at 0 on rejection (retry next frame instead of standing still 0.5s). This is why it needs a playtest — it changes movement command flow for all worker actions.
+
+**New files (Unity will generate .meta on first focus — expected):** `UnitBase.cs`, `WallLinePlacer.cs`, `GhostPlacer.cs`, `DemolishTool.cs`, `NoBuildZoneRenderer.cs`.
+
+**Playtest checklist before committing:** worker gather → return → deliver loop and flee-from-enemies (the AINavHelper change); wall line drawing (L-path, Shift staircase, R toggle, G gate-convert); single-building placement / R rotate / Esc cancel / type-switch (1-4); demolish mode (Delete/X); day↔night music + ambient crossfades. Watch the console for any new errors/warnings on Play. Once clean, commit as Phase 6.24 and (optionally) flip the ⚠️ status note above to "Complete".
 
 ### Phase 10 (In Progress): Visual Overhaul
 
