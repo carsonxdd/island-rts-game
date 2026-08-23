@@ -45,7 +45,7 @@ public class DayNightCycle : MonoBehaviour
         // Find the sun light if not assigned
         if (sunLight == null)
         {
-            sunLight = FindFirstObjectByType<Light>();
+            sunLight = FindAnyObjectByType<Light>();
             if (sunLight == null || sunLight.type != LightType.Directional)
             {
                 Debug.LogWarning("DayNightCycle: No directional light found! Assign sun light manually.");

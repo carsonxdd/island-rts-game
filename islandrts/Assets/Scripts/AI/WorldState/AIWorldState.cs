@@ -87,7 +87,7 @@ public class AIWorldState : MonoBehaviour
     {
         if (!dayNightCached)
         {
-            cachedDayNight = FindFirstObjectByType<DayNightCycle>();
+            cachedDayNight = FindAnyObjectByType<DayNightCycle>();
             dayNightCached = true;
         }
         DayNightCycle cycle = cachedDayNight;

@@ -15,7 +15,7 @@ public class WallGrid : MonoBehaviour
         {
             if (_instance == null)
             {
-                _instance = FindFirstObjectByType<WallGrid>();
+                _instance = FindAnyObjectByType<WallGrid>();
                 if (_instance == null)
                 {
                     GameObject go = new GameObject("WallGrid");

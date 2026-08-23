@@ -61,7 +61,7 @@ public class ResourceSpawner : MonoBehaviour
     void Start()
     {
         // Find the campfire position using BaseBuilding component
-        BaseBuilding campfire = FindFirstObjectByType<BaseBuilding>();
+        BaseBuilding campfire = FindAnyObjectByType<BaseBuilding>();
         if (campfire != null)
         {
             campfirePosition = campfire.transform.position;

@@ -7,7 +7,7 @@ public class Enemy : UnitBase<Enemy>
     // Static event: fires when any enemy dies (with death position for proximity checks)
     public static event System.Action<Vector3> OnAnyEnemyDied;
 
-    // Cached EnemySpawner reference (avoids FindFirstObjectByType on every death)
+    // Cached EnemySpawner reference (avoids FindAnyObjectByType on every death)
     private static EnemySpawner cachedSpawner;
     private static bool spawnerCached = false;
 
@@ -128,7 +128,7 @@ public class Enemy : UnitBase<Enemy>
         // Notify spawner (cached reference — no scene scan)
         if (!spawnerCached)
         {
-            cachedSpawner = FindFirstObjectByType<EnemySpawner>();
+            cachedSpawner = FindAnyObjectByType<EnemySpawner>();
             spawnerCached = true;
         }
         if (cachedSpawner != null)

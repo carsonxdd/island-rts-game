@@ -118,7 +118,7 @@ public class AudioManager : MonoBehaviour
     void StartInitialAudio()
     {
         // Check if it's day or night from DayNightCycle
-        DayNightCycle dayNight = FindFirstObjectByType<DayNightCycle>();
+        DayNightCycle dayNight = FindAnyObjectByType<DayNightCycle>();
 
         if (dayNight != null && dayNight.IsNightTime())
         {

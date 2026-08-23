@@ -11,7 +11,7 @@ A Unity-based real-time strategy survival game. Manage autonomous workers, gathe
 ## Quick Start
 
 1. Clone the repo
-2. Open `islandrts/` in Unity Hub (requires **Unity 6000.0.25f1**)
+2. Open `islandrts/` in Unity Hub (requires **Unity 6000.5.9f1**)
 3. Open scene: `Assets/Scenes/SampleScene.unity`
 4. Press Play
 
@@ -45,11 +45,11 @@ A Unity-based real-time strategy survival game. Manage autonomous workers, gathe
 
 | Component | Version |
 |-----------|---------|
-| Unity | 6000.0.25f1 |
-| Render Pipeline | URP 17.0.3 |
-| Pathfinding | AI Navigation 2.0.9 |
+| Unity | 6000.5.9f1 |
+| Render Pipeline | URP 17.5.0 |
+| Pathfinding | AI Navigation 2.0.14 |
 | UI | TextMeshPro + uGUI |
-| Input | Input System 1.11.2 |
+| Input | Input System 1.20.0 |
 
 ### Required Packages
 

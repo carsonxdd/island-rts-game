@@ -9,7 +9,7 @@ public class GridToggleHotkey : MonoBehaviour
         // Auto-find if not assigned
         if (grid == null)
         {
-            grid = FindFirstObjectByType<GridOverlay>();
+            grid = FindAnyObjectByType<GridOverlay>();
             if (grid == null)
             {
                 Debug.LogError("GridToggleHotkey: No GridOverlay found in scene!");

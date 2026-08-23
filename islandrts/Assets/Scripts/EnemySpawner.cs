@@ -154,7 +154,7 @@ public class EnemySpawner : MonoBehaviour
             // Return to appropriate music based on time of day
             if (AudioManager.Instance != null)
             {
-                DayNightCycle dayNight = FindFirstObjectByType<DayNightCycle>();
+                DayNightCycle dayNight = FindAnyObjectByType<DayNightCycle>();
                 if (dayNight != null && dayNight.IsNightTime())
                 {
                     // Still night - return to night ambience only

@@ -11,12 +11,12 @@
 
 ## Tech Stack
 
-- **Engine:** Unity 6000.0.25f1
+- **Engine:** Unity 6000.5.9f1
 - **Language:** C# (.NET)
-- **Render Pipeline:** Universal Render Pipeline (URP) 17.0.3
-- **Pathfinding:** Unity AI Navigation 2.0.9 (NavMesh)
-- **UI:** TextMeshPro + Unity UI (uGUI 2.0.0)
-- **Input:** Unity Input System 1.11.2
+- **Render Pipeline:** Universal Render Pipeline (URP) 17.5.0
+- **Pathfinding:** Unity AI Navigation 2.0.14 (NavMesh)
+- **UI:** TextMeshPro + Unity UI (uGUI 2.5.0)
+- **Input:** Unity Input System 1.20.0
 - **IDE:** Visual Studio Code
 - **VCS:** Git + GitHub
 
@@ -185,6 +185,7 @@ Phase 10 spec is in `PHASE_10_VISUAL_OVERHAUL.md`. Stage 1 (post-processing + li
 - Wall scoring: `dist * (1 + attackers * 0.5f)`, gates at `0.3x` distance
 - Public sound methods: `StartGatheringSoundPublic()`, `PlayAttackSoundPublic()`, etc.
 - `StuckResolver` is a shared component (Worker, Warrior, Enemy all use it)
+- Singleton/unique-object lookup is **`FindAnyObjectByType<T>()`**. `FindFirstObjectByType<T>()` is obsolete as of Unity 6000.5 (it relies on instance-ID ordering) and `FindObjectOfType` / `FindObjectsOfType` were obsoleted before that. `FindObjectsByType` for multi-object scans remains banned outright — use `X.ActiveList` (see ActiveRegistry Pattern)
 
 ---
 
@@ -236,7 +237,7 @@ Ask: "would this log spam the console during a normal 5-minute play session?" If
 
 ## How to Run
 
-1. Open `islandrts/` folder in Unity Hub (Unity 6000.0.25f1)
+1. Open `islandrts/` folder in Unity Hub (Unity 6000.5.9f1)
 2. Open scene: `Assets/Scenes/SampleScene.unity`
 3. Press Play
 4. Click campfire to assign workers, press B to build, recruit warriors before nightfall
@@ -259,9 +260,11 @@ Ask: "would this log spam the console during a normal 5-minute play session?" If
 
 ---
 
-## Current State (Phase 6.24 — pending playtest)
+## Current State (Unity 6000.5.9f1 upgrade done — Phase 6.24 still pending playtest)
 
-> ⚠️ Phase 6.24 (four queued refactors) is implemented and compiles clean but is **not yet playtested or committed**. See the Phase 6.24 entry in Phase History for the playtest checklist. Everything below was true as of Phase 6.23 and is unaffected by the refactors (behavior-preserving).
+> ⚠️ Phase 6.24 (four queued refactors) is implemented, compiles clean, and is now **committed** (checkpoint `ae8f632`) — but still **not playtested**. See the Phase 6.24 entry in Phase History for the playtest checklist. Everything below was true as of Phase 6.23 and is unaffected by the refactors (behavior-preserving).
+>
+> ⚠️ The project was upgraded from Unity 6000.0.25f1 to **6000.5.9f1** (see the Unity 6000.5.9f1 Upgrade entry in Phase History). Scripts compile with zero errors/warnings and the scene imports clean, but **nothing has been run in Play mode on the new version yet**. The Phase 6.24 playtest now doubles as the upgrade playtest.
 
 **What's built and working:**
 - Full resource economy (wood, food, stone) with autonomous worker AI
@@ -433,7 +436,7 @@ Cleared all four "Refactors still queued" from Phase 6.23. No scene/prefab edits
 
 **Goal:** Replace primitive geometry and default lighting with a cohesive stylized low-poly aesthetic in the Bad North / Townscaper / Islanders / Synty POLYGON Pirates family. Visual reference is the Castaway Colony main menu mockup (sunset palette, low-poly islands, stylized water, soft DOF on background) — but tuned for top-down RTS framing: no DOF, no macro lensing, readable silhouettes from gameplay camera height.
 
-**Tech foundation already in place:** Unity 6000.0.25f1 + URP 17.0.3 (Volume system, Shader Graph), `DayNightCycle.cs` ready to drive sun rotation, sun color, ambient gradient, fog, and water shader properties between day/night `LightingPreset` ScriptableObjects.
+**Tech foundation already in place:** Unity 6000.5.9f1 + URP 17.5.0 (Volume system, Shader Graph), `DayNightCycle.cs` ready to drive sun rotation, sun color, ambient gradient, fog, and water shader properties between day/night `LightingPreset` ScriptableObjects.
 
 **Five stages:**
 
@@ -470,3 +473,47 @@ Fog disabled. Orthographic + flat ground meant `Mode: Exponential` was reading a
 - Fog hooks not in `LightingPreset` SO yet — wait until Stage 4 so we know what shape they need.
 - Water shader properties not in `LightingPreset` yet — Stage 3 dependency.
 - Sun rotation (`sunriseAngle` / `sunsetAngle`) intentionally NOT in the preset; rotation is a continuous time-of-day mechanic, the preset is for discrete day-state vs night-state values.
+
+### Unity 6000.5.9f1 Upgrade (Engine — ⚠️ NOT YET PLAY-TESTED)
+
+Project converted from Unity **6000.0.25f1 → 6000.5.9f1**. Checkpoint commit `ae8f632` captured the full pre-upgrade tree (Phase 6.24 refactors + Phase 10 low-poly art WIP) in its 6000.0 serialization, so the pre-upgrade state stays recoverable.
+
+**Script compatibility: clean.** All 76 runtime scripts plus the 9 `Assets/Editor/LowPoly/` editor scripts compile against 6000.5.9f1 with **zero errors**. The API surface was already conservative — `UnityEngine`, `UnityEngine.AI`, `TMPro`, `UnityEngine.UI`, one `UnityEngine.Rendering` (for `AmbientMode`). No `ScriptableRenderPass` / `ScriptableRendererFeature` / `OnRenderImage`, no asmdefs, no custom render features, so none of the URP 17.5 RenderGraph churn applies. Legacy `Input.*` still works — `activeInputHandler: 2` (Both) is preserved.
+
+**One real deprecation, fixed:** `FindFirstObjectByType<T>()` became obsolete in 6000.5 ("relies on instance ID ordering"). All 11 call sites swapped to `FindAnyObjectByType<T>()` across `AIWorldState`, `AudioManager`, `DayNightCycle`, `Enemy`, `EnemySpawner`, `GameManager` (x3), `GridToggleHotkey`, `ResourceSpawner`, `WallGrid`. Every site was a singleton/unique-object lookup, so `Any` is semantically identical and marginally faster. Recorded in Key Conventions so it doesn't get reintroduced.
+
+**Packages pinned deliberately** in `manifest.json` to the 6000.5.9f1 defaults *before* the first open, rather than letting the editor silently resolve them — the diff is reviewable that way:
+
+| Package | Was | Now |
+|---|---|---|
+| URP + Core + ShaderGraph | 17.0.3 | 17.5.0 |
+| com.unity.ugui (TextMeshPro) | 2.0.0 | 2.5.0 |
+| Input System | 1.11.2 | 1.20.0 |
+| AI Navigation | 2.0.9 | 2.0.14 |
+| Timeline / VisualScripting | 1.8.7 / 1.9.4 | 1.8.12 / 1.9.12 |
+| Test Framework / collab-proxy | 1.4.5 / 2.10.1 | 1.7.0 / 2.13.6 |
+| Rider / VisualStudio / multiplayer.center | 3.0.31 / 2.0.22 / 1.0.0 | 3.0.38 / 2.0.26 / 1.0.1 |
+
+Unity confirmed the pin took (`Registered 57 packages` — URP 17.5.0 / ugui 2.5.0 / inputsystem 1.20.0) and rewrote `packages-lock.json`.
+
+**Import was clean.** `Logs/Editor.log` shows zero `error CS`, zero `warning CS`, zero shader errors, and `Loaded scene 'Assets/MainIsland.unity'`. The Global Volume profile, `NavMesh-Ground.asset`, and `UniversalRenderPipelineGlobalSettings.asset` all imported without migration errors. Unity rebuilt `SourceAssetDB` / `ArtifactDB` in the new format (expected — the old ones cannot be upgraded in place). The `[API Updater] Failed to read assembly dependency graph ... Invalid signature` line is benign: a stale 6000.0 cache file that gets recreated.
+
+**Notably, no scenes, prefabs, or materials were re-serialized** by the upgrade — only `ProjectSettings.asset` (PlayerSettings `serializedVersion` 28 → 29: dead holographic/WSA fields dropped, new iOS/Android/Switch/WebGL fields added) and two new settings files Unity 6.5 creates, `ProjectAuditorSettings.asset` and `PhysicsCoreProjectSettings2D.asset`. Assets re-serialize lazily on save, so expect scene/prefab diffs the first time each one is edited.
+
+**One behavior-relevant settings change:** the upgrade replaced the empty `m_BuildTargetVRSettings` with an explicit non-automatic graphics API list for `WindowsStandaloneSupport` — D3D11 then D3D12 (`m_Automatic: 0`). D3D11 is first and is what the editor already uses, so this matches previous behavior, but it is now pinned rather than auto-selected.
+
+**Two things the upgrade changed that needed review (both checked, one reverted):**
+- **Emissive materials.** URP 17.5's material upgrader bumped every material's `version: 9 → 10` and rewrote `m_LightmapFlags` on the emissive ones. `Mat_Flame`, `LP_Ember`, and `LP_FireCore` went `1` (RealtimeEmissive) → `3` (`AnyEmissive` = Realtime|Baked) — emission is **preserved**, and their HDR `_EmissionColor` values survived intact (`LP_FireCore` r:3, `LP_Ember` r:2), so they still exceed the Bloom threshold of 1.0. Only two TextMeshPro *example* materials (`Crate - URP`, `Ground - URP`) got flag `7`, which includes `EmissiveIsBlack` — irrelevant to gameplay. Still worth an eyeball on the campfire in Play mode.
+- **Version control mode — REVERTED.** The upgrade flipped `VersionControlSettings.asset` from `m_Mode: Visible Meta Files` to `m_Mode: Unity Version Control` (UVCS/Plastic), presumably because `com.unity.collab-proxy` is installed. This project uses Git, so it was reverted on disk. If it reappears in a future diff, set it back via **Edit > Project Settings > Version Control > Mode: Visible Meta Files** — a running editor holds this in memory and can rewrite the file.
+
+Also: Unity 6.5 emits a new-format `islandrts.slnx` solution file. `.gitignore` had `*.sln` but not `*.slnx`; added.
+
+**Gotchas learned:**
+- Unity reads `manifest.json` during startup package resolution. Edit it **before** launching the editor, not while it is booting — otherwise you race the resolver and land in a confusing half-resolved state.
+- Batchmode (`-batchmode -quit -projectPath`) cannot run against a project another editor instance has open; `Temp/UnityLockfile` is the tell. Check for a running `Unity.exe` first.
+- Unity 6 moves the editor log to a **project-relative** `Logs/Editor.log` almost immediately; `%LOCALAPPDATA%\Unity\Editor\Editor.log` only holds the boot preamble and a pointer to it. Read the project-relative one.
+- Scripts can be compile-verified against a new editor **without converting the project** — point Roslyn (`Editor/Data/DotNetSdk/sdk/*/Roslyn/bincore/csc.dll`) at `Editor/Data/Managed/UnityEngine/*.dll`. Do NOT also reference `Editor/Data/Managed/UnityEditor.dll` alongside the `UnityEditor.*Module.dll` files — that produces spurious `CS0433` ambiguous-type errors (e.g. `EditorApplication`) which Unity itself never sees, because the real `UnityEditor.dll` is a type-forwarding facade.
+
+**Pre-existing drift spotted (not caused by the upgrade, not changed):** `EditorBuildSettings.asset` still ships `Assets/Scenes/SampleScene.unity`, but the actual gameplay scene is `Assets/MainIsland.unity` (that is what the editor opens). The "How to Run" section above still says SampleScene. Decide which is authoritative and fix build settings + docs together.
+
+**Playtest checklist:** the Phase 6.24 checklist now covers both the refactors and the engine upgrade — worker gather/return/deliver and flee; wall line drawing (L-path, Shift staircase, R toggle, G gate-convert); single-building placement / rotate / cancel / type-switch; demolish mode; day-night music + ambient crossfades. On top of that, verify specifically for the upgrade: post-processing still reads correctly (Bloom on the HDR-emissive campfire, no blown-out vignette or tonemap shift from URP 17.5), the day/night `LightingPreset` lerp still drives sun + ambient, NavMesh agents still path (AI Navigation 2.0.14), and TextMeshPro UI still renders (uGUI 2.0.0 → 2.5.0 is the largest single package jump).

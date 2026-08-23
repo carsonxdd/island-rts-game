@@ -45,12 +45,12 @@ public class GameManager : MonoBehaviour
     void Start()
     {
         // Find references
-        dayNightCycle = FindFirstObjectByType<DayNightCycle>();
-        enemySpawner = FindFirstObjectByType<EnemySpawner>();
+        dayNightCycle = FindAnyObjectByType<DayNightCycle>();
+        enemySpawner = FindAnyObjectByType<EnemySpawner>();
 
         if (campfire == null)
         {
-            campfire = FindFirstObjectByType<BaseBuilding>();
+            campfire = FindAnyObjectByType<BaseBuilding>();
         }
 
         // Hide victory/defeat screens at start
