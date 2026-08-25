@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.AI;
 using System.Collections.Generic;
 
-public class Wall : MonoBehaviour
+public class Wall : MonoBehaviour, ITargetable
 {
     [Header("Wall Type")]
     public bool isStoneWall = false;  // false = wooden wall, true = stone wall

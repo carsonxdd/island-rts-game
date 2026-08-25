@@ -4,7 +4,12 @@ using UnityEngine.AI;
 /// <summary>
 /// Warrior executor: Target selection with hysteresis, move to enemy, attack.
 /// Ports existing Warrior combat logic with wall-attack bonus and target locking.
-/// Fixed: proper dead-target cleanup, smoother transitions, no isStopped thrashing.
+///
+/// Phase 6.25: target bookkeeping (set/clear/alive) moved to AIBlackboard,
+/// range checks use collider edge distance via bb.TargetEdgeDistance, enemy
+/// agent lookups use Enemy.CachedAgent (no more local dictionary), and every
+/// TrySetDestination return is honored (a rejected set retries via the
+/// !hasPath branch in MoveTowardTarget instead of being silently dropped).
 /// </summary>
 public class EngageEnemyExecutor : ActionExecutor
 {
@@ -27,15 +32,10 @@ public class EngageEnemyExecutor : ActionExecutor
     private float retargetTimer = 0f;
     private float retargetInterval = 0.5f;
 
-    // Cached enemy agent lookups for wall-attack check
-    private readonly System.Collections.Generic.Dictionary<Enemy, NavMeshAgent> enemyAgentCache
-        = new System.Collections.Generic.Dictionary<Enemy, NavMeshAgent>();
-    private float cacheCleanTimer = 0f;
-
     public override void OnEnter(AIBlackboard bb)
     {
         // Don't reset isInAttackRange if we already had a target — preserve state for smooth re-entry
-        if (bb.currentTarget == null || !IsTargetAlive(bb))
+        if (bb.currentTarget == null || !bb.IsTargetAlive())
         {
             bb.isInAttackRange = false;
             FindBestTarget(bb);
@@ -43,9 +43,10 @@ public class EngageEnemyExecutor : ActionExecutor
 
         if (bb.currentTarget != null)
         {
-            lastTargetPosition = bb.currentTarget.position;
             bb.agent.isStopped = false;
-            AINavHelper.TrySetDestination(bb.agent, bb.currentTarget.position);
+            if (AINavHelper.TrySetDestination(bb.agent, bb.currentTarget.position))
+                lastTargetPosition = bb.currentTarget.position;
+            // On rejection MoveTowardTarget's !hasPath branch retries next frame.
             targetAcquiredTime = Time.time;
             displayName = "Engaging " + bb.currentTargetName;
         }
@@ -56,15 +57,15 @@ public class EngageEnemyExecutor : ActionExecutor
     public override void OnUpdate(AIBlackboard bb)
     {
         // --- Dead target cleanup (robust Unity null check) ---
-        if (!IsTargetAlive(bb))
+        if (!bb.IsTargetAlive())
         {
-            ClearTarget(bb);
+            bb.ClearTarget();
             FindBestTarget(bb);
             if (bb.currentTarget == null) return; // No enemies, brain will switch action
 
-            lastTargetPosition = bb.currentTarget.position;
             bb.agent.isStopped = false;
-            AINavHelper.TrySetDestination(bb.agent, bb.currentTarget.position);
+            if (AINavHelper.TrySetDestination(bb.agent, bb.currentTarget.position))
+                lastTargetPosition = bb.currentTarget.position;
             targetAcquiredTime = Time.time;
         }
 
@@ -80,16 +81,17 @@ public class EngageEnemyExecutor : ActionExecutor
         if (bb.currentTarget == null) return;
 
         // --- Stuck resolution (only when moving, not attacking) ---
-        if (bb.stuckResolver != null && !bb.isInAttackRange)
-        {
-            bb.stuckResolver.UpdateMoving();
-        }
+        // A stuck reset fires Warrior's onStuckReset callback, which clears
+        // bb.currentTarget mid-call (this was the EngageEnemyExecutor:92 NRE in
+        // the 2026-08-24 playtest log). Bail out; the callback ForceReeval'd.
+        if (bb.stuckResolver != null && !bb.isInAttackRange && bb.stuckResolver.UpdateMoving())
+            return;
 
         // --- Movement ---
         MoveTowardTarget(bb);
 
-        // --- Attack range check with hysteresis ---
-        float distanceToTarget = Vector3.Distance(bb.transform.position, bb.currentTarget.position);
+        // --- Attack range check with hysteresis (collider edge distance) ---
+        float distanceToTarget = bb.TargetEdgeDistance();
 
         if (bb.isInAttackRange)
         {
@@ -135,20 +137,12 @@ public class EngageEnemyExecutor : ActionExecutor
     {
         if (Enemy.ActiveList.Count == 0)
         {
-            ClearTarget(bb);
+            bb.ClearTarget();
             return;
         }
 
         Transform nearestEnemy = null;
         float nearestDistance = bb.warriorSearchRadius;
-
-        // Clean enemy agent cache periodically
-        cacheCleanTimer += Time.deltaTime;
-        if (cacheCleanTimer >= 10f)
-        {
-            cacheCleanTimer = 0f;
-            enemyAgentCache.Clear();
-        }
 
         for (int i = 0; i < Enemy.ActiveList.Count; i++)
         {
@@ -156,7 +150,7 @@ public class EngageEnemyExecutor : ActionExecutor
             if (enemy == null) continue;
 
             Health enemyHealth = enemy.CachedHealth;
-            if (enemyHealth != null && !enemyHealth.IsAlive) continue;
+            if (enemyHealth == null || !enemyHealth.IsAlive) continue;
 
             float distance = Vector3.Distance(bb.transform.position, enemy.transform.position);
 
@@ -180,7 +174,7 @@ public class EngageEnemyExecutor : ActionExecutor
         if (nearestEnemy != null)
         {
             // Hysteresis: don't switch if we have a valid living target
-            if (bb.currentTarget != null && IsTargetAlive(bb))
+            if (bb.currentTarget != null && bb.IsTargetAlive())
             {
                 if (Time.time - targetAcquiredTime < minTargetLockDuration)
                     return;
@@ -190,33 +184,18 @@ public class EngageEnemyExecutor : ActionExecutor
                     return;
             }
 
-            bb.currentTarget = nearestEnemy;
-            bb.currentTargetName = nearestEnemy.gameObject.name;
-            bb.currentTargetHealth = nearestEnemy.GetComponent<Health>();
-            targetAcquiredTime = Time.time;
+            if (bb.SetTarget(nearestEnemy, nearestEnemy.gameObject.name))
+                targetAcquiredTime = Time.time;
         }
         else
         {
-            ClearTarget(bb);
+            bb.ClearTarget();
         }
-    }
-
-    void ClearTarget(AIBlackboard bb)
-    {
-        bb.currentTarget = null;
-        bb.currentTargetHealth = null;
-        bb.currentTargetName = "";
-        bb.isInAttackRange = false;
     }
 
     bool IsEnemyAttackingWall(Enemy enemy)
     {
-        NavMeshAgent enemyAgent;
-        if (!enemyAgentCache.TryGetValue(enemy, out enemyAgent))
-        {
-            enemyAgent = enemy.GetComponent<NavMeshAgent>();
-            enemyAgentCache[enemy] = enemyAgent;
-        }
+        NavMeshAgent enemyAgent = enemy.CachedAgent;
         if (enemyAgent == null || !enemyAgent.hasPath) return false;
 
         if (WallGrid.Instance != null)
@@ -225,27 +204,6 @@ public class EngageEnemyExecutor : ActionExecutor
             return WallGrid.Instance.HasWallAt(destGrid);
         }
         return false;
-    }
-
-    /// <summary>
-    /// Robust alive check. Handles Unity destroyed-object null semantics.
-    /// A target is dead if: the Transform is destroyed, OR Health exists and IsAlive is false.
-    /// If Health is destroyed (component gone), we also treat it as dead.
-    /// </summary>
-    bool IsTargetAlive(AIBlackboard bb)
-    {
-        // Unity null check — destroyed GameObjects compare to null
-        if (bb.currentTarget == null) return false;
-
-        // If we had a health reference but it's now destroyed, target is dead
-        if (bb.currentTargetHealth == null)
-        {
-            // Try to re-fetch in case it was never cached
-            bb.currentTargetHealth = bb.currentTarget.GetComponent<Health>();
-            if (bb.currentTargetHealth == null) return false; // No health component = dead/invalid
-        }
-
-        return bb.currentTargetHealth.IsAlive;
     }
 
     void MoveTowardTarget(AIBlackboard bb)
@@ -271,9 +229,9 @@ public class EngageEnemyExecutor : ActionExecutor
         if (Time.time - bb.lastAttackTime < bb.attackCooldown) return;
 
         // Final alive check before dealing damage
-        if (!IsTargetAlive(bb))
+        if (!bb.IsTargetAlive())
         {
-            ClearTarget(bb);
+            bb.ClearTarget();
             return;
         }
 

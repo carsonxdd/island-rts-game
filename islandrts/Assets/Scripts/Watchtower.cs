@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.AI;
 using System.Collections.Generic;
 
-public class Watchtower : MonoBehaviour
+public class Watchtower : MonoBehaviour, ITargetable
 {
     [Header("Health")]
     public float maxHealth = 200f;

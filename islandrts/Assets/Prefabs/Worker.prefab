@@ -11,7 +11,6 @@ GameObject:
   - component: {fileID: 2507687682753618386}
   - component: {fileID: 687541554039923862}
   - component: {fileID: 5864256884884524406}
-  - component: {fileID: 6044761325769108120}
   - component: {fileID: 8424166558528632830}
   m_Layer: 0
   m_Name: Worker
@@ -68,7 +67,7 @@ NavMeshAgent:
   m_GameObject: {fileID: 5145095557503190049}
   m_Enabled: 1
   m_AgentTypeID: 0
-  m_Radius: 0.5
+  m_Radius: 0.3
   m_Speed: 3.5
   m_Acceleration: 8
   avoidancePriority: 50
@@ -81,29 +80,6 @@ NavMeshAgent:
   m_BaseOffset: 0
   m_WalkableMask: 4294967295
   m_ObstacleAvoidanceType: 4
---- !u!136 &6044761325769108120
-CapsuleCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5145095557503190049}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 2
-  m_Radius: 0.2
-  m_Height: 1.2
-  m_Direction: 1
-  m_Center: {x: 0, y: 0.6, z: 0}
 --- !u!114 &8424166558528632830
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -123,7 +99,7 @@ MonoBehaviour:
   gatherRatePerSecond: 0.5
   carryCapacity: 5.01
   searchRadius: 50
-  gatherDistance: 1
+  gatherDistance: 0.6
   deliveryDistance: 1.5
   carryAmount: 0
 --- !u!1001 &2919680746841610238

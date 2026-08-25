@@ -123,11 +123,12 @@ public class ResourceNode : MonoBehaviour
     private int cachedMaxWorkers = -1;
     private float maxWorkersCacheTime = -999f;
     private const float MaxWorkersCacheDuration = 5f;
-    private const float WorkerSlotArc = 1.25f;  // ring arc-length one worker occupies (agent dia 1.0 + margin)
+    private const float WorkerSlotArc = Worker.AgentRadius * 2f + 0.25f;  // ring arc-length one worker occupies (agent diameter + margin — derives from the worker's avoidance radius)
 
     // Where workers stand: just outside the avoidance obstacle. Shared by
-    // GetGatherPoint and the capacity math so they can never drift apart.
-    private float GatherRingRadius
+    // GetGatherPoint, the capacity math, and GatherExecutor's arrival check
+    // so they can never drift apart.
+    public float GatherRingRadius
     {
         get
         {

@@ -9,7 +9,7 @@ using System.Collections.Generic;
 /// Unit behavior (AI action setup, executors, per-unit audio) stays in the
 /// subclasses. CRTP generic so each subclass gets its own registry list.
 /// </summary>
-public abstract class UnitBase<T> : MonoBehaviour where T : UnitBase<T>
+public abstract class UnitBase<T> : MonoBehaviour, ITargetable where T : UnitBase<T>
 {
     public static IReadOnlyList<T> ActiveList => ActiveRegistry<T>.List;
 

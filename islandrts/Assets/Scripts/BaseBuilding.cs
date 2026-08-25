@@ -3,7 +3,7 @@ using UnityEngine.AI;
 using System.Collections.Generic;
 using TMPro;
 
-public class BaseBuilding : MonoBehaviour
+public class BaseBuilding : MonoBehaviour, ITargetable
 {
     public static IReadOnlyList<BaseBuilding> ActiveList => ActiveRegistry<BaseBuilding>.List;
 

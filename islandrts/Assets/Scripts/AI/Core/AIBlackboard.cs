@@ -105,6 +105,69 @@ public class AIBlackboard
         return false;
     }
 
+    // --- Shared target bookkeeping (Phase 6.25) ---
+    // One implementation of set/clear/alive-check for every executor. Executors
+    // decide what extra state to reset when SetTarget reports a change.
+
+    /// <summary>
+    /// Point currentTarget at t, caching its Health and Collider for alive and
+    /// edge-distance checks. Returns true only if the target actually changed.
+    /// Passing null clears the target (prefer ClearTarget for readability).
+    /// </summary>
+    public bool SetTarget(Transform t, string name)
+    {
+        if (currentTarget == t) return false;
+        currentTarget = t;
+        currentTargetName = name;
+        if (t != null)
+        {
+            currentTargetHealth = t.GetComponent<Health>();
+            currentTargetCollider = t.GetComponent<Collider>();
+        }
+        else
+        {
+            currentTargetHealth = null;
+            currentTargetCollider = null;
+        }
+        return true;
+    }
+
+    public void ClearTarget()
+    {
+        currentTarget = null;
+        currentTargetHealth = null;
+        currentTargetName = null;
+        currentTargetCollider = null;
+        isInAttackRange = false;
+    }
+
+    /// <summary>
+    /// Robust alive check handling Unity destroyed-object null semantics:
+    /// re-fetches Health if the cached reference is gone (never "return true on
+    /// null" — see gotchas). A target with no Health component is treated as dead.
+    /// </summary>
+    public bool IsTargetAlive()
+    {
+        if (currentTarget == null) return false;
+        if (currentTargetHealth == null)
+        {
+            currentTargetHealth = currentTarget.GetComponent<Health>();
+            if (currentTargetHealth == null) return false;
+        }
+        return currentTargetHealth.IsAlive;
+    }
+
+    /// <summary>
+    /// Distance from this unit to currentTarget's collider edge (center distance
+    /// if no collider was cached; float.MaxValue with no target so range checks
+    /// read "out of range" instead of throwing).
+    /// </summary>
+    public float TargetEdgeDistance()
+    {
+        if (currentTarget == null) return float.MaxValue;
+        return TargetingUtil.EdgeDistance(transform.position, currentTarget, currentTargetCollider);
+    }
+
     // Stuck resolution
     public StuckResolver stuckResolver;
 

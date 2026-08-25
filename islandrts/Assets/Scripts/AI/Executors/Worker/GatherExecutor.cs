@@ -104,20 +104,26 @@ public class GatherExecutor : ActionExecutor
             }
         }
 
-        // Stuck resolution
-        if (bb.stuckResolver != null)
-        {
-            bb.stuckResolver.UpdateMoving();
-        }
+        // Stuck resolution. A stuck reset fires Worker's onStuckReset callback,
+        // which unclaims and NULLS bb.targetResource mid-call — dereferencing it
+        // below would NRE (seen repeatedly in the 2026-08-24 playtest log). The
+        // callback already ForceReeval'd; bail out and let the next tick re-pick.
+        if (bb.stuckResolver != null && bb.stuckResolver.UpdateMoving())
+            return;
 
-        // Check if we've arrived
+        // Check if we've arrived. Anti-orbit guarantee (Phase 6.25): the tolerance is
+        // floored at AgentRadius + 0.25, which always exceeds how far ORCA avoidance can
+        // hold the agent off its (on-NavMesh) gather point — so the worker can never be
+        // asked to reach a spot it physically can't occupy and circle the node forever.
+        // The center check (standing ring + tolerance) additionally accepts a worker that
+        // avoidance pushed to a different spot on the ring than the one it pathed to.
+        float arrivalTol = Mathf.Max(bb.gatherDistance, Worker.AgentRadius + 0.25f);
         float distToCenter = Vector3.Distance(bb.transform.position, bb.targetResource.transform.position);
-        float distToGatherPt = hasValidGatherPoint
-            ? Vector3.Distance(bb.transform.position, cachedGatherPoint)
-            : distToCenter;
-        float distanceToResource = Mathf.Min(distToCenter, distToGatherPt);
+        bool arrived = distToCenter <= bb.targetResource.GatherRingRadius + arrivalTol
+            || (hasValidGatherPoint
+                && Vector3.Distance(bb.transform.position, cachedGatherPoint) <= arrivalTol);
 
-        if (distanceToResource <= bb.gatherDistance)
+        if (arrived)
         {
             // Arrived at resource
             bb.agent.ResetPath();

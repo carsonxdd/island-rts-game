@@ -20,30 +20,15 @@ public class EnemyPresence : Consideration
     {
         // Full scan runs once per unit per frame; every EnemyPresence instance
         // sharing this blackboard (Engage/Intercept/Patrol/Heal) reuses the result
-        // and only applies its own maxRange cutoff.
+        // and only applies its own maxRange cutoff. The scan itself is the shared
+        // TargetingUtil nearest-alive scan (Phase 6.25).
         if (bb.enemyScanFrame != Time.frameCount)
         {
-            Transform nearest = null;
-            float nearestSqrDist = float.MaxValue;
-            Vector3 myPos = bb.transform.position;
+            float dist;
+            Enemy nearest = TargetingUtil.FindNearest(Enemy.ActiveList, bb.transform.position, 0f, out dist);
 
-            for (int i = 0; i < Enemy.ActiveList.Count; i++)
-            {
-                Enemy enemy = Enemy.ActiveList[i];
-                if (enemy == null) continue;
-                Health h = enemy.CachedHealth;
-                if (h != null && !h.IsAlive) continue;
-
-                float sqrDist = (enemy.transform.position - myPos).sqrMagnitude;
-                if (sqrDist < nearestSqrDist)
-                {
-                    nearestSqrDist = sqrDist;
-                    nearest = enemy.transform;
-                }
-            }
-
-            bb.scannedNearestEnemy = nearest;
-            bb.scannedNearestEnemyDist = nearest != null ? Mathf.Sqrt(nearestSqrDist) : float.MaxValue;
+            bb.scannedNearestEnemy = nearest != null ? nearest.transform : null;
+            bb.scannedNearestEnemyDist = dist;
             bb.enemyScanFrame = Time.frameCount;
         }
 

@@ -6,6 +6,13 @@ using UnityEngine.AI;
 /// Uses multiple delivery checks with a timer-based fallback to prevent
 /// workers from getting stuck near the campfire due to NavMesh carving
 /// or agent stoppingDistance edge cases.
+///
+/// Phase 6.25: delivery is measured from the campfire's collider EDGE
+/// (bb.deliveryDistance = 1.5 from the edge), not its center. The campfire
+/// carves the NavMesh, so center distance never gets small — the old
+/// center-based check only ever succeeded via the timer fallbacks. The
+/// dropoff destination uses the shared ClosestPoint -> SamplePosition
+/// approach-point pattern (TargetingUtil.GetApproachPoint).
 /// </summary>
 public class ReturnToBaseExecutor : ActionExecutor
 {
@@ -14,9 +21,13 @@ public class ReturnToBaseExecutor : ActionExecutor
     // Timer to detect when the worker has been trying to return for too long
     private float returnTimer;
 
+    // Campfire collider, cached on entry for edge-distance checks
+    private Collider campfireCollider;
+
     public override void OnEnter(AIBlackboard bb)
     {
         returnTimer = 0f;
+        campfireCollider = bb.baseBuilding != null ? bb.baseBuilding.GetComponent<Collider>() : null;
 
         if (bb.baseBuilding == null || !bb.agent.isOnNavMesh || !bb.agent.enabled) return;
 
@@ -34,12 +45,11 @@ public class ReturnToBaseExecutor : ActionExecutor
         bb.worker.StopGatheringSoundPublic();
 
         // Temporarily reduce stopping distance so the worker walks
-        // right up to the dropoff point instead of stopping 2m short
+        // right up to the dropoff point instead of stopping short
         bb.agent.stoppingDistance = 0.5f;
 
         // If the throttle/NavMesh rejects this, OnUpdate's !hasPath retry self-heals
-        Vector3 dropoffPoint = GetNearestDropoffPoint(bb);
-        if (AINavHelper.TrySetDestination(bb.agent, dropoffPoint))
+        if (AINavHelper.TrySetDestination(bb.agent, GetDropoffPoint(bb)))
         {
             bb.agent.isStopped = false;
         }
@@ -64,25 +74,27 @@ public class ReturnToBaseExecutor : ActionExecutor
             bb.stuckResolver.UpdateMoving();
         }
 
-        float distanceToBase = Vector3.Distance(bb.transform.position, bb.baseBuilding.transform.position);
+        // Distance to the campfire's collider edge (center distance if no collider)
+        float edgeDistance = TargetingUtil.EdgeDistance(
+            bb.transform.position, bb.baseBuilding.transform, campfireCollider);
 
         // --- Delivery checks (from most specific to most generous) ---
 
-        // 1. Within delivery distance of base center
-        bool withinRange = distanceToBase <= bb.deliveryDistance;
+        // 1. Within delivery distance of the campfire edge
+        bool withinRange = edgeDistance <= bb.deliveryDistance;
 
-        // 2. Agent finished its path and is reasonably close to base
+        // 2. Agent finished its path and is reasonably close to the campfire
         bool pathFinished = bb.agent.isOnNavMesh
             && !bb.agent.pathPending
             && bb.agent.remainingDistance <= bb.agent.stoppingDistance + 0.5f;
-        bool pathFinishedNearBase = pathFinished && distanceToBase <= bb.deliveryDistance + 1.5f;
+        bool pathFinishedNearBase = pathFinished && edgeDistance <= bb.deliveryDistance + 1.5f;
 
-        // 3. Agent has stopped moving and is in the general area of base
+        // 3. Agent has stopped moving and is in the general area of the campfire
         bool agentStopped = bb.agent.isOnNavMesh && bb.agent.velocity.sqrMagnitude < 0.05f;
-        bool stoppedNearBase = agentStopped && distanceToBase <= bb.deliveryDistance + 1.5f;
+        bool stoppedNearBase = agentStopped && edgeDistance <= bb.deliveryDistance + 1.5f;
 
         // 4. Timer fallback: been trying to return for 3+ seconds and within generous range
-        bool timerFallback = returnTimer > 3f && distanceToBase <= bb.deliveryDistance + 3f;
+        bool timerFallback = returnTimer > 3f && edgeDistance <= bb.deliveryDistance + 3f;
 
         // 5. Nuclear fallback: been trying for 8+ seconds, deliver from anywhere
         //    (handles pathfinding failures, NavMesh issues, etc.)
@@ -99,7 +111,7 @@ public class ReturnToBaseExecutor : ActionExecutor
         // Only retry path if agent has lost its path
         if (bb.agent.isOnNavMesh && bb.agent.enabled && !bb.agent.hasPath && !bb.agent.pathPending)
         {
-            if (AINavHelper.TrySetDestination(bb.agent, GetNearestDropoffPoint(bb)))
+            if (AINavHelper.TrySetDestination(bb.agent, GetDropoffPoint(bb)))
             {
                 bb.agent.isStopped = false;
             }
@@ -141,34 +153,15 @@ public class ReturnToBaseExecutor : ActionExecutor
             bb.brain.ForceReeval();
     }
 
-    Vector3 GetNearestDropoffPoint(AIBlackboard bb)
+    /// <summary>
+    /// Walkable point at the campfire's collider edge nearest the worker.
+    /// The campfire carves the NavMesh, so this must go through the shared
+    /// ClosestPoint -> SamplePosition pattern.
+    /// </summary>
+    Vector3 GetDropoffPoint(AIBlackboard bb)
     {
-        Vector3 directionToWorker = (bb.transform.position - bb.baseBuilding.transform.position).normalized;
-        float ringRadius = bb.deliveryDistance;
-        Vector3 dropoffPoint = bb.baseBuilding.transform.position + (directionToWorker * ringRadius);
-        dropoffPoint.y = bb.baseBuilding.transform.position.y;
-
-        NavMeshHit hit;
-        if (NavMesh.SamplePosition(dropoffPoint, out hit, 3f, NavMesh.AllAreas))
-        {
-            return hit.position;
-        }
-
-        // Fallback: try 8 directions
-        for (int i = 0; i < 8; i++)
-        {
-            float angle = i * 45f * Mathf.Deg2Rad;
-            Vector3 dir = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
-            Vector3 candidate = bb.baseBuilding.transform.position + dir * ringRadius;
-            candidate.y = bb.baseBuilding.transform.position.y;
-
-            if (NavMesh.SamplePosition(candidate, out hit, 3f, NavMesh.AllAreas))
-            {
-                return hit.position;
-            }
-        }
-
-        return dropoffPoint;
+        return TargetingUtil.GetApproachPoint(
+            bb.transform.position, bb.baseBuilding.transform, campfireCollider);
     }
 
     public override void OnExit(AIBlackboard bb)

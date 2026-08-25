@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.AI;
 using System.Collections.Generic;
 
-public class Gate : MonoBehaviour
+public class Gate : MonoBehaviour, ITargetable
 {
     [Header("Gate Type")]
     public bool isStoneGate = false;  // false = wooden gate, true = stone gate

@@ -7,10 +7,10 @@ using UnityEngine.AI;
 /// Heals 5 HP/sec while within range of the campfire. Stops at full HP.
 ///
 /// The campfire carves the NavMesh, so its CENTER is unreachable — destination
-/// and arrival checks both use the collider edge (ClosestPoint) snapped to the
-/// NavMesh, same pattern as EnemyAttackExecutor.GetApproachPoint. Measuring from
-/// the center made warriors stall outside HealRange at the carve boundary,
-/// stuck on "Moving to Campfire" forever.
+/// and arrival checks both use the collider edge via the shared
+/// TargetingUtil.GetApproachPoint / EdgeDistance helpers (Phase 6.25).
+/// Measuring from the center made warriors stall outside HealRange at the
+/// carve boundary, stuck on "Moving to Campfire" forever.
 /// </summary>
 public class HealAtCampfireExecutor : ActionExecutor
 {
@@ -53,7 +53,8 @@ public class HealAtCampfireExecutor : ActionExecutor
         if (bb.baseBuilding == null || bb.health == null) return;
         if (!bb.agent.isOnNavMesh || !bb.agent.enabled) return;
 
-        float distToCampfire = GetEdgeDistance(bb);
+        float distToCampfire = TargetingUtil.EdgeDistance(
+            bb.transform.position, bb.baseBuilding.transform, campfireCollider);
 
         if (distToCampfire < HealRange)
         {
@@ -108,29 +109,10 @@ public class HealAtCampfireExecutor : ActionExecutor
         }
     }
 
-    /// <summary>
-    /// Walkable point at the campfire's edge nearest this warrior. ClosestPoint
-    /// lands on the carve boundary, so snap it through NavMesh.SamplePosition
-    /// before handing it to SetDestination (which silently rejects boundary
-    /// points while the NavMesh is mid-recalc).
-    /// </summary>
+    /// <summary>Walkable point at the campfire's edge nearest this warrior (shared carve-safe pattern).</summary>
     Vector3 GetHealSpot(AIBlackboard bb)
     {
-        Vector3 raw = campfireCollider != null
-            ? campfireCollider.ClosestPoint(bb.transform.position)
-            : bb.baseBuilding.transform.position;
-
-        NavMeshHit hit;
-        if (NavMesh.SamplePosition(raw, out hit, 2f, NavMesh.AllAreas))
-            return hit.position;
-        return raw;
-    }
-
-    float GetEdgeDistance(AIBlackboard bb)
-    {
-        if (campfireCollider == null)
-            return Vector3.Distance(bb.transform.position, bb.baseBuilding.transform.position);
-        Vector3 edge = campfireCollider.ClosestPoint(bb.transform.position);
-        return Vector3.Distance(bb.transform.position, edge);
+        return TargetingUtil.GetApproachPoint(
+            bb.transform.position, bb.baseBuilding.transform, campfireCollider);
     }
 }

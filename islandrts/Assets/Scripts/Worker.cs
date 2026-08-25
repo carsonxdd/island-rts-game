@@ -13,13 +13,20 @@ public class Worker : UnitBase<Worker>
     public float gatherRatePerSecond = 1f;  // How fast worker gathers (resources/sec)
     public float carryCapacity = 5.01f;  // Maximum resources worker can carry (slightly over 5 to avoid floating point issues)
     public float searchRadius = 50f;  // How far to search for resources
-    public float gatherDistance = 1.0f;  // Arrival tolerance to the gather point - how close before gathering starts
-    public float deliveryDistance = 3.5f;  // How close worker needs to be to deliver resources
+    public float gatherDistance = 0.6f;  // Arrival tolerance to the gather point (GatherExecutor floors this at AgentRadius + 0.25 so the target can never be unreachably tight)
+    public float deliveryDistance = 1.5f;  // How close to the campfire's collider EDGE to deliver (Phase 6.25: edge-based, was 3.5 from center)
 
     // How close (remaining path distance) a worker walks toward its gather point before the
     // agent stops. Small so workers stand right next to nodes instead of meters away; the
     // arrival check in GatherExecutor uses gatherDistance as its tolerance on top of this.
     public const float GatherStopDistance = 0.25f;
+
+    // NavMeshAgent avoidance radius. This — not the CapsuleCollider (click hitbox only) —
+    // is what keeps workers apart via ORCA local avoidance. 0.3 lets workers pack
+    // shoulder-to-shoulder around nodes without visually overlapping the ~0.4-wide
+    // meeple body. ResourceNode derives its per-node worker capacity slot arc and
+    // GatherExecutor derives its anti-orbit arrival tolerance from this.
+    public const float AgentRadius = 0.3f;
 
     [Header("Current State")]
     public float carryAmount = 0f;  // Resources currently carrying (can be fractional)
@@ -41,7 +48,7 @@ public class Worker : UnitBase<Worker>
             agent.angularSpeed = 360f;  // Snappy turning - workers face new headings quickly (was 120, an anti-jitter value; watch for turn jitter)
             agent.obstacleAvoidanceType = ObstacleAvoidanceType.MedQualityObstacleAvoidance;  // Reduced from High for performance with many walls
             agent.avoidancePriority = Random.Range(30, 70);  // Randomized priority to prevent synchronized yielding
-            agent.radius = 0.5f;  // Reduced from 0.6 to match warriors/enemies, less pathfinding complexity
+            agent.radius = AgentRadius;  // Skinny avoidance radius so workers pack tightly (Phase 6.25, was 0.5)
         }
 
         // Create floating state text

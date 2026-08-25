@@ -265,6 +265,20 @@ namespace IslandRTS.ArtGen
         // Menu entries
         // ==================================================================
 
+        /// <summary>
+        /// The one-click path: regenerate the art library from the current shape
+        /// code, THEN mount it onto the gameplay prefabs. Running Plumb alone
+        /// re-mounts whatever is already on disk — after any Shapes_*.cs change
+        /// the generate step is REQUIRED first, and skipping it silently plumbs
+        /// stale art (exactly what happened on 2026-08-24).
+        /// </summary>
+        [MenuItem(MenuRoot + "Generate + Plumb Everything", false, 58)]
+        public static void GenerateAndPlumbEverything()
+        {
+            LowPolyAssetGenerator.GenerateAll();
+            PlumbEverything();
+        }
+
         [MenuItem(MenuRoot + "Plumb Everything", false, 59)]
         public static void PlumbEverything()
         {

@@ -1,7 +1,7 @@
 using UnityEngine;
 using System.Collections.Generic;
 
-public class Hut : MonoBehaviour
+public class Hut : MonoBehaviour, ITargetable
 {
     public static IReadOnlyList<Hut> ActiveList => ActiveRegistry<Hut>.List;
 

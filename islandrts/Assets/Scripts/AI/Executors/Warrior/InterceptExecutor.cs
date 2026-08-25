@@ -7,6 +7,8 @@ using System.Collections.Generic;
 /// Warriors rally at the building edge between base and enemy cluster,
 /// waiting for enemies to close in before the brain switches to EngageEnemy.
 /// Produces natural grouping behavior — all warriors converge to the same intercept point.
+/// Phase 6.25: TrySetDestination's return is honored — a rejected set retries
+/// next frame instead of leaving the warrior standing until the next recalc tick.
 /// </summary>
 public class InterceptExecutor : ActionExecutor
 {
@@ -15,6 +17,7 @@ public class InterceptExecutor : ActionExecutor
     private Vector3 rallyPoint;
     private float recalcTimer = 0f;
     private float recalcInterval = 2f; // Recalculate rally point every 2s as enemies move
+    private bool rallySet = false;
 
     // Spread warriors slightly so they don't all stack on the exact same spot
     private float spreadOffset;
@@ -73,7 +76,13 @@ public class InterceptExecutor : ActionExecutor
         {
             bb.agent.isStopped = false;
 
-            // Bug 2: Only run stuck resolution while still moving toward rally point
+            // Retry if the throttle/NavMesh rejected the rally destination earlier
+            if (!rallySet)
+            {
+                MoveToRally(bb);
+            }
+
+            // Only run stuck resolution while still moving toward rally point
             if (bb.stuckResolver != null)
             {
                 bb.stuckResolver.UpdateMoving();
@@ -174,15 +183,20 @@ public class InterceptExecutor : ActionExecutor
         if (bb.agent.isOnNavMesh && bb.agent.enabled)
         {
             bb.agent.isStopped = false;
-            AINavHelper.TrySetDestination(bb.agent, rallyPoint);
+            rallySet = AINavHelper.TrySetDestination(bb.agent, rallyPoint);
 
             if (bb.stuckResolver != null)
                 bb.stuckResolver.ResetStuckDetection();
+        }
+        else
+        {
+            rallySet = false;
         }
     }
 
     public override void OnExit(AIBlackboard bb)
     {
+        rallySet = false;
         if (bb.agent.isOnNavMesh)
             bb.agent.isStopped = false;
     }
