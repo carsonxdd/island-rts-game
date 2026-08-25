@@ -14,6 +14,9 @@ public class IdleExecutor : ActionExecutor
         {
             bb.agent.ResetPath();
             bb.agent.isStopped = true;
+            // Standing still: max-importance so deliverers route around idlers at the
+            // campfire instead of shoving them (a stander has no path and can't yield)
+            Worker.SetStationaryAvoidance(bb.agent);
         }
     }
 
@@ -28,6 +31,7 @@ public class IdleExecutor : ActionExecutor
         if (bb.agent != null && bb.agent.isOnNavMesh)
         {
             bb.agent.isStopped = false;
+            Worker.RollMovingAvoidance(bb.agent);  // about to move — drop stationary-importance
         }
     }
 }

@@ -28,6 +28,24 @@ public class Worker : UnitBase<Worker>
     // GatherExecutor derives its anti-orbit arrival tolerance from this.
     public const float AgentRadius = 0.3f;
 
+    // --- ORCA avoidance roles (worker crowding) ---
+    // Lower avoidancePriority = MORE important = others yield to it. A stationary
+    // worker (gathering, idle, sheltering at a hut) can't yield — it has no path —
+    // so it's made max-importance and movers route around it like furniture. Movers
+    // re-roll a random band on every new errand so two meeting workers never tie
+    // (same trick enemies use on retarget). Executors call these on state changes.
+    public const int StationaryAvoidancePriority = 10;
+
+    public static void SetStationaryAvoidance(NavMeshAgent agent)
+    {
+        if (agent != null) agent.avoidancePriority = StationaryAvoidancePriority;
+    }
+
+    public static void RollMovingAvoidance(NavMeshAgent agent)
+    {
+        if (agent != null) agent.avoidancePriority = Random.Range(30, 70);
+    }
+
     [Header("Current State")]
     public float carryAmount = 0f;  // Resources currently carrying (can be fractional)
 
@@ -46,8 +64,8 @@ public class Worker : UnitBase<Worker>
             agent.stoppingDistance = GatherStopDistance;  // Walk nearly onto the gather point (arrival tolerance is gatherDistance)
             agent.acceleration = 5f;  // Moderate acceleration for smoother movement (reduced from 8)
             agent.angularSpeed = 360f;  // Snappy turning - workers face new headings quickly (was 120, an anti-jitter value; watch for turn jitter)
-            agent.obstacleAvoidanceType = ObstacleAvoidanceType.MedQualityObstacleAvoidance;  // Reduced from High for performance with many walls
-            agent.avoidancePriority = Random.Range(30, 70);  // Randomized priority to prevent synchronized yielding
+            agent.obstacleAvoidanceType = ObstacleAvoidanceType.HighQualityObstacleAvoidance;  // High predicts crossings early so meeting workers weave instead of side-step dancing. Walls are static obstacles, not avoidance agents — the cost scales with agent count and ~10 workers is cheap
+            RollMovingAvoidance(agent);  // Randomized priority band prevents synchronized yielding; executors switch this by state (stationary = max-importance)
             agent.radius = AgentRadius;  // Skinny avoidance radius so workers pack tightly (Phase 6.25, was 0.5)
         }
 

@@ -19,6 +19,13 @@ public class GatherExecutor : ActionExecutor
     private bool destinationQueued = false;  // false = throttle/NavMesh rejected the set, retry next frame
     private float unreachableTimer = 0f;     // accumulates while stopped at the end of a dead-end path
 
+    // Rubber band (worker crowding): where this worker stood when it started gathering,
+    // and whether it is currently walking back there after being displaced by the crowd.
+    private Vector3 gatherAnchor;
+    private bool returningToAnchor = false;
+    private const float RubberBandSlack = 0.5f;   // how far a stander can be nudged before walking back
+    private const float RubberBandArrive = 0.15f; // close enough to the anchor to freeze again
+
     public override void OnEnter(AIBlackboard bb)
     {
         phase = GatherPhase.MovingToResource;
@@ -26,6 +33,8 @@ public class GatherExecutor : ActionExecutor
         destinationQueued = false;
         unreachableTimer = 0f;
         headingToBase = false;
+        returningToAnchor = false;
+        Worker.RollMovingAvoidance(bb.agent);  // moving errand — leave stationary-importance if we had it
 
         // Find and claim best resource (already cached by ResourceAvailability consideration)
         if (bb.bestResource != null)
@@ -135,6 +144,13 @@ public class GatherExecutor : ActionExecutor
                 bb.isRegisteredAtNode = true;
                 phase = GatherPhase.Gathering;
 
+                // Stationary now: max-importance so passers-by route around us instead of
+                // shoving (a stander has no path and can't yield), and anchor this spot
+                // for the rubber band below.
+                Worker.SetStationaryAvoidance(bb.agent);
+                gatherAnchor = bb.transform.position;
+                returningToAnchor = false;
+
                 if (bb.stuckResolver != null)
                     bb.stuckResolver.ResetStuckDetection();
 
@@ -210,6 +226,28 @@ public class GatherExecutor : ActionExecutor
             if (!TryPickupNewResource(bb))
                 StartHeadingToBase(bb);
             return;
+        }
+
+        // Rubber band: standers are max-importance so movers route around them, but a
+        // dense crowd can still nudge one off its spot. If displaced beyond the slack,
+        // walk back to the anchor (gathering continues — the ring stays in range) and
+        // freeze again on arrival. Keeps gather spots stable without hard-pinning.
+        float anchorDist = Vector3.Distance(bb.transform.position, gatherAnchor);
+        if (!returningToAnchor)
+        {
+            if (anchorDist > RubberBandSlack
+                && AINavHelper.TrySetDestination(bb.agent, gatherAnchor))
+            {
+                bb.agent.isStopped = false;
+                returningToAnchor = true;
+            }
+        }
+        else if (anchorDist <= RubberBandArrive
+                 || (!bb.agent.pathPending
+                     && bb.agent.remainingDistance <= bb.agent.stoppingDistance + 0.05f))
+        {
+            bb.agent.ResetPath();
+            returningToAnchor = false;
         }
 
         // Gather incrementally (same logic as original Worker)
@@ -322,6 +360,8 @@ public class GatherExecutor : ActionExecutor
 
         phase = GatherPhase.MovingToResource;
         unreachableTimer = 0f;
+        returningToAnchor = false;
+        Worker.RollMovingAvoidance(bb.agent);  // moving again — drop stationary-importance
         displayName = "Moving to " + bb.assignedResourceType;
 
         if (bb.stuckResolver != null)
@@ -349,6 +389,7 @@ public class GatherExecutor : ActionExecutor
         {
             headingToBase = true;
             bb.agent.isStopped = false;
+            Worker.RollMovingAvoidance(bb.agent);  // moving again — drop stationary-importance
             displayName = "Returning to base";
         }
 

@@ -40,6 +40,9 @@ public class FleeToHutExecutor : ActionExecutor
         shelterTarget = null;
         recalcTimer = 0f; // calculate immediately
 
+        // Moving errand — drop stationary-importance if we were gathering/idle
+        Worker.RollMovingAvoidance(bb.agent);
+
         SetFleeDestination(bb);
     }
 
@@ -55,6 +58,8 @@ public class FleeToHutExecutor : ActionExecutor
             if (dist < ShelterSlowDist)
             {
                 if (bb.agent.isOnNavMesh) bb.agent.ResetPath();
+                // Sheltering = standing still; let other fleers route around us
+                Worker.SetStationaryAvoidance(bb.agent);
                 return;
             }
         }
