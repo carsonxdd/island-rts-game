@@ -14,6 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   sunColor: {r: 1, g: 0.85, b: 0.65, a: 1}
   sunIntensity: 1.5
+  shadowStrength: 1
   ambientSky: {r: 1, g: 0.8, b: 0.55, a: 1}
   ambientEquator: {r: 0.85, g: 0.82, b: 0.75, a: 1}
   ambientGround: {r: 0.45, g: 0.5, b: 0.6, a: 1}

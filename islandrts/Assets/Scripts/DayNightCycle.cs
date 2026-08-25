@@ -20,6 +20,12 @@ public class DayNightCycle : MonoBehaviour
     public float sunriseAngle = -90f;          // Sun position at sunrise (below horizon)
     public float sunsetAngle = 270f;           // Sun position at sunset (below horizon)
 
+    [Header("Moon (Night Light)")]
+    [Tooltip("Elevation of the moon light above the horizon during night (degrees). The sun sweep points below the horizon at night, so the directional light is held at this pose instead.")]
+    public float moonElevation = 45f;
+    [Tooltip("Yaw of the moon light so night shadows fall a different direction than day shadows.")]
+    public float moonYaw = 210f;
+
     [Header("Day/Night Phases")]
     public bool isNight = false;
     public int currentDay = 1;
@@ -97,11 +103,6 @@ public class DayNightCycle : MonoBehaviour
     {
         if (sunLight == null) return;
 
-        // Calculate sun rotation (0 = midnight, 0.5 = noon)
-        // Rotate sun around X axis to simulate day/night
-        float sunAngle = Mathf.Lerp(sunriseAngle, sunsetAngle, currentTimeOfDay);
-        sunLight.transform.rotation = Quaternion.Euler(sunAngle, 0f, 0f);
-
         // Calculate light intensity and color based on time
         // Day is roughly 0.25 to 0.75, Night is 0.75 to 0.25 (wrapping)
         float dayProgress;
@@ -132,11 +133,21 @@ public class DayNightCycle : MonoBehaviour
             dayProgress = 0f;
         }
 
+        // Calculate sun rotation (0 = midnight, 0.5 = noon), rotating around X to sweep the sky.
+        // At night that sweep points below the horizon and a directional light contributes
+        // nothing — so hold the light at a fixed moon pose instead, blending through the
+        // dawn/dusk windows (dayProgress 0<->1) so there's no pop.
+        float sunAngle = Mathf.Lerp(sunriseAngle, sunsetAngle, currentTimeOfDay);
+        Quaternion sunRotation = Quaternion.Euler(sunAngle, 0f, 0f);
+        Quaternion moonRotation = Quaternion.Euler(moonElevation, moonYaw, 0f);
+        sunLight.transform.rotation = Quaternion.Slerp(moonRotation, sunRotation, dayProgress);
+
         // Lerp all preset values from night -> day based on dayProgress.
         if (dayPreset != null && nightPreset != null)
         {
             sunLight.color = Color.Lerp(nightPreset.sunColor, dayPreset.sunColor, dayProgress);
             sunLight.intensity = Mathf.Lerp(nightPreset.sunIntensity, dayPreset.sunIntensity, dayProgress);
+            sunLight.shadowStrength = Mathf.Lerp(nightPreset.shadowStrength, dayPreset.shadowStrength, dayProgress);
 
             RenderSettings.ambientSkyColor = Color.Lerp(nightPreset.ambientSky, dayPreset.ambientSky, dayProgress);
             RenderSettings.ambientEquatorColor = Color.Lerp(nightPreset.ambientEquator, dayPreset.ambientEquator, dayProgress);

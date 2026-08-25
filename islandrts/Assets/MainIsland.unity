@@ -16966,7 +16966,7 @@ MonoBehaviour:
   cellSize: 1
   lineColor: {r: 1, g: 1, b: 1, a: 0.2}
   lineWidth: 0.03
-  show: 1
+  show: 0
 --- !u!4 &1046744716
 Transform:
   m_ObjectHideFlags: 0

@@ -14,6 +14,10 @@ public class LightingPreset : ScriptableObject
     public Color sunColor = Color.white;
     public float sunIntensity = 1f;
 
+    [Header("Shadows")]
+    [Tooltip("Directional light shadow strength at this moment (1 = full sun shadows, ~0.5 = soft moon shadows).")]
+    [Range(0f, 1f)] public float shadowStrength = 1f;
+
     [Header("Ambient (Gradient)")]
     public Color ambientSky = new Color(0.5f, 0.5f, 0.5f);
     public Color ambientEquator = new Color(0.4f, 0.4f, 0.4f);

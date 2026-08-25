@@ -163,6 +163,9 @@ Used by: ResourceManager, AudioManager, WallGrid, AIWorldState, PopulationManage
 - Worker bookkeeping has ONE owner: `Worker.OnDestroy` → `BaseBuilding.NotifyWorkerRemoved(this)`, which removes from `activeWorkers` (roster membership is the idempotence guard), decrements the wood/food/stone counter, and calls `PopulationManager.RemoveWorker()`. Never decrement population or counters anywhere else — `UnassignWorker` used to do its own bookkeeping *and* Destroy, double-decrementing the population
 - Housing capacity has ONE owner: buildings call `AddHousing` in Start and release via `Hut.ReleaseHousing()` (flag-guarded, called from both death and `OnDestroy` so demolish counts too). PopulationManager must NOT rescan the scene at Start — the old `RecalculateHousingCapacity` double-counted depending on Start order
 
+- `AIBlackboard.SetTarget` returns true only when the target actually **changed** — it deliberately does NOT reset `isInAttackRange` or issue movement; each executor decides what to reset on a change (enemies drop attack state, warriors keep their hysteresis timestamps). Don't add side effects to it
+- A worker's `deliveryDistance` and warrior heal/attack ranges are **edge distances** (collider `ClosestPoint`), not center distances. If you add a new interaction with any building, use `TargetingUtil.EdgeDistance` — a center-based threshold smaller than the building's half-extent can never trip
+
 ### Visual / Art Gotchas
 
 Phase 10 spec is in `PHASE_10_VISUAL_OVERHAUL.md`. Stage 1 (post-processing + lighting presets) is shipped; remaining stages are planned.
@@ -199,6 +202,8 @@ Phase 10 spec is in `PHASE_10_VISUAL_OVERHAUL.md`. Stage 1 (post-processing + li
 - Public sound methods: `StartGatheringSoundPublic()`, `PlayAttackSoundPublic()`, etc.
 - `StuckResolver` is a shared component (Worker, Warrior, Enemy all use it)
 - Singleton/unique-object lookup is **`FindAnyObjectByType<T>()`**. `FindFirstObjectByType<T>()` is obsolete as of Unity 6000.5 (it relies on instance-ID ordering) and `FindObjectOfType` / `FindObjectsOfType` were obsoleted before that. `FindObjectsByType` for multi-object scans remains banned outright — use `X.ActiveList` (see ActiveRegistry Pattern)
+- Nearest-alive target scans go through **`TargetingUtil.FindNearest`** (every unit/building implements `ITargetable`); target set/clear/alive-check through **`bb.SetTarget` / `bb.ClearTarget` / `bb.IsTargetAlive`**; carve-safe destinations and range checks through **`TargetingUtil.GetApproachPoint` / `EdgeDistance`**. Don't hand-roll new scans or approach-point code (Phase 6.25)
+- Worker spacing knobs: `Worker.AgentRadius` (avoidance radius — the thing that actually spaces workers), `Worker.GatherStopDistance`, `ResourceNode.GatherRingRadius` (standing ring), and `gatherDistance` (arrival tolerance, floored at `AgentRadius + 0.25` by GatherExecutor). `deliveryDistance` is measured from the campfire collider **edge**
 
 ---
 
@@ -293,7 +298,7 @@ Ask: "would this log spam the console during a normal 5-minute play session?" If
 - Zero GC in hot paths, staggered AI evaluation
 
 **What's next (immediate):**
-- Playtest Phase 6.24 refactors + the Unity 6000.5.9f1 upgrade (see checklist in Phase History).
+- Playtest Phase 6.24 refactors + the Unity 6000.5.9f1 upgrade + Phase 6.25 targeting/spacing changes (see checklists in Phase History — the 6.25 list stacks on 6.24's).
 - Run `Tools > Island RTS > Low-Poly Templates > Generate All Assets` (regenerates the Stage 2c simplified shapes), then `Plumb Everything` + `Scatter Environment Props`, re-bake the NavMesh, then playtest Phase 10 Stage 2a/2b/2c.
 
 **What's next (future phases):**
@@ -444,6 +449,33 @@ Cleared all four "Refactors still queued" from Phase 6.23. No scene/prefab edits
 
 **Playtest checklist before committing:** worker gather → return → deliver loop and flee-from-enemies (the AINavHelper change); wall line drawing (L-path, Shift staircase, R toggle, G gate-convert); single-building placement / R rotate / Esc cancel / type-switch (1-4); demolish mode (Delete/X); day↔night music + ambient crossfades. Watch the console for any new errors/warnings on Play. Once clean, commit as Phase 6.24 and (optionally) flip the ⚠️ status note above to "Complete".
 
+### Phase 6.25 (Targeting Unification + Worker Spacing — ⚠️ PENDING PLAYTEST)
+
+Refactored the three hand-rolled targeting implementations onto shared code, made workers pack tighter, and made every node/campfire interaction distance derived instead of hand-tuned (2026-08-24). Compile-verified vs 6000.5.9f1 Roslyn: 0 errors, 0 new warnings.
+
+**New file `AI/Shared/TargetingUtil.cs`:**
+- `ITargetable` interface (`CachedHealth` + `transform`) — implemented by `UnitBase<T>` (all units) and Hut, Watchtower, Wall, Gate, BaseBuilding. Entries whose Health hasn't been set up yet (spawned same frame) are skipped by scans — visible within one brain tick.
+- `TargetingUtil.FindNearest<T>(list, from, maxRange, out dist)` — the one nearest-alive registry scan (sqrMagnitude, zero GC; maxRange ≤ 0 = unlimited). Replaces the bespoke scans in EnemyAttackExecutor (warriors/huts/towers/walls/gates), EngageEnemyExecutor, and EnemyPresence.
+- `TargetingUtil.GetApproachPoint(from, target, collider)` / `EdgeDistance(from, target, collider)` — the ClosestPoint→SamplePosition carve-safe pattern, now in ONE place. Used by EnemyAttackExecutor, HealAtCampfireExecutor, and (new) ReturnToBaseExecutor.
+
+**AIBlackboard target bookkeeping (one implementation):** `SetTarget(t, name)` (caches Health + Collider, returns true only on change — callers decide what to reset), `ClearTarget()`, `IsTargetAlive()` (the re-fetch-on-null version), `TargetEdgeDistance()` (float.MaxValue with no target). Enemy and warrior executors both use these; the warrior's duplicate IsTargetAlive/ClearTarget and the enemy's private SetTarget are gone.
+
+**Warrior robustness fixes (small behavior deltas, all safer-direction):**
+- Engage attack-range checks now use collider **edge** distance (`bb.TargetEdgeDistance`) instead of enemy center — consistent with enemies; effective reach grows by the enemy capsule radius (0.2).
+- Engage's per-executor `Dictionary<Enemy, NavMeshAgent>` deleted — uses `Enemy.CachedAgent`.
+- Engage's null-Health enemies are now skipped (was "assume alive"), matching every other scan.
+- Retreat routed through `AINavHelper.TrySetDestination` (was raw `SetDestination` — the last raw call site); Retreat/DefendWall/Intercept/Engage all honor the bool return with a retry-next-frame flag, closing their ghost-moving windows.
+
+**Worker spacing:** `Worker.AgentRadius = 0.3f` const (was 0.5 — the NavMeshAgent avoidance radius is what spaces workers; the CapsuleCollider is click-hitbox only). `ResourceNode.WorkerSlotArc` now derives from it (`AgentRadius * 2 + 0.25` = 0.85, was hardcoded 1.25), so per-node capacity scales up automatically (~2-3 more workers per tree). Worker.prefab NavMeshAgent radius updated to match, and **duplicate CapsuleColliders were removed from the Worker AND Warrior prefab roots** (each carried two identical capsules — plumber slip; Enemy.prefab was clean).
+
+**Node interaction distance (anti-orbit guarantee):** `gatherDistance` (arrival tolerance) 1.0 → 0.6 in script + prefab, and GatherExecutor floors it at `AgentRadius + 0.25` — the tolerance always exceeds how far ORCA can hold a worker off its on-NavMesh gather point, so a worker can never be asked to reach an unreachable spot and circle a node. Arrival now accepts EITHER within-tolerance of the gather point OR within `GatherRingRadius + tolerance` of the node center (worker pushed to a different ring spot still counts). `ResourceNode.GatherRingRadius` is public — the single shared standing-ring definition.
+
+**Campfire delivery is edge-based:** `deliveryDistance` semantics changed from "distance to campfire center" to "distance to campfire collider **edge**" (script default 3.5 → 1.5; prefab already said 1.5, which under center-based semantics was *inside* the 2×2 collider — deliveries were only succeeding via the timer fallbacks). ReturnToBaseExecutor now uses `TargetingUtil.EdgeDistance` for all five delivery checks and `GetApproachPoint` for the dropoff destination (replacing the ring + 8-direction fallback). All timer fallbacks kept.
+
+**Playtest checklist (stacks on the 6.24 list):** workers pack tighter around nodes without orbiting or shoving; ~6-8 fit around a tree; workers walk right up to the campfire and deliver promptly (no 3s fallback pauses — watch carry counts hit 0 next to the fire, not 2m away); warriors still engage/disengage cleanly at range (edge-distance change); enemies unchanged (behavior-preserving refactor); Retreat/Intercept/DefendWall still move immediately when chosen.
+
+**Post-playtest fix (2026-08-24 evening):** the user's first Play session (still on pre-6.25 binaries) logged repeated NREs from all three unit types: `StuckResolver.UpdateMoving()` fires the unit's `onStuckReset` callback **mid-call**, which nulls `bb.targetResource` (worker) / `bb.currentTarget` (warrior, enemy) — and the executor code immediately after the call dereferenced them. Fixed by honoring `UpdateMoving()`'s bool return in GatherExecutor / EngageEnemyExecutor / EnemyAttackExecutor: on a stuck reset, `return` for that tick (the callback already ForceReeval'd). **Gotcha: any executor that calls `UpdateMoving()` must either early-return when it reports a reset or re-null-check every blackboard field the unit's onStuckReset callback touches.** The warrior/enemy cases were also independently defused by `TargetEdgeDistance()` returning float.MaxValue on a null target.
+
 ### Phase 10 (In Progress): Visual Overhaul
 
 **Status:** Stage 1 shipped (post-processing + lighting presets). Stages 2-5 planned. Full spec in `PHASE_10_VISUAL_OVERHAUL.md` at repo root — that file is the source of truth; this entry is a summary.
@@ -481,6 +513,8 @@ Two SO assets created in scene: `DayPreset.asset` (warm gold sun + warm-yellow /
 Campfire material now has HDR Emission (intensity ~3) so it blooms at Bloom Threshold = 1.0 — preferred over dropping threshold globally, since only true HDR-emissive hero assets should bloom.
 
 Fog disabled. Orthographic + flat ground meant `Mode: Exponential` was reading as a uniform white veil (no depth gradient to work against). Revisit in Stage 4 with **Linear** fog (Start ~30 / End ~80) tuned to far edges only.
+
+**Moonlight follow-up (2026-08-24 — ⚠️ pending playtest):** night was near-black for two stacked reasons: (1) the sun sweep points **below the horizon** all night (angle 180–270 / -90–0), so `NightPreset.sunIntensity` never reached the ground — night was 100% ambient; (2) the ambient values were near-black. Fix: `DayNightCycle` now holds the directional light at a fixed **moon pose** (`moonElevation` 45 / `moonYaw` 210, inspector-tunable) whenever `dayProgress < 1`, `Slerp`-blended through the existing dawn/dusk windows so there's no pop. `LightingPreset` gained `shadowStrength` (lerped onto `sunLight.shadowStrength`): Day 1.0, Night 0.5 for soft moon shadows. `NightPreset` retuned for readable-gameplay night: sun `(0.55, 0.65, 0.9)` @ 0.5, ambient sky `(0.12, 0.16, 0.32)` / equator `(0.07, 0.09, 0.18)` / ground `(0.03, 0.04, 0.09)` @ 0.8. Gotcha: when adding a serialized field to `LightingPreset`, write it into **both** .asset files explicitly — a missing YAML key deserializes as 0, not the C# default (a DayPreset missing `shadowStrength: 1` would kill daytime shadows). Playtest: night should read as cool blue moonlight with soft shadows falling opposite the day direction, dawn/dusk light swing smooth, campfire bloom still pops.
 
 **Outstanding (intentionally deferred):**
 - Post-FX values currently conservative (Sat 2, Contrast 6, Temp 10, Vignette 0.12) vs spec values (5 / 10 / 15 / 0.25). Stylistic choice — can push closer to spec for more drama later.

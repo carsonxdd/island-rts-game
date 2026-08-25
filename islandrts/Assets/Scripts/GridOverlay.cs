@@ -11,7 +11,7 @@ public class GridOverlay : MonoBehaviour
     [Header("Style")]
     public Color lineColor = new Color(1f,1f,1f,0.2f);
     public float lineWidth = 0.03f;
-    public bool show = true;
+    public bool show = false;
 
     readonly List<LineRenderer> lines = new List<LineRenderer>();
     Material _mat;

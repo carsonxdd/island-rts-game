@@ -12,9 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ace6d295877c718438501ca2a265d03f, type: 3}
   m_Name: NightPreset
   m_EditorClassIdentifier: 
-  sunColor: {r: 0.3, g: 0.4, b: 0.65, a: 1}
-  sunIntensity: 0.3
-  ambientSky: {r: 0.05, g: 0.08, b: 0.18, a: 1}
-  ambientEquator: {r: 0.03, g: 0.05, b: 0.1, a: 1}
-  ambientGround: {r: 0.01, g: 0.02, b: 0.05, a: 1}
-  ambientIntensity: 0.5
+  sunColor: {r: 0.55, g: 0.65, b: 0.9, a: 1}
+  sunIntensity: 0.5
+  shadowStrength: 0.5
+  ambientSky: {r: 0.12, g: 0.16, b: 0.32, a: 1}
+  ambientEquator: {r: 0.07, g: 0.09, b: 0.18, a: 1}
+  ambientGround: {r: 0.03, g: 0.04, b: 0.09, a: 1}
+  ambientIntensity: 0.8
