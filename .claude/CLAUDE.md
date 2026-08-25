@@ -302,7 +302,7 @@ Ask: "would this log spam the console during a normal 5-minute play session?" If
 - Run `Tools > Island RTS > Low-Poly Templates > Generate All Assets` (regenerates the Stage 2c simplified shapes), then `Plumb Everything` + `Scatter Environment Props`, re-bake the NavMesh, then playtest Phase 10 Stage 2a/2b/2c.
 
 **What's next (future phases):**
-- Phase 7: Building upgrades (campfire -> fortress), workshop, storage
+- Phase 7: Builders (construction + repair labor — see the Phase 7 design sketch in Phase History), building upgrades (campfire -> fortress), workshop, storage
 - Phase 8: Worker night hide behavior, archer units
 - Phase 9: Player character (Admiral), crafting, tech tree
 - Phase 10: Visual overhaul — Stage 1 (post-processing + lighting presets) shipped; Stages 2-5 (asset swap, water shader, lighting bake) ahead
@@ -475,6 +475,39 @@ Refactored the three hand-rolled targeting implementations onto shared code, mad
 **Playtest checklist (stacks on the 6.24 list):** workers pack tighter around nodes without orbiting or shoving; ~6-8 fit around a tree; workers walk right up to the campfire and deliver promptly (no 3s fallback pauses — watch carry counts hit 0 next to the fire, not 2m away); warriors still engage/disengage cleanly at range (edge-distance change); enemies unchanged (behavior-preserving refactor); Retreat/Intercept/DefendWall still move immediately when chosen.
 
 **Post-playtest fix (2026-08-24 evening):** the user's first Play session (still on pre-6.25 binaries) logged repeated NREs from all three unit types: `StuckResolver.UpdateMoving()` fires the unit's `onStuckReset` callback **mid-call**, which nulls `bb.targetResource` (worker) / `bb.currentTarget` (warrior, enemy) — and the executor code immediately after the call dereferenced them. Fixed by honoring `UpdateMoving()`'s bool return in GatherExecutor / EngageEnemyExecutor / EnemyAttackExecutor: on a stuck reset, `return` for that tick (the callback already ForceReeval'd). **Gotcha: any executor that calls `UpdateMoving()` must either early-return when it reports a reset or re-null-check every blackboard field the unit's onStuckReset callback touches.** The warrior/enemy cases were also independently defused by `TargetEdgeDistance()` returning float.MaxValue on a null target.
+
+### Phase 6.26 (Worker Crowd Interaction — ⚠️ PENDING PLAYTEST)
+
+Fixes worker-vs-worker shoving/jams (campfire traffic, standers displaced) via state-based ORCA roles (2026-08-24):
+
+- **Avoidance role follows worker state.** `Worker.SetStationaryAvoidance` (priority 10 = max-importance; lower number = more important in Unity) whenever a worker stands still — gathering, idle, sheltering at a hut in flee. A stander has no path so it *can't* yield; making it max-importance turns it into "furniture" movers route around instead of shoving. `Worker.RollMovingAvoidance` (`Random.Range(30, 70)`) on every moving errand: Gather OnEnter/`TryPickupNewResource`/`StartHeadingToBase`, Return OnEnter, Flee OnEnter, Idle OnExit. **Gotcha: every executor that stops a worker must set stationary priority, and every one that moves it must re-roll — a stale priority-10 mover plows through everything.**
+- **Rubber band on gather spots.** `GatherExecutor` anchors the worker's position when it registers at a node; if the crowd nudges it > 0.5 (`RubberBandSlack`) off the anchor during `Gathering`, it walks back (gathering continues — the ring stays in range) and `ResetPath()`s again within 0.15 (`RubberBandArrive`). Displaced gatherers no longer drift away from their spot permanently.
+- **Worker avoidance quality Med → High** (`Worker.Start`). The old "reduced for performance with many walls" rationale was wrong — walls are carving obstacles, not avoidance agents; ORCA cost scales with *agent* count and ~10 workers is cheap. High predicts crossings earlier, killing most of the head-on side-step dance.
+
+Playtest (stacks on 6.24/6.25): deliverers flow around idlers at the campfire instead of jamming; gatherers hold their spots and spring back if bumped; two workers meeting head-on pass cleanly; fleeing workers still pile into huts without deadlock.
+
+### Phase 7 (Planned): Builders — Design Sketch
+
+Decided 2026-08-24 (user picked all three recommended options). Builders join Phase 7 alongside building upgrades / workshop / storage.
+
+**Core decisions (locked):**
+1. **Dedicated Builder unit** — fourth `UnitBase<Builder>` (CRTP keeps its own `ActiveRegistry`), recruited at the campfire like warriors. NOT a worker job assignment.
+2. **Construction requires a builder.** `ConstructionSite.progress` advances only while ≥1 builder is working it — the current 5s auto-complete becomes builder labor. Placement becomes logistics; mid-siege walls need protecting.
+3. **Repair costs a resource fraction** — proportional to HP restored, ~25% of build cost for a full repair, drawn incrementally as HP ticks up; repair pauses (doesn't cancel) when the pool runs dry.
+
+**Implementation shape (leverage existing patterns):**
+- AI action set: **Build** (nearest `ConstructionSite` via its existing ActiveRegistry), **Repair** (scan building registries for `Health < max`), **Flee** (reuse worker flee logic — builders are civilians), **Idle**. All the Utility AI gotchas apply: multiplicative considerations, momentum exit conditions, full transition table before shipping.
+- All building interactions are **edge-distance** (`TargetingUtil.GetApproachPoint` / `EdgeDistance`) — construction sites and damaged buildings sit on/next to carving obstacles, same as every other building interaction.
+- Movement through `AINavHelper.TrySetDestination` honoring the bool; state-based avoidance priority (stationary-while-building = `SetStationaryAvoidance`-style, re-roll on errand) — same crowd pattern as workers (Phase 6.26). Consider promoting the worker helpers to `UnitBase` at that point.
+- Housing: builders occupy population like workers (single-owner bookkeeping — register through the same `NotifyWorkerRemoved`-style single path, mind the Phase 6.23 lessons).
+- Art: meeple + tool accessory (hammer? tool belt) via `LowPolyAssetGenerator` + a `LowPolyPlumber` table row — an asset not in the plumber table is invisible in-game.
+- UI: recruit button beside the warrior's; construction sites show "awaiting builder" state when no builder is en route.
+
+**Balance starting points (tune in playtest):** cost ~15W 10F, HP ~50 (civilian), build rate such that a wall takes ~8-10s of labor (was 5s auto), repair ~5 HP/sec. Multiple builders on one site: linear stack capped at 2-3.
+
+**Open questions (settle at implementation):** do builders keep working at night or auto-flee; do enemies target builders like workers (currently enemies prefer warriors/buildings); is there a builder cap; does demolish-refund interact with partially-repaired HP.
+
+**Soft-lock guard:** with zero builders alive, sites wait indefinitely (they don't decay); demolish still refunds 50%. Surface a warning banner if sites exist but no builder does.
 
 ### Phase 10 (In Progress): Visual Overhaul
 
