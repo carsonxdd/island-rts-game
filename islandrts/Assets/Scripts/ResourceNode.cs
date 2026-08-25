@@ -23,7 +23,7 @@ public class ResourceNode : MonoBehaviour
 
     void Awake() { ActiveRegistry<ResourceNode>.Register(this); }
 
-    private Renderer[] nodeRenderers;
+    private Material[] nodeMaterials;
     private Color[] originalColors;
     private bool isHighlighted = false;
     private List<Worker> activeWorkers = new List<Worker>();
@@ -40,14 +40,11 @@ public class ResourceNode : MonoBehaviour
         SetupNavMeshObstacle();
         cachedObstacle = GetComponent<NavMeshObstacle>();
 
-        // Get ALL renderers for visual feedback (tree has trunk + leaves)
-        nodeRenderers = GetComponentsInChildren<Renderer>();
-        originalColors = new Color[nodeRenderers.Length];
-
-        for (int i = 0; i < nodeRenderers.Length; i++)
-        {
-            originalColors[i] = nodeRenderers[i].material.color;
-        }
+        // Get ALL renderers for visual feedback (tree has trunk + leaves), and instance every
+        // material slot - the low-poly art meshes are multi-submesh, so tinting only slot 0
+        // would highlight a fraction of the node.
+        nodeMaterials = RendererTint.Collect(GetComponentsInChildren<Renderer>());
+        originalColors = RendererTint.CaptureColors(nodeMaterials);
 
         // Save original scale for depletion visual
         originalScale = transform.localScale;
@@ -104,10 +101,7 @@ public class ResourceNode : MonoBehaviour
         // Highlight all parts when mouse hovers over
         if (!isHighlighted)
         {
-            foreach (var renderer in nodeRenderers)
-            {
-                renderer.material.color = highlightColor;
-            }
+            RendererTint.SetColor(nodeMaterials, highlightColor);
             isHighlighted = true;
         }
     }
@@ -117,12 +111,75 @@ public class ResourceNode : MonoBehaviour
         // Remove highlight from all parts when mouse leaves
         if (isHighlighted)
         {
-            for (int i = 0; i < nodeRenderers.Length; i++)
-            {
-                nodeRenderers[i].material.color = originalColors[i];
-            }
+            RendererTint.RestoreColors(nodeMaterials, originalColors);
             isHighlighted = false;
         }
+    }
+
+    // ---- Worker capacity: how many workers physically fit around this node ----
+    // Derived from the standing-ring circumference and how much of the surrounding
+    // NavMesh is actually open (a node against walls/water fits fewer workers).
+    // Cached briefly because building walls changes the answer.
+    private int cachedMaxWorkers = -1;
+    private float maxWorkersCacheTime = -999f;
+    private const float MaxWorkersCacheDuration = 5f;
+    private const float WorkerSlotArc = 1.25f;  // ring arc-length one worker occupies (agent dia 1.0 + margin)
+
+    // Where workers stand: just outside the avoidance obstacle. Shared by
+    // GetGatherPoint and the capacity math so they can never drift apart.
+    private float GatherRingRadius
+    {
+        get
+        {
+            float obstacleRadius = cachedObstacle != null ? cachedObstacle.radius : 0.5f;
+            return obstacleRadius * 1.1f;
+        }
+    }
+
+    public int GetMaxWorkers()
+    {
+        if (cachedMaxWorkers > 0 && Time.time - maxWorkersCacheTime < MaxWorkersCacheDuration)
+            return cachedMaxWorkers;
+
+        // Standing radius = gather ring + the stop distance workers leave themselves.
+        float standRadius = GatherRingRadius + Worker.GatherStopDistance + 0.15f;
+        int ringSlots = Mathf.FloorToInt(2f * Mathf.PI * standRadius / WorkerSlotArc);
+
+        // Scale the cap by the fraction of the surroundings that is walkable.
+        int open = 0;
+        for (int i = 0; i < 8; i++)
+        {
+            float angle = i * 45f * Mathf.Deg2Rad;
+            Vector3 candidate = transform.position +
+                new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * standRadius;
+            NavMeshHit hit;
+            if (NavMesh.SamplePosition(candidate, out hit, 0.75f, NavMesh.AllAreas))
+                open++;
+        }
+
+        cachedMaxWorkers = Mathf.Max(1, Mathf.RoundToInt(ringSlots * (open / 8f)));
+        maxWorkersCacheTime = Time.time;
+        return cachedMaxWorkers;
+    }
+
+    /// <summary>
+    /// True if this worker may head for / gather at this node. Workers already
+    /// registered or claiming here always keep their slot.
+    /// </summary>
+    public bool HasWorkerRoom(Worker forWorker)
+    {
+        if (forWorker != null &&
+            (activeWorkers.Contains(forWorker) || claimedWorkers.Contains(forWorker)))
+            return true;
+
+        // Clean dead workers so they can't hold slots forever (same pattern as GetClaimCount)
+        for (int i = activeWorkers.Count - 1; i >= 0; i--)
+        {
+            if (activeWorkers[i] == null)
+                activeWorkers.RemoveAt(i);
+        }
+
+        return activeWorkers.Count + GetClaimCount() < GetMaxWorkers();
     }
 
     // Register a worker to gather from this node
@@ -131,6 +188,11 @@ public class ResourceNode : MonoBehaviour
         if (currentAmount <= 0)
         {
             return false;  // Node is depleted
+        }
+
+        if (!HasWorkerRoom(worker))
+        {
+            return false;  // No room around the node - caller moves on to another one
         }
 
         if (!activeWorkers.Contains(worker))
@@ -225,9 +287,7 @@ public class ResourceNode : MonoBehaviour
     /// </summary>
     public Vector3 GetGatherPoint(Vector3 workerPosition)
     {
-        // Get the obstacle radius for offset calculation (cached reference)
-        float obstacleRadius = cachedObstacle != null ? cachedObstacle.radius : 0.5f;
-        float offset = obstacleRadius * 1.3f;  // Just outside the obstacle
+        float offset = GatherRingRadius;  // Just outside the obstacle
 
         // Try direct approach: nearest side from worker
         Vector3 dirToWorker = (workerPosition - transform.position).normalized;

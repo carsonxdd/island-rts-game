@@ -217,44 +217,29 @@ namespace IslandRTS.ArtGen
         {
             MeshBuilder b = new MeshBuilder(seed);
 
-            b.Use("WoodDark");
-            b.Prism(Vector3.zero, width * 0.07f, width * 0.05f, height * 0.28f, 5);
-
-            for (int i = 0; i < clusters; i++)
-            {
-                b.Use(i % 2 == 0 ? "BushGreen" : "BushDark");
-
-                float a = (360f / clusters) * i + b.Rand(-20f, 20f);
-                float dist = width * b.Rand(0.10f, 0.26f);
-                Vector3 offset = new Vector3(
-                    Mathf.Cos(a * Mathf.Deg2Rad) * dist,
-                    height * b.Rand(0.14f, 0.34f),
-                    Mathf.Sin(a * Mathf.Deg2Rad) * dist);
-
-                Vector3 size = new Vector3(width, height, width) * b.Rand(0.48f, 0.72f);
-                b.Rock(offset, size, 0.20f, 2, 6);
-            }
-
-            // Crowning cluster ties the silhouette together.
+            // One solid rounded mass - template-simple, no separate blobs.
             b.Use("BushGreen");
-            b.Rock(new Vector3(0f, height * 0.34f, 0f), new Vector3(width * 0.66f, height * 0.62f, width * 0.66f), 0.18f, 2, 6);
+            Vector3 size = new Vector3(width, height, width);
+            b.Rock(Vector3.zero, size, 0.08f, 3, 7);
 
             if (berries)
             {
+                // Berries are chunky and half-embedded: centers sit ON the nominal surface
+                // of the ellipsoid, and at 0.16 * width diameter they always straddle the
+                // low-jitter (0.08) surface - attached, never floating.
                 b.Use("BerryRed");
-                int count = 10;
+                Vector3 half = size * 0.5f;
+                Vector3 center = new Vector3(0f, half.y, 0f);
+                const int count = 8;
                 for (int i = 0; i < count; i++)
                 {
-                    float a = (360f / count) * i + b.Rand(-18f, 18f);
-                    // Sit the berries ON the outer surface of the clusters, not inside it -
-                    // the clusters reach ~0.5 * width, so anything closer than that is
-                    // swallowed by the foliage and the bush reads as plain green.
-                    float dist = width * b.Rand(0.40f, 0.52f);
-                    Vector3 p = new Vector3(
-                        Mathf.Cos(a * Mathf.Deg2Rad) * dist,
-                        height * b.Rand(0.30f, 0.68f),
-                        Mathf.Sin(a * Mathf.Deg2Rad) * dist);
-                    b.Rock(p, Vector3.one * (width * 0.095f), 0.12f, 2, 5);
+                    float a = ((360f / count) * i + b.Rand(-14f, 14f)) * Mathf.Deg2Rad;
+                    float yUnit = b.Rand(0.15f, 0.62f); // upper hemisphere, visible from the RTS camera
+                    float ring = Mathf.Sqrt(1f - yUnit * yUnit);
+                    Vector3 unit = new Vector3(Mathf.Cos(a) * ring, yUnit, Mathf.Sin(a) * ring);
+                    Vector3 p = center + Vector3.Scale(unit, half);
+                    float berry = width * 0.16f;
+                    b.Rock(p - new Vector3(0f, berry * 0.5f, 0f), Vector3.one * berry, 0.10f, 2, 5);
                 }
             }
 

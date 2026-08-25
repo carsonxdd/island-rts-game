@@ -91,10 +91,7 @@ public class GhostPlacer
         // Update validity and color (must pass both checks)
         isValidPlacement = !hasCollision && !tooCloseToBuilding;
 
-        if (owner.ghostRenderer != null)
-        {
-            owner.ghostRenderer.material.color = isValidPlacement ? owner.validColor : owner.invalidColor;
-        }
+        owner.SetGhostColor(isValidPlacement ? owner.validColor : owner.invalidColor);
     }
 
     void ConfirmPlacement()
@@ -170,6 +167,7 @@ public class GhostPlacer
 
         owner.currentGhost = null;
         owner.ghostRenderer = null;
+        owner.ghostMaterials = null;
         owner.isPlacing = false;
     }
 

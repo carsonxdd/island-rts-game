@@ -13,8 +13,13 @@ public class Worker : UnitBase<Worker>
     public float gatherRatePerSecond = 1f;  // How fast worker gathers (resources/sec)
     public float carryCapacity = 5.01f;  // Maximum resources worker can carry (slightly over 5 to avoid floating point issues)
     public float searchRadius = 50f;  // How far to search for resources
-    public float gatherDistance = 2.5f;  // How close worker needs to be to start gathering
+    public float gatherDistance = 1.0f;  // Arrival tolerance to the gather point - how close before gathering starts
     public float deliveryDistance = 3.5f;  // How close worker needs to be to deliver resources
+
+    // How close (remaining path distance) a worker walks toward its gather point before the
+    // agent stops. Small so workers stand right next to nodes instead of meters away; the
+    // arrival check in GatherExecutor uses gatherDistance as its tolerance on top of this.
+    public const float GatherStopDistance = 0.25f;
 
     [Header("Current State")]
     public float carryAmount = 0f;  // Resources currently carrying (can be fractional)
@@ -31,16 +36,19 @@ public class Worker : UnitBase<Worker>
         if (FetchAgent())
         {
             // Configure NavMeshAgent for smooth navigation around obstacles
-            agent.stoppingDistance = gatherDistance * 0.8f;  // Stop slightly before gather distance
+            agent.stoppingDistance = GatherStopDistance;  // Walk nearly onto the gather point (arrival tolerance is gatherDistance)
             agent.acceleration = 5f;  // Moderate acceleration for smoother movement (reduced from 8)
-            agent.angularSpeed = 120f;  // Smooth turning (reduced from 180 to prevent jitter)
+            agent.angularSpeed = 360f;  // Snappy turning - workers face new headings quickly (was 120, an anti-jitter value; watch for turn jitter)
             agent.obstacleAvoidanceType = ObstacleAvoidanceType.MedQualityObstacleAvoidance;  // Reduced from High for performance with many walls
             agent.avoidancePriority = Random.Range(30, 70);  // Randomized priority to prevent synchronized yielding
             agent.radius = 0.5f;  // Reduced from 0.6 to match warriors/enemies, less pathfinding complexity
         }
 
         // Create floating state text
-        CreateStateText(3f, "Idle", Color.white);
+        // 1.8, not 3: the root used to be scaled 0.4/0.6/0.4 and the text child inherited that
+        // squash. Root is scale 1 now that the art is on a Model child, so 3 * 0.6 keeps the
+        // on-screen size the players were already used to.
+        CreateStateText(1.8f, "Idle", Color.white);
 
         // Setup 3D spatial audio for gathering sounds
         SetupGatheringAudioSource();

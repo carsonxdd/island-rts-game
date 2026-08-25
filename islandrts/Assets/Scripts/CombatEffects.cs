@@ -203,7 +203,9 @@ public class CombatEffects : MonoBehaviour
         if (!enableDeathEffects)
             return;
 
-        Renderer renderer = unit.GetComponent<Renderer>();
+        // GetComponentInChildren, not GetComponent: low-poly art lives on a "Model" child,
+        // so the unit root no longer has a Renderer of its own.
+        Renderer renderer = unit.GetComponentInChildren<Renderer>();
         if (renderer != null)
         {
             unit.AddComponent<FadeOutEffect>().Initialize(renderer, duration);
@@ -263,26 +265,33 @@ public class FadeOutEffect : MonoBehaviour
     private Renderer targetRenderer;
     private float duration;
     private float timer = 0f;
-    private Material material;
+    private Material[] materials;
 
     public void Initialize(Renderer rend, float dur)
     {
         targetRenderer = rend;
         duration = dur;
 
-        // Create a copy of the material so we can modify it
-        material = new Material(targetRenderer.material);
-        targetRenderer.material = material;
+        // Every slot, not just slot 0 - the low-poly art meshes are multi-submesh (8 materials
+        // on a unit), so fading only .material left 7/8 of the body opaque. Reading .materials
+        // instantiates per-renderer copies, which is what we want since we mutate them.
+        materials = targetRenderer.materials;
 
-        // Enable transparency
-        material.SetFloat("_Mode", 2); // Fade mode
-        material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-        material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-        material.SetInt("_ZWrite", 0);
-        material.DisableKeyword("_ALPHATEST_ON");
-        material.EnableKeyword("_ALPHABLEND_ON");
-        material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-        material.renderQueue = 3000;
+        for (int i = 0; i < materials.Length; i++)
+        {
+            Material material = materials[i];
+            if (material == null) continue;
+
+            // Enable transparency
+            material.SetFloat("_Mode", 2); // Fade mode
+            material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            material.SetInt("_ZWrite", 0);
+            material.DisableKeyword("_ALPHATEST_ON");
+            material.EnableKeyword("_ALPHABLEND_ON");
+            material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+            material.renderQueue = 3000;
+        }
     }
 
     void Update()
@@ -290,11 +299,15 @@ public class FadeOutEffect : MonoBehaviour
         timer += Time.deltaTime;
         float alpha = 1f - (timer / duration);
 
-        if (material != null)
+        if (materials != null)
         {
-            Color color = material.color;
-            color.a = alpha;
-            material.color = color;
+            for (int i = 0; i < materials.Length; i++)
+            {
+                if (materials[i] == null) continue;
+                Color color = materials[i].color;
+                color.a = alpha;
+                materials[i].color = color;
+            }
         }
 
         if (timer >= duration)

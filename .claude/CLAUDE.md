@@ -178,6 +178,16 @@ Phase 10 spec is in `PHASE_10_VISUAL_OVERHAUL.md`. Stage 1 (post-processing + li
 - **`DayNightCycle.Start()` forces `RenderSettings.ambientMode = AmbientMode.Trilight`.** Whatever ambient mode you pick in the Lighting Settings window is overridden at runtime. Don't waste time tuning Skybox or Flat ambient — change `LightingPreset.cs` instead if you need a different blending shape.
 - **Bloom should fire only on HDR-emissive hero assets.** Don't lower Bloom Threshold below 1.0 to "make the campfire glow" — that makes anything moderately bright bloom (UI text, bright resources, etc., all gain a halo). Instead give hero materials HDR Emission with intensity ~3 so they exceed threshold while normal scene surfaces stay below it. Threshold 1.0 + emissive hero = clean bloom.
 - **Orthographic + flat ground = exponential fog whitewashes.** Orthographic projection over a flat playfield gives no depth gradient for `Mode: Exponential` fog to work against, so the fog reads as a uniform white veil over everything (close objects fogged the same as far ones). If fog returns in Stage 4, use **Linear** with Start ~30 / End ~80 so only far edges fade.
+- **Generating art ≠ plumbing art.** `LowPolyAssetGenerator` writes a self-contained library into `Assets/Art/` and touches nothing else, by design. `LowPolyPlumber` (`Tools > Island RTS > Low-Poly Templates > Plumb …`) is the other half that mounts it onto the gameplay prefabs. Add every new category to the plumber's table — an art asset that isn't in that table is invisible in-game no matter how good it looks in the showcase scene.
+- **Art is base-pivot at scale 1; the old gameplay prefabs were center-pivot primitives squashed by non-uniform root scale.** Never assign an art mesh to an existing root MeshFilter — the root scale distorts it and the pivot sinks/floats it. Mount the art on a `Model` child and reset the root to scale 1 instead.
+- **Resetting a unit root's scale un-squashes every child.** `HealthBar` (bar container is a child at `up * heightOffset`, scaled `barWidth`/`barHeight`) and `FloatingText` (TMP child, and its `LookAt` billboard **skews** under non-uniform parent scale) were both silently riding the root's 0.4–0.7 squash. When the root goes to scale 1, retune `heightOffset` / `barWidth` / `barHeight` and the `CreateStateText` font size or the UI jumps ~2x in size.
+- **`NavMeshAgent.baseOffset` is pivot-dependent.** Units were at `baseOffset: 1` with center-pivot capsules, so feet floated 0.3–0.4 above the NavMesh. Base-pivot art wants `baseOffset: 0`. Agent `radius`/`height` are world-space and *not* scaled by the transform — leave them alone during art swaps; they're NavMesh-bake concerns.
+- **Walls cannot be plumbed by prefab swap.** `WallConnector` generates 6 shapes + 6 gate variants procedurally at runtime and writes them onto the root MeshFilter (`WallConnector.cs:108/139`), so any mesh you assign is overwritten. Walls can only be re-materialed until someone extends the generator to emit all 12 variants and teaches WallConnector to select among them.
+- **`renderer.material` is slot 0 only — multi-submesh art broke every tint site in the codebase.** The old primitives had one material per renderer, so `.material.color` worked by accident. Art meshes carry 4–8 submeshes, so slot-0 tinting leaves most of the object untinted. All five sites now go through `RendererTint` (`Collect` once in Start → instanced `Material[]` across every slot and renderer; `SetColor`/`RestoreColors` after): `BaseBuilding` hover + campfire-death darken, `ResourceNode` hover, `BuildPlacement` ghost validity, `FadeOutEffect` death fade. **Never read `.materials` in Update** — it allocates a fresh array every call; collect once and cache.
+- **`CombatEffects.FadeOutUnit` needs `GetComponentInChildren`,** since art lives on a `Model` child and the unit root has no Renderer of its own.
+- **Ghost prefabs take the art MESH on their root renderer, not a `Model` child.** That keeps `BuildPlacement`'s `currentGhost.GetComponent<Renderer>()` valid and lets every submesh slot be filled with the translucent `Mat_Ghostbuilding` — a nested art prefab would drag its opaque LP materials in and the ghost would render solid. Wall ghosts are exempt: `WallLinePlacer` builds those procedurally, so `WoodenWallGhost`/`StoneWallGhost` prefabs are never instantiated.
+- **`ResourceNode.SetupNavMeshObstacle()` overwrites shape/radius/height at runtime**, so serialized `NavMeshObstacle` values on Tree/RockNode/BerryBush prefabs are dead data — editing them does nothing. But obstacle radius/height *are* scaled by the transform, so changing a resource prefab's root scale silently resizes its avoidance volume. Taking `Tree` from 0.5 → 1 moved its effective obstacle from r0.4/h1.0 to the intended r0.8/h2.0.
+- **`MainIsland` overrides the campfire's `NavMeshObstacle` extents per-instance** (0.6/0.5/0.6). Prefab-level carve edits never reach the scene's campfire — change it on the scene instance or not at all.
 
 ## Key Conventions
 
@@ -283,7 +293,8 @@ Ask: "would this log spam the console during a normal 5-minute play session?" If
 - Zero GC in hot paths, staggered AI evaluation
 
 **What's next (immediate):**
-- Playtest Phase 6.24 refactors (see checklist in Phase History), then commit.
+- Playtest Phase 6.24 refactors + the Unity 6000.5.9f1 upgrade (see checklist in Phase History).
+- Run `Tools > Island RTS > Low-Poly Templates > Generate All Assets` (regenerates the Stage 2c simplified shapes), then `Plumb Everything` + `Scatter Environment Props`, re-bake the NavMesh, then playtest Phase 10 Stage 2a/2b/2c.
 
 **What's next (future phases):**
 - Phase 7: Building upgrades (campfire -> fortress), workshop, storage
@@ -476,6 +487,80 @@ Fog disabled. Orthographic + flat ground meant `Mode: Exponential` was reading a
 - Fog hooks not in `LightingPreset` SO yet — wait until Stage 4 so we know what shape they need.
 - Water shader properties not in `LightingPreset` yet — Stage 3 dependency.
 - Sun rotation (`sunriseAngle` / `sunsetAngle`) intentionally NOT in the preset; rotation is a continuous time-of-day mechanic, the preset is for discrete day-state vs night-state values.
+
+### Phase 10 Stage 2a (Units Plumbed — ⚠️ PENDING PLAYTEST): Art Library → Gameplay Prefabs
+
+**The problem this solves.** `LowPolyAssetGenerator` had produced a complete art library (26 meshes, 34 materials, 26 mesh-only prefabs under `Assets/Art/`) that **nothing in the game referenced.** Gameplay prefabs were still Unity primitives: `Worker.prefab` a capsule (`fileID 10208`), `Hut.prefab` a cube (`10202`), each squashed by a non-uniform root scale. The two asset sets never pointed at each other — the art was generated but not *plumbed*.
+
+**Why it isn't a mesh swap.** Art is authored **base-pivot, facing +Z, real world units, scale 1**. Gameplay prefabs are **center-pivot primitives** at scale `0.4/0.6/0.4` (Worker), `0.5/0.7/0.5` (Warrior), `0.45/0.7/0.45` (Enemy), `2/1.5/2` (Hut). Assigning the art mesh to the existing root MeshFilter would squash it *and* sink/float it. Art meshes are also multi-submesh (8 material slots on a unit) vs one on the primitives.
+
+**New file: `Assets/Editor/LowPoly/LowPolyPlumber.cs`.** Two menu items under `Tools > Island RTS > Low-Poly Templates/`. Idempotent (Model child rebuilt from scratch; every value assigned absolutely, never accumulated), table-driven, so future categories are new table rows.
+
+`Plumb Units Into Gameplay Prefabs` — per unit, via `PrefabUtility.LoadPrefabContents` / `SaveAsPrefabAsset`:
+1. Destroy the root's `MeshFilter` + `MeshRenderer` (the primitive visual).
+2. `root.transform.localScale = Vector3.one`.
+3. Add a `Model` child as a **nested prefab instance** of the art prefab (so regenerating art propagates automatically), at local identity.
+4. Restate every root `CapsuleCollider` in world units, `direction = 1`, `center = (0, height/2, 0)` for the base pivot.
+5. `NavMeshAgent.baseOffset` `1 → 0`. Radius/height/speed **untouched** (pathing + bake concerns).
+6. Retune `HealthBar` (`heightOffset`/`barWidth`/`barHeight`) and `textHeightOffset` — reached via `SerializedObject.FindProperty` by name, since `UnitBase<T>` is generic and can't be cast to a non-generic base.
+
+Sizes were already right: the generator's `SizeNote` values match the old primitives' *world* dimensions exactly (Worker 0.40×1.2, Warrior 0.50×1.4, Enemy 0.45×1.4), so silhouette **size** doesn't change — only pivot, scale and shape. Units also stop floating: `baseOffset 1` with a center-pivot capsule had feet 0.3–0.4 above the NavMesh.
+
+`Re-Material Walls (Keep Procedural Meshes)` — points `WoodenWall`/`StoneWall` root renderers at `LP_WoodPlank`/`LP_StoneBlock`. Walls **cannot** be prefab-swapped: `WallConnector` generates 6 shapes + 6 gate variants at runtime and overwrites the root MeshFilter, and the generator only emits one flat segment per material. Gates inherit this (they tint via `.material.color`, and LP materials are URP Lit so `color` → `_BaseColor` works).
+
+**Runtime fixes the child-model move required** (`CombatEffects.cs`):
+- `FadeOutUnit` used `unit.GetComponent<Renderer>()` — root-only, so death fades would have silently no-op'd. Now `GetComponentInChildren`.
+- `FadeOutEffect` faded only `.material` (slot 0). With 8-submesh art that left 7/8 of the corpse opaque. Now copies and fades `.materials`.
+- `CreateStateText` font sizes retuned for the un-squashed root: Worker `3 → 1.8`, Warrior `2 → 1.4`, Enemy `2 → 1.4` (old effective size was `fontSize × rootScale.y`). The TMP child was also being **skewed** by `LookAt` under non-uniform parent scale — that's gone too.
+
+Compile-verified against 6000.5.9f1 (77 runtime + 10 editor scripts): **0 errors, 0 warnings.**
+
+**Superseded by Stage 2b below,** which extended the same tool to buildings, ghosts, resource nodes and environment scatter.
+
+### Phase 10 Stage 2b (Buildings / Resources / Ghosts / Scatter — ⚠️ PENDING PLAYTEST)
+
+Completes the plumbing. `LowPolyPlumber` became table-driven — one `Plumb` record per gameplay prefab with every retune field nullable (`null` = leave it alone) — so future categories are new rows, not new code. Six menu items under `Tools > Island RTS > Low-Poly Templates/`: **Plumb Everything**, Plumb Units, Plumb Buildings (+ Ghosts), Plumb Resource Nodes, Re-Material Walls, plus `LowPolyScatter`'s Scatter / Clear Environment Props.
+
+**Buildings.** `Hut` (root scale `2/1.5/2` → 1, art 2×2 footprint / 2.6 to peak) and `WatchTower` (`2/4/2` → 1, art 2×2 / 4.0 tall) get the unit treatment: Model child, box collider restated in world units on the base pivot, obstacle carve **kept at the same world volume** (hut: extents `1.1/0.825/1.1` at center `0/0.825/0` = the old 2.2×1.65×2.2 lifted out of the ground). `HutData`/`WatchTowerData` `placementHeight` `0.75 → 0`, which is what actually makes base-pivot buildings sit right — it's the Y `BuildPlacement` snaps a placed building to.
+
+Health bars were **not** preserved verbatim: `heightOffset` was multiplied by the root's Y scale, so the hut's bar floated 5.25 world units up and the tower's **12.75**. Now 3.2 / 4.6, just above the new rooflines.
+
+**Campfire** keeps its 4-object hierarchy: `FirePit` and `Wood` are deleted, the Model child is mounted, and `Flame` is **kept but its MeshRenderer disabled** — the art Campfire mesh contains its own HDR-emissive flame (Ember + FireCore prisms clearing the Bloom threshold of 1.0), so leaving the old capsule flame visible would double it. Re-enable that one checkbox to get the original back. Root was already scale 1; its collider becomes `2/1.2/2` at center `0/0.6/0`, preserving the 2×2 clickable footprint.
+
+**Resource nodes.** `RockNode` and `BerryBush` just lose their visual child (`Cube`, `Sphere`) and gain a Model — their roots were already scale 1. `Tree` is the awkward one: it wraps the "Tree for Carson V3" FBX as a nested prefab instance at root scale 0.5, so its renderers are **disabled rather than deleted** and the root goes to scale 1 (the art tree is 3.6 tall; at 0.5 it would render 1.8). `Tree1.prefab` is left alone — zero scene instances, not referenced by `ResourceSpawner`, effectively dead.
+
+**Ghosts.** `HutGhost`/`WatchTowerGhost` take the art **mesh** on their existing root renderer with N copies of `Mat_Ghostbuilding` (one per submesh, or the extra submeshes render magenta). No `Model` child — see the gotcha above for why.
+
+**Environment scatter.** New `Assets/Editor/LowPoly/LowPolyScatter.cs`: seeded (`Seed = 20260823`), deterministic, destroy-and-rebuild under a single `_LowPolyScatter` root, so the scene diff stays regenerable. ~255 props across the 13 environment assets, each with a radial band (palms and flotsam outward, ferns/grass inward), an 11-unit campfire clearing, area-uniform radius sampling (`sqrt(random)`), a spacing check, and a downward raycast that must hit ground — **failing the ray is how props are kept off the water.** Props are marked Batching/GI/Occludee static for Stage 4. Saves and restores Unity's global `Random.state` so a scatter doesn't perturb anything else, and logs how many props couldn't find a spot rather than letting a density cap look like full coverage. Art prefabs carry no colliders, so scattered props never block pathing, intercept clicks, or affect the bake.
+
+**Runtime fixes** — multi-submesh art broke five tint sites that all assumed one material per renderer. New `Assets/Scripts/RendererTint.cs` (`Collect` / `CaptureColors` / `SetColor` / `RestoreColors`) now backs `BaseBuilding` hover + campfire-death darken, `ResourceNode` hover, `BuildPlacement` ghost validity, and `FadeOutEffect`. `BuildPlacement` caches `ghostMaterials` at ghost-spawn and exposes `SetGhostColor`, so the per-frame validity tint stays zero-GC (`GhostPlacer` and `WallLinePlacer` call through it; `GhostPlacer.CancelPlacement` clears the cache).
+
+Compile-verified against 6000.5.9f1 (78 runtime + 11 editor scripts): **0 errors, 0 warnings.**
+
+**Playtest checklist** (nothing is applied until the menu items are run): run **Plumb Everything**, then **Scatter Environment Props**, then **re-bake the NavMesh**. Verify — units/buildings/resources render as low-poly art and sit *on* the ground; hut and watchtower place at the right height (`placementHeight` 0) and their ghosts match the real silhouette and still tint green/red across every submesh; hover highlight tints the *whole* building/node, not one panel; campfire shows exactly one flame and still blooms; workers path around trees (Tree's obstacle doubled); demolish, wall lines and gate conversion still work; death fade covers the whole body. Known cosmetic leftover: wall ghosts preview at `placementHeight` 0.75 while real walls snap to y=0.02 — pre-existing, unrelated to the art swap.
+
+### Phase 10 Stage 2c (Simplification Pass — ⚠️ PENDING REGENERATION + PLAYTEST)
+
+Feedback-driven simplification of the generated art plus two gather-behavior changes (2026-08-24). Compile-verified vs 6000.5.9f1 Roslyn: 0 errors, 0 warnings.
+
+**Art (generator changes only — nothing in-game changes until the menu items are re-run):**
+- **Units are template-simple meeples now:** one tapered body block + head + a single identifying accessory (Worker: straw hat; Warrior: helmet + red crest + round shield; Enemy: red band + horns). All limbs, straps, tools, backpacks, pauldrons deleted. Same authored dimensions, so colliders/plumber tables are untouched.
+- **Hut:** plain tapered walls + one dark door panel + one window panel per side + a single one-tone pyramid roof (peak stays at 2.6). Foundation, corner posts, plank seams, layered roof, ridge cap deleted.
+- **BerryBush:** one solid low-jitter (0.08) mass; 8 chunky berries (0.16 × width) whose centers sit ON the nominal ellipsoid surface. `Bush_Round`/`Bush_Wide` (environment) inherit the single-mass look.
+- **RockNode:** one solid boulder (satellite rocks deleted); 4 ore crystals as `TaperedSegment` spikes rooted at 0.35R inside the mass and tipped at 1.25–1.45R outside, so they visibly pierce the surface.
+- **Watchtower:** legs + platform + railing + single one-tone pyramid roof on its corner posts. Cross bracing (16 beams), deck planks, ladder, and the second roof tone deleted.
+- **Campfire:** 6 ring stones (was 9), 4 teepee logs (was 5 + 5 charred overlays), 2 flame cones (was 3) — still on the HDR-emissive Ember/FireCore keys, so bloom behavior is unchanged. Material key set unchanged too.
+- **Wall segments + gate** simplified (4 pointed logs, binding rails deleted; 3 chunky plain stone courses; gate leaves lose their iron bracing). NOTE: these art segments are showcase/reference only until someone extends WallConnector — in-game walls are procedural meshes that only take the LP materials.
+- **Tree variance:** `Tree_B` (3.4 tall) and `Tree_C` (3.8 tall) added, and canopy side-blob placement is now seeded so each seed gets its own canopy shape. New runtime `TreeVariance.cs` on Tree.prefab (wired by the plumber's new `VariantMeshes` column + `ApplyVariants` step) picks a variant per instance and applies random yaw + 0.9–1.12 scale jitter to the Model child in Start. Visual-only: root transform, colliders and the runtime NavMeshObstacle are untouched, and all variants share one material key order, which is what makes the `sharedMesh` swap safe.
+- **Embedding rule that makes "attached" reliable:** with `Rock` jitter j, put an attachment's center on the *nominal* (unjittered) surface and make its diameter > 2jR — it then always straddles the actual jittered surface. Never place small props at fixed offsets beyond the nominal radius (the old berries at 0.40–0.52 × width floated; the old ore chips at fixed radii detached).
+
+**Gameplay:**
+- **Workers stand next to nodes now.** `Worker.GatherStopDistance = 0.35f` const replaces `stoppingDistance = gatherDistance * 0.8f` (set in `Worker.Start`, restored in `ReturnToBaseExecutor.OnExit`); `gatherDistance` is purely the arrival tolerance to the gather point — prefab value 1.5 → 1.2, script default 2.5 → 1.2. Net effect: stop ~1.4 from a tree center / ~1.0 from a bush or rock, instead of ~2.2–3.0 (the old stoppingDistance stacked on top of the offset gather point).
+- **Unreachable-node fallback.** `AIBlackboard` gains a 4-slot zero-GC ring (`MarkNodeUnreachable` / `IsNodeUnreachable`, 15s expiry). `GatherExecutor.UpdateMovingToResource` detects a dead-end path — `PathInvalid`, or `PathPartial` with the partial path walked to its end — sustained 0.6s, then `GiveUpOnUnreachableNode`: mark, unclaim, pick another node. `ResourceAvailability` and `TryPickupNewResource` both skip marked nodes, so the worker doesn't march back into the same wall.
+
+- **Turn speed + node crowding (2026-08-24 follow-up).** Worker `angularSpeed` 120 → 360 (120 was an anti-jitter value — watch for turn jitter in playtest). Approach tightened again: gather-ring offset `obstacleRadius * 1.3` → `* 1.1` (now the shared `ResourceNode.GatherRingRadius`), `GatherStopDistance` 0.35 → 0.25, `gatherDistance` 1.2 → 1.0 (prefab too). **Per-node worker capacity:** `ResourceNode.GetMaxWorkers()` = standing-ring circumference / 1.25 per worker, scaled by how many of 8 NavMesh samples around the node are open, cached 5s (building walls changes it). `HasWorkerRoom(worker)` counts registered + claimed workers against the cap (cleans dead entries; a worker already registered/claiming always keeps its slot). Enforced in `ResourceAvailability` (full nodes skipped → workers spill to the next node), `TryPickupNewResource`, and `RegisterWorker` (arrival race falls into the existing empty-node re-target branch). Net: ~6 workers max around a tree, ~4 around a bush/rock, fewer when hemmed in by walls.
+
+**To apply the art:** run `Generate All Assets`, then `Plumb Everything` — the re-plumb is REQUIRED, not optional: submesh/material counts changed (hut 6 → 3 keys, units ~8 → 3–4), and ghost prefabs carry one ghost-material per submesh. Then the Stage 2b playtest checklist, plus: berries attached, rock reads as one object, workers stand close to nodes, and a worker walled off from a node re-targets a different one within ~1s.
 
 ### Unity 6000.5.9f1 Upgrade (Engine — ⚠️ NOT YET PLAY-TESTED)
 

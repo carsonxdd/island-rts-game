@@ -78,6 +78,33 @@ public class AIBlackboard
     // Wall-under-attack cache
     public Transform wallUnderAttack;
 
+    // --- Unreachable-node memory (workers) ---
+    // Nodes a worker failed to path to (walled off, NavMesh island). ResourceAvailability
+    // skips these until the entry expires, so the worker picks a different node instead of
+    // marching into the same wall forever. Fixed-size ring - zero GC.
+    public readonly ResourceNode[] unreachableNodes = new ResourceNode[4];
+    public readonly float[] unreachableNodeExpiry = new float[4];
+    private int unreachableRing;
+
+    public void MarkNodeUnreachable(ResourceNode node, float duration = 15f)
+    {
+        if (node == null) return;
+        unreachableNodes[unreachableRing] = node;
+        unreachableNodeExpiry[unreachableRing] = Time.time + duration;
+        unreachableRing = (unreachableRing + 1) % unreachableNodes.Length;
+    }
+
+    public bool IsNodeUnreachable(ResourceNode node)
+    {
+        if (node == null) return false;
+        for (int i = 0; i < unreachableNodes.Length; i++)
+        {
+            if (unreachableNodes[i] == node && Time.time < unreachableNodeExpiry[i])
+                return true;
+        }
+        return false;
+    }
+
     // Stuck resolution
     public StuckResolver stuckResolver;
 

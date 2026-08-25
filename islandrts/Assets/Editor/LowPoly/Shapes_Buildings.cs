@@ -48,64 +48,28 @@ namespace IslandRTS.ArtGen
             MeshBuilder b = new MeshBuilder(2101);
             float half = footprint * 0.5f;
 
-            // ---- Foundation --------------------------------------------------
-            b.Use("StoneShadow");
-            b.BoxOnGround(Vector3.zero, new Vector3(footprint * 1.05f, 0.12f, footprint * 1.05f));
-
-            // ---- Walls: slight inward taper reads as hand-built, not a shipping box.
+            // ---- Walls: one plain, slightly tapered block ----------------------
             b.Use("WoodPlank");
-            b.Frustum(new Vector3(0f, 0.12f, 0f),
+            b.Frustum(Vector3.zero,
                       new Vector2(footprint, footprint),
-                      new Vector2(footprint * 0.93f, footprint * 0.93f),
+                      new Vector2(footprint * 0.94f, footprint * 0.94f),
                       bodyHeight);
 
-            // ---- Corner posts ------------------------------------------------
-            b.Use("WoodDark");
-            float postR = 0.08f;
-            for (int sx = -1; sx <= 1; sx += 2)
-            {
-                for (int sz = -1; sz <= 1; sz += 2)
-                {
-                    b.Prism(new Vector3(sx * half * 0.97f, 0.1f, sz * half * 0.97f),
-                            postR, postR * 0.85f, bodyHeight + 0.1f, 5);
-                }
-            }
-
-            // ---- Plank seams on the two most-visible walls --------------------
-            b.Use("WoodDark");
-            for (int i = 1; i <= 3; i++)
-            {
-                float y = 0.12f + bodyHeight * (i / 4f);
-                b.Box(new Vector3(0f, y, -half * 0.99f), new Vector3(footprint * 0.92f, 0.045f, 0.04f));
-                b.Box(new Vector3(-half * 0.99f, y, 0f), new Vector3(0.04f, 0.045f, footprint * 0.92f));
-            }
-
-            // ---- Doorway: a recessed dark panel plus a frame. No booleans needed,
-            //      and at RTS camera distance an inset panel reads as an opening.
+            // ---- Door: a single dark panel on the front face -------------------
             b.Use("Charcoal");
-            float doorW = footprint * 0.34f;
-            float doorH = bodyHeight * 0.62f;
-            b.Box(new Vector3(0f, 0.12f + doorH * 0.5f, -half * 0.965f), new Vector3(doorW, doorH, 0.06f));
+            float doorW = footprint * 0.30f;
+            float doorH = bodyHeight * 0.60f;
+            b.Box(new Vector3(0f, doorH * 0.5f, -half * 0.97f), new Vector3(doorW, doorH, 0.10f));
 
-            b.Use("WoodDark");
-            b.Box(new Vector3(0f, 0.12f + doorH, -half * 0.94f), new Vector3(doorW + 0.14f, 0.08f, 0.08f));
-            b.Box(new Vector3(-(doorW + 0.07f) * 0.5f, 0.12f + doorH * 0.5f, -half * 0.94f), new Vector3(0.07f, doorH, 0.08f));
-            b.Box(new Vector3((doorW + 0.07f) * 0.5f, 0.12f + doorH * 0.5f, -half * 0.94f), new Vector3(0.07f, doorH, 0.08f));
+            // ---- One window panel on each side face ----------------------------
+            float winS = footprint * 0.18f;
+            float winY = bodyHeight * 0.55f;
+            b.Box(new Vector3(-half * 0.97f, winY, 0f), new Vector3(0.10f, winS, winS));
+            b.Box(new Vector3(half * 0.97f, winY, 0f), new Vector3(0.10f, winS, winS));
 
-            // ---- Thatch roof: overhanging pyramid, layered in two tones --------
-            float roofBase = 0.12f + bodyHeight;
-            float roofOverhang = footprint * 1.34f;
-
+            // ---- Roof: one overhanging pyramid, one tone (peak stays at 2.6) -----
             b.Use("ThatchDark");
-            b.Pyramid(new Vector3(0f, roofBase, 0f), roofOverhang, 1.1f);
-
-            b.Use("ThatchLight");
-            // Second, smaller pyramid slightly above gives a layered-thatch silhouette.
-            b.Pyramid(new Vector3(0f, roofBase + 0.34f, 0f), roofOverhang * 0.68f, 0.82f);
-
-            // Ridge cap.
-            b.Use("WoodDark");
-            b.Prism(new Vector3(0f, roofBase + 1.06f, 0f), 0.09f, 0.05f, 0.22f, 5);
+            b.Pyramid(new Vector3(0f, bodyHeight, 0f), footprint * 1.3f, 1.1f);
 
             return b;
         }
@@ -118,29 +82,18 @@ namespace IslandRTS.ArtGen
         {
             MeshBuilder b = new MeshBuilder(2201);
 
-            // Sharpened vertical logs of varying height - the uneven top edge is what
-            // separates a palisade read from an extruded cube.
+            // Vertical logs with pointed tips - the whole palisade read, nothing else.
             b.Use("WoodLog");
-            const int logs = 5;
+            const int logs = 4;
             float logR = width / (logs * 2f) * 1.06f;
             for (int i = 0; i < logs; i++)
             {
                 float x = -width * 0.5f + logR + (width - logR * 2f) * i / (logs - 1f);
-                float h = height * b.Rand(0.88f, 1.0f);
-                float z = b.Rand(-thickness * 0.06f, thickness * 0.06f);
+                float h = height * b.Rand(0.90f, 1.0f);
 
-                b.Prism(new Vector3(x, 0f, z), logR, logR * 0.94f, h - logR * 1.3f, 5, 0f, true, false);
+                b.Prism(new Vector3(x, 0f, 0f), logR, logR * 0.94f, h - logR * 1.2f, 4, 0f, true, false);
                 // Sharpened tip.
-                b.Prism(new Vector3(x, h - logR * 1.3f, z), logR * 0.94f, 0f, logR * 1.3f, 5);
-            }
-
-            // Horizontal binding rails, front and back.
-            b.Use("WoodDark");
-            for (int i = 0; i < 2; i++)
-            {
-                float y = height * (i == 0 ? 0.28f : 0.68f);
-                b.Box(new Vector3(0f, y, -thickness * 0.34f), new Vector3(width, 0.075f, 0.07f));
-                b.Box(new Vector3(0f, y, thickness * 0.34f), new Vector3(width, 0.075f, 0.07f));
+                b.Prism(new Vector3(x, h - logR * 1.2f, 0f), logR * 0.94f, 0f, logR * 1.2f, 4);
             }
 
             return b;
@@ -150,41 +103,30 @@ namespace IslandRTS.ArtGen
         {
             MeshBuilder b = new MeshBuilder(2202);
 
-            // Four courses of jittered blocks, alternating the joint offset so the
-            // courses interlock like real coursed masonry.
-            const int courses = 4;
-            float courseH = (height - 0.14f) / courses;
+            // Three chunky courses of plain blocks, alternating tone and joint offset -
+            // big shapes only.
+            const int courses = 3;
+            float courseH = (height - 0.12f) / courses;
 
             for (int c = 0; c < courses; c++)
             {
-                int blocks = (c % 2 == 0) ? 2 : 3;
-                float y = courseH * c;
-
+                int blocks = (c % 2 == 0) ? 2 : 1;
                 for (int i = 0; i < blocks; i++)
                 {
                     b.Use((c + i) % 2 == 0 ? "StoneBlock" : "StoneShadow");
-
                     float blockW = width / blocks;
                     float x = -width * 0.5f + blockW * (i + 0.5f);
-                    Vector3 size = new Vector3(
-                        blockW * b.Rand(0.90f, 0.99f),
-                        courseH * b.Rand(0.88f, 0.99f),
-                        thickness * b.Rand(0.88f, 1.0f));
-
-                    b.Push();
-                    b.Translate(x, y, b.Rand(-0.012f, 0.012f));
-                    b.RotateY(b.Rand(-2.5f, 2.5f));
-                    b.BoxOnGround(Vector3.zero, size);
-                    b.Pop();
+                    b.BoxOnGround(new Vector3(x, courseH * c, 0f),
+                                  new Vector3(blockW * 0.97f, courseH * 0.97f, thickness));
                 }
             }
 
             // Capstone.
             b.Use("StoneBlock");
-            b.Frustum(new Vector3(0f, height - 0.14f, 0f),
-                      new Vector2(width * 1.04f, thickness * 1.14f),
-                      new Vector2(width * 0.96f, thickness * 0.94f),
-                      0.14f);
+            b.Frustum(new Vector3(0f, height - 0.12f, 0f),
+                      new Vector2(width * 1.04f, thickness * 1.1f),
+                      new Vector2(width * 0.96f, thickness * 0.9f),
+                      0.12f);
 
             return b;
         }
@@ -217,12 +159,6 @@ namespace IslandRTS.ArtGen
                 b.Translate(side * openingW * 0.5f, 0f, 0f);
                 b.RotateY(side * -12f);
                 b.BoxOnGround(new Vector3(-side * leafW * 0.5f, 0f, 0f), new Vector3(leafW, leafH, thickness * 0.42f));
-
-                // Iron bracing.
-                b.Use("MetalDark");
-                b.Box(new Vector3(-side * leafW * 0.5f, leafH * 0.24f, 0f), new Vector3(leafW * 0.94f, 0.07f, thickness * 0.52f));
-                b.Box(new Vector3(-side * leafW * 0.5f, leafH * 0.76f, 0f), new Vector3(leafW * 0.94f, 0.07f, thickness * 0.52f));
-                b.Use("WoodPlank");
                 b.Pop();
             }
 
@@ -240,38 +176,17 @@ namespace IslandRTS.ArtGen
             float platformY = totalHeight * 0.62f;
             float baseSpread = footprint * 0.44f;
             float topSpread = footprint * 0.30f;
-            float legR = 0.085f;
+            float legR = 0.09f;
 
-            // ---- Splayed legs -------------------------------------------------
+            // ---- Four splayed legs: the tower silhouette -----------------------
             b.Use("WoodLog");
-            Vector3[] legBottom = new Vector3[4];
-            Vector3[] legTop = new Vector3[4];
             for (int i = 0; i < 4; i++)
             {
                 float ax = (i == 0 || i == 3) ? -1f : 1f;
                 float az = (i < 2) ? -1f : 1f;
-                legBottom[i] = new Vector3(ax * baseSpread, 0f, az * baseSpread);
-                legTop[i] = new Vector3(ax * topSpread, platformY, az * topSpread);
-                b.TaperedSegment(legBottom[i], legTop[i], legR, legR * 0.82f, 5);
-            }
-
-            // ---- Cross bracing on each of the four faces -----------------------
-            b.Use("WoodDark");
-            int[,] faces = { { 0, 1 }, { 1, 2 }, { 2, 3 }, { 3, 0 } };
-            for (int f = 0; f < 4; f++)
-            {
-                int a = faces[f, 0], c = faces[f, 1];
-                for (int level = 0; level < 2; level++)
-                {
-                    float t0 = 0.14f + level * 0.38f;
-                    float t1 = t0 + 0.34f;
-                    Vector3 aLow = Vector3.Lerp(legBottom[a], legTop[a], t0);
-                    Vector3 aHigh = Vector3.Lerp(legBottom[a], legTop[a], t1);
-                    Vector3 cLow = Vector3.Lerp(legBottom[c], legTop[c], t0);
-                    Vector3 cHigh = Vector3.Lerp(legBottom[c], legTop[c], t1);
-                    b.Beam(aLow, cHigh, 0.055f, 0.055f);
-                    b.Beam(cLow, aHigh, 0.055f, 0.055f);
-                }
+                b.TaperedSegment(new Vector3(ax * baseSpread, 0f, az * baseSpread),
+                                 new Vector3(ax * topSpread, platformY, az * topSpread),
+                                 legR, legR * 0.82f, 4);
             }
 
             // ---- Platform ------------------------------------------------------
@@ -279,15 +194,7 @@ namespace IslandRTS.ArtGen
             float platW = footprint * 0.92f;
             b.Box(new Vector3(0f, platformY + 0.06f, 0f), new Vector3(platW, 0.12f, platW));
 
-            // Deck planks.
-            b.Use("WoodDark");
-            for (int i = -2; i <= 2; i++)
-            {
-                b.Box(new Vector3(i * platW * 0.2f, platformY + 0.125f, 0f), new Vector3(0.035f, 0.02f, platW));
-            }
-
-            // ---- Railing: four low walls with corner gaps ----------------------
-            b.Use("WoodPlank");
+            // ---- Railing: four low walls ----------------------------------------
             float railH = 0.44f;
             float railY = platformY + 0.12f;
             float railInset = platW * 0.5f - 0.06f;
@@ -299,7 +206,7 @@ namespace IslandRTS.ArtGen
                 b.Pop();
             }
 
-            // ---- Roof on four short posts ---------------------------------------
+            // ---- Roof: four corner posts and a single one-tone pyramid -----------
             b.Use("WoodDark");
             float roofPostY = railY + railH;
             float roofPostH = totalHeight - roofPostY - 0.55f;
@@ -312,22 +219,6 @@ namespace IslandRTS.ArtGen
 
             b.Use("ThatchDark");
             b.Pyramid(new Vector3(0f, roofPostY + roofPostH, 0f), footprint * 1.14f, 0.55f);
-            b.Use("ThatchLight");
-            b.Pyramid(new Vector3(0f, roofPostY + roofPostH + 0.17f, 0f), footprint * 0.7f, 0.42f);
-
-            // ---- Ladder up one face ---------------------------------------------
-            b.Use("WoodPale");
-            Vector3 ladderBottom = new Vector3(0f, 0f, baseSpread * 1.06f);
-            Vector3 ladderTop = new Vector3(0f, platformY, topSpread * 1.02f);
-            b.Beam(ladderBottom + Vector3.left * 0.16f, ladderTop + Vector3.left * 0.16f, 0.05f, 0.05f);
-            b.Beam(ladderBottom + Vector3.right * 0.16f, ladderTop + Vector3.right * 0.16f, 0.05f, 0.05f);
-            int rungs = 7;
-            for (int i = 1; i < rungs; i++)
-            {
-                float t = (float)i / rungs;
-                Vector3 p = Vector3.Lerp(ladderBottom, ladderTop, t);
-                b.Box(p, new Vector3(0.36f, 0.035f, 0.035f));
-            }
 
             return b;
         }
@@ -342,49 +233,37 @@ namespace IslandRTS.ArtGen
 
             // ---- Ash bed ------------------------------------------------------
             b.Use("Charcoal");
-            b.Prism(Vector3.zero, radius * 0.72f, radius * 0.66f, 0.05f, 9);
+            b.Prism(Vector3.zero, radius * 0.72f, radius * 0.66f, 0.05f, 7);
 
             // ---- Stone ring ---------------------------------------------------
-            const int stones = 9;
+            const int stones = 6;
             for (int i = 0; i < stones; i++)
             {
                 b.Use(i % 2 == 0 ? "RockLight" : "RockMid");
-                float a = (360f / stones) * i + b.Rand(-7f, 7f);
+                float a = (360f / stones) * i + b.Rand(-6f, 6f);
                 Vector3 p = new Vector3(Mathf.Cos(a * Mathf.Deg2Rad), 0f, Mathf.Sin(a * Mathf.Deg2Rad)) * radius * 0.86f;
-                b.Rock(p, new Vector3(radius * 0.42f, radius * 0.34f, radius * 0.38f) * b.Rand(0.82f, 1.15f), 0.22f, 2, 6);
+                b.Rock(p, new Vector3(radius * 0.44f, radius * 0.36f, radius * 0.4f) * b.Rand(0.9f, 1.1f), 0.18f, 2, 5);
             }
 
             // ---- Log teepee ---------------------------------------------------
             b.Use("WoodLog");
-            const int logs = 5;
+            const int logs = 4;
             for (int i = 0; i < logs; i++)
             {
-                float a = (360f / logs) * i + 18f;
+                float a = (360f / logs) * i + 45f;
                 Vector3 outer = new Vector3(Mathf.Cos(a * Mathf.Deg2Rad), 0f, Mathf.Sin(a * Mathf.Deg2Rad)) * radius * 0.55f;
                 Vector3 apex = new Vector3(outer.x * 0.14f, radius * 0.78f, outer.z * 0.14f);
-                b.TaperedSegment(outer + new Vector3(0f, 0.03f, 0f), apex, radius * 0.085f, radius * 0.06f, 5);
+                b.TaperedSegment(outer + new Vector3(0f, 0.03f, 0f), apex, radius * 0.09f, radius * 0.06f, 4);
             }
 
-            // Charred lower halves sell the "burning" read.
-            b.Use("Charcoal");
-            for (int i = 0; i < logs; i++)
-            {
-                float a = (360f / logs) * i + 18f;
-                Vector3 outer = new Vector3(Mathf.Cos(a * Mathf.Deg2Rad), 0f, Mathf.Sin(a * Mathf.Deg2Rad)) * radius * 0.55f;
-                Vector3 apex = new Vector3(outer.x * 0.14f, radius * 0.78f, outer.z * 0.14f);
-                b.TaperedSegment(Vector3.Lerp(outer, apex, 0.35f), Vector3.Lerp(outer, apex, 0.72f),
-                                 radius * 0.078f, radius * 0.066f, 5);
-            }
-
-            // ---- Flame: stacked twisted cones. These use the HDR-emissive palette
-            //      entries (intensity 2-3) so they clear the Global Volume Bloom
-            //      threshold of 1.0 without the threshold being lowered globally.
+            // ---- Flame: two stacked cones on the HDR-emissive palette entries
+            //      (intensity 2-3) so they clear the Global Volume Bloom threshold
+            //      of 1.0 without the threshold being lowered globally.
             b.Use("Ember");
-            b.Prism(new Vector3(0f, 0.04f, 0f), radius * 0.42f, radius * 0.26f, radius * 0.5f, 6, 22f);
+            b.Prism(new Vector3(0f, 0.04f, 0f), radius * 0.42f, radius * 0.24f, radius * 0.52f, 6, 22f);
 
             b.Use("FireCore");
-            b.Prism(new Vector3(0f, radius * 0.5f, 0f), radius * 0.26f, radius * 0.13f, radius * 0.42f, 6, -30f);
-            b.Prism(new Vector3(0f, radius * 0.9f, 0f), radius * 0.13f, 0f, radius * 0.34f, 5, 40f);
+            b.Prism(new Vector3(0f, radius * 0.52f, 0f), radius * 0.24f, 0f, radius * 0.55f, 5, -30f);
 
             return b;
         }

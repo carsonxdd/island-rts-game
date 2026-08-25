@@ -51,8 +51,8 @@ public class BaseBuilding : MonoBehaviour
     // Track all spawned workers and warriors
     private List<Worker> activeWorkers = new List<Worker>();
     private List<Warrior> activeWarriors = new List<Warrior>();
-    private Renderer[] buildingRenderers;  // Changed to array to handle multiple parts
-    private Color[] originalColors;        // Store original colors for each part
+    private Material[] buildingMaterials;  // Every material slot across every renderer
+    private Color[] originalColors;        // Original color per material slot
 
     void Start()
     {
@@ -74,19 +74,15 @@ public class BaseBuilding : MonoBehaviour
             PopulationManager.Instance.AddHousing(workerCapacity);
         }
 
-        // Get ALL renderers BEFORE creating health text (checks this object AND all children)
-        buildingRenderers = GetComponentsInChildren<Renderer>();
+        // Get ALL renderers BEFORE creating health text (checks this object AND all children).
+        // Collect instances EVERY material slot, not just slot 0 - the low-poly art meshes are
+        // multi-submesh, so slot-0-only tinting would leave most of the building unhighlighted.
+        Renderer[] buildingRenderers = GetComponentsInChildren<Renderer>();
 
         if (buildingRenderers.Length > 0)
         {
-            originalColors = new Color[buildingRenderers.Length];
-
-            // Create unique material instances and save original colors
-            for (int i = 0; i < buildingRenderers.Length; i++)
-            {
-                buildingRenderers[i].material = new Material(buildingRenderers[i].material);
-                originalColors[i] = buildingRenderers[i].material.color;
-            }
+            buildingMaterials = RendererTint.Collect(buildingRenderers);
+            originalColors = RendererTint.CaptureColors(buildingMaterials);
         }
         else
         {
@@ -114,28 +110,14 @@ public class BaseBuilding : MonoBehaviour
 
     void OnMouseEnter()
     {
-        // Mouse is hovering over the building
-        if (buildingRenderers != null && buildingRenderers.Length > 0)
-        {
-            // Change color on ALL parts of the building
-            foreach (Renderer renderer in buildingRenderers)
-            {
-                renderer.material.color = hoverColor;
-            }
-        }
+        // Mouse is hovering over the building - tint every slot of every part
+        RendererTint.SetColor(buildingMaterials, hoverColor);
     }
 
     void OnMouseExit()
     {
-        // Mouse left the building
-        if (buildingRenderers != null && buildingRenderers.Length > 0)
-        {
-            // Restore original colors on ALL parts
-            for (int i = 0; i < buildingRenderers.Length; i++)
-            {
-                buildingRenderers[i].material.color = originalColors[i];
-            }
-        }
+        // Mouse left the building - restore every slot
+        RendererTint.RestoreColors(buildingMaterials, originalColors);
     }
 
     void OnMouseDown()
@@ -437,15 +419,9 @@ public class BaseBuilding : MonoBehaviour
         // Health component will handle the "DESTROYED!" text display
 
         // Visual feedback - darken the campfire
-        if (buildingRenderers != null && buildingRenderers.Length > 0)
+        if (buildingMaterials != null && buildingMaterials.Length > 0)
         {
-            foreach (Renderer renderer in buildingRenderers)
-            {
-                if (renderer != null && renderer.material != null)
-                {
-                    renderer.material.color = Color.black;
-                }
-            }
+            RendererTint.SetColor(buildingMaterials, Color.black);
         }
         else
         {

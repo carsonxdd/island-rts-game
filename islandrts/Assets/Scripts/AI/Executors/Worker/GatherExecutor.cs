@@ -17,12 +17,14 @@ public class GatherExecutor : ActionExecutor
     private Vector3 cachedGatherPoint;
     private bool hasValidGatherPoint = false;
     private bool destinationQueued = false;  // false = throttle/NavMesh rejected the set, retry next frame
+    private float unreachableTimer = 0f;     // accumulates while stopped at the end of a dead-end path
 
     public override void OnEnter(AIBlackboard bb)
     {
         phase = GatherPhase.MovingToResource;
         hasValidGatherPoint = false;
         destinationQueued = false;
+        unreachableTimer = 0f;
         headingToBase = false;
 
         // Find and claim best resource (already cached by ResourceAvailability consideration)
@@ -137,10 +139,32 @@ public class GatherExecutor : ActionExecutor
             }
             else
             {
-                // Node empty on arrival — try next best resource
+                // Node empty or full on arrival — try next best resource
                 bb.targetResource = null;
                 if (!TryPickupNewResource(bb))
                     StartHeadingToBase(bb);
+            }
+        }
+        else if (destinationQueued && !bb.agent.pathPending)
+        {
+            // Unreachable-node handling: the path resolved but cannot actually reach the
+            // node (walled off / NavMesh island). PathPartial means Unity pathed us to the
+            // closest reachable point — if we have walked to the end of that path and
+            // are still not within gatherDistance, give up and look for a different node.
+            bool pathDeadEnd =
+                bb.agent.pathStatus == NavMeshPathStatus.PathInvalid ||
+                (bb.agent.pathStatus == NavMeshPathStatus.PathPartial &&
+                 bb.agent.remainingDistance <= bb.agent.stoppingDistance + 0.1f);
+
+            if (pathDeadEnd)
+            {
+                unreachableTimer += Time.deltaTime;
+                if (unreachableTimer >= 0.6f)
+                    GiveUpOnUnreachableNode(bb);
+            }
+            else
+            {
+                unreachableTimer = 0f;
             }
         }
     }
@@ -227,6 +251,31 @@ public class GatherExecutor : ActionExecutor
     }
 
     /// <summary>
+    /// The node cannot be pathed to (walled off, NavMesh island). Remember it so
+    /// ResourceAvailability skips it for a while, then move on to another node.
+    /// </summary>
+    void GiveUpOnUnreachableNode(AIBlackboard bb)
+    {
+        unreachableTimer = 0f;
+        bb.MarkNodeUnreachable(bb.targetResource);
+        if (bb.targetResource != null)
+            bb.targetResource.UnclaimNode(bb.worker);
+        bb.targetResource = null;
+        hasValidGatherPoint = false;
+        destinationQueued = false;
+        bb.agent.ResetPath();
+
+        // bb.bestResource may still be the node we just gave up on — TryPickupNewResource
+        // filters it, and ForceReeval makes ResourceAvailability rescan without it.
+        if (!TryPickupNewResource(bb))
+        {
+            StartHeadingToBase(bb);
+            if (bb.brain != null)
+                bb.brain.ForceReeval();
+        }
+    }
+
+    /// <summary>
     /// When the current target is lost, try to seamlessly transition to the next best
     /// resource node. bb.bestResource is populated by ResourceAvailability during brain
     /// evaluation. Returns true if a new resource was picked up.
@@ -239,6 +288,14 @@ public class GatherExecutor : ActionExecutor
             return false;
 
         if (bb.bestResource == null || !bb.bestResource.HasResources())
+            return false;
+
+        // A node we just failed to reach may still be cached as bestResource
+        if (bb.IsNodeUnreachable(bb.bestResource))
+            return false;
+
+        // Respect per-node capacity - full nodes spill workers to the next one
+        if (!bb.bestResource.HasWorkerRoom(bb.worker))
             return false;
 
         // Don't pick up the same depleted node
@@ -258,6 +315,7 @@ public class GatherExecutor : ActionExecutor
         }
 
         phase = GatherPhase.MovingToResource;
+        unreachableTimer = 0f;
         displayName = "Moving to " + bb.assignedResourceType;
 
         if (bb.stuckResolver != null)
@@ -313,6 +371,7 @@ public class GatherExecutor : ActionExecutor
         }
         UnregisterFromNode(bb);
         hasValidGatherPoint = false;
+        unreachableTimer = 0f;
         headingToBase = false;
     }
 }

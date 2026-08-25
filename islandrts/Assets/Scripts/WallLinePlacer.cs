@@ -54,10 +54,7 @@ public class WallLinePlacer
 
             // Color ghost based on whether this cell is occupied
             bool occupied = HasWallAtPosition(snapped);
-            if (owner.ghostRenderer != null)
-            {
-                owner.ghostRenderer.material.color = occupied ? wallGhostInvalidColor : wallGhostColor;
-            }
+            owner.SetGhostColor(occupied ? wallGhostInvalidColor : wallGhostColor);
 
             // Show single-wall cost in UI
             BuildingData data = BuildingDatabase.Instance != null

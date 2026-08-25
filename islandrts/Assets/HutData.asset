@@ -23,7 +23,7 @@ MonoBehaviour:
   buildingSize: {x: 2, y: 1.5, z: 2}
   noBuildRadius: 3.5
   visualNoBuildRadius: 2.5
-  placementHeight: 0.75
+  placementHeight: 0
   maxHealth: 100
   blocksNavMesh: 0
   isWall: 0

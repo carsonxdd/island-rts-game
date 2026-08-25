@@ -6,14 +6,23 @@ namespace IslandRTS.ArtGen
     /// <summary>
     /// The three gatherable node types. These read at a glance because workers path to
     /// them constantly: tree = tall green canopy, berry bush = low green with red dots,
-    /// rock node = grey cluster with ore flecks.
+    /// rock node = solid grey boulder with ore crystals.
     /// </summary>
     public static partial class LowPolyShapes
     {
         static partial void AddResourcesImpl(List<AssetDef> list)
         {
+            // Tree plus two variants: same species, different seed and height. TreeVariance
+            // on the gameplay prefab picks one per instance. All variants come from the same
+            // builder so they share one material key order - required for the runtime swap.
             list.Add(new AssetDef("Tree", AssetCategory.Resources,
                 () => BroadleafTree(4101, 3.6f), "~2.2 wide canopy, 3.6 tall"));
+
+            list.Add(new AssetDef("Tree_B", AssetCategory.Resources,
+                () => BroadleafTree(4113, 3.4f), "variant: ~2.1 wide canopy, 3.4 tall"));
+
+            list.Add(new AssetDef("Tree_C", AssetCategory.Resources,
+                () => BroadleafTree(4127, 3.8f), "variant: ~2.4 wide canopy, 3.8 tall"));
 
             list.Add(new AssetDef("Tree_Small", AssetCategory.Resources,
                 () => BroadleafTree(4102, 2.6f), "~1.6 wide canopy, 2.6 tall"));
@@ -69,11 +78,17 @@ namespace IslandRTS.ArtGen
 
             // ---- Canopy: three overlapping faceted blobs, not one sphere -------------
             float canopyW = height * 0.62f;
+            // Side-blob placement is seeded so every seed gets its own canopy shape -
+            // this is what makes the Tree_B/Tree_C variants read as different trees.
+            float blobA = b.Rand(0f, 360f) * Mathf.Deg2Rad;
+            float blobB = blobA + Mathf.PI * b.Rand(0.7f, 1.3f);
             Vector3[] canopyOffsets =
             {
                 new Vector3(0f, height * 0.10f, 0f),
-                new Vector3(canopyW * 0.30f, height * 0.02f, -canopyW * 0.20f),
-                new Vector3(-canopyW * 0.26f, height * 0.01f, canopyW * 0.24f),
+                new Vector3(Mathf.Cos(blobA) * canopyW * b.Rand(0.24f, 0.38f), height * 0.02f,
+                            Mathf.Sin(blobA) * canopyW * b.Rand(0.24f, 0.38f)),
+                new Vector3(Mathf.Cos(blobB) * canopyW * b.Rand(0.22f, 0.34f), height * 0.01f,
+                            Mathf.Sin(blobB) * canopyW * b.Rand(0.22f, 0.34f)),
             };
             string[] canopyKeys = { "FrondMid", "FrondDark", "FrondLight" };
 
@@ -95,34 +110,27 @@ namespace IslandRTS.ArtGen
         {
             MeshBuilder b = new MeshBuilder(seed);
 
-            // Main mass plus two satellites, so it reads as a quarryable outcrop rather
-            // than a single boulder.
+            // One solid boulder - no satellite rocks, so the node reads as a single object.
             b.Use("RockMid");
-            b.Rock(Vector3.zero, new Vector3(size, size * 0.78f, size * 0.9f), 0.22f, 3, 7);
+            Vector3 bodySize = new Vector3(size * 1.15f, size * 0.8f, size * 1.05f);
+            b.Rock(Vector3.zero, bodySize, 0.14f, 3, 7);
 
-            b.Use("RockDark");
-            b.Rock(new Vector3(size * 0.34f, 0f, size * 0.26f),
-                   new Vector3(size * 0.52f, size * 0.46f, size * 0.5f), 0.24f, 2, 6);
-
-            b.Use("RockLight");
-            b.Rock(new Vector3(-size * 0.36f, 0f, -size * 0.20f),
-                   new Vector3(size * 0.44f, size * 0.36f, size * 0.42f), 0.24f, 2, 6);
-
-            // ---- Ore veins: small angular chips pushed just proud of the surface -------
+            // ---- Ore crystals: tapered spikes rooted deep INSIDE the boulder that poke
+            //      out through the surface, so they always read as attached.
             b.Use("OreVein");
-            const int chips = 6;
-            for (int i = 0; i < chips; i++)
+            Vector3 half = bodySize * 0.5f;
+            Vector3 center = new Vector3(0f, half.y, 0f);
+            const int crystals = 4;
+            for (int i = 0; i < crystals; i++)
             {
-                float a = (360f / chips) * i + b.Rand(-24f, 24f);
-                float r = size * b.Rand(0.24f, 0.40f);
-                float y = size * b.Rand(0.18f, 0.58f);
-                Vector3 p = new Vector3(Mathf.Cos(a * Mathf.Deg2Rad) * r, y, Mathf.Sin(a * Mathf.Deg2Rad) * r);
+                float a = ((360f / crystals) * i + 25f + b.Rand(-18f, 18f)) * Mathf.Deg2Rad;
+                float yUnit = b.Rand(0.30f, 0.75f);
+                float ring = Mathf.Sqrt(1f - yUnit * yUnit);
+                Vector3 unit = new Vector3(Mathf.Cos(a) * ring, yUnit, Mathf.Sin(a) * ring);
 
-                b.Push();
-                b.Translate(p);
-                b.Rotate(b.Rand(-40f, 40f), a, b.Rand(-40f, 40f));
-                b.Box(Vector3.zero, new Vector3(size * 0.13f, size * 0.07f, size * 0.10f));
-                b.Pop();
+                Vector3 inner = center + Vector3.Scale(unit * 0.35f, half);                // buried root
+                Vector3 outer = center + Vector3.Scale(unit * b.Rand(1.25f, 1.45f), half); // tip past the surface
+                b.TaperedSegment(inner, outer, size * b.Rand(0.10f, 0.14f), 0f, 4, 45f);
             }
 
             return b;

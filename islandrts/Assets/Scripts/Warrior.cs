@@ -49,7 +49,9 @@ public class Warrior : UnitBase<Warrior>
         SetupHealth(maxHealth, Die);
 
         // Create floating state text
-        CreateStateText(2f, "Initializing...", Color.blue);
+        // 1.4, not 2: root scale went 0.5/0.7/0.5 -> 1 when the art moved to a Model child,
+        // so the text child no longer inherits the squash. 2 * 0.7 preserves on-screen size.
+        CreateStateText(1.4f, "Initializing...", Color.blue);
 
         // Setup 3D spatial audio for combat sounds
         SetupCombatAudio(0.5f);

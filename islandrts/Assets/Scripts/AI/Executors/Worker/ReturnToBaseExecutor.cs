@@ -176,7 +176,7 @@ public class ReturnToBaseExecutor : ActionExecutor
         // Restore stopping distance for gathering
         if (bb.agent != null && bb.agent.isOnNavMesh)
         {
-            bb.agent.stoppingDistance = bb.gatherDistance * 0.8f;
+            bb.agent.stoppingDistance = Worker.GatherStopDistance;
         }
     }
 }

@@ -21,6 +21,8 @@ public class ResourceAvailability : Consideration
             if (node == null) continue;
             if (node.resourceType != bb.assignedResourceType) continue;
             if (!node.HasResources()) continue;
+            if (bb.IsNodeUnreachable(node)) continue;  // walled off / off-mesh - skip until its entry expires
+            if (!node.HasWorkerRoom(bb.worker)) continue;  // at worker capacity - spill to another node
 
             float distance = Vector3.Distance(bb.transform.position, node.transform.position);
             if (distance > bb.searchRadius) continue;

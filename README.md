@@ -4,7 +4,7 @@ A Unity-based real-time strategy survival game. Manage autonomous workers, gathe
 
 **Genre:** Top-down RTS + Survival  
 **Setting:** Age of Sail shipwreck on an uncharted island  
-**Status:** Playable alpha (Phase 6.24) — Phase 10 Stage 1 (post-processing + lighting presets) shipped. Now on Unity 6000.5.9f1; the Phase 6.24 refactors are committed but still awaiting a playtest.
+**Status:** Playable alpha (Phase 6.24) — Phase 10 Stage 2 (low-poly art) in progress: the procedural art library is plumbed onto the gameplay prefabs and simplified to a clean template style, pending an in-editor regenerate + playtest. Now on Unity 6000.5.9f1; the Phase 6.24 refactors are committed but still awaiting a playtest.
 
 ---
 
@@ -163,7 +163,9 @@ Everything else (per-unit spawn/death, per-damage, per-resource tick, per-button
 
 For detailed technical documentation, AI system internals, balancing data, phase history, and gotchas, see [`.claude/CLAUDE.md`](.claude/CLAUDE.md).
 
-Latest: **Unity 6000.5.9f1 upgrade** — the project moved up from 6000.0.25f1. All 76 runtime scripts and the 9 editor scripts compile with zero errors and zero warnings; the only source change needed was swapping 11 `FindFirstObjectByType<T>()` calls (obsolete as of 6000.5) for `FindAnyObjectByType<T>()`. Packages were pinned to the editor's defaults up front — URP 17.0.3 → 17.5.0, uGUI 2.0.0 → 2.5.0, Input System 1.11.2 → 1.20.0, AI Navigation 2.0.9 → 2.0.14. Not yet run in Play mode.
+Latest: **Phase 10 Stage 2 (low-poly art, in progress)** — a procedural editor-only generator (`Assets/Editor/LowPoly/`) builds the whole template art library (units, buildings, resource nodes, environment props) and `LowPolyPlumber` mounts it onto the gameplay prefabs without touching their components. The set was then simplified to a flat template style: meeple-style units, plain hut, single-tone roofs, solid one-piece resource nodes with embedded berries/ore crystals, and three tree variants picked per instance at runtime (`TreeVariance`). Worker behavior got a matching pass: faster turning (360°/s), workers stand right beside nodes, unreachable nodes are remembered and skipped for 15s, and each node has a room-based worker capacity so extra workers spill to the next node instead of dog-piling. To apply in the editor: `Tools > Island RTS > Low-Poly Templates > Generate All Assets`, then `Plumb Everything` (+ `Scatter Environment Props`), then re-bake the NavMesh.
+
+Before that: **Unity 6000.5.9f1 upgrade** — the project moved up from 6000.0.25f1. All 76 runtime scripts and the 9 editor scripts compile with zero errors and zero warnings; the only source change needed was swapping 11 `FindFirstObjectByType<T>()` calls (obsolete as of 6000.5) for `FindAnyObjectByType<T>()`. Packages were pinned to the editor's defaults up front — URP 17.0.3 → 17.5.0, uGUI 2.0.0 → 2.5.0, Input System 1.11.2 → 1.20.0, AI Navigation 2.0.9 → 2.0.14. Not yet run in Play mode.
 
 In progress: **Phase 6.24** (queued refactors — *committed, still pending playtest*) — four structural cleanups that preserve behavior: deduplicated `AudioManager`'s fade coroutines; extracted a `UnitBase<T>` base for Worker/Warrior/Enemy boilerplate (component type names unchanged, so prefabs are unaffected); split the 1729-line `BuildPlacement` into a thin coordinator plus four plain helper classes (`WallLinePlacer`, `GhostPlacer`, `DemolishTool`, `NoBuildZoneRenderer` — no scene edits needed); and routed the worker executors' movement through `AINavHelper` so a throttled/rejected `SetDestination` retries instead of faking success. Compiles with zero warnings; still needs a Unity playtest (worker movement, wall building, demolish, day/night audio), which now doubles as the engine-upgrade playtest.
 
@@ -175,7 +177,7 @@ Future roadmap:
 - **Phase 9:** Player character (Admiral), crafting, tech tree
 - **Phase 10: Visual Overhaul** — stylized low-poly tropical aesthetic in the Bad North / Townscaper / Islanders family. Five stages:
   - **Stage 1 ✓ shipped** — URP Global Volume (Bloom, Color Adjustments, White Balance, ACES Tonemapping, Vignette) + warm directional light + ambient gradient. New `LightingPreset` ScriptableObject drives day/night via `DayNightCycle` (replaces old `dayColor`/`nightColor` inspector fields). Campfire has HDR emission so it blooms with threshold at spec value.
-  - **Stage 2** — Asset replacement: bought pack (Synty POLYGON Pirates / Quaternius / KayKit) for environment filler, custom-modeled hero assets (units, buildings, campfire, shipwreck) in Blender
+  - **Stage 2 (in progress)** — Asset replacement via the in-repo procedural generator (`Assets/Editor/LowPoly/`): template-simple units/buildings/resource nodes plumbed onto the gameplay prefabs, environment scatter, per-instance tree variants. Bought-pack / Blender assets remain an option for later hero polish.
   - **Stage 3** — Stylized URP water shader (Shader Graph): Gerstner displacement, depth-blended turquoise, shoreline foam, quantized sun specular, flat-shaded normals
   - **Stage 4** — Lighting bake (mixed mode), exponential fog, shadow cascade tuning, optional SSAO
   - **Stage 5** — Sequencing: post-processing now, water shader as Phase 7–8 side project, full asset swap during Phase 10 proper

@@ -48,7 +48,9 @@ public class Enemy : UnitBase<Enemy>
         SetupHealth(maxHealth, Die);
 
         // Create floating state text
-        CreateStateText(2f, "Searching", Color.red);
+        // 1.4, not 2: root scale went 0.45/0.7/0.45 -> 1 when the art moved to a Model child,
+        // so the text child no longer inherits the squash. 2 * 0.7 preserves on-screen size.
+        CreateStateText(1.4f, "Searching", Color.red);
 
         // Setup 3D spatial audio for combat sounds
         SetupCombatAudio(0.45f);

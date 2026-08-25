@@ -45,6 +45,10 @@ public class BuildPlacement : MonoBehaviour
     internal Camera mainCam;
     internal GameObject currentGhost;
     internal Renderer ghostRenderer;
+    // Every material slot on the ghost, instanced once when the ghost is created. The
+    // low-poly building meshes are multi-submesh, so tinting `ghostRenderer.material`
+    // would only recolor slot 0; reading `.materials` per frame would allocate.
+    internal Material[] ghostMaterials;
     internal bool isPlacing = false;
 
     // Mode helpers
@@ -152,12 +156,7 @@ public class BuildPlacement : MonoBehaviour
         {
             currentGhost = Instantiate(data.ghostPrefab);
         }
-        ghostRenderer = currentGhost.GetComponent<Renderer>();
-
-        if (ghostRenderer == null)
-        {
-            ghostRenderer = currentGhost.GetComponent<MeshRenderer>();
-        }
+        CacheGhostRenderer();
 
         // Update building properties from data
         buildingSize = data.buildingSize;
@@ -241,11 +240,7 @@ public class BuildPlacement : MonoBehaviour
         {
             currentGhost = Instantiate(data.ghostPrefab);
         }
-        ghostRenderer = currentGhost.GetComponent<Renderer>();
-        if (ghostRenderer == null)
-        {
-            ghostRenderer = currentGhost.GetComponent<MeshRenderer>();
-        }
+        CacheGhostRenderer();
 
         // Update building size and placement height for collision detection
         buildingSize = data.buildingSize;
@@ -343,6 +338,30 @@ public class BuildPlacement : MonoBehaviour
         }
 
         wall.UpgradeToGate();
+    }
+
+    /// <summary>
+    /// Cache the ghost's renderer and instance its material slots. Called once per ghost
+    /// spawn so the per-frame validity tint is a plain array walk with no allocation.
+    /// </summary>
+    private void CacheGhostRenderer()
+    {
+        ghostRenderer = currentGhost.GetComponent<Renderer>();
+
+        if (ghostRenderer == null)
+        {
+            ghostRenderer = currentGhost.GetComponent<MeshRenderer>();
+        }
+
+        ghostMaterials = RendererTint.Collect(ghostRenderer);
+    }
+
+    /// <summary>
+    /// Tint the whole ghost (every submesh slot) to indicate placement validity.
+    /// </summary>
+    internal void SetGhostColor(Color color)
+    {
+        RendererTint.SetColor(ghostMaterials, color);
     }
 
     /// <summary>
