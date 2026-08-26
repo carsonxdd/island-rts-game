@@ -186,6 +186,7 @@ Future roadmap:
   - **Stage 4** — Lighting bake (mixed mode), exponential fog, shadow cascade tuning, optional SSAO
   - **Stage 5** — Sequencing: post-processing now, water shader as Phase 7–8 side project, full asset swap during Phase 10 proper
   - Full spec: [`PHASE_10_VISUAL_OVERHAUL.md`](PHASE_10_VISUAL_OVERHAUL.md)
+- **Terrain System (slot TBD):** dynamic random island terrain — chunked low-poly heightmap with hills, valleys, beaches, and real water; a new island generated each run; terrain smooths itself under placed buildings (runtime NavMesh rebuilds); enemies wade ashore from the shallows. Design locked — full spec: [`TERRAIN_SYSTEM_PLAN.md`](TERRAIN_SYSTEM_PLAN.md)
 
 ---
 

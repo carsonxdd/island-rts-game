@@ -307,6 +307,7 @@ Ask: "would this log spam the console during a normal 5-minute play session?" If
 - Phase 9: Player character (Admiral), crafting, tech tree
 - Phase 10: Visual overhaul — Stage 1 (post-processing + lighting presets) shipped; Stages 2-5 (asset swap, water shader, lighting bake) ahead
 - Phase 11: Content polish, save/load, main menu
+- Terrain System (slot TBD): dynamic random island terrain with hills/beaches/water + placement smoothing — design locked, see `TERRAIN_SYSTEM_PLAN.md`
 
 ---
 
@@ -508,6 +509,18 @@ Decided 2026-08-24 (user picked all three recommended options). Builders join Ph
 **Open questions (settle at implementation):** do builders keep working at night or auto-flee; do enemies target builders like workers (currently enemies prefer warriors/buildings); is there a builder cap; does demolish-refund interact with partially-repaired HP.
 
 **Soft-lock guard:** with zero builders alive, sites wait indefinitely (they don't decay); demolish still refunds 50%. Surface a warning banner if sites exist but no builder does.
+
+### Terrain System (Planned): Dynamic Island Terrain — Design Sketch
+
+Decided 2026-08-25 (user picked all four recommended options). Full spec in `TERRAIN_SYSTEM_PLAN.md` at repo root — that file is the source of truth; this is a summary.
+
+**Locked decisions:** (1) random island per run (seeded generation at game start); (2) gentle tactical — hills walkable, water impassable, occasional steep slopes as chokepoints, island connectivity guaranteed; (3) enemies spawn in a shallow wading band offshore and emerge from the water; (4) placement smoothing makes almost all land placeable — reject only water-overlap/cliff footprints.
+
+**Architecture:** custom chunked heightmap mesh (NOT Unity Terrain — smooth shading fights the Phase 10 flat-shaded look). `TerrainGrid` singleton: height field at 1m spacing, sea level y=0, 16×16-quad flat-shaded chunks with vertex-color height/slope bands (beaches free), MeshCollider per chunk, `SampleHeight`/`FlattenArea` API, dirty-chunk rebuilds only. `IslandGenerator`: radial falloff × domain-warped noise, amplitude budget ~4m (orthographic occlusion readability), campfire site flattened at generation, validity via real `NavMesh.CalculatePath` tests + seed reroll. NavMesh moves from the scene bake (must be DELETED — double-navmesh otherwise) to a runtime `NavMeshSurface` with async `UpdateNavMesh` after each flatten; wall lines batch N placements into one update. Water = flat plane at y=0 (Stage 3 shader mounts there later); deep water NotWalkable via `NavMeshModifierVolume` below y=−0.4, the −0.4..0 band is the walkable wading band.
+
+**Biggest break risk:** startup ordering — everything currently assumes a NavMesh exists at frame 0; terrain gen + NavMesh build must complete before campfire/spawners/units. The AI layer itself is already height-safe (`SamplePosition` everywhere).
+
+**Staging:** T1 fixed-seed shaped world + runtime NavMesh; T2 flatten-on-placement; T3 waterline gameplay + shoreline spawns; T4 random seed per run + terrain-aware campfire/resources. Each stage playable.
 
 ### Phase 10 (In Progress): Visual Overhaul
 
