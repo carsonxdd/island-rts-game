@@ -81,6 +81,9 @@ V:/islandrtsgame/                    # Repository root
 | `AudioManager.cs` | Singleton: music, SFX, ambient, crossfades |
 | `GameStartController.cs` | Opening sequence: survivor landing → campfire placement → colony start |
 | `Survivor.cs` | Click-move castaway, exists only during the opening |
+| `DebugMenu.cs` | F4 cheat menu (editor + dev builds only): resources, quick-start colony, time, combat cheats |
+| `Terrain/TerrainGrid.cs` | Island terrain (T1): chunked flat-shaded heightmap, `SampleHeight`/`IsBuildable` API, runtime NavMeshSurface |
+| `Terrain/IslandGenerator.cs` | Pure seeded heightfield generation (shared by runtime and editor prop-snapping) |
 
 ---
 
@@ -277,6 +280,7 @@ Ask: "would this log spam the console during a normal 5-minute play session?" If
 | Shift | Bresenham staircase wall path |
 | Delete / X | Demolish mode (50% refund) |
 | F3 | AI debug overlay (editor only) |
+| F4 | Debug menu (editor + dev builds only) |
 | Click campfire | Worker assignment UI |
 | Right-click (opening) | Move the survivor |
 | B (opening) | Place the campfire (Esc / right-click cancels) |
@@ -303,6 +307,7 @@ Ask: "would this log spam the console during a normal 5-minute play session?" If
 - Zero GC in hot paths, staggered AI evaluation
 
 **What's next (immediate):**
+- **Terrain T1 needs its editor setup run + playtest:** run `Tools > Island RTS > Terrain > Setup Terrain Scene (T1)` (AFTER the Opening Sequence setup — it removes the Ground plane, the baked NavMesh, and the _Ocean frame, then snaps the wreck/scatter props to the generated island). See the Terrain T1 entry in Phase History.
 - **Opening Sequence Stage 1 needs its editor setup run + playtest:** in Unity run `Tools > Island RTS > Opening Sequence > Setup Opening Scene`, then Play (see the Opening Sequence Stage 1 entry in Phase History). Until the menu item is run, the scene is untouched and the game starts the classic way.
 - Playtest Phase 6.24 refactors + the Unity 6000.5.9f1 upgrade + Phase 6.25 targeting/spacing changes (see checklists in Phase History — the 6.25 list stacks on 6.24's).
 - Run `Tools > Island RTS > Low-Poly Templates > Generate All Assets` (regenerates the Stage 2c simplified shapes), then `Plumb Everything` + `Scatter Environment Props`, re-bake the NavMesh, then playtest Phase 10 Stage 2a/2b/2c. **Run the Low-Poly steps BEFORE the Opening Sequence setup** — the setup tool consumes the art library (campfire mesh, Worker art prefab, LP materials).
@@ -313,7 +318,7 @@ Ask: "would this log spam the console during a normal 5-minute play session?" If
 - Phase 9: Player character (Admiral), crafting, tech tree
 - Phase 10: Visual overhaul — Stage 1 (post-processing + lighting presets) shipped; Stages 2-5 (asset swap, water shader, lighting bake) ahead
 - Phase 11: Content polish, save/load, main menu
-- Terrain System (slot TBD): dynamic random island terrain with hills/beaches/water + placement smoothing — design locked, see `TERRAIN_SYSTEM_PLAN.md`
+- Terrain System: **T1 (static shaped island + runtime NavMesh) implemented 2026-08-25**, pending setup run + playtest; T2 (placement flattening), T3 (waterline gameplay/shoreline spawns), T4 (random seed per run) ahead — see `TERRAIN_SYSTEM_PLAN.md`
 
 ---
 
@@ -722,3 +727,42 @@ The game now opens with the story beat instead of a pre-placed base (2026-08-25)
 **Playtest checklist (after running the setup menu item — run `Low-Poly Templates > Generate All Assets` + `Plumb Everything` FIRST, the setup tool consumes the art library):** camera opens framed on the survivor at the west-shore wreck standing in shallow water; right-click moves him (into and out of the wading band); day/night clock frozen at dawn until placement (check the Day/Time debug label holds); B shows the campfire ghost — red in water/far from survivor/on a resource node, green on clear dry land near him; Esc/right-click cancels; click places → placement sound, survivor walks to the fire, ~1s later he despawns and a wood worker spawns (population 1/3), clock starts, hints fade; clicking the campfire opens the assignment panel; B now opens the normal build menu; night 1 raid targets the placed campfire; restart (defeat → restart button) replays the intro cleanly. Also verify the classic path: tick `skipIntro` on `GameStart` → campfire at origin from frame 0, no survivor, no regressions. Known cosmetics: the survivor uses unmodified Worker art; the wreck is primitives + props (a bespoke LP shipwreck asset can replace it later).
 
 **Follow-up slices agreed with the user (in order):** ground pickups (sticks/rocks scattered on the island, small wood/stone value, carried to the campfire), jobless-colonist system (wander + collect pickups + build/repair — the Phase 7 revision), hut → house upgrades (framework for building tiers).
+
+### Debug Menu (F4 — editor + dev builds)
+
+Playtest cheat menu added 2026-08-25 (compile-verified both with `UNITY_EDITOR` and with no defines: 0 errors, 0 new warnings). Whole file `#if UNITY_EDITOR || DEVELOPMENT_BUILD` — release builds ship without it. Self-bootstraps via `[RuntimeInitializeOnLoadMethod]` (no scene object to wire) and is the ONE deliberate exception to the no-`DontDestroyOnLoad` rule: it holds no game state — every action looks up live singletons/registries at click time, so nothing stale survives a restart (and steppers persisting is a feature). IMGUI/GUILayout on the LEFT edge (F3 AI overlay owns the right); GUILayout's per-frame GC only costs while the menu is open.
+
+**Sections:** live status (day/time/phase/speed, pop/housing, warriors, enemies); resources (+100/+1000 per type, +1000 all, zero all — writes `ResourceManager`'s public fields directly for zeroing); **quick-start colony** — steppers for huts / wood / food / stone workers / warriors (defaults 2/4/2/1/3), one button grants +1000 each resource, force-finishes the intro if it's running, rings huts around the campfire, then assigns workers and recruits warriors; time (skip to night `t=0.76` / skip to day `t=0.26`, clock-paused toggle, 1x/2x/4x `Time.timeScale` — speed disabled while game over so it can't fight the `timeScale=0` pause); cheats (spawn enemy wave — disabled until a campfire exists so the wave has a target; kill all enemies via `TakeDamage(999999)` so the real death path runs; heal everything friendly via the `ITargetable.CachedHealth` registries; finish all construction via `AddProgress(1f)`).
+
+**Debug hooks added (both `#if`-wrapped):** `GameStartController.DebugForceColonyStart()` — instantly finishes the opening (campfire at the survivor's position if he's on dry land, else the skipIntro position), parking in `Settling` with `settleDeadline = float.MaxValue` and yielding one frame before `StartColony()`; `EnemySpawner.DebugSpawnWave()` — runs `StartSpawning()` with `currentNight` temporarily floored at 1, restored immediately (count is computed synchronously; the Invokes only stagger instantiation), so real night scaling is unaffected.
+
+**Gotchas encoded in the flow (frame-yield ordering):** `BaseBuilding.Start` registers the campfire's housing and `Hut.Start` registers hut housing — `AssignWorker` silently no-ops without housing, so the quick-start coroutine yields a frame after spawning the campfire AND after spawning huts before assigning workers. Skip-to-day must increment `currentDay` when crossing the midnight wrap (`t > 0.75`) but not from early morning (`t < 0.25`), or the survived-nights count drifts. Runtime-spawned huts need `layer = "Buildings"` (normally set by BuildPlacement/ConstructionSite).
+
+**Skip-to-night note:** a wave spawned by "Skip to Night" or `DebugSpawnWave` despawns at the next OnDayStart, like any night wave.
+
+Playtest with everything else: F4 opens/closes; quick-start from inside the intro lands a full working base (campfire + huts + workers gathering + warriors patrolling); spawn wave → warriors engage; kill-all clears the wave and stats count the kills; 4x speed doesn't break AI (eval throttles are frame-based — watch for units evaluating "slower" relative to game time at 4x).
+
+### Terrain System T1 (Shaped Island — ⚠️ NEEDS EDITOR SETUP RUN + PLAYTEST)
+
+Stage T1 of `TERRAIN_SYSTEM_PLAN.md` implemented 2026-08-25 (compile-verified both configs: 0 errors, 0 warnings). The flat 100×100 Ground plane becomes a procedurally generated island. Fixed seed (T1) — every run is the same island until T4.
+
+**New runtime files (`Assets/Scripts/Terrain/`):**
+- `IslandGenerator.cs` — pure/deterministic heightfield: radial falloff × domain-warped coastline (±8 m wobble) × 3 Perlin octaves, amplitude ≤3.5 m (ortho-camera readability budget), seabed to −2. Public world anchors baked in post-noise via `FlattenDisc`: a flat disc at the origin (campfire site / classic start) and a **landing cove** at the shipwreck (−46, 2): shallow −0.25 shelf + 0.6 beach ramp inland, so the opening sequence works on the shaped world. `FlattenDisc` is the core op T2's `FlattenArea` will build on. Being pure statics, the editor tool generates the SAME field to snap scene props — that's why `Date`/scene state must never leak into generation.
+- `TerrainGrid.cs` — `[DefaultExecutionOrder(-100)]` singleton; does EVERYTHING in `Awake` (generate → chunk meshes → water plane → deep-water volume → `NavMeshSurface.BuildNavMesh()`), so every existing `Start()`-time system finds a finished world + live NavMesh — the plan's #1 break risk (startup ordering) is closed without touching any other script's ordering. 101×101 verts at 1 m; 16×16-quad chunks with per-triangle duplicated verts (hard flat shading), checkerboard-alternating quad diagonals, MeshCollider per chunk, on the Default layer so `BuildPlacement.groundLayer` raycasts work unmodified. **No custom shader:** each triangle is binned into one of 3 submeshes — LP_Sand (beach + all seabed, h<0.45), LP_GrassGreen, LP_RockMid (land faces steeper than ~37°) — crisp low-poly facet banding from existing materials. API: `SampleHeight` (bilinear), `SlopeAt`, `IsLand`, `IsShallow`, `IsBuildable` (h>0.15 ∧ slope<0.55), static `SampleField` (shared with editor tools), `UpdateNavMeshAsync()` (T2 hook). Water: 320×320 plane at y=0, Mat_Water, collider-less, own root (never a NavMeshSurface child), never static. Deep water: runtime `NavMeshModifierVolume` below y=−0.4 → NotWalkable; −0.4..0 is the walkable wading band. **This is a T3 item pulled into T1 deliberately** — without it the NavMesh covers the seabed and units walk across the ocean. `NavMeshSurface` is configured `CollectObjects.Children` + `PhysicsColliders` so ONLY chunk colliders + the modifier volume feed the bake (never buildings/resource nodes/water).
+
+**New editor tool `Assets/Editor/TerrainSetup.cs`** — `Tools > Island RTS > Terrain > Setup Terrain Scene (T1)`, idempotent, run AFTER the Opening Sequence setup: deletes the Ground plane (its old NavMeshSurface rides along) + the baked `NavMesh-Ground.asset` (leftover bake = double-navmesh ghost of the flat world) + the `_Ocean` quad frame (real water plane is runtime now); creates the wired `Terrain` object; snaps the `_Shipwreck` ROOT onto the cove shelf and every `_LowPolyScatter` prop onto the island surface (absolute y from the same generated field → idempotent; underwater props are deleted and counted). `OpeningSequenceSetup.BuildOcean` now skips itself when a TerrainGrid exists, so re-running the opening setup can't resurrect the frame.
+
+**Flat-y=0 call sites made terrain-aware (all guarded `TerrainGrid.Instance == null` → exact legacy behavior, so the un-setup scene still runs):**
+- `BuildPlacement` — new `GroundYAt` helper; `GetSnappedMousePosition` y = terrain + placementHeight (semantics now "offset above the ground here"; hut/tower data already 0). Math-plane fallback kept for off-map rays.
+- `GhostPlacer` — validity += `IsBuildable` (no huts in the water / on cliffs).
+- `WallLinePlacer` — cursor/line ghosts at terrain + 0.02; new `CellBlocked` (occupied ∨ !IsBuildable) drives ghost tint, validCount, cost, and the confirm filter; sites spawn at terrain + placementHeight.
+- `WallConnector` — self-snap y is now terrain + Y_OFFSET (sampled at the snapped cell).
+- `EnemySpawner` — ring positions get terrain height + `NavMesh.SamplePosition(8f)` snap.
+- `ResourceSpawner` — `GroundY`/`IsTerrainOk` (h>0.15 ∧ slope<0.55) helpers; every candidate path (clusters, scattered, generic, both respawn paths, cluster centers) sets y from terrain and rejects water/cliffs.
+- `GameStartController` — campfire ghost/spawn y from terrain; `IsValidCampfireSpot` and the debug force-start use `IsBuildable` instead of the ±42 dry-land box; `RaycastGround` raycasts Default-layer physics first (a y=0 math plane offsets clicks on hills), plane fallback kept.
+- `DebugMenu` — quick-start hut ring uses `IsBuildable` + terrain y.
+- `BaseBuilding.GetValidSpawnPosition` — **removed the legacy `pos.y = 1f`** after `NavMesh.SamplePosition`: hit.position IS the right height; +1 was a flat-world/center-pivot relic that floated base-pivot units and would bury them under terrain above 1 m.
+
+**T1 known-accepted rough edges (T2 fixes):** buildings on slopes clip into/overhang the ground slightly (no `FlattenArea` yet — validity just rejects steep spots); wall lines follow terrain per-cell with small steps; `GridOverlay` (off by default) still renders flat. Watch for: worker/warrior interaction ranges are 3D distances, so slopes inflate them slightly (tolerances have margin); campfire placement is limited to gentle ground — the cove ramp and origin flat guarantee valid spots on the fixed seed.
+
+**Playtest checklist (after running the Terrain setup menu item):** console shows one "TerrainGrid: island generated (seed …) + NavMesh built in … ms" line and no errors; the world is an island — beach ring, rolling green interior, rock facets on steep bits, ocean to the horizon; survivor starts wading in the cove and walks up the beach ramp; campfire ghost red in water/on slopes, green on the flats; colony loop (gather/deliver/build/walls/demolish) works on hills; night wave spawns on land at the ring and pathes to the campfire; units never walk on water beyond the wading band; F4 quick-start colony lands huts on buildable ground; restart regenerates the identical island; ~60 fps held (chunk meshing is ~40k tris total).

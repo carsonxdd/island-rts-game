@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 4329094546316230419}
   - component: {fileID: 4229379961232064540}
   - component: {fileID: 4406953504580169356}
+  - component: {fileID: 9200490542261161618}
   m_Layer: 6
   m_Name: Campfire
   m_TagString: Untagged
@@ -32,7 +33,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 682751522091000730}
-  - {fileID: 6612602212958680191}
+  - {fileID: 9104002700308952913}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!65 &4229379961232064540
@@ -50,12 +51,12 @@ BoxCollider:
     serializedVersion: 2
     m_Bits: 0
   m_LayerOverridePriority: 0
-  m_IsTrigger: 0
+  m_IsTrigger: 1
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 2, y: 1.2, z: 2}
-  m_Center: {x: 0, y: 0.6, z: 0}
+  m_Size: {x: 1.8, y: 1, z: 1.8}
+  m_Center: {x: 0, y: 0.5, z: 0}
 --- !u!208 &4406953504580169356
 NavMeshObstacle:
   m_ObjectHideFlags: 0
@@ -66,12 +67,42 @@ NavMeshObstacle:
   m_Enabled: 1
   serializedVersion: 3
   m_Shape: 1
-  m_Extents: {x: 1, y: 0.5, z: 1}
+  m_Extents: {x: 0.6, y: 0.5, z: 0.6}
   m_MoveThreshold: 0.1
   m_Carve: 1
   m_CarveOnlyStationary: 1
   m_Center: {x: 0, y: 0, z: 0}
   m_TimeToStationary: 0.5
+--- !u!114 &9200490542261161618
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4830723561191733231}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7957dd27cebccac408e01b426ebe51f4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  maxHealth: 200
+  workerUI: {fileID: 0}
+  workerPrefab: {fileID: 5145095557503190049, guid: b05e4fa2fdd5e4945a06462db79a38b5, type: 3}
+  maxWorkers: 10
+  workerCapacity: 3
+  woodWorkers: 0
+  foodWorkers: 0
+  stoneWorkers: 0
+  warriorPrefab: {fileID: 4028577899709980378, guid: c8e31e7c193a9db4dbff2ecbdd343c48, type: 3}
+  maxWarriors: 5
+  warriorCost_Wood: 10
+  warriorCost_Food: 15
+  currentWarriors: 0
+  spawnRadius: 2
+  noBuildRadius: 3
+  visualNoBuildRadius: 2.5
+  normalColor: {r: 1, g: 1, b: 1, a: 1}
+  hoverColor: {r: 0.92003345, g: 0.9528302, b: 0.12135102, a: 1}
 --- !u!1 &6798480131593420841
 GameObject:
   m_ObjectHideFlags: 0
@@ -186,7 +217,7 @@ CapsuleCollider:
   m_Height: 2
   m_Direction: 1
   m_Center: {x: 0, y: 0, z: 0}
---- !u!1001 &3223720777426626146
+--- !u!1001 &661941606874539340
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -243,8 +274,8 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 727ed61e467e6e949a46e14d02c2cbb6, type: 3}
---- !u!4 &6612602212958680191 stripped
+--- !u!4 &9104002700308952913 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 8608730034235134493, guid: 727ed61e467e6e949a46e14d02c2cbb6, type: 3}
-  m_PrefabInstance: {fileID: 3223720777426626146}
+  m_PrefabInstance: {fileID: 661941606874539340}
   m_PrefabAsset: {fileID: 0}

@@ -268,9 +268,10 @@ public class BaseBuilding : MonoBehaviour, ITargetable
 
             if (NavMesh.SamplePosition(candidate, out hit, 2f, NavMesh.AllAreas))
             {
-                Vector3 pos = hit.position;
-                pos.y = 1f;
-                return pos;
+                // hit.position IS on the NavMesh at the right height — the old
+                // "+1" was a flat-world/center-pivot relic that floats (or on
+                // terrain, buries) base-pivot units
+                return hit.position;
             }
         }
 
@@ -288,22 +289,20 @@ public class BaseBuilding : MonoBehaviour, ITargetable
 
             if (NavMesh.SamplePosition(candidate, out hit, 3f, NavMesh.AllAreas))
             {
-                Vector3 pos = hit.position;
-                pos.y = 1f;
-                return pos;
+                // hit.position IS on the NavMesh at the right height — the old
+                // "+1" was a flat-world/center-pivot relic that floats (or on
+                // terrain, buries) base-pivot units
+                return hit.position;
             }
         }
 
         // Last resort: offset position with NavMesh validation
         Debug.LogWarning("BaseBuilding: Could not find valid NavMesh spawn position! Using fallback.");
         Vector3 fallback = transform.position + new Vector3(spawnRadius + 1f, 0f, 0f);
-        fallback.y = 1f;
         // Bug 3: Validate fallback on NavMesh to prevent off-mesh spawns
         if (NavMesh.SamplePosition(fallback, out hit, 5f, NavMesh.AllAreas))
         {
-            Vector3 pos = hit.position;
-            pos.y = 1f;
-            return pos;
+            return hit.position;
         }
         return fallback;
     }

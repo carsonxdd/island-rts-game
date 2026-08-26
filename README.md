@@ -4,7 +4,7 @@ A Unity-based real-time strategy survival game. Manage autonomous workers, gathe
 
 **Genre:** Top-down RTS + Survival  
 **Setting:** Age of Sail shipwreck on an uncharted island  
-**Status:** Playable alpha (Phase 6.26 + Opening Sequence Stage 1) — the game now opens with the story beat: a lone survivor wades ashore from the shipwreck and places the campfire himself (scripts are in; run `Tools > Island RTS > Opening Sequence > Setup Opening Scene` once in the editor to apply it — until then the classic instant-campfire start is unchanged). Phase 10 Stage 2 (low-poly art) in progress: the simplified template-style art library has been regenerated and re-plumbed onto the gameplay prefabs in-editor; environment scatter, NavMesh re-bake, and the playtest are still pending. Now on Unity 6000.5.9f1; Phases 6.24–6.26 and the opening sequence are committed but still awaiting a playtest.
+**Status:** Playable alpha (Phase 6.26 + Opening Sequence Stage 1 + Terrain T1) — the game opens with the story beat (a lone survivor wades ashore from the shipwreck and places the campfire himself; applied in-scene via the Opening Sequence setup tool) and the world is now a procedurally shaped island (Terrain T1 — run `Tools > Island RTS > Terrain > Setup Terrain Scene (T1)` once in the editor to apply it). An F4 debug menu (editor/dev builds) covers resource grants, a quick-start colony, time controls, and combat cheats for playtesting. Phase 10 Stage 2 (low-poly art) is applied in-editor. Now on Unity 6000.5.9f1; Phases 6.24–6.26, the opening sequence, the terrain, and the art plumbing all still await a proper playtest.
 
 ---
 
@@ -43,6 +43,7 @@ A Unity-based real-time strategy survival game. Manage autonomous workers, gathe
 | **Shift** (hold) | Diagonal wall path |
 | **Delete / X** | Demolish building (50% resource refund) |
 | **F3** | AI debug overlay (editor only) |
+| **F4** | Debug menu — cheats for testing (editor + dev builds only) |
 | **Right-click** (opening) | Move the survivor |
 | **B** (opening) | Place the campfire (Esc / right-click cancels) |
 
@@ -90,6 +91,9 @@ islandrts/Assets/
 │   ├── Warrior.cs               # Warrior unit + AI setup
 │   ├── Enemy.cs                 # Enemy unit + AI setup
 │   ├── BuildPlacement.cs        # Building placement, wall drawing, demolish
+│   ├── Terrain/                 # TerrainGrid (chunked island mesh + runtime NavMesh), IslandGenerator
+│   ├── GameStartController.cs   # Opening sequence (survivor landing → campfire → colony)
+│   ├── DebugMenu.cs             # F4 cheat menu (editor + dev builds only)
 │   ├── WallGrid.cs              # O(1) wall/gate grid registry
 │   ├── WallConnector.cs         # Procedural wall mesh generation
 │   ├── Health.cs                # Universal health component
@@ -169,7 +173,9 @@ Everything else (per-unit spawn/death, per-damage, per-resource tick, per-button
 
 For detailed technical documentation, AI system internals, balancing data, phase history, and gotchas, see [`.claude/CLAUDE.md`](.claude/CLAUDE.md).
 
-Latest: **Opening Sequence Stage 1 (survivor landing)** — the game start is now the story beat: a lone castaway stands in the shallows beside a shipwreck set piece on the west shore, the player right-clicks him ashore and places the campfire near him (free, one-time, bespoke placer — the campfire is deliberately not in the build menu), and he settles in as the colony's first worker before normal gameplay begins. The day/night clock is frozen at dawn until the fire is lit. A one-time editor tool (`Tools > Island RTS > Opening Sequence > Setup Opening Scene`) applies it: converts the scene campfire into a runtime-spawned prefab, builds the Survivor and campfire-ghost prefabs, and dresses the scene with a shallow-water ocean frame and the wreck. `skipIntro` on the `GameStart` object restores the classic start. Also decided: **Phase 7's dedicated Builder unit is replaced by jobless generalist colonists** — colonists without a job will wander, pick up ground items (sticks/rocks, a coming slice), and build/repair when needed; assigning a gathering job specializes them.
+Latest: **Terrain System T1 (shaped island)** — the flat square ground is replaced by a procedurally generated island: a chunked flat-shaded heightmap mesh (per-triangle sand/grass/rock banding with the LP materials), rolling hills under a ~3.5 m readability budget, a real surrounding ocean at sea level, deep water marked NotWalkable (the shallow band stays wadeable), and the NavMesh built at runtime from the terrain colliders before anything else starts. The generator is seeded and deterministic — T1 ships a fixed seed with a flattened campfire site at the island heart and a guaranteed shallow landing cove carved at the shipwreck so the opening sequence works unchanged. Apply with `Tools > Island RTS > Terrain > Setup Terrain Scene (T1)`. Next stages: T2 terrain flattening under placed buildings, T3 shoreline enemy spawns, T4 a new random island every run (see [`TERRAIN_SYSTEM_PLAN.md`](TERRAIN_SYSTEM_PLAN.md)).
+
+Before that: **Opening Sequence Stage 1 (survivor landing)** — the game start is now the story beat: a lone castaway stands in the shallows beside a shipwreck set piece on the west shore, the player right-clicks him ashore and places the campfire near him (free, one-time, bespoke placer — the campfire is deliberately not in the build menu), and he settles in as the colony's first worker before normal gameplay begins. The day/night clock is frozen at dawn until the fire is lit. A one-time editor tool (`Tools > Island RTS > Opening Sequence > Setup Opening Scene`) applies it: converts the scene campfire into a runtime-spawned prefab, builds the Survivor and campfire-ghost prefabs, and dresses the scene with a shallow-water ocean frame and the wreck. `skipIntro` on the `GameStart` object restores the classic start. Also decided: **Phase 7's dedicated Builder unit is replaced by jobless generalist colonists** — colonists without a job will wander, pick up ground items (sticks/rocks, a coming slice), and build/repair when needed; assigning a gathering job specializes them.
 
 Before that: **Phase 6.26 (worker crowd interaction)** — workers now switch ORCA avoidance roles by state: a stationary worker (gathering, idle, sheltering) becomes max-importance so movers route around it like furniture instead of shoving it (a stander has no path and can't yield), and every moving errand re-rolls a random priority band so meeting workers never tie. Gatherers also get a rubber band — if the crowd nudges one off its spot it walks back and freezes again — and worker avoidance quality went Med → High to kill the head-on side-step dance. Fixes campfire delivery jams.
 
@@ -194,7 +200,7 @@ Future roadmap:
   - **Stage 4** — Lighting bake (mixed mode), exponential fog, shadow cascade tuning, optional SSAO
   - **Stage 5** — Sequencing: post-processing now, water shader as Phase 7–8 side project, full asset swap during Phase 10 proper
   - Full spec: [`PHASE_10_VISUAL_OVERHAUL.md`](PHASE_10_VISUAL_OVERHAUL.md)
-- **Terrain System (slot TBD):** dynamic random island terrain — chunked low-poly heightmap with hills, valleys, beaches, and real water; a new island generated each run; terrain smooths itself under placed buildings (runtime NavMesh rebuilds); enemies wade ashore from the shallows. Design locked — full spec: [`TERRAIN_SYSTEM_PLAN.md`](TERRAIN_SYSTEM_PLAN.md)
+- **Terrain System:** dynamic island terrain — chunked low-poly heightmap with hills, valleys, beaches, and real water. **T1 (fixed-seed shaped island + runtime NavMesh) implemented**; ahead: T2 terrain smoothing under placed buildings, T3 enemies wading ashore from the shallows, T4 a new random island each run. Full spec: [`TERRAIN_SYSTEM_PLAN.md`](TERRAIN_SYSTEM_PLAN.md)
 
 ---
 

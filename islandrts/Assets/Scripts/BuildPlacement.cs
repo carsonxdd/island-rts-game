@@ -377,7 +377,7 @@ public class BuildPlacement : MonoBehaviour
         if (Physics.Raycast(ray, out hit, 1000f, groundLayer))
         {
             snapped = GridSnap.SnapXZ(hit.point, cellSize);
-            snapped.y = placementHeight;
+            snapped.y = GroundYAt(snapped) + placementHeight;
             return true;
         }
 
@@ -388,11 +388,20 @@ public class BuildPlacement : MonoBehaviour
         {
             Vector3 worldPos = ray.GetPoint(distance);
             snapped = GridSnap.SnapXZ(worldPos, cellSize);
-            snapped.y = placementHeight;
+            snapped.y = GroundYAt(snapped) + placementHeight;
             return true;
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Terrain height at a position (0 on the legacy flat world).
+    /// placementHeight semantics are now "offset above the ground here".
+    /// </summary>
+    internal float GroundYAt(Vector3 pos)
+    {
+        return TerrainGrid.Instance != null ? TerrainGrid.Instance.SampleHeight(pos) : 0f;
     }
 
     // Check if a building type is a wall using BuildingData.isWall flag

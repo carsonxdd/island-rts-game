@@ -88,8 +88,11 @@ public class GhostPlacer
         // Check if too close to any existing buildings (no-build zones)
         bool tooCloseToBuilding = IsTooCloseToExistingBuilding(targetPosition);
 
-        // Update validity and color (must pass both checks)
-        isValidPlacement = !hasCollision && !tooCloseToBuilding;
+        // Terrain (T1): buildings only on dry, gentle ground
+        bool terrainOk = TerrainGrid.Instance == null || TerrainGrid.Instance.IsBuildable(targetPosition);
+
+        // Update validity and color (must pass all checks)
+        isValidPlacement = !hasCollision && !tooCloseToBuilding && terrainOk;
 
         owner.SetGhostColor(isValidPlacement ? owner.validColor : owner.invalidColor);
     }

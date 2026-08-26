@@ -43,7 +43,7 @@ public class WallLinePlacer
         {
             // Phase 1: Cursor ghost follows mouse, waiting for first click
             Vector3 cursorPos = snapped;
-            cursorPos.y = 0.02f; // Match wall Y offset
+            cursorPos.y = owner.GroundYAt(snapped) + 0.02f; // Wall Y offset above the ground here
             owner.currentGhost.transform.position = cursorPos;
 
             // R toggles L-path direction (X-first vs Z-first) before starting a line
@@ -52,8 +52,8 @@ public class WallLinePlacer
                 xFirst = !xFirst;
             }
 
-            // Color ghost based on whether this cell is occupied
-            bool occupied = HasWallAtPosition(snapped);
+            // Color ghost based on whether this cell can take a wall
+            bool occupied = CellBlocked(snapped);
             owner.SetGhostColor(occupied ? wallGhostInvalidColor : wallGhostColor);
 
             // Show single-wall cost in UI
@@ -185,12 +185,12 @@ public class WallLinePlacer
             ghost.SetActive(true);
             ghost.transform.localScale = Vector3.one;
 
-            // Place at grid position, slightly above ground
+            // Place at grid position, slightly above the ground there
             Vector3 pos = wallLinePositions[i];
-            pos.y = 0.02f;
+            pos.y = owner.GroundYAt(pos) + 0.02f;
             ghost.transform.position = pos;
 
-            bool occupied = HasWallAtPosition(wallLinePositions[i]);
+            bool occupied = CellBlocked(wallLinePositions[i]);
             if (!occupied) validCount++;
 
             // Compute neighbor mask considering both existing walls and other ghosts in the line
@@ -345,11 +345,11 @@ public class WallLinePlacer
         BuildingData data = BuildingDatabase.Instance.GetBuildingData(owner.selectedBuildingType);
         if (data == null || data.constructionSitePrefab == null) return;
 
-        // Collect valid (non-occupied) positions
+        // Collect valid (non-occupied, buildable-ground) positions
         List<Vector3> validPositions = new List<Vector3>();
         for (int i = 0; i < wallLinePositions.Count; i++)
         {
-            if (!HasWallAtPosition(wallLinePositions[i]))
+            if (!CellBlocked(wallLinePositions[i]))
             {
                 validPositions.Add(wallLinePositions[i]);
             }
@@ -377,9 +377,11 @@ public class WallLinePlacer
         // Place construction sites at each valid position (rotation auto-determined by WallGrid)
         for (int i = 0; i < validPositions.Count; i++)
         {
+            Vector3 sitePos = validPositions[i];
+            sitePos.y = owner.GroundYAt(sitePos) + owner.placementHeight;
             GameObject constructionSite = Object.Instantiate(
                 data.constructionSitePrefab,
-                validPositions[i],
+                sitePos,
                 Quaternion.identity
             );
 
@@ -449,6 +451,14 @@ public class WallLinePlacer
         Material mat = new Material(Shader.Find("Sprites/Default"));
         mat.color = wallGhostColor;
         return mat;
+    }
+
+    // A cell can't take a wall if it's occupied or (terrain) the ground
+    // there is underwater / a cliff face
+    bool CellBlocked(Vector3 position)
+    {
+        if (HasWallAtPosition(position)) return true;
+        return TerrainGrid.Instance != null && !TerrainGrid.Instance.IsBuildable(position);
     }
 
     // Check if a wall or construction site already exists at this exact grid position

@@ -78,8 +78,10 @@ public class WallConnector : MonoBehaviour
         // Reset localScale — the procedural mesh has correct dimensions baked in
         transform.localScale = Vector3.one;
 
-        // Set Y slightly above 0 to avoid ground z-fighting
-        transform.position = new Vector3(transform.position.x, Y_OFFSET, transform.position.z);
+        // Set Y slightly above the ground to avoid z-fighting (terrain height
+        // at this cell when the island terrain exists, 0 on the flat world)
+        float groundY = TerrainGrid.Instance != null ? TerrainGrid.Instance.SampleHeight(transform.position) : 0f;
+        transform.position = new Vector3(transform.position.x, groundY + Y_OFFSET, transform.position.z);
 
         // Set up MeshFilter on root
         meshFilter = GetComponent<MeshFilter>();
@@ -99,9 +101,13 @@ public class WallConnector : MonoBehaviour
             meshRenderer.material.color = isStoneWall ? new Color(0.6f, 0.6f, 0.6f) : new Color(0.55f, 0.35f, 0.15f);
         }
 
-        // Snap to grid
+        // Snap to grid (y = terrain height at the snapped cell + lift)
         gridPos = WallGrid.Instance.WorldToGrid(transform.position);
         Vector3 snapped = WallGrid.Instance.GridToWorld(gridPos, Y_OFFSET);
+        if (TerrainGrid.Instance != null)
+        {
+            snapped.y = TerrainGrid.Instance.SampleHeight(snapped) + Y_OFFSET;
+        }
         transform.position = snapped;
 
         // Set initial isolated shape

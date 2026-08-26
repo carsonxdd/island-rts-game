@@ -122,6 +122,18 @@ public class EnemySpawner : MonoBehaviour
             Mathf.Sin(angle * Mathf.Deg2Rad) * distance
         );
 
+        // Terrain (T1): stand on the island surface, snapped to the NavMesh
+        // so no one spawns hovering over deep water or inside a slope
+        if (TerrainGrid.Instance != null)
+        {
+            position.y = TerrainGrid.Instance.SampleHeight(position) + 0.1f;
+            UnityEngine.AI.NavMeshHit navHit;
+            if (UnityEngine.AI.NavMesh.SamplePosition(position, out navHit, 8f, UnityEngine.AI.NavMesh.AllAreas))
+            {
+                position = navHit.position;
+            }
+        }
+
         return position;
     }
 
@@ -174,6 +186,22 @@ public class EnemySpawner : MonoBehaviour
     {
         return currentNight;
     }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    /// <summary>
+    /// Debug-menu hook: spawn a wave right now, scaled as if it were at
+    /// least night 1. currentNight is restored immediately — StartSpawning
+    /// computes the count synchronously (the Invokes only stagger the
+    /// per-enemy instantiation), so real night scaling is unaffected.
+    /// </summary>
+    public void DebugSpawnWave()
+    {
+        int saved = currentNight;
+        currentNight = Mathf.Max(1, currentNight);
+        StartSpawning();
+        currentNight = saved;
+    }
+#endif
 
     // Debug visualization
     void OnDrawGizmosSelected()

@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.UI;
 using TMPro;
+using System.Collections;
 
 /// <summary>
 /// Phases of the opening sequence. Colony == normal gameplay (everything
@@ -223,7 +224,8 @@ public class GameStartController : MonoBehaviour
         if (RaycastGround(out point))
         {
             ghostTarget = GridSnap.SnapXZ(point, cellSize);
-            ghostTarget.y = 0f;  // campfire art is base-pivot: sits on the ground
+            // Base-pivot art: sits on the ground (terrain height when the island exists)
+            ghostTarget.y = TerrainGrid.Instance != null ? TerrainGrid.Instance.SampleHeight(ghostTarget) : 0f;
         }
 
         ghost.transform.position = Vector3.Lerp(ghost.transform.position, ghostTarget, ghostFollowSpeed * Time.deltaTime);
@@ -248,9 +250,16 @@ public class GameStartController : MonoBehaviour
 
     bool IsValidCampfireSpot(Vector3 pos)
     {
-        // Dry land only (outside is the beach/wading band and open water)
-        if (Mathf.Abs(pos.x) > dryLandExtent || Mathf.Abs(pos.z) > dryLandExtent)
+        // Dry land only. With terrain: above water on gentle ground; legacy
+        // flat world: inside the square the ocean frame surrounds
+        if (TerrainGrid.Instance != null)
+        {
+            if (!TerrainGrid.Instance.IsBuildable(pos)) return false;
+        }
+        else if (Mathf.Abs(pos.x) > dryLandExtent || Mathf.Abs(pos.z) > dryLandExtent)
+        {
             return false;
+        }
 
         // Must be near the survivor — he builds it where he stands
         if (survivor != null)
@@ -363,6 +372,60 @@ public class GameStartController : MonoBehaviour
         Debug.Log("GameStartController: Campfire lit — the colony begins.");
     }
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    /// <summary>
+    /// Debug-menu hook: instantly finish the opening — campfire placed (at
+    /// the survivor if he's on dry land, else the skipIntro position) and
+    /// the colony started. No-op once the colony is running.
+    /// </summary>
+    public void DebugForceColonyStart()
+    {
+        if (phase == GamePhase.Colony) return;
+        StartCoroutine(DebugForceColonyRoutine());
+    }
+
+    IEnumerator DebugForceColonyRoutine()
+    {
+        // Drop any in-progress placement ghost
+        if (ghost != null)
+        {
+            Destroy(ghost);
+            ghost = null;
+            ghostMaterials = null;
+        }
+
+        if (placedCampfire == null)  // Settling phase already has one
+        {
+            Vector3 pos = skipIntroCampfirePosition;
+            if (survivor != null)
+            {
+                Vector3 sp = survivor.transform.position;
+                bool onGoodGround = TerrainGrid.Instance != null
+                    ? TerrainGrid.Instance.IsBuildable(sp)
+                    : (Mathf.Abs(sp.x) <= dryLandExtent && Mathf.Abs(sp.z) <= dryLandExtent);
+                if (onGoodGround)
+                {
+                    pos = GridSnap.SnapXZ(sp, cellSize) + new Vector3(2f, 0f, 0f);
+                }
+            }
+            SpawnCampfire(pos);
+
+            // Park in Settling (stops Landing/Placing input); the deadline is
+            // pushed out so this routine — not UpdateSettling's timeout —
+            // finishes the job. If the survivor happens to already be at the
+            // fire, UpdateSettling starting the colony first is fine too.
+            phase = GamePhase.Settling;
+            settleDeadline = float.MaxValue;
+
+            // BaseBuilding.Start (housing registration) must run before
+            // StartColony's AssignWorker, or the first worker silently fails
+            yield return null;
+        }
+
+        if (phase != GamePhase.Colony) StartColony();
+    }
+#endif
+
     // ------------------------------------------------------------------
     // Campfire spawning (shared by intro placement and skipIntro)
     // ------------------------------------------------------------------
@@ -375,7 +438,7 @@ public class GameStartController : MonoBehaviour
             return;
         }
 
-        position.y = 0f;
+        position.y = TerrainGrid.Instance != null ? TerrainGrid.Instance.SampleHeight(position) : 0f;
         GameObject fire = Instantiate(campfirePrefab, position, Quaternion.identity);
         fire.name = "Campfire";
 
@@ -454,6 +517,17 @@ public class GameStartController : MonoBehaviour
         if (mainCam == null) return false;
 
         Ray ray = mainCam.ScreenPointToRay(Input.mousePosition);
+
+        // Physics first so clicks land on the actual terrain surface (a math
+        // plane at y=0 would offset clicks on hills); Default layer = ground
+        RaycastHit hitInfo;
+        if (Physics.Raycast(ray, out hitInfo, 1000f, 1))
+        {
+            point = hitInfo.point;
+            return true;
+        }
+
+        // Fallback: plane at sea level (off-map clicks, legacy flat world)
         Plane ground = new Plane(Vector3.up, Vector3.zero);
         float dist;
         if (ground.Raycast(ray, out dist))

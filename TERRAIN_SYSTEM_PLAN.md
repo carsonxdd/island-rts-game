@@ -1,6 +1,10 @@
 # Terrain System Plan — Dynamic Island Terrain
 
-**Status: DESIGN — locked decisions, not yet implemented.**
+**Status: T1 IMPLEMENTED (2026-08-25) — pending editor setup run + playtest; T2–T4 not started.**
+T1 code: `Assets/Scripts/Terrain/` (`TerrainGrid`, `IslandGenerator`) + `Assets/Editor/TerrainSetup.cs`.
+Apply with `Tools > Island RTS > Terrain > Setup Terrain Scene (T1)` — run AFTER the Opening Sequence setup.
+One deviation from the staging table: the deep-water NotWalkable volume (a T3 item) ships in T1, because
+without it the runtime NavMesh would cover the seabed and units could walk across the ocean.
 Companion to `PHASE_10_VISUAL_OVERHAUL.md`. This doc is the source of truth for the terrain
 system; the CLAUDE.md Phase History entry is a summary.
 

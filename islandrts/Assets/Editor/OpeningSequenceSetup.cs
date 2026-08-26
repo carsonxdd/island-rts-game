@@ -232,7 +232,7 @@ public static class OpeningSequenceSetup
         }
     }
 
-    private static Material EnsureWaterMaterial(StringBuilder summary)
+    internal static Material EnsureWaterMaterial(StringBuilder summary)
     {
         Material mat = AssetDatabase.LoadAssetAtPath<Material>(WaterMaterialPath);
         if (mat != null) return mat;
@@ -265,6 +265,15 @@ public static class OpeningSequenceSetup
     private static void BuildOcean(Material water, StringBuilder summary)
     {
         DestroyExisting("_Ocean");
+
+        // The terrain system replaces the flat-world ocean frame with a real
+        // runtime water plane — don't rebuild the frame once terrain exists
+        if (Object.FindAnyObjectByType<TerrainGrid>() != null)
+        {
+            summary.AppendLine("    _Ocean skipped (terrain system present — water is a runtime plane now)");
+            return;
+        }
+
         if (water == null) return;
 
         GameObject root = new GameObject("_Ocean");

@@ -139,11 +139,12 @@ public class ResourceSpawner : MonoBehaviour
                 Vector3 treePos = clusterCenter + offset;
                 treePos.y = spawnHeight;
 
-                // Clamp within spawn area
+                // Clamp within spawn area, sit on the ground
                 treePos.x = Mathf.Clamp(treePos.x, spawnAreaMin.x, spawnAreaMax.x);
                 treePos.z = Mathf.Clamp(treePos.z, spawnAreaMin.y, spawnAreaMax.y);
+                treePos.y = GroundY(treePos);
 
-                // Validate: not too close to other trees, not on buildings
+                // Validate: on good ground, not too close to other trees, not on buildings
                 if (IsPositionValidForTree(treePos))
                 {
                     GameObject spawnedNode = Instantiate(treePrefab, treePos, Quaternion.identity);
@@ -178,6 +179,8 @@ public class ResourceSpawner : MonoBehaviour
                 spawnHeight,
                 Random.Range(spawnAreaMin.y, spawnAreaMax.y)
             );
+            randomPos.y = GroundY(randomPos);
+            if (!IsTerrainOk(randomPos)) continue;
 
             // Must be away from campfire
             if (Vector3.Distance(randomPos, campfirePosition) < minDistanceFromCampfire)
@@ -234,6 +237,8 @@ public class ResourceSpawner : MonoBehaviour
                 spawnHeight,
                 Random.Range(spawnAreaMin.y + clusterRadius, spawnAreaMax.y - clusterRadius)
             );
+            candidate.y = GroundY(candidate);
+            if (!IsTerrainOk(candidate)) continue;
 
             // Must be far from campfire
             if (Vector3.Distance(candidate, campfirePosition) < minClusterDistFromCampfire)
@@ -268,6 +273,10 @@ public class ResourceSpawner : MonoBehaviour
 
     bool IsPositionValidForTree(Vector3 position)
     {
+        // Terrain first — no trees in the water or on cliff faces
+        if (!IsTerrainOk(position))
+            return false;
+
         // Check distance from campfire
         if (Vector3.Distance(position, campfirePosition) < minDistanceFromCampfire)
             return false;
@@ -308,6 +317,8 @@ public class ResourceSpawner : MonoBehaviour
                 spawnHeight,
                 Random.Range(spawnAreaMin.y, spawnAreaMax.y)
             );
+            randomPos.y = GroundY(randomPos);
+            if (!IsTerrainOk(randomPos)) continue;
 
             // Check if position is far enough from other resources
             if (IsPositionValid(randomPos))
@@ -329,8 +340,26 @@ public class ResourceSpawner : MonoBehaviour
         }
     }
 
+    // --- Terrain integration (T1): resources sit on and validate against the island surface ---
+
+    float GroundY(Vector3 pos)
+    {
+        return TerrainGrid.Instance != null ? TerrainGrid.Instance.SampleHeight(pos) : spawnHeight;
+    }
+
+    /// <summary>Always true on the legacy flat world. On terrain: dry land, gentle slope.</summary>
+    bool IsTerrainOk(Vector3 pos)
+    {
+        if (TerrainGrid.Instance == null) return true;
+        return TerrainGrid.Instance.SampleHeight(pos) > 0.15f && TerrainGrid.Instance.SlopeAt(pos) < 0.55f;
+    }
+
     bool IsPositionValid(Vector3 position)
     {
+        // Terrain first — no resources in the water or on cliff faces
+        if (!IsTerrainOk(position))
+            return false;
+
         // Check distance from campfire first
         float distanceFromCampfire = Vector3.Distance(position, campfirePosition);
         if (distanceFromCampfire < minDistanceFromCampfire)
@@ -479,6 +508,8 @@ public class ResourceSpawner : MonoBehaviour
                 spawnHeight,
                 Random.Range(spawnAreaMin.y, spawnAreaMax.y)
             );
+            randomPos.y = GroundY(randomPos);
+            if (!IsTerrainOk(randomPos)) continue;
 
             if (IsPositionValid(randomPos))
             {
@@ -512,6 +543,7 @@ public class ResourceSpawner : MonoBehaviour
 
             treePos.x = Mathf.Clamp(treePos.x, spawnAreaMin.x, spawnAreaMax.x);
             treePos.z = Mathf.Clamp(treePos.z, spawnAreaMin.y, spawnAreaMax.y);
+            treePos.y = GroundY(treePos);
 
             if (IsPositionValidForTree(treePos))
             {
