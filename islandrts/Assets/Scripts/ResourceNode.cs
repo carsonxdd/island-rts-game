@@ -18,6 +18,9 @@ public class ResourceNode : MonoBehaviour
     [Header("Visual Feedback")]
     public Color highlightColor = Color.yellow;
     public bool scaleWithDepletion = true;  // Shrink as resources deplete
+    public float shakeDegrees = 1f;         // Gather-shake pulse amplitude (small tree sway)
+    public float shakeFrequency = 7f;       // Wobble speed within a pulse, in Hz
+    public float shakeInterval = 1.5f;      // Seconds between shake pulses while being gathered
 
     public static IReadOnlyList<ResourceNode> ActiveList => ActiveRegistry<ResourceNode>.List;
 
@@ -30,6 +33,19 @@ public class ResourceNode : MonoBehaviour
     private List<Worker> claimedWorkers = new List<Worker>();
     private Vector3 originalScale;
     private NavMeshObstacle cachedObstacle;
+
+    // --- Gather shake: wobble the visual "Model" child while workers are chipping away ---
+    // Rotation-only, on the Model child only. The ROOT must never move/rotate: it drives
+    // the NavMeshObstacle, the gather ring, and worker anchors. Baseline is captured
+    // lazily at first shake so it composes with TreeVariance's Start-time yaw jitter.
+    private Transform shakeModel;
+    private Quaternion shakeBaseRotation;
+    private bool shakeBaselineCaptured = false;
+    private bool isShaking = false;
+    private float lastGatherTime = -999f;
+    private float pulseStartTime = -999f;  // when the current shake pulse began
+    private float nextPulseTime = 0f;      // earliest time the next pulse may fire
+    private const float PulseDuration = 0.3f;  // length of one shake pulse
 
     void Start()
     {
@@ -48,6 +64,9 @@ public class ResourceNode : MonoBehaviour
 
         // Save original scale for depletion visual
         originalScale = transform.localScale;
+
+        // Gather shake target: the plumbed art child. Null pre-plumb — shake just no-ops.
+        shakeModel = transform.Find("Model");
     }
 
     void SetupNavMeshObstacle()
@@ -93,6 +112,50 @@ public class ResourceNode : MonoBehaviour
             // Don't shrink below 50% size
             float scaleFactor = Mathf.Lerp(0.5f, 1f, percentRemaining);
             transform.localScale = originalScale * scaleFactor;
+        }
+
+        UpdateGatherShake();
+    }
+
+    /// <summary>
+    /// Short damped wobble pulse on the Model child, fired every shakeInterval seconds
+    /// while the node was gathered from in the last 0.2s (a "chop lands" beat, not a
+    /// continuous sway). The sin(pi*x) envelope starts and ends at zero so the pulse
+    /// never snaps. Restores the exact baseline rotation when the pulse ends.
+    /// Zero GC; a single transform write per frame while a pulse is playing.
+    /// </summary>
+    void UpdateGatherShake()
+    {
+        if (shakeModel == null) return;
+
+        bool beingGathered = Time.time - lastGatherTime < 0.2f;
+        if (beingGathered && Time.time >= nextPulseTime)
+        {
+            if (!shakeBaselineCaptured)
+            {
+                shakeBaseRotation = shakeModel.localRotation;
+                shakeBaselineCaptured = true;
+            }
+            pulseStartTime = Time.time;
+            nextPulseTime = Time.time + shakeInterval;
+        }
+
+        float elapsed = Time.time - pulseStartTime;
+        if (elapsed < PulseDuration)
+        {
+            isShaking = true;
+            // Envelope 0 -> 1 -> 0 across the pulse; two out-of-phase sines inside it
+            // so the wobble reads organic rather than metronomic.
+            float envelope = Mathf.Sin(Mathf.PI * (elapsed / PulseDuration)) * shakeDegrees;
+            float t = elapsed * shakeFrequency * 2f * Mathf.PI;
+            float pitch = Mathf.Sin(t) * envelope;
+            float roll = Mathf.Sin(t * 1.37f + 1.7f) * envelope;
+            shakeModel.localRotation = shakeBaseRotation * Quaternion.Euler(pitch, 0f, roll);
+        }
+        else if (isShaking)
+        {
+            shakeModel.localRotation = shakeBaseRotation;
+            isShaking = false;
         }
     }
 
@@ -230,6 +293,10 @@ public class ResourceNode : MonoBehaviour
 
         // Deplete the node
         currentAmount -= amountGathered;
+
+        // Feed the gather-shake (workers gather incrementally every frame, so this
+        // stays fresh for as long as anyone is actively working the node)
+        lastGatherTime = Time.time;
 
         // Destroy node if empty
         if (currentAmount <= 0.01f)  // Small threshold for floating point
