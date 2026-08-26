@@ -79,6 +79,8 @@ V:/islandrtsgame/                    # Repository root
 | `CameraController.cs` | WASD pan, Q/E rotate, scroll zoom (orthographic) |
 | `CameraShake.cs` | Combat shake, pure offset approach (no stored position) |
 | `AudioManager.cs` | Singleton: music, SFX, ambient, crossfades |
+| `GameStartController.cs` | Opening sequence: survivor landing → campfire placement → colony start |
+| `Survivor.cs` | Click-move castaway, exists only during the opening |
 
 ---
 
@@ -190,7 +192,7 @@ Phase 10 spec is in `PHASE_10_VISUAL_OVERHAUL.md`. Stage 1 (post-processing + li
 - **`CombatEffects.FadeOutUnit` needs `GetComponentInChildren`,** since art lives on a `Model` child and the unit root has no Renderer of its own.
 - **Ghost prefabs take the art MESH on their root renderer, not a `Model` child.** That keeps `BuildPlacement`'s `currentGhost.GetComponent<Renderer>()` valid and lets every submesh slot be filled with the translucent `Mat_Ghostbuilding` — a nested art prefab would drag its opaque LP materials in and the ghost would render solid. Wall ghosts are exempt: `WallLinePlacer` builds those procedurally, so `WoodenWallGhost`/`StoneWallGhost` prefabs are never instantiated.
 - **`ResourceNode.SetupNavMeshObstacle()` overwrites shape/radius/height at runtime**, so serialized `NavMeshObstacle` values on Tree/RockNode/BerryBush prefabs are dead data — editing them does nothing. But obstacle radius/height *are* scaled by the transform, so changing a resource prefab's root scale silently resizes its avoidance volume. Taking `Tree` from 0.5 → 1 moved its effective obstacle from r0.4/h1.0 to the intended r0.8/h2.0.
-- **`MainIsland` overrides the campfire's `NavMeshObstacle` extents per-instance** (0.6/0.5/0.6). Prefab-level carve edits never reach the scene's campfire — change it on the scene instance or not at all.
+- **`MainIsland` overrides the campfire's `NavMeshObstacle` extents per-instance** (0.6/0.5/0.6). Prefab-level carve edits never reach the scene's campfire — change it on the scene instance or not at all. **Superseded by Opening Sequence Stage 1:** the setup tool applies the scene overrides (added `BaseBuilding`, carve extents, trigger flags) INTO `Campfire.prefab` and deletes the scene instance — after running it, the campfire is runtime-spawned and the prefab is the single source of truth.
 
 ## Key Conventions
 
@@ -258,7 +260,8 @@ Ask: "would this log spam the console during a normal 5-minute play session?" If
 1. Open `islandrts/` folder in Unity Hub (Unity 6000.5.9f1)
 2. Open scene: `Assets/MainIsland.unity` (**not** `Assets/Scenes/SampleScene.unity` — that is the leftover stock Unity scene, 3 objects, and is not the game)
 3. Press Play
-4. Click campfire to assign workers, press B to build, recruit warriors before nightfall
+4. Opening: right-click to walk the survivor ashore, press B to place the campfire (free, one-time)
+5. Click campfire to assign workers, press B to build, recruit warriors before nightfall
 
 ## Controls
 
@@ -275,6 +278,8 @@ Ask: "would this log spam the console during a normal 5-minute play session?" If
 | Delete / X | Demolish mode (50% refund) |
 | F3 | AI debug overlay (editor only) |
 | Click campfire | Worker assignment UI |
+| Right-click (opening) | Move the survivor |
+| B (opening) | Place the campfire (Esc / right-click cancels) |
 
 ---
 
@@ -298,11 +303,12 @@ Ask: "would this log spam the console during a normal 5-minute play session?" If
 - Zero GC in hot paths, staggered AI evaluation
 
 **What's next (immediate):**
+- **Opening Sequence Stage 1 needs its editor setup run + playtest:** in Unity run `Tools > Island RTS > Opening Sequence > Setup Opening Scene`, then Play (see the Opening Sequence Stage 1 entry in Phase History). Until the menu item is run, the scene is untouched and the game starts the classic way.
 - Playtest Phase 6.24 refactors + the Unity 6000.5.9f1 upgrade + Phase 6.25 targeting/spacing changes (see checklists in Phase History — the 6.25 list stacks on 6.24's).
-- Run `Tools > Island RTS > Low-Poly Templates > Generate All Assets` (regenerates the Stage 2c simplified shapes), then `Plumb Everything` + `Scatter Environment Props`, re-bake the NavMesh, then playtest Phase 10 Stage 2a/2b/2c.
+- Run `Tools > Island RTS > Low-Poly Templates > Generate All Assets` (regenerates the Stage 2c simplified shapes), then `Plumb Everything` + `Scatter Environment Props`, re-bake the NavMesh, then playtest Phase 10 Stage 2a/2b/2c. **Run the Low-Poly steps BEFORE the Opening Sequence setup** — the setup tool consumes the art library (campfire mesh, Worker art prefab, LP materials).
 
 **What's next (future phases):**
-- Phase 7: Builders (construction + repair labor — see the Phase 7 design sketch in Phase History), building upgrades (campfire -> fortress), workshop, storage
+- Phase 7 (REVISED 2026-08-25): Jobless generalist colonists — colonists spawn without a job, wander, collect ground pickups (sticks/rocks carried to the campfire), and build/repair when sites exist; assigning a gathering job specializes them (replaces the dedicated Builder unit — see the revision note in the Phase 7 sketch). Plus building upgrades (hut -> house, campfire -> fortress), workshop, storage
 - Phase 8: Worker night hide behavior, archer units
 - Phase 9: Player character (Admiral), crafting, tech tree
 - Phase 10: Visual overhaul — Stage 1 (post-processing + lighting presets) shipped; Stages 2-5 (asset swap, water shader, lighting bake) ahead
@@ -491,8 +497,10 @@ Playtest (stacks on 6.24/6.25): deliverers flow around idlers at the campfire in
 
 Decided 2026-08-24 (user picked all three recommended options). Builders join Phase 7 alongside building upgrades / workshop / storage.
 
-**Core decisions (locked):**
-1. **Dedicated Builder unit** — fourth `UnitBase<Builder>` (CRTP keeps its own `ActiveRegistry`), recruited at the campfire like warriors. NOT a worker job assignment.
+> ⚠️ **REVISED 2026-08-25 (during Opening Sequence planning):** decision 1 is replaced — there is **no dedicated Builder unit**. Colonists spawn **jobless** and act as generalists: they wander, pick up small ground items (sticks/rocks — future slice, delivered to the campfire like normal gathering), and automatically build/repair when construction sites or damaged buildings exist. Assigning a colonist to a gathering job specializes them; unassigned = builder/collector. Decisions 2 (construction requires labor) and 3 (repair costs resources) stand, executed by jobless colonists. The implementation-shape notes below still apply to the jobless-colonist AI (Build/Repair/Flee/Idle actions, edge-distance interactions, AINavHelper, crowd avoidance roles).
+
+**Core decisions (as originally locked — item 1 superseded by the revision above):**
+1. ~~**Dedicated Builder unit**~~ — ~~fourth `UnitBase<Builder>` (CRTP keeps its own `ActiveRegistry`), recruited at the campfire like warriors. NOT a worker job assignment.~~ → **Jobless generalist colonists** (see revision note).
 2. **Construction requires a builder.** `ConstructionSite.progress` advances only while ≥1 builder is working it — the current 5s auto-complete becomes builder labor. Placement becomes logistics; mid-siege walls need protecting.
 3. **Repair costs a resource fraction** — proportional to HP restored, ~25% of build cost for a full repair, drawn incrementally as HP ticks up; repair pauses (doesn't cancel) when the pool runs dry.
 
@@ -687,3 +695,30 @@ Also: Unity 6.5 emits a new-format `islandrts.slnx` solution file. `.gitignore` 
 > ⚠️ **`EditorBuildSettings.asset` still lists only `Assets/Scenes/SampleScene.unity`.** Left alone deliberately — changing which scene ships in a build is a project decision, not a doc fix. **A build made right now would ship the empty scene.** Fix via *File > Build Profiles* (add `MainIsland`, remove/disable `SampleScene`) before building anything.
 
 **Playtest checklist:** the Phase 6.24 checklist now covers both the refactors and the engine upgrade — worker gather/return/deliver and flee; wall line drawing (L-path, Shift staircase, R toggle, G gate-convert); single-building placement / rotate / cancel / type-switch; demolish mode; day-night music + ambient crossfades. On top of that, verify specifically for the upgrade: post-processing still reads correctly (Bloom on the HDR-emissive campfire, no blown-out vignette or tonemap shift from URP 17.5), the day/night `LightingPreset` lerp still drives sun + ambient, NavMesh agents still path (AI Navigation 2.0.14), and TextMeshPro UI still renders (uGUI 2.0.0 → 2.5.0 is the largest single package jump).
+
+### Opening Sequence Stage 1 (Survivor Landing — ⚠️ NEEDS EDITOR SETUP RUN + PLAYTEST)
+
+The game now opens with the story beat instead of a pre-placed base (2026-08-25): a lone survivor stands in the shallows beside his shipwreck, the player right-clicks him ashore, presses **B** to place the campfire (free, one-time, must be within 6u of the survivor), and the survivor walks to the fire and settles in as the colony's first worker (auto-assigned Wood via the normal `AssignWorker` path). Then normal gameplay begins. Playable from second one — no cutscene; a cinematic camera pass can layer on later. Compile-verified vs 6000.5.9f1 Roslyn (93 scripts, with and without `UNITY_EDITOR`): **0 errors, 0 warnings.**
+
+**User decisions (locked via 4-option questions):** opening sequence first (before pickups/upgrades); playable from the water (no scripted cutscene); jobless colonists replace the dedicated Phase 7 Builder (see the Phase 7 revision note); ground pickups will be carried to the campfire (future slice).
+
+**New runtime files:**
+- `GameStartController.cs` — phase machine `Landing → PlacingCampfire → Settling → Colony` (`GamePhase` enum). Statics: `Phase` (returns `Colony` when no controller exists — old scenes keep working), `IntroInProgress`, `OnColonyStarted` event. During the intro it disables `BuildPlacement`, holds `DayNightCycle.clockPaused = true` (night 1 can never arrive early), spawns the survivor, shifts the camera (XZ view-center delta — rotation-agnostic, CameraShake-safe), and shows a runtime-created TMP hint overlay (no scene wiring). Campfire placement is a bespoke mini-placer (grid-snap + lerp follow + `RendererTint` validity tint, same feel as `GhostPlacer`) — the campfire is deliberately NOT in `BuildingType`/`BuildingDatabase`, so the build menu can never produce a second one. Validity: within `maxPlaceDistance` (6) of the survivor, |x|,|z| ≤ `dryLandExtent` (42), on the NavMesh, ≥3u from every ResourceNode. On placement it wires `BaseBuilding.workerUI` + `GameManager.campfire` (scene-only refs a prefab can't carry), sends the survivor to the fire via `TargetingUtil.GetApproachPoint` and waits on `EdgeDistance` (carve-safe, 8s failsafe), then unpauses the clock, re-enables BuildPlacement, assigns the first worker, destroys the survivor. `skipIntro` toggle replicates the classic start exactly (campfire spawned in `Awake` at a configurable position so every `Start()`-time lookup finds it, no survivor, clock running).
+- `Survivor.cs` — minimal click-move castaway: NavMeshAgent (worker locomotion values), `MoveTo` with `NavMesh.SamplePosition` snap (4u — clicks in the shallows land on walkable ground), destinations through `AINavHelper.TrySetDestination` honoring the bool with retry-next-frame. Deliberately NO Health / AI / registry — nothing targets or counts him.
+
+**Edits:** `DayNightCycle` gains `clockPaused` (freezes time accumulation; lighting still updates every frame — intro is lit at dawn, `currentTimeOfDay` 0.25). `ResourceSpawner` quietly uses origin as spawn center when `GameStartController.IntroInProgress` (campfire intentionally absent — the placer keeps clearance from nodes instead of the reverse; the old warning still fires when there's no controller at all).
+
+**New editor tool `Assets/Editor/OpeningSequenceSetup.cs`** — `Tools > Island RTS > Opening Sequence > Setup Opening Scene`, idempotent, nothing changes until it's run:
+1. **Campfire → runtime prefab.** Records the scene campfire's `workerUI` ref, nulls it, `PrefabUtility.ApplyPrefabInstance` (bakes the scene-added `BaseBuilding` + NavMeshObstacle carve extents 0.6/0.5/0.6 + trigger flags INTO `Campfire.prefab`), deletes the scene instance. This retires the old "scene overrides the campfire carve" gotcha — the prefab is now the single source of truth.
+2. Builds `CampfireGhost.prefab` (art mesh on ROOT renderer + one `Mat_Ghostbuilding` per submesh — house ghost pattern) and `Survivor.prefab` (agent + `Survivor` + nested art `Units/Worker.prefab` as `Model` child).
+3. Creates `Mat_Water` (URP Lit transparent blue — placeholder until the Stage 3 water shader) and an `_Ocean` frame: 4 collider-less quads at y=0.12, inner edge ±44 — the outer ~6u of the 100×100 ground reads as a shallow wading band. NOT static (water stays real-time).
+4. Builds `_Shipwreck` at (-47, 0, 3) (west shore, half in the wading band): broken hull + mast + sail from primitives with LP materials, plus Crate/Barrel/DriftwoodLog art prefab instances. No colliders (never blocks pathing/clicks/bake), scatter-style static flags.
+5. Creates the wired `GameStart` object (+`SurvivorSpawn` child at (-45, 0, 2)), clears the dangling `GameManager.campfire` scene ref, saves the scene.
+
+**Startup contract (the load-bearing bit):** everything that used to assume a campfire at frame 0 now tolerates its absence — `GameManager.Update` already null-guarded (controller assigns on placement), `AIWorldState.UpdateCampfireState` polls `BaseBuilding.ActiveList` every frame (picks the spawned one up automatically), `ResourceSpawner` handled above, `EnemySpawner`/warrior-heal are event/registry driven and can't fire before the clock runs. **If a future system caches the campfire in `Start()`, it must subscribe to `GameStartController.OnColonyStarted` or poll the registry.**
+
+**Gotcha (compile tooling):** the Roslyn verify recipe breaks on the editor install path containing a space (`D:\Programs\unity editor\...`) — `-r:` lines in the .rsp must be quoted or csc parses the post-space fragment as a source file (CS2001 spam).
+
+**Playtest checklist (after running the setup menu item — run `Low-Poly Templates > Generate All Assets` + `Plumb Everything` FIRST, the setup tool consumes the art library):** camera opens framed on the survivor at the west-shore wreck standing in shallow water; right-click moves him (into and out of the wading band); day/night clock frozen at dawn until placement (check the Day/Time debug label holds); B shows the campfire ghost — red in water/far from survivor/on a resource node, green on clear dry land near him; Esc/right-click cancels; click places → placement sound, survivor walks to the fire, ~1s later he despawns and a wood worker spawns (population 1/3), clock starts, hints fade; clicking the campfire opens the assignment panel; B now opens the normal build menu; night 1 raid targets the placed campfire; restart (defeat → restart button) replays the intro cleanly. Also verify the classic path: tick `skipIntro` on `GameStart` → campfire at origin from frame 0, no survivor, no regressions. Known cosmetics: the survivor uses unmodified Worker art; the wreck is primitives + props (a bespoke LP shipwreck asset can replace it later).
+
+**Follow-up slices agreed with the user (in order):** ground pickups (sticks/rocks scattered on the island, small wood/stone value, carried to the campfire), jobless-colonist system (wander + collect pickups + build/repair — the Phase 7 revision), hut → house upgrades (framework for building tiers).

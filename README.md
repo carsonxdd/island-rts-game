@@ -4,7 +4,7 @@ A Unity-based real-time strategy survival game. Manage autonomous workers, gathe
 
 **Genre:** Top-down RTS + Survival  
 **Setting:** Age of Sail shipwreck on an uncharted island  
-**Status:** Playable alpha (Phase 6.26) — Phase 10 Stage 2 (low-poly art) in progress: the simplified template-style art library has been regenerated and re-plumbed onto the gameplay prefabs in-editor; environment scatter, NavMesh re-bake, and the playtest are still pending. Now on Unity 6000.5.9f1; Phases 6.24–6.26 are committed but still awaiting a playtest.
+**Status:** Playable alpha (Phase 6.26 + Opening Sequence Stage 1) — the game now opens with the story beat: a lone survivor wades ashore from the shipwreck and places the campfire himself (scripts are in; run `Tools > Island RTS > Opening Sequence > Setup Opening Scene` once in the editor to apply it — until then the classic instant-campfire start is unchanged). Phase 10 Stage 2 (low-poly art) in progress: the simplified template-style art library has been regenerated and re-plumbed onto the gameplay prefabs in-editor; environment scatter, NavMesh re-bake, and the playtest are still pending. Now on Unity 6000.5.9f1; Phases 6.24–6.26 and the opening sequence are committed but still awaiting a playtest.
 
 ---
 
@@ -19,10 +19,13 @@ A Unity-based real-time strategy survival game. Manage autonomous workers, gathe
 
 ### First Game
 
-1. Click the campfire to assign 5-6 workers (wood + food)
-2. Press **B** to build — place 1-2 Huts for housing
-3. Recruit 2-3 warriors before nightfall
-4. Survive 5 nights to win
+1. Opening: **right-click** to walk your survivor ashore, then press **B** and click to place the campfire (free, must be near him — he becomes your first worker)
+2. Click the campfire to assign 5-6 workers (wood + food)
+3. Press **B** to build — place 1-2 Huts for housing
+4. Recruit 2-3 warriors before nightfall
+5. Survive 5 nights to win
+
+> The opening plays only after the one-time editor setup (`Tools > Island RTS > Opening Sequence > Setup Opening Scene`, run **after** `Low-Poly Templates > Generate All Assets` + `Plumb Everything`). A `skipIntro` toggle on the `GameStart` object restores the classic instant start.
 
 ---
 
@@ -40,6 +43,8 @@ A Unity-based real-time strategy survival game. Manage autonomous workers, gathe
 | **Shift** (hold) | Diagonal wall path |
 | **Delete / X** | Demolish building (50% resource refund) |
 | **F3** | AI debug overlay (editor only) |
+| **Right-click** (opening) | Move the survivor |
+| **B** (opening) | Place the campfire (Esc / right-click cancels) |
 
 ---
 
@@ -136,6 +141,7 @@ All units (Workers, Warriors, Enemies) use a **scoring-based Utility AI** — no
 
 | System | Description |
 |--------|-------------|
+| **Opening** | Survivor lands at the wreck, walks ashore, places the campfire (day/night clock held until it's lit). |
 | **Economy** | Wood, food, stone. Workers gather autonomously. Carry capacity 5, 1/sec rate. |
 | **Building** | Hut (housing), Wooden/Stone Wall, Gate, Watchtower. Construction sites auto-complete. |
 | **Combat** | Warriors auto-engage enemies. Watchtowers buff nearby warrior damage 1.25x. |
@@ -163,7 +169,9 @@ Everything else (per-unit spawn/death, per-damage, per-resource tick, per-button
 
 For detailed technical documentation, AI system internals, balancing data, phase history, and gotchas, see [`.claude/CLAUDE.md`](.claude/CLAUDE.md).
 
-Latest: **Phase 6.26 (worker crowd interaction)** — workers now switch ORCA avoidance roles by state: a stationary worker (gathering, idle, sheltering) becomes max-importance so movers route around it like furniture instead of shoving it (a stander has no path and can't yield), and every moving errand re-rolls a random priority band so meeting workers never tie. Gatherers also get a rubber band — if the crowd nudges one off its spot it walks back and freezes again — and worker avoidance quality went Med → High to kill the head-on side-step dance. Fixes campfire delivery jams. Also planned: **Phase 7 gains Builders** — a dedicated unit that will do construction (replacing timed auto-build) and repair (costing a fraction of build cost); design sketch in [`.claude/CLAUDE.md`](.claude/CLAUDE.md).
+Latest: **Opening Sequence Stage 1 (survivor landing)** — the game start is now the story beat: a lone castaway stands in the shallows beside a shipwreck set piece on the west shore, the player right-clicks him ashore and places the campfire near him (free, one-time, bespoke placer — the campfire is deliberately not in the build menu), and he settles in as the colony's first worker before normal gameplay begins. The day/night clock is frozen at dawn until the fire is lit. A one-time editor tool (`Tools > Island RTS > Opening Sequence > Setup Opening Scene`) applies it: converts the scene campfire into a runtime-spawned prefab, builds the Survivor and campfire-ghost prefabs, and dresses the scene with a shallow-water ocean frame and the wreck. `skipIntro` on the `GameStart` object restores the classic start. Also decided: **Phase 7's dedicated Builder unit is replaced by jobless generalist colonists** — colonists without a job will wander, pick up ground items (sticks/rocks, a coming slice), and build/repair when needed; assigning a gathering job specializes them.
+
+Before that: **Phase 6.26 (worker crowd interaction)** — workers now switch ORCA avoidance roles by state: a stationary worker (gathering, idle, sheltering) becomes max-importance so movers route around it like furniture instead of shoving it (a stander has no path and can't yield), and every moving errand re-rolls a random priority band so meeting workers never tie. Gatherers also get a rubber band — if the crowd nudges one off its spot it walks back and freezes again — and worker avoidance quality went Med → High to kill the head-on side-step dance. Fixes campfire delivery jams.
 
 Before that: **Phase 6.25 + night moonlight** — targeting logic unified onto shared code: `TargetingUtil` (`FindNearest` / `GetApproachPoint` / `EdgeDistance`), an `ITargetable` interface on every unit and building, and single-owner target bookkeeping on `AIBlackboard` (`SetTarget` / `ClearTarget` / `IsTargetAlive`). Worker spacing tightened (agent radius 0.3, derived gather-ring slots, edge-based campfire delivery). Night lighting reworked: the directional light now holds a fixed moon pose at night — the sun sweep otherwise points below the horizon, which is why night used to be pitch black — with a retuned cool-blue `NightPreset` and soft half-strength moon shadows. The build grid overlay now starts hidden (G toggles it). Pending playtest.
 
@@ -176,7 +184,7 @@ In progress: **Phase 6.24** (queued refactors — *committed, still pending play
 Recent: **Phase 6.23** (code health pass) — fixed four population/housing bookkeeping bugs and a warrior-heal stuck state, eliminated all `FindObjectsByType` scene scans, added UI dirty-checking, deduplicated the warrior enemy scan (~4x fewer list scans per AI tick), and removed ~20 dead members plus two leftover test scripts. The project compiles with zero warnings.
 
 Future roadmap:
-- **Phase 7:** Builders (dedicated unit that constructs and repairs the fort — construction will require builder labor, repair costs a fraction of build cost), building upgrades, workshop, storage
+- **Phase 7 (revised):** Jobless generalist colonists — unassigned colonists wander, collect ground pickups (sticks/rocks carried to the campfire), and construct/repair buildings (construction will require their labor, repair costs a fraction of build cost); assigning a gathering job specializes them. Plus building upgrades (hut → house, campfire → fortress), workshop, storage
 - **Phase 8:** Worker night hide behavior, archer units
 - **Phase 9:** Player character (Admiral), crafting, tech tree
 - **Phase 10: Visual Overhaul** — stylized low-poly tropical aesthetic in the Bad North / Townscaper / Islanders family. Five stages:

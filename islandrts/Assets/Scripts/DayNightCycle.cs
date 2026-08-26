@@ -30,6 +30,10 @@ public class DayNightCycle : MonoBehaviour
     public bool isNight = false;
     public int currentDay = 1;
 
+    [Header("Clock Control")]
+    [Tooltip("While true, time of day is frozen (lighting still updates every frame). The opening sequence holds this until the campfire is placed.")]
+    public bool clockPaused = false;
+
     // Private
     private float timeSpeed;
     private bool wasNight = false;
@@ -74,14 +78,17 @@ public class DayNightCycle : MonoBehaviour
 
     void Update()
     {
-        // Update time of day
-        currentTimeOfDay += timeSpeed * Time.deltaTime;
-
-        // Wrap around at end of day
-        if (currentTimeOfDay >= 1f)
+        // Update time of day (frozen while the opening sequence holds the clock)
+        if (!clockPaused)
         {
-            currentTimeOfDay = 0f;
-            currentDay++;
+            currentTimeOfDay += timeSpeed * Time.deltaTime;
+
+            // Wrap around at end of day
+            if (currentTimeOfDay >= 1f)
+            {
+                currentTimeOfDay = 0f;
+                currentDay++;
+            }
         }
 
         // Update lighting based on time of day

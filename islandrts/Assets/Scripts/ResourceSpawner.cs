@@ -66,6 +66,13 @@ public class ResourceSpawner : MonoBehaviour
         {
             campfirePosition = campfire.transform.position;
         }
+        else if (GameStartController.IntroInProgress)
+        {
+            // Opening sequence: the campfire is placed by the player later.
+            // Spawn around the island center; the campfire placer keeps its own
+            // clearance from resource nodes instead of the reverse.
+            campfirePosition = Vector3.zero;
+        }
         else
         {
             Debug.LogWarning("ResourceSpawner: Campfire not found! Using world origin (0,0,0) as default.");
