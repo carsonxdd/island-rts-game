@@ -139,7 +139,7 @@ Used by: ResourceManager, AudioManager, WallGrid, AIWorldState, PopulationManage
 - `WallConnector` generates procedural meshes based on 4-bit neighbor bitmask
 
 ### Day/Night & Combat
-- Day: 120s, Night: 60s (configurable in DayNightCycle)
+- Day: 120s, Night: 60s (configurable in DayNightCycle). Clock speed is phase-based — day and night each cover half the 0..1 time parameter at their own rate. (Fixed 2026-08-25: the old constant `timeSpeed = 1/(day+night)` made both phases actually last 90s and silently ignored the configured lengths.)
 - Enemies spawn at night, scale with night number (3 + nightNum)
 - Victory: survive 5 nights
 - Static events: `DayNightCycle.OnNightStart`, `OnDayStart`
@@ -580,7 +580,7 @@ Fog disabled. Orthographic + flat ground meant `Mode: Exponential` was reading a
 - Post-FX values currently conservative (Sat 2, Contrast 6, Temp 10, Vignette 0.12) vs spec values (5 / 10 / 15 / 0.25). Stylistic choice — can push closer to spec for more drama later.
 - Fog hooks not in `LightingPreset` SO yet — wait until Stage 4 so we know what shape they need.
 - Water shader properties not in `LightingPreset` yet — Stage 3 dependency.
-- Sun rotation (`sunriseAngle` / `sunsetAngle`) intentionally NOT in the preset; rotation is a continuous time-of-day mechanic, the preset is for discrete day-state vs night-state values.
+- Sun rotation (`minSunElevation`, replacing the old `sunriseAngle`/`sunsetAngle` sweep 2026-08-25) intentionally NOT in the preset; rotation is a continuous time-of-day mechanic, the preset is for discrete day-state vs night-state values. The sun now sweeps `minSunElevation` (25°) → overhead → `180 − minSunElevation`, never at grazing elevation — long shadows racing across the ground at dawn was the visible symptom. `transitionWidth` (0.10, inspector-tunable) sets the dawn/dusk blend width; AIWorldState keeps its own fixed 0.05 dayProgress windows (AI behavior deliberately untouched by the visual widening).
 
 ### Phase 10 Stage 2a (Units Plumbed — ⚠️ PENDING PLAYTEST): Art Library → Gameplay Prefabs
 

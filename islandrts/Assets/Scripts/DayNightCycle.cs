@@ -17,14 +17,19 @@ public class DayNightCycle : MonoBehaviour
     public LightingPreset nightPreset;
 
     [Header("Sun Rotation")]
-    public float sunriseAngle = -90f;          // Sun position at sunrise (below horizon)
-    public float sunsetAngle = 270f;           // Sun position at sunset (below horizon)
+    [Tooltip("Sun elevation at sunrise/sunset (degrees above horizon). The sun sweeps from this angle at dawn, over the top at noon, back down at dusk — never at grazing elevation, so shadows stay readable and don't race.")]
+    public float minSunElevation = 25f;
 
     [Header("Moon (Night Light)")]
-    [Tooltip("Elevation of the moon light above the horizon during night (degrees). The sun sweep points below the horizon at night, so the directional light is held at this pose instead.")]
+    [Tooltip("Elevation of the moon light above the horizon during night (degrees). The directional light is held at this pose all night.")]
     public float moonElevation = 45f;
     [Tooltip("Yaw of the moon light so night shadows fall a different direction than day shadows.")]
     public float moonYaw = 210f;
+
+    [Header("Dawn/Dusk")]
+    [Range(0.02f, 0.15f)]
+    [Tooltip("Width of the dawn/dusk lighting blend as a fraction of the full cycle. 0.05 = the old fast transition; 0.10 = gentle ~24s sunrise on a 120s day.")]
+    public float transitionWidth = 0.10f;
 
     [Header("Day/Night Phases")]
     public bool isNight = false;
@@ -35,7 +40,6 @@ public class DayNightCycle : MonoBehaviour
     public bool clockPaused = false;
 
     // Private
-    private float timeSpeed;
     private bool wasNight = false;
 
     // Cached OnGUI state to avoid per-frame allocations
@@ -71,17 +75,20 @@ public class DayNightCycle : MonoBehaviour
         {
             Debug.LogError("DayNightCycle: Day/Night LightingPreset references are missing. Assign them in the Inspector.");
         }
-
-        // Calculate time speed based on day/night lengths
-        UpdateTimeSpeed();
     }
 
     void Update()
     {
-        // Update time of day (frozen while the opening sequence holds the clock)
+        // Update time of day (frozen while the opening sequence holds the clock).
+        // Day (t 0.25-0.75) and night (t 0.75-0.25) each cover HALF the 0..1 parameter
+        // but have independent real-time lengths, so the advance rate depends on which
+        // phase we're in. (The old code used one constant rate — both phases actually
+        // lasted (day+night)/2 seconds and the configured lengths were ignored.)
         if (!clockPaused)
         {
-            currentTimeOfDay += timeSpeed * Time.deltaTime;
+            bool nightNow = currentTimeOfDay < 0.25f || currentTimeOfDay >= 0.75f;
+            float phaseLength = nightNow ? nightLengthInSeconds : dayLengthInSeconds;
+            currentTimeOfDay += (0.5f / Mathf.Max(phaseLength, 1f)) * Time.deltaTime;
 
             // Wrap around at end of day
             if (currentTimeOfDay >= 1f)
@@ -98,53 +105,48 @@ public class DayNightCycle : MonoBehaviour
         CheckDayNightTransition();
     }
 
-    void UpdateTimeSpeed()
-    {
-        // Calculate how fast time should progress
-        // We want day and night to have different lengths
-        float fullCycleDuration = dayLengthInSeconds + nightLengthInSeconds;
-        timeSpeed = 1f / fullCycleDuration;
-    }
-
     void UpdateSunLighting()
     {
         if (sunLight == null) return;
 
-        // Calculate light intensity and color based on time
-        // Day is roughly 0.25 to 0.75, Night is 0.75 to 0.25 (wrapping)
+        // Day is 0.25 to 0.75, Night is 0.75 to 0.25 (wrapping).
+        // dayProgress ramps 0->1 over the dawn window and 1->0 over the dusk window.
+        // NOTE: AIWorldState keeps its own dayProgress ramp (fixed 0.05 windows) for AI
+        // behavior — this one is visual-only; widening it doesn't retune the AI.
+        float blend = Mathf.Max(transitionWidth, 0.001f);
+        float dawnEnd = 0.25f + blend;
+        float duskStart = 0.75f - blend;
         float dayProgress;
 
         if (currentTimeOfDay < 0.25f)
         {
-            // Night (midnight to dawn)
-            dayProgress = 0f;
+            dayProgress = 0f;                                              // night (midnight to dawn)
         }
-        else if (currentTimeOfDay < 0.3f)
+        else if (currentTimeOfDay < dawnEnd)
         {
-            // Dawn transition
-            dayProgress = (currentTimeOfDay - 0.25f) / 0.05f;
+            dayProgress = (currentTimeOfDay - 0.25f) / blend;              // dawn transition
         }
-        else if (currentTimeOfDay < 0.7f)
+        else if (currentTimeOfDay < duskStart)
         {
-            // Full day
-            dayProgress = 1f;
+            dayProgress = 1f;                                              // full day
         }
         else if (currentTimeOfDay < 0.75f)
         {
-            // Dusk transition
-            dayProgress = 1f - ((currentTimeOfDay - 0.7f) / 0.05f);
+            dayProgress = 1f - ((currentTimeOfDay - duskStart) / blend);   // dusk transition
         }
         else
         {
-            // Night (dusk to midnight)
-            dayProgress = 0f;
+            dayProgress = 0f;                                              // night (dusk to midnight)
         }
 
-        // Calculate sun rotation (0 = midnight, 0.5 = noon), rotating around X to sweep the sky.
-        // At night that sweep points below the horizon and a directional light contributes
-        // nothing — so hold the light at a fixed moon pose instead, blending through the
-        // dawn/dusk windows (dayProgress 0<->1) so there's no pop.
-        float sunAngle = Mathf.Lerp(sunriseAngle, sunsetAngle, currentTimeOfDay);
+        // Sun sweep: rises at minSunElevation, passes overhead at noon, sets at
+        // 180 - minSunElevation. Clamping the ends keeps the sun off grazing angles
+        // where shadows are extremely long and visibly race across the ground.
+        // At night the light is held at a fixed moon pose instead (a below-horizon
+        // directional light contributes nothing), blending through dawn/dusk so
+        // there's no pop.
+        float u = Mathf.InverseLerp(0.25f, 0.75f, currentTimeOfDay);
+        float sunAngle = Mathf.Lerp(minSunElevation, 180f - minSunElevation, u);
         Quaternion sunRotation = Quaternion.Euler(sunAngle, 0f, 0f);
         Quaternion moonRotation = Quaternion.Euler(moonElevation, moonYaw, 0f);
         sunLight.transform.rotation = Quaternion.Slerp(moonRotation, sunRotation, dayProgress);
