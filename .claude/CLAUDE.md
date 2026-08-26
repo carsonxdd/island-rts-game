@@ -76,7 +76,7 @@ V:/islandrtsgame/                    # Repository root
 | `Warrior.cs` | Warrior unit + Utility AI brain setup |
 | `Enemy.cs` | Enemy unit + Utility AI brain setup |
 | `ActiveRegistry<T>.cs` | Generic static registry for O(1) entity tracking |
-| `CameraController.cs` | WASD pan, Q/E rotate, scroll zoom (orthographic) |
+| `CameraController.cs` | Smoothed WASD pan (zoom-scaled), Q/E rotate, eased scroll zoom, middle-mouse drag pan (orthographic, unscaled time) |
 | `CameraShake.cs` | Combat shake, pure offset approach (no stored position) |
 | `AudioManager.cs` | Singleton: music, SFX, ambient, crossfades |
 | `GameStartController.cs` | Opening sequence: survivor landing → campfire placement → colony start |
@@ -273,6 +273,7 @@ Ask: "would this log spam the console during a normal 5-minute play session?" If
 | WASD / Arrows | Pan camera |
 | Q / E | Rotate camera |
 | Mouse Wheel | Zoom |
+| Middle Mouse (drag) | Drag-pan camera |
 | B | Enter build mode |
 | 1-4 | Select building type (Hut, Wood Wall, Stone Wall, Watchtower) |
 | G | Convert wall to gate (in build mode, hover over wall) |

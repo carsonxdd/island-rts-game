@@ -36,6 +36,7 @@ A Unity-based real-time strategy survival game. Manage autonomous workers, gathe
 | **WASD** / Arrows | Pan camera |
 | **Q / E** | Rotate camera |
 | **Mouse Wheel** | Zoom |
+| **Middle Mouse (drag)** | Drag-pan camera |
 | **B** | Enter build mode |
 | **1-4** | Select building (Hut, Wood Wall, Stone Wall, Watchtower) |
 | **G** | Toggle grid overlay (off by default); convert wall to gate in build mode |
