@@ -42,6 +42,8 @@ public class CameraController : MonoBehaviour
     public float startOrthoSize = 15f;
     public float minOrthoSize = 5f;
     public float maxOrthoSize = 30f;
+    [Tooltip("Ortho near clip. NEGATIVE on purpose: when tilted low / zoomed out, ground at the bottom of the view sits behind the camera plane and would be sliced off. A negative near extends the render box backwards (standard for ortho RTS cameras).")]
+    public float nearClip = -100f;
 
     [Header("Bounds")]
     public bool useBounds = false;
@@ -78,6 +80,7 @@ public class CameraController : MonoBehaviour
         }
         cam.orthographic = true;
         cam.orthographicSize = startOrthoSize;
+        cam.nearClipPlane = nearClip;         // negative: stops bottom-of-screen clipping when tilted/zoomed out
         targetOrthoSize = startOrthoSize;
     }
 
