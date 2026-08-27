@@ -2,7 +2,8 @@ using UnityEngine;
 
 /// <summary>
 /// RTS camera: smoothed WASD pan (screen-relative), smoothed Q/E rotation,
-/// smoothed scroll zoom, and middle-mouse grab-drag panning.
+/// smoothed scroll zoom, and middle-mouse free-look (vertical drag tilts,
+/// horizontal drag rotates), orbiting the ground point at screen center.
 /// Pan speed scales with zoom so the world moves at a consistent screen speed.
 /// Uses unscaled time so camera feel is identical at 1x/2x/4x game speed.
 /// CameraShake (pure offset, LateUpdate) layers on top without conflict.
@@ -14,8 +15,18 @@ public class CameraController : MonoBehaviour
     [Tooltip("Seconds to reach/leave full pan speed. Lower = snappier.")]
     public float panSmoothTime = 0.12f;
 
-    [Header("Middle-Mouse Drag Pan")]
-    public bool enableDragPan = true;
+    [Header("Middle-Mouse Free-Look (Tilt + Rotate)")]
+    public bool enableFreeLook = true;
+    [Tooltip("Degrees of tilt per unit of vertical mouse movement.")]
+    public float tiltSensitivity = 1.2f;
+    [Tooltip("Degrees of rotation per unit of horizontal mouse movement.")]
+    public float lookYawSensitivity = 1.0f;
+    [Tooltip("Lowest camera pitch (more cinematic, sees further under the horizon).")]
+    public float minTilt = 30f;
+    [Tooltip("Highest camera pitch (closer to top-down).")]
+    public float maxTilt = 60f;
+    [Tooltip("Seconds for free-look to ease toward the mouse.")]
+    public float freeLookSmoothTime = 0.10f;
 
     [Header("Camera Rotation")]
     public float rotationSpeed = 90f;         // degrees per second
@@ -47,9 +58,14 @@ public class CameraController : MonoBehaviour
     float targetOrthoSize;
     float zoomVelocityRef;                    // SmoothDamp internal
 
-    // Drag-pan state
-    bool isDragging;
-    Vector3 dragAnchor;                       // world point grabbed at drag start
+    // Free-look state
+    bool isFreeLooking;                       // middle mouse held
+    bool freeLookSettling;                    // easing out the last bit after release
+    Vector3 freeLookPivot;                    // ground point orbited during the drag
+    float targetPitch;                        // absolute degrees, clamped minTilt..maxTilt
+    float targetYaw;                          // absolute degrees, unclamped
+    float pitchVelRef;                        // SmoothDampAngle internal
+    float yawVelRef;                          // SmoothDampAngle internal
     static readonly Plane groundPlane = new Plane(Vector3.up, 0f);
 
     void Awake()
@@ -71,7 +87,7 @@ public class CameraController : MonoBehaviour
         float dt = Time.unscaledDeltaTime;
 
         UpdateZoom(dt);
-        UpdateDragPan();
+        UpdateFreeLook(dt);
         UpdateKeyboardPan(dt);
         UpdateRotation(dt);
 
@@ -90,7 +106,7 @@ public class CameraController : MonoBehaviour
         float vertical = Input.GetAxisRaw("Vertical");      // W/S
 
         Vector3 targetVel = Vector3.zero;
-        if (!isDragging && (Mathf.Abs(horizontal) > 0.01f || Mathf.Abs(vertical) > 0.01f))
+        if (!isFreeLooking && (Mathf.Abs(horizontal) > 0.01f || Mathf.Abs(vertical) > 0.01f))
         {
             // Screen-relative: W moves toward 12 o'clock regardless of rotation
             Vector3 forward = transform.forward; forward.y = 0; forward.Normalize();
@@ -108,40 +124,79 @@ public class CameraController : MonoBehaviour
             transform.position += panVelocity * dt;
     }
 
-    void UpdateDragPan()
+    /// <summary>
+    /// Middle-mouse free-look: vertical drag tilts (pitch, clamped minTilt..maxTilt),
+    /// horizontal drag rotates (yaw). Both orbit the ground point that was at screen
+    /// center when the drag started, so the framing stays anchored on what the player
+    /// is looking at. Eases toward the mouse and keeps easing briefly after release.
+    /// </summary>
+    void UpdateFreeLook(float dt)
     {
-        if (!enableDragPan) return;
+        if (!enableFreeLook) return;
 
-        if (Input.GetMouseButtonDown(2) && TryGetGroundPoint(Input.mousePosition, out Vector3 hit))
+        if (Input.GetMouseButtonDown(2))
         {
-            isDragging = true;
-            dragAnchor = hit;
-            panVelocity = Vector3.zero;       // drag is 1:1, kill any glide
+            isFreeLooking = true;
+            freeLookSettling = false;
+            freeLookPivot = GetViewCenterGroundPoint();
+            Vector3 e = transform.eulerAngles;
+            targetPitch = Mathf.Clamp(NormalizePitch(e.x), minTilt, maxTilt);
+            targetYaw = e.y;
+            pitchVelRef = 0f;
+            yawVelRef = 0f;
+            panVelocity = Vector3.zero;       // orbit is direct, kill any pan glide
             panVelocityRef = Vector3.zero;
         }
 
-        if (isDragging)
+        if (isFreeLooking && !Input.GetMouseButton(2))
         {
-            if (!Input.GetMouseButton(2))
-            {
-                isDragging = false;
-                return;
-            }
-            if (TryGetGroundPoint(Input.mousePosition, out Vector3 current))
-            {
-                // Move so the grabbed world point stays under the cursor
-                Vector3 offset = dragAnchor - current;
-                offset.y = 0;
-                transform.position += offset;
-            }
+            isFreeLooking = false;
+            freeLookSettling = true;          // finish easing to the final target
+        }
+
+        if (isFreeLooking)
+        {
+            targetPitch = Mathf.Clamp(
+                targetPitch - Input.GetAxisRaw("Mouse Y") * tiltSensitivity,
+                minTilt, maxTilt);
+            targetYaw += Input.GetAxisRaw("Mouse X") * lookYawSensitivity;
+        }
+
+        if (!isFreeLooking && !freeLookSettling) return;
+
+        Vector3 euler = transform.eulerAngles;
+        float pitch = NormalizePitch(euler.x);
+        float newPitch = Mathf.SmoothDampAngle(pitch, targetPitch, ref pitchVelRef,
+                                               freeLookSmoothTime, Mathf.Infinity, dt);
+        float newYaw = Mathf.SmoothDampAngle(euler.y, targetYaw, ref yawVelRef,
+                                             freeLookSmoothTime, Mathf.Infinity, dt);
+
+        float yawDelta = Mathf.DeltaAngle(euler.y, newYaw);
+        if (Mathf.Abs(yawDelta) > 0.0001f)
+            transform.RotateAround(freeLookPivot, Vector3.up, yawDelta);
+
+        float pitchDelta = newPitch - pitch;
+        if (Mathf.Abs(pitchDelta) > 0.0001f)
+            transform.RotateAround(freeLookPivot, transform.right, pitchDelta);
+
+        if (freeLookSettling &&
+            Mathf.Abs(Mathf.DeltaAngle(newYaw, targetYaw)) < 0.01f &&
+            Mathf.Abs(newPitch - targetPitch) < 0.01f)
+        {
+            freeLookSettling = false;
         }
     }
 
     void UpdateRotation(float dt)
     {
+        if (isFreeLooking) return;            // free-look owns rotation while held
+
         float target = 0f;
         if (Input.GetKey(rotateLeftKey)) target -= rotationSpeed;
         if (Input.GetKey(rotateRightKey)) target += rotationSpeed;
+
+        if (target != 0f && freeLookSettling)
+            freeLookSettling = false;         // keyboard takes over, drop the ease-out
 
         rotVelocity = Mathf.SmoothDamp(rotVelocity, target, ref rotVelocityRef,
                                        rotationSmoothTime, Mathf.Infinity, dt);
@@ -164,6 +219,39 @@ public class CameraController : MonoBehaviour
                                                     ref zoomVelocityRef, zoomSmoothTime,
                                                     Mathf.Infinity, dt);
         }
+    }
+
+    /// <summary>
+    /// The ground point at screen center — the free-look orbit pivot. Intersects the
+    /// y=0 plane, then (when terrain exists) re-intersects at the terrain height there
+    /// so tilting on a hill orbits the hilltop, not sea level below it.
+    /// </summary>
+    Vector3 GetViewCenterGroundPoint()
+    {
+        Vector3 screenCenter = new Vector3(Screen.width * 0.5f, Screen.height * 0.5f, 0f);
+        if (TryGetGroundPoint(screenCenter, out Vector3 point))
+        {
+            if (TerrainGrid.Instance != null)
+            {
+                float h = TerrainGrid.Instance.SampleHeight(point);
+                if (h > 0.01f)
+                {
+                    Plane lifted = new Plane(Vector3.up, new Vector3(0f, h, 0f));
+                    Ray ray = cam.ScreenPointToRay(screenCenter);
+                    if (lifted.Raycast(ray, out float enter))
+                        point = ray.GetPoint(enter);
+                }
+            }
+            return point;
+        }
+        // Degenerate fallback (should not happen with a downward-tilted camera)
+        return transform.position + transform.forward * 20f;
+    }
+
+    /// <summary>Euler X as signed pitch (350 becomes -10) so clamping works across wrap.</summary>
+    static float NormalizePitch(float eulerX)
+    {
+        return eulerX > 180f ? eulerX - 360f : eulerX;
     }
 
     /// <summary>Where a screen ray meets the y=0 ground plane (ortho-safe).</summary>
