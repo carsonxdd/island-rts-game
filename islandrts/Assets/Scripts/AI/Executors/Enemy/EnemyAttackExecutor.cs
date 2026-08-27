@@ -39,6 +39,10 @@ public class EnemyAttackExecutor : ActionExecutor
     // Destination update tracking
     private const float DestinationUpdateThreshold = 1.5f;
     private Vector3 lastTargetPosition;
+    // A forced move that the NavMesh hasn't accepted yet. Stays true until
+    // TrySetDestination succeeds, so a throttled/rejected destination is always
+    // retried — even when the new target happens to sit near the old one.
+    private bool moveQueued;
 
     // Campfire proximity commitment: if within this many meters of the campfire,
     // the enemy commits to the campfire over nearby huts. Otherwise huts are
@@ -53,7 +57,12 @@ public class EnemyAttackExecutor : ActionExecutor
         if (reachabilityPath == null) reachabilityPath = new NavMeshPath();
 
         bb.isInAttackRange = false;
-        retargetTimer = 0f;
+        moveQueued = false;
+        // Stagger the retarget tick per enemy — the warrior Engage executor already
+        // does this. With every enemy in a wave ticking on the same frame, any shared
+        // priority shift made the whole group re-path in one frame; Unity's path
+        // queue then drained over several frames and the group froze in lockstep.
+        retargetTimer = Random.Range(0f, RetargetInterval);
 
         if (bb.stuckResolver != null)
             bb.stuckResolver.ResetStuckDetection();
@@ -120,6 +129,7 @@ public class EnemyAttackExecutor : ActionExecutor
     public override void OnExit(AIBlackboard bb)
     {
         bb.isInAttackRange = false;
+        moveQueued = false;
         if (bb.agent != null) bb.agent.isStopped = false;
     }
 
@@ -258,17 +268,21 @@ public class EnemyAttackExecutor : ActionExecutor
     {
         if (bb.currentTarget == null) return;
         if (bb.agent == null || !bb.agent.isOnNavMesh) return;
-        if (!force && bb.agent.pathPending) return;
+        if (force) moveQueued = true;
+        if (!moveQueued && bb.agent.pathPending) return;
 
-        bool needNew = force
+        bool needNew = moveQueued
             || !bb.agent.hasPath
             || bb.agent.pathStatus == NavMeshPathStatus.PathInvalid
             || Vector3.Distance(bb.currentTarget.position, lastTargetPosition) > DestinationUpdateThreshold;
 
         if (!needNew) return;
 
-        if (force && bb.agent.hasPath) bb.agent.ResetPath();
-
+        // Deliberately NO ResetPath() here. ResetPath drops the agent's path and
+        // zeroes its velocity immediately, so the enemy stands still until the new
+        // path is computed — with a whole wave retargeting at once that reads as a
+        // synchronized freeze. SetDestination swaps the path in place; the agent keeps
+        // walking the old one until the new one is ready.
         Vector3 approach = TargetingUtil.GetApproachPoint(
             bb.transform.position, bb.currentTarget, bb.currentTargetCollider);
 
@@ -276,8 +290,9 @@ public class EnemyAttackExecutor : ActionExecutor
         {
             lastTargetPosition = bb.currentTarget.position;
             bb.agent.isStopped = false;
+            moveQueued = false;
         }
-        // If throttled/rejected, needNew stays true next frame and we retry.
+        // If throttled/rejected, moveQueued stays true and we retry next frame.
     }
 
     void UpdateAttackState(AIBlackboard bb)

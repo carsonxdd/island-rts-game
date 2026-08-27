@@ -15,17 +15,35 @@ public class ResourceAvailability : Consideration
         ResourceNode bestNode = null;
         float bestScore = float.MaxValue;
 
-        for (int i = 0; i < ResourceNode.ActiveList.Count; i++)
+        // Checks are ordered cheapest-first. The distance cull used to run LAST, so
+        // HasWorkerRoom() — which compacts a claim list and can fire 8 NavMesh.SamplePosition
+        // calls on a cache miss — ran for every same-type node on the island, including
+        // ones 100m away. On the 150x150 map that is ~440 nodes per scan, per worker,
+        // ~3x a second.
+        Vector3 myPos = bb.transform.position;
+        float searchSqr = bb.searchRadius * bb.searchRadius;
+
+        var list = ResourceNode.ActiveList;
+        for (int i = 0; i < list.Count; i++)
         {
-            ResourceNode node = ResourceNode.ActiveList[i];
+            ResourceNode node = list[i];
             if (node == null) continue;
             if (node.resourceType != bb.assignedResourceType) continue;
+
+            // Cheap squared-distance cull before anything that touches node state.
+            float sqr = (node.transform.position - myPos).sqrMagnitude;
+            if (sqr > searchSqr) continue;
+
+            float distance = Mathf.Sqrt(sqr);
+
+            // Prune: score is distance + (claims * 5) and the claim penalty is never
+            // negative, so a node already further than the current best cannot win.
+            // Skipping it here avoids the expensive availability checks below.
+            if (distance >= bestScore) continue;
+
             if (!node.HasResources()) continue;
             if (bb.IsNodeUnreachable(node)) continue;  // walled off / off-mesh - skip until its entry expires
             if (!node.HasWorkerRoom(bb.worker)) continue;  // at worker capacity - spill to another node
-
-            float distance = Vector3.Distance(bb.transform.position, node.transform.position);
-            if (distance > bb.searchRadius) continue;
 
             // Existing scoring: distance + claim penalty
             float score = distance + (node.GetClaimCount() * 5f);

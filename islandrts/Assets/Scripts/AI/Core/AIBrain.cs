@@ -12,9 +12,47 @@ public class AIBrain : MonoBehaviour
     private float evalInterval;
     private float evalTimer;
 
-    // Global per-frame throttle: max 5 evaluations per frame across all brains
+    // --- Global per-frame evaluation budget ---
+    //
+    // The budget SCALES WITH POPULATION so each unit's think rate stays constant as
+    // the colony grows. The old fixed cap of 5/frame was a hard ceiling at roughly
+    //   5 evals/frame * 60fps / (1 / 0.3s per unit) = ~90 units
+    // beyond which brains silently starved and units got sluggish.
+    //
+    // activeBrains * deltaTime / MinEvalInterval is exactly the number of evaluations
+    // per frame needed to keep every brain on schedule. MaxEvalsPerFrame is a safety
+    // ceiling so a pathological population can't tank the frame outright.
+    private const float MinEvalInterval = 0.25f;
+    private const int MinEvalsPerFrame = 5;
+    private const int MaxEvalsPerFrame = 64;
+
     private static int evalFrame = -1;
     private static int evalCount = 0;
+    private static int frameBudget = MinEvalsPerFrame;
+    private static int activeBrains = 0;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetStatics()
+    {
+        evalFrame = -1;
+        evalCount = 0;
+        frameBudget = MinEvalsPerFrame;
+        activeBrains = 0;
+    }
+
+    /// <summary>
+    /// Roll the per-frame budget over. Called by the first brain to want an
+    /// evaluation each frame.
+    /// </summary>
+    static void BeginFrame()
+    {
+        if (Time.frameCount == evalFrame) return;
+        evalFrame = Time.frameCount;
+        evalCount = 0;
+
+        int needed = Mathf.CeilToInt(activeBrains * Time.deltaTime / MinEvalInterval);
+        frameBudget = Mathf.Clamp(needed, MinEvalsPerFrame, MaxEvalsPerFrame);
+    }
 
     // --- Commitment threshold ---
     private float commitmentThreshold = 0.2f;
@@ -103,7 +141,20 @@ public class AIBrain : MonoBehaviour
         // Stagger evaluation timers so not all units evaluate on the same frame
         evalTimer = Random.Range(0f, evalInterval);
 
+        // Population drives the per-frame budget. Guarded so a re-Initialize on the
+        // same brain can't double-count.
+        if (!isInitialized) activeBrains++;
+
         isInitialized = true;
+    }
+
+    void OnDestroy()
+    {
+        if (isInitialized)
+        {
+            isInitialized = false;
+            activeBrains--;
+        }
     }
 
     void Update()
@@ -112,23 +163,31 @@ public class AIBrain : MonoBehaviour
 
         // --- Staggered evaluation ---
         evalTimer -= Time.deltaTime;
-        if (evalTimer <= 0f)
+        if (evalTimer <= 0f || forceNextEval)
         {
-            evalTimer = evalInterval;
+            BeginFrame();
 
-            // Per-frame throttle
-            if (Time.frameCount != evalFrame)
-            {
-                evalFrame = Time.frameCount;
-                evalCount = 0;
-            }
+            // Forced evaluations (external events: target died, damage taken, an enemy
+            // died nearby) may exceed the normal budget so they stay responsive — but
+            // only up to the hard ceiling. Previously they bypassed the throttle
+            // entirely AND didn't consume budget, so one enemy dying in the base made
+            // every worker in a 30u radius evaluate on the same frame. That spike grew
+            // linearly with population and is the classic source of combat stutter.
+            int cap = forceNextEval ? MaxEvalsPerFrame : frameBudget;
 
-            if (evalCount < 5 || forceNextEval)
+            if (evalCount < cap)
             {
-                if (!forceNextEval) evalCount++;
+                evalCount++;
                 forceNextEval = false;
+                // Only reset the timer once the evaluation ACTUALLY runs. The old code
+                // reset it before the throttle check, so a throttled brain silently
+                // dropped that evaluation and waited another full interval instead of
+                // retrying. Leaving the timer at/below zero makes it retry next frame.
+                evalTimer = evalInterval;
                 EvaluateActions();
             }
+            // Over budget: evalTimer stays <= 0 (and forceNextEval stays set), so this
+            // brain retries next frame rather than losing the evaluation.
         }
 
         // --- Execute current action every frame ---

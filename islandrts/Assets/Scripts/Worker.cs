@@ -14,7 +14,7 @@ public class Worker : UnitBase<Worker>
     public float carryCapacity = 5.01f;  // Maximum resources worker can carry (slightly over 5 to avoid floating point issues)
     public float searchRadius = 50f;  // How far to search for resources
     public float gatherDistance = 0.6f;  // Arrival tolerance to the gather point (GatherExecutor floors this at AgentRadius + 0.25 so the target can never be unreachably tight)
-    public float deliveryDistance = 1.5f;  // How close to the campfire's collider EDGE to deliver (Phase 6.25: edge-based, was 3.5 from center)
+    public float deliveryDistance = 1.0f;  // How close to the campfire's collider EDGE to deliver (edge-based since Phase 6.25; tightened 1.5 -> 1.0 so workers walk right up to the fire)
 
     // How close (remaining path distance) a worker walks toward its gather point before the
     // agent stops. Small so workers stand right next to nodes instead of meters away; the
@@ -218,7 +218,10 @@ public class Worker : UnitBase<Worker>
             // Idle at Base
             new ActionOption("Idle", new Consideration[]
             {
-                new ResourceAvailability(ResponseCurve.Constant(0.1f))  // Always-low constant
+                new ConstantScore(ResponseCurve.Constant(0.1f))  // Always-low constant floor
+                // (was ResourceAvailability — the Constant curve discards its result,
+                //  so it was a wasted full node scan every evaluation. Gather's
+                //  ResourceAvailability still caches bb.bestResource for everyone.)
             }, new IdleExecutor(), basePriority: 0.1f, momentumBonus: 0.05f),
 
             // Flee from Enemies

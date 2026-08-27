@@ -121,9 +121,10 @@ islandrts/Assets/
 All units (Workers, Warriors, Enemies) use a **scoring-based Utility AI** — no state machines. Each unit has an `AIBrain` that evaluates `ActionOptions` by multiplying `Consideration` scores (0-1) shaped by `ResponseCurves`. The highest-scoring action runs its `ActionExecutor`.
 
 - Evaluations staggered at 0.25-0.35s per unit (randomized)
-- Max 5 evaluations per frame globally
+- Per-frame evaluation budget **scales with population** — `clamp(activeBrains × deltaTime / 0.25s, 5, 64)`, so each unit's think rate stays constant as the colony grows
+- A brain that loses the budget race **defers** its evaluation to the next frame rather than dropping it
 - 20% commitment threshold prevents action flip-flopping
-- `ForceReeval()` bypasses throttles for instant response to events
+- `ForceReeval()` jumps the queue for instant response to events, but is still budgeted (up to the hard ceiling) so a mass event can't spike a frame
 
 ### Key Patterns
 
@@ -174,7 +175,9 @@ Everything else (per-unit spawn/death, per-damage, per-resource tick, per-button
 
 For detailed technical documentation, AI system internals, balancing data, phase history, and gotchas, see [`.claude/CLAUDE.md`](.claude/CLAUDE.md).
 
-Latest: **Terrain System T1 (shaped island)** — the flat square ground is replaced by a procedurally generated island: a chunked flat-shaded heightmap mesh (per-triangle sand/grass/rock banding with the LP materials), rolling hills under a ~3.5 m readability budget, a real surrounding ocean at sea level, deep water marked NotWalkable (the shallow band stays wadeable), and the NavMesh built at runtime from the terrain colliders before anything else starts. The generator is seeded and deterministic — T1 ships a fixed seed with a flattened campfire site at the island heart and a guaranteed shallow landing cove carved at the shipwreck so the opening sequence works unchanged. Apply with `Tools > Island RTS > Terrain > Setup Terrain Scene (T1)`. Next stages: T2 terrain flattening under placed buildings, T3 shoreline enemy spawns, T4 a new random island every run (see [`TERRAIN_SYSTEM_PLAN.md`](TERRAIN_SYSTEM_PLAN.md)).
+Latest: **AI scaling pass + enemy re-path stutter fix** — the Utility AI could not grow past roughly 90 units. `AIBrain` used a fixed budget of 5 evaluations per frame, which at 60 fps against a 0.25–0.35 s think interval is a hard ceiling; past it, brains silently starved and units got visibly sluggish. Worse, a brain that lost the race reset its timer *before* the budget check, so it dropped that evaluation and waited another full interval instead of retrying, and `ForceReeval()` bypassed the throttle entirely without consuming budget — meaning one enemy dying inside the base made every worker within 30 u evaluate on the same frame, a spike that grew linearly with population. The budget now scales with the live brain count, over-budget evaluations defer instead of dropping, and forced evaluations are budgeted up to a hard ceiling. Alongside it, `ResourceAvailability` ran its distance cull *last*, so the per-node capacity check (which compacts a claim list and can fire eight `NavMesh.SamplePosition` calls) executed for every same-type node on the island — ~440 of them, per worker, three times a second; it now culls by squared distance first and prunes exactly against the running best. Worker Idle's duplicate node scan, whose result a `Constant` response curve threw away, is replaced by a free `ConstantScore`. Separately, enemies stopped freezing as a group: their retarget timer was unstaggered (the warriors' already was) and every forced move called `ResetPath()`, which zeroes velocity a frame or more before the replacement path is ready — so any shared priority shift stalled the whole wave in lockstep.
+
+Before that: **Terrain System T1 (shaped island)** — the flat square ground is replaced by a procedurally generated island: a chunked flat-shaded heightmap mesh (per-triangle sand/grass/rock banding with the LP materials), rolling hills under a ~3.5 m readability budget, a real surrounding ocean at sea level, deep water marked NotWalkable (the shallow band stays wadeable), and the NavMesh built at runtime from the terrain colliders before anything else starts. The generator is seeded and deterministic — T1 ships a fixed seed with a flattened campfire site at the island heart and a guaranteed shallow landing cove carved at the shipwreck so the opening sequence works unchanged. Apply with `Tools > Island RTS > Terrain > Setup Terrain Scene (T1)`. Next stages: T2 terrain flattening under placed buildings, T3 shoreline enemy spawns, T4 a new random island every run (see [`TERRAIN_SYSTEM_PLAN.md`](TERRAIN_SYSTEM_PLAN.md)).
 
 Before that: **Opening Sequence Stage 1 (survivor landing)** — the game start is now the story beat: a lone castaway stands in the shallows beside a shipwreck set piece on the west shore, the player right-clicks him ashore and places the campfire near him (free, one-time, bespoke placer — the campfire is deliberately not in the build menu), and he settles in as the colony's first worker before normal gameplay begins. The day/night clock is frozen at dawn until the fire is lit. A one-time editor tool (`Tools > Island RTS > Opening Sequence > Setup Opening Scene`) applies it: converts the scene campfire into a runtime-spawned prefab, builds the Survivor and campfire-ghost prefabs, and dresses the scene with a shallow-water ocean frame and the wreck. `skipIntro` on the `GameStart` object restores the classic start. Also decided: **Phase 7's dedicated Builder unit is replaced by jobless generalist colonists** — colonists without a job will wander, pick up ground items (sticks/rocks, a coming slice), and build/repair when needed; assigning a gathering job specializes them.
 
@@ -202,6 +205,48 @@ Future roadmap:
   - **Stage 5** — Sequencing: post-processing now, water shader as Phase 7–8 side project, full asset swap during Phase 10 proper
   - Full spec: [`PHASE_10_VISUAL_OVERHAUL.md`](PHASE_10_VISUAL_OVERHAUL.md)
 - **Terrain System:** dynamic island terrain — chunked low-poly heightmap with hills, valleys, beaches, and real water. **T1 (fixed-seed shaped island + runtime NavMesh) implemented**; ahead: T2 terrain smoothing under placed buildings, T3 enemies wading ashore from the shallows, T4 a new random island each run. Full spec: [`TERRAIN_SYSTEM_PLAN.md`](TERRAIN_SYSTEM_PLAN.md)
+
+---
+
+## Scaling Notes — Toward Hundreds of Units, AI Colonies, and Multiple Islands
+
+Design thinking captured while fixing the AI evaluation budget. Not committed work — a map of what the current architecture supports, what it blocks, and the order the blockers are cheapest to clear.
+
+### Where the entity ceiling actually is
+
+The limit was never Unity — it was the AI layer's own throttles and a scan whose cost was `O(units × resource nodes)`. With the scaling pass above, the next wall is **Unity's NavMesh ORCA avoidance**, which is the real ceiling at somewhere in the low hundreds of agents (workers run `High` avoidance quality, the most expensive setting, deliberately — see Phase 6.26). Beyond that:
+
+- **Spatial hash for registry lookups.** Considerations still walk whole `ActiveRegistry` lists. A uniform grid keyed by cell would make node/pickup/enemy queries `O(nearby)` instead of `O(all)`. This is the next optimization worth doing, and it gets more valuable with every entity added.
+- **Avoidance quality by population.** Dropping workers to `Medium` above some unit count buys Unity-side headroom, at the cost of the head-on side-step dance that Phase 6.26 raised the quality to fix. A tuning trade, not a free win.
+- **Decision richness is not the problem.** Five actions × three-to-five considerations, multiplied, is cheap. The cost lives in registry scans hidden inside considerations. Units do not need to get dumber to scale — the scans need to get narrower.
+
+### AI colonies — decide faction ownership early
+
+Rival colonies are the feature with a deadline attached, because "one colony" is currently baked into the type system rather than the data:
+
+- `ResourceManager` and `PopulationManager` are singletons
+- `ActiveRegistry<T>` lists are global statics — "all workers" implicitly means "my workers"
+- `EnemyAttackExecutor.FindLiveCampfire()` returns `BaseBuilding.ActiveList[0]`
+
+Every targeting scan, every economy call, and every population check assumes a single owner. Introducing a `Faction` concept means touching all of those sites, and **that set grows with every feature added between now and then** — mechanical if done early, a rewrite if done late. The shape: registries become per-faction, `ResourceManager` becomes a component on a faction rather than a singleton, and `TargetingUtil.FindNearest` takes a faction filter. Worth doing before the next large gameplay system even if the second faction stays a stub for a long time.
+
+The unit AI itself needs almost nothing. Utility AI is the right layer for *"what does this worker do next."* Colony **strategy** wants a second layer above it — a governor ticking at 1–2 Hz that decides build orders and army composition and writes goals into a shared blackboard that unit considerations read. That is additive, not a refactor.
+
+### Multiple islands — better positioned than expected
+
+`IslandGenerator` is pure and seeded, so an island is just a seed plus a few parameters. Islands that "load differently" are nearly free, and no scene-per-island is required. `TerrainGrid` doing all of its work in `Awake` under `[DefaultExecutionOrder(-100)]` is the contract that makes this hold: every `Start()`-time system already finds a finished world and a live NavMesh.
+
+**Prefer teardown-and-regenerate inside the single scene over scene loading per island.** Scene loads would resurrect exactly the stale-singleton problems that removing `DontDestroyOnLoad` was meant to fix (see the Phase 6.21 notes). The real prerequisite is *serializable colony state* — leaving an island and returning to it means that colony must persist as data — which is the Phase 11 save/load system. Islands therefore naturally follow save/load rather than preceding it.
+
+### Where the two features collide
+
+Four AI colonies at ~100 units each is ~400 agents, right at the NavMesh ceiling. That is the point where the spatial hash becomes mandatory and **AI level-of-detail** starts to matter: simulate distant or offscreen colonies as abstract economies ticking at 1 Hz, and instantiate real agents only near the player. Standard RTS practice — and substantially easier to retrofit if factions already exist.
+
+### Suggested order
+
+**Factions → spatial hash + AI LOD → colony governor → save/load → islands.**
+
+Factions first because their cost grows over time; islands last because they depend on save/load.
 
 ---
 

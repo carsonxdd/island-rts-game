@@ -100,7 +100,7 @@ MonoBehaviour:
   carryCapacity: 5.01
   searchRadius: 50
   gatherDistance: 0.6
-  deliveryDistance: 1.5
+  deliveryDistance: 1
   carryAmount: 0
 --- !u!1001 &7290099508130132650
 PrefabInstance:
