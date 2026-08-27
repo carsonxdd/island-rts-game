@@ -182,6 +182,9 @@ Used by: ResourceManager, AudioManager, WallGrid, AIWorldState, PopulationManage
 - **Worker Pickup action (sticks/stones):** `PickupAvailability` caches `bb.bestPickup` and fades with distance (0 beyond 22u) so pickups only outbid Gather when genuinely close; ThreatNearby hard-suppresses it like Gather; pickups carry a `claimedBy` worker so two workers never chase one stick. `CollectPickupExecutor` releases the claim on exit/stuck-reset. Food workers score 0 (no food pickups).
 - **Flee = garrison (2026-08-26):** FleeToHutExecutor paths to the nearest hut's carve-safe approach point (the old code targeted hut CENTERS — silently rejected because huts carve), and at edge-arrival calls `Worker.SetGarrisoned(true)` (renderers + agent + collider off). Only FleeToHutExecutor may call SetGarrisoned, and its OnExit always restores before any other executor runs. A destroyed shelter pops the worker out immediately. No huts → crowd at the campfire edge; no campfire → legacy run-away.
 - **`TerrainGrid.FlattenArea(center, radius, blend)` (T2, pulled forward):** levels the ground to the height at `center`, rebuilds only touched chunks, kicks `UpdateNavMeshAsync`. Called by GhostPlacer.ConfirmPlacement (1.8/1.4), GameStartController.SpawnCampfire (2.2/1.6), and the F4 quick-start hut ring. Ghost previews at the center height = exactly where the pad ends up, so ghost and placed building heights always match. Walls deliberately do NOT flatten (they follow terrain per-cell).
+- **`GridOverlay` draws only buildable cells, draped on the terrain (2026-08-26).** It used to draw a flat 50×50 square of `LineRenderer`s at y=0 — buried under an island that rises to ~3.5 m, so it was only visible out over the water. It now walks every cell centre, keeps the ones passing `TerrainGrid.IsBuildable`, and emits their boundaries into ONE `MeshTopology.Lines` mesh (a LineRenderer per line would be tens of thousands of GameObjects at island scale; `IndexFormat.UInt32` is required). Two things to preserve: boundaries sit on the **half**-offsets, because `GridSnap.SnapXZ` puts a building's *center* on a whole cell coordinate — the old overlay's lines ran through the centers, half a cell out of phase with placement; and the no-`TerrainGrid` branch still draws the legacy flat square so an un-set-up scene renders.
+- **The grid toggle is F2, and must never be G.** `GridToggleHotkey` was on G, which `BuildPlacement` also uses for wall→gate conversion — both handlers ran on the same frame. It now also auto-shows during build mode (`buildPlacement.isPlacing`), with `manual`/`suppressed` flags layering the user's explicit toggle over the auto behavior; `suppressed` clears when build mode ends so the next B starts fresh.
+
 ### Visual / Art Gotchas
 
 Phase 10 spec is in `PHASE_10_VISUAL_OVERHAUL.md`. Stage 1 (post-processing + lighting presets) is shipped; remaining stages are planned.
@@ -292,11 +295,14 @@ Ask: "would this log spam the console during a normal 5-minute play session?" If
 | R | Toggle L-path direction (wall mode) / Rotate building |
 | Shift | Bresenham staircase wall path |
 | Delete / X | Demolish mode (50% refund) |
+| F2 | Build grid overlay (also auto-shows during build mode) |
 | F3 | AI debug overlay (editor only) |
 | F4 | Debug menu (editor + dev builds only) |
 | Click campfire | Worker assignment UI |
 | Right-click (opening) | Move the survivor |
 | B (opening) | Place the campfire (Esc / right-click cancels) |
+
+**Full controls + the consolidated playtest checklist live in `docs/CONTROLS_AND_CHECKLIST.md`** (GitHub-readable). Keep both in sync when a binding changes.
 
 ---
 
