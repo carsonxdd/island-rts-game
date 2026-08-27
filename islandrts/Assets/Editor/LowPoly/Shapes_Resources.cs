@@ -12,17 +12,24 @@ namespace IslandRTS.ArtGen
     {
         static partial void AddResourcesImpl(List<AssetDef> list)
         {
-            // Tree plus two variants: same species, different seed and height. TreeVariance
-            // on the gameplay prefab picks one per instance. All variants come from the same
-            // builder so they share one material key order - required for the runtime swap.
+            // Tree plus four variants (2026-08-26: taller + shade variety). TreeVariance on
+            // the gameplay prefab picks one per instance, copying BOTH sharedMesh and
+            // sharedMaterials from the variant's art prefab — so variants are free to use
+            // different canopy palette trios (all green, differently shaded).
             list.Add(new AssetDef("Tree", AssetCategory.Resources,
-                () => BroadleafTree(4101, 3.6f), "~2.2 wide canopy, 3.6 tall"));
+                () => BroadleafTree(4101, 5.0f), "~3.1 wide canopy, 5.0 tall"));
 
             list.Add(new AssetDef("Tree_B", AssetCategory.Resources,
-                () => BroadleafTree(4113, 3.4f), "variant: ~2.1 wide canopy, 3.4 tall"));
+                () => BroadleafTree(4113, 4.5f, OliveCanopy), "variant: olive-shaded, 4.5 tall"));
 
             list.Add(new AssetDef("Tree_C", AssetCategory.Resources,
-                () => BroadleafTree(4127, 3.8f), "variant: ~2.4 wide canopy, 3.8 tall"));
+                () => BroadleafTree(4127, 5.5f), "variant: ~3.4 wide canopy, 5.5 tall"));
+
+            list.Add(new AssetDef("Tree_D", AssetCategory.Resources,
+                () => BroadleafTree(4139, 4.8f, DeepCanopy), "variant: deep-green, 4.8 tall"));
+
+            list.Add(new AssetDef("Tree_E", AssetCategory.Resources,
+                () => BroadleafTree(4151, 5.8f, OliveCanopy), "variant: olive-shaded, 5.8 tall"));
 
             list.Add(new AssetDef("Tree_Small", AssetCategory.Resources,
                 () => BroadleafTree(4102, 2.6f), "~1.6 wide canopy, 2.6 tall"));
@@ -38,7 +45,13 @@ namespace IslandRTS.ArtGen
         // Tree
         // ==================================================================
 
-        private static MeshBuilder BroadleafTree(int seed, float height)
+        // Canopy palette trios: {main blob, dark side blob, light side blob}.
+        // Default is the classic Frond trio; variants shift the whole canopy's tone.
+        private static readonly string[] DefaultCanopy = { "FrondMid", "FrondDark", "FrondLight" };
+        private static readonly string[] OliveCanopy = { "FrondOlive", "FrondOliveDark", "FrondOliveLight" };
+        private static readonly string[] DeepCanopy = { "FrondDeep", "FrondDeepDark", "FrondDeepLight" };
+
+        private static MeshBuilder BroadleafTree(int seed, float height, string[] canopyPalette = null)
         {
             MeshBuilder b = new MeshBuilder(seed);
 
@@ -90,7 +103,7 @@ namespace IslandRTS.ArtGen
                 new Vector3(Mathf.Cos(blobB) * canopyW * b.Rand(0.22f, 0.34f), height * 0.01f,
                             Mathf.Sin(blobB) * canopyW * b.Rand(0.22f, 0.34f)),
             };
-            string[] canopyKeys = { "FrondMid", "FrondDark", "FrondLight" };
+            string[] canopyKeys = canopyPalette ?? DefaultCanopy;
 
             for (int i = 0; i < canopyOffsets.Length; i++)
             {

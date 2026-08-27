@@ -81,8 +81,8 @@ namespace IslandRTS.ArtGen
             public string BuildingData;
             public float? PlacementHeight;
 
-            /// <summary>Art mesh variants wired onto a TreeVariance component on the root.</summary>
-            public string[] VariantMeshes;
+            /// <summary>Art PREFAB variants (mesh + materials) wired onto TreeVariance — allows per-variant palettes.</summary>
+            public string[] VariantPrefabs;
         }
 
         // ---- Units -------------------------------------------------------
@@ -190,12 +190,16 @@ namespace IslandRTS.ArtGen
                 GameplayPrefab = "Assets/Prefabs/Tree.prefab",
                 ArtPrefab      = ArtPrefabRoot + "Resources/Tree.prefab",
                 ResetRootScale = true, HideOtherRenderers = true,
-                BoxSize = new Vector3(2.2f, 3.6f, 2.2f), BoxCenter = new Vector3(0f, 1.8f, 0f),
-                VariantMeshes = new[]
+                // 2026-08-26: trees grew to 4.5-5.8 tall — click hitbox follows
+                BoxSize = new Vector3(2.6f, 5.0f, 2.6f), BoxCenter = new Vector3(0f, 2.5f, 0f),
+                // Prefab variants (mesh + materials) so shade-trio palettes swap correctly
+                VariantPrefabs = new[]
                 {
-                    ArtMeshRoot + "Tree.asset",
-                    ArtMeshRoot + "Tree_B.asset",
-                    ArtMeshRoot + "Tree_C.asset",
+                    ArtPrefabRoot + "Resources/Tree.prefab",
+                    ArtPrefabRoot + "Resources/Tree_B.prefab",
+                    ArtPrefabRoot + "Resources/Tree_C.prefab",
+                    ArtPrefabRoot + "Resources/Tree_D.prefab",
+                    ArtPrefabRoot + "Resources/Tree_E.prefab",
                 }
             },
             new Plumb
@@ -494,20 +498,21 @@ namespace IslandRTS.ArtGen
 
         private static void ApplyVariants(GameObject root, Plumb p)
         {
-            if (p.VariantMeshes == null) return;
+            if (p.VariantPrefabs == null) return;
 
             TreeVariance variance = root.GetComponent<TreeVariance>();
             if (variance == null) variance = root.AddComponent<TreeVariance>();
 
-            Mesh[] meshes = new Mesh[p.VariantMeshes.Length];
-            for (int i = 0; i < p.VariantMeshes.Length; i++)
+            GameObject[] prefabs = new GameObject[p.VariantPrefabs.Length];
+            for (int i = 0; i < p.VariantPrefabs.Length; i++)
             {
-                meshes[i] = AssetDatabase.LoadAssetAtPath<Mesh>(p.VariantMeshes[i]);
-                if (meshes[i] == null)
-                    Debug.LogError("[LowPoly] Variant mesh not found: " + p.VariantMeshes[i]
+                prefabs[i] = AssetDatabase.LoadAssetAtPath<GameObject>(p.VariantPrefabs[i]);
+                if (prefabs[i] == null)
+                    Debug.LogError("[LowPoly] Variant prefab not found: " + p.VariantPrefabs[i]
                         + ". Run 'Generate All Assets' first.");
             }
-            variance.variantMeshes = meshes;
+            variance.variantPrefabs = prefabs;
+            variance.variantMeshes = null;  // prefab path supersedes the legacy mesh list
         }
 
         private static void ApplyColliders(GameObject root, Plumb p)

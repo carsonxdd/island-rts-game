@@ -57,12 +57,12 @@ public static class OpeningSequenceSetup
     // Ground is a 100x100 plane centered on origin (edges at ±50). The water
     // frame's inner edge sits at ±44, so the outer 6 units of ground are a
     // shallow wading band; the frame extends to ±72 as open ocean.
-    private const float WaterInnerEdge = 44f;
-    private const float WaterOuterEdge = 72f;
+    private const float WaterInnerEdge = 66f;
+    private const float WaterOuterEdge = 105f;
     private const float WaterY = 0.12f;
 
-    private static readonly Vector3 WreckPosition = new Vector3(-47f, 0f, 3f);
-    private static readonly Vector3 SurvivorSpawnPos = new Vector3(-45f, 0f, 2f);
+    private static readonly Vector3 WreckPosition = new Vector3(-71f, 0f, 4f);
+    private static readonly Vector3 SurvivorSpawnPos = new Vector3(-69f, 0f, 3f);
 
     // Mirror LowPolyScatter's prop flags: batched + GI + occludee, never occluder
     private const StaticEditorFlags PropStaticFlags =

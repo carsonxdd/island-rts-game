@@ -185,13 +185,16 @@ public class EnemyAttackExecutor : ActionExecutor
         // No distance gate — enemies should engage any hut/tower they can reach, so
         // they destroy structures on the way to the campfire instead of jogging past
         // them. Campfire (priority 5) only wins when no huts/towers are alive + reachable.
-        float hutDist, towerDist;
+        float hutDist, towerDist, shopDist;
         Hut hut = TargetingUtil.FindNearest(Hut.ActiveList, myPos, 0f, out hutDist);
         Watchtower tower = TargetingUtil.FindNearest(Watchtower.ActiveList, myPos, 0f, out towerDist);
+        Workshop shop = TargetingUtil.FindNearest(Workshop.ActiveList, myPos, 0f, out shopDist);
 
         Transform nearest = null;
-        if (hut != null && (tower == null || hutDist <= towerDist)) nearest = hut.transform;
-        else if (tower != null) nearest = tower.transform;
+        float nearestDist = float.MaxValue;
+        if (hut != null) { nearest = hut.transform; nearestDist = hutDist; }
+        if (tower != null && towerDist < nearestDist) { nearest = tower.transform; nearestDist = towerDist; }
+        if (shop != null && shopDist < nearestDist) { nearest = shop.transform; }
 
         if (nearest == null) return null;
 

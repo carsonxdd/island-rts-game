@@ -68,7 +68,7 @@ public class GameStartController : MonoBehaviour
     [Tooltip("Minimum XZ clearance from resource nodes (replaces ResourceSpawner's keep-away-from-campfire rule, which can't run before the campfire exists).")]
     public float minResourceClearance = 3f;
     [Tooltip("|x| and |z| beyond this are beach/wading water — no campfire there.")]
-    public float dryLandExtent = 42f;
+    public float dryLandExtent = 63f;
     public float cellSize = 1f;
     public float ghostFollowSpeed = 10f;
     public Color validColor = new Color(0.5f, 1f, 0.5f, 0.5f);
@@ -438,6 +438,11 @@ public class GameStartController : MonoBehaviour
             return;
         }
 
+        // Terrain T2: level a pad for the fire (no-op on the already-flat origin disc)
+        if (TerrainGrid.Instance != null)
+        {
+            TerrainGrid.Instance.FlattenArea(position, 2.2f, 1.6f);
+        }
         position.y = TerrainGrid.Instance != null ? TerrainGrid.Instance.SampleHeight(position) : 0f;
         GameObject fire = Instantiate(campfirePrefab, position, Quaternion.identity);
         fire.name = "Campfire";
@@ -478,7 +483,7 @@ public class GameStartController : MonoBehaviour
             return;
         }
 
-        Vector3 spawnPos = survivorSpawnPoint != null ? survivorSpawnPoint.position : new Vector3(-45f, 0f, 2f);
+        Vector3 spawnPos = survivorSpawnPoint != null ? survivorSpawnPoint.position : new Vector3(-69f, 0f, 3f);
         NavMeshHit hit;
         if (NavMesh.SamplePosition(spawnPos, out hit, 6f, NavMesh.AllAreas))
         {

@@ -5,5 +5,6 @@ public enum BuildingType
     StoneWall,
     Watchtower,
     WoodenGate,
-    StoneGate
+    StoneGate,
+    Workshop
 }

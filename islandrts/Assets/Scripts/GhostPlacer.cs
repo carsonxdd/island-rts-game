@@ -134,6 +134,15 @@ public class GhostPlacer
         // Deduct resources
         ResourceManager.Instance.SpendResources(data.woodCost, data.foodCost, data.stoneCost);
 
+        // Terrain T2: level a pad under the footprint so the building sits
+        // flush instead of clipping into the slope (target height = center
+        // height, which is exactly where the ghost was previewing)
+        if (TerrainGrid.Instance != null)
+        {
+            TerrainGrid.Instance.FlattenArea(targetPosition, 1.8f, 1.4f);
+            targetPosition.y = TerrainGrid.Instance.SampleHeight(targetPosition) + owner.placementHeight;
+        }
+
         // Use target position (where ghost is moving to) not current position
         // Spawn the construction site with the ghost's rotation
         GameObject constructionSite = Object.Instantiate(

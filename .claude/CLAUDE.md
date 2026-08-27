@@ -76,7 +76,7 @@ V:/islandrtsgame/                    # Repository root
 | `Warrior.cs` | Warrior unit + Utility AI brain setup |
 | `Enemy.cs` | Enemy unit + Utility AI brain setup |
 | `ActiveRegistry<T>.cs` | Generic static registry for O(1) entity tracking |
-| `CameraController.cs` | Smoothed WASD pan (zoom-scaled), Q/E rotate, eased scroll zoom, middle-mouse drag pan (orthographic, unscaled time) |
+| `CameraController.cs` | Smoothed WASD pan (zoom-scaled), Q/E rotate, eased scroll zoom, middle-mouse free-look tilt (30°–60°) + rotate orbiting the view-center ground point (orthographic, unscaled time) |
 | `CameraShake.cs` | Combat shake, pure offset approach (no stored position) |
 | `AudioManager.cs` | Singleton: music, SFX, ambient, crossfades |
 | `GameStartController.cs` | Opening sequence: survivor landing → campfire placement → colony start |
@@ -110,7 +110,7 @@ AIBrain (per unit)
 5. Max 5 evaluations per frame globally
 6. `ForceReeval()` bypasses both timer and frame throttle
 
-**Worker actions:** Gather, Return, Idle, Flee
+**Worker actions:** Gather, Return, Pickup (ground sticks/stones), Idle, Flee (garrison in nearest hut)
 **Warrior actions:** Engage, Intercept, DefendWall, Patrol, Retreat, Heal
 **Enemy actions:** Attack (single action; targeting handled by imperative priority function inside the executor, not by competing ActionOptions — see Phase 6.22)
 
@@ -171,6 +171,10 @@ Used by: ResourceManager, AudioManager, WallGrid, AIWorldState, PopulationManage
 - `AIBlackboard.SetTarget` returns true only when the target actually **changed** — it deliberately does NOT reset `isInAttackRange` or issue movement; each executor decides what to reset on a change (enemies drop attack state, warriors keep their hysteresis timestamps). Don't add side effects to it
 - A worker's `deliveryDistance` and warrior heal/attack ranges are **edge distances** (collider `ClosestPoint`), not center distances. If you add a new interaction with any building, use `TargetingUtil.EdgeDistance` — a center-based threshold smaller than the building's half-extent can never trip
 
+- **Resource nodes CARVE the NavMesh now (2026-08-26).** Non-carving obstacles never affected pathfinding — paths ran straight through trees, agents rubbed/slowed on the avoidance obstacle, and enemies chasing warriors froze dead behind trunks. Radii are trunk-tight (tree/bush 0.45, rock 0.5). Consequences: `ResourceNode.GatherRingRadius = obstacle.radius + 0.55` (carve hole = radius + ~0.5 bake erosion; ring must sit at the hole edge), and depletion shrink scales the **Model child, never the root** — root scale drives the obstacle, and scaling it would re-carve the NavMesh every gather tick (the original reason carving was disabled). Model baseline is captured lazily at first shrink so it composes with TreeVariance's Start-time jitter.
+- **Worker Pickup action (sticks/stones):** `PickupAvailability` caches `bb.bestPickup` and fades with distance (0 beyond 22u) so pickups only outbid Gather when genuinely close; ThreatNearby hard-suppresses it like Gather; pickups carry a `claimedBy` worker so two workers never chase one stick. `CollectPickupExecutor` releases the claim on exit/stuck-reset. Food workers score 0 (no food pickups).
+- **Flee = garrison (2026-08-26):** FleeToHutExecutor paths to the nearest hut's carve-safe approach point (the old code targeted hut CENTERS — silently rejected because huts carve), and at edge-arrival calls `Worker.SetGarrisoned(true)` (renderers + agent + collider off). Only FleeToHutExecutor may call SetGarrisoned, and its OnExit always restores before any other executor runs. A destroyed shelter pops the worker out immediately. No huts → crowd at the campfire edge; no campfire → legacy run-away.
+- **`TerrainGrid.FlattenArea(center, radius, blend)` (T2, pulled forward):** levels the ground to the height at `center`, rebuilds only touched chunks, kicks `UpdateNavMeshAsync`. Called by GhostPlacer.ConfirmPlacement (1.8/1.4), GameStartController.SpawnCampfire (2.2/1.6), and the F4 quick-start hut ring. Ghost previews at the center height = exactly where the pad ends up, so ghost and placed building heights always match. Walls deliberately do NOT flatten (they follow terrain per-cell).
 ### Visual / Art Gotchas
 
 Phase 10 spec is in `PHASE_10_VISUAL_OVERHAUL.md`. Stage 1 (post-processing + lighting presets) is shipped; remaining stages are planned.
@@ -273,9 +277,9 @@ Ask: "would this log spam the console during a normal 5-minute play session?" If
 | WASD / Arrows | Pan camera |
 | Q / E | Rotate camera |
 | Mouse Wheel | Zoom |
-| Middle Mouse (drag) | Drag-pan camera |
+| Middle Mouse (drag) | Tilt (vertical) / rotate (horizontal) camera |
 | B | Enter build mode |
-| 1-4 | Select building type (Hut, Wood Wall, Stone Wall, Watchtower) |
+| 1-5 | Select building type (Hut, Wood Wall, Stone Wall, Watchtower, Workshop) |
 | G | Convert wall to gate (in build mode, hover over wall) |
 | R | Toggle L-path direction (wall mode) / Rotate building |
 | Shift | Bresenham staircase wall path |
@@ -308,6 +312,7 @@ Ask: "would this log spam the console during a normal 5-minute play session?" If
 - Zero GC in hot paths, staggered AI evaluation
 
 **What's next (immediate):**
+- **⚠️ Session 2026-08-26 needs its editor steps re-run IN THIS ORDER** (island grew to 150×150, trees regenerated, workshop + pickups added — nothing applies until these run): 1) `Low-Poly Templates > Generate All Assets` 2) `Plumb Everything` 3) `Opening Sequence > Setup Opening Scene` (wreck/survivor moved to the new west shore) 4) `Low-Poly Templates > Scatter Environment Props` (new bands, heightfield-grounded) 5) `Terrain > Setup Terrain Scene (T1)` (snaps wreck + props to the 150-world field) 6) `Session Content > Setup Pickups + Workshop`. Then Play — see the Session 2026-08-26 entry in Phase History for the playtest checklist.
 - **Terrain T1 needs its editor setup run + playtest:** run `Tools > Island RTS > Terrain > Setup Terrain Scene (T1)` (AFTER the Opening Sequence setup — it removes the Ground plane, the baked NavMesh, and the _Ocean frame, then snaps the wreck/scatter props to the generated island). See the Terrain T1 entry in Phase History.
 - **Opening Sequence Stage 1 needs its editor setup run + playtest:** in Unity run `Tools > Island RTS > Opening Sequence > Setup Opening Scene`, then Play (see the Opening Sequence Stage 1 entry in Phase History). Until the menu item is run, the scene is untouched and the game starts the classic way.
 - Playtest Phase 6.24 refactors + the Unity 6000.5.9f1 upgrade + Phase 6.25 targeting/spacing changes (see checklists in Phase History — the 6.25 list stacks on 6.24's).
@@ -336,6 +341,7 @@ Ask: "would this log spam the console during a normal 5-minute play session?" If
 | Wooden Wall | 15W 5S | 150 |
 | Stone Wall | 10W 20S | 300 |
 | Watchtower | 25W 15S | 200 |
+| Workshop | 30W 20S | 150 |
 | Warrior | 10W 15F | 75 |
 
 - Starting resources: 100W, 50F, 0S
@@ -767,3 +773,28 @@ Stage T1 of `TERRAIN_SYSTEM_PLAN.md` implemented 2026-08-25 (compile-verified bo
 **T1 known-accepted rough edges (T2 fixes):** buildings on slopes clip into/overhang the ground slightly (no `FlattenArea` yet — validity just rejects steep spots); wall lines follow terrain per-cell with small steps; `GridOverlay` (off by default) still renders flat. Watch for: worker/warrior interaction ranges are 3D distances, so slopes inflate them slightly (tolerances have margin); campfire placement is limited to gentle ground — the cove ramp and origin flat guarantee valid spots on the fixed seed.
 
 **Playtest checklist (after running the Terrain setup menu item):** console shows one "TerrainGrid: island generated (seed …) + NavMesh built in … ms" line and no errors; the world is an island — beach ring, rolling green interior, rock facets on steep bits, ocean to the horizon; survivor starts wading in the cove and walks up the beach ramp; campfire ghost red in water/on slopes, green on the flats; colony loop (gather/deliver/build/walls/demolish) works on hills; night wave spawns on land at the ring and pathes to the campfire; units never walk on water beyond the wading band; F4 quick-start colony lands huts on buildable ground; restart regenerates the identical island; ~60 fps held (chunk meshing is ~40k tris total).
+
+
+### Session 2026-08-26 (Island 150×150 + Node Carving + T2 Flatten + Garrison Flee + Pickups + Workshop — ⚠️ NEEDS EDITOR SETUP RE-RUNS + PLAYTEST)
+
+User-directed session (4-option questions locked: red lines/ghost = terrain clipping; flee = garrison in huts; island = 1.5×; crafting = workshop + recipes). Compile-verified vs 6000.5.9f1 Roslyn, runtime pass AND editor pass: **0 errors, 0 new warnings**.
+
+**Island 150×150 (was 100×100).** `TerrainGrid.VertsPerSide` 151, `IslandGenerator.IslandRadius` 72, campfire flat disc 8/10, cove/ramp anchors (-70,3)/(-58,3), wreck (-71,0,4), survivor spawn (-69,0,3), water plane 480², deep-water volume 500², legacy WaterInner/Outer 66/105, dryLandExtent 63 everywhere. Scene values updated in MainIsland.unity: ResourceSpawner area ±70 with trees 220 / bushes 110 / rocks 110, clusters 9 (r9), scattered 35; EnemySpawner.spawnDistance 45; camera maxOrthoSize 24. LowPolyScatter: bands scaled to radius 70, counts ~1.7×, and grounding switched from physics raycast to **sampling the IslandGenerator heightfield** (chunk colliders only exist in Play mode — the raycast found nothing once the Ground plane was deleted; seed read from the scene TerrainGrid). Fixed a latent TerrainSetup bug: scatter snapping moved the per-prefab GROUP roots, not the props (props live one level down).
+
+**Pathing: resource nodes carve now.** See the new Utility AI gotcha — this is the fix for units slowing/rubbing on trees and enemies freezing behind trunks while chasing warriors. Trunk-tight radii (0.45/0.45/0.5), `carveOnlyStationary`, GatherRingRadius = radius + 0.55, depletion shrink moved to the Model child. `GetGatherPoint` already SamplePosition-snaps, so ring points self-heal to the carve hole edge.
+
+**T2 flatten-on-placement pulled forward.** `TerrainGrid` now keeps its chunk objects, exposes `FlattenArea(center, radius, blend)` (FlattenDisc on the heightfield → rebuild touched chunks → `UpdateNavMesh` async). Wired into single-building placement, campfire spawn, and the F4 quick-start ring. Fixes buildings/ghosts clipping into slopes and ghost-vs-placed height mismatch. Walls still follow terrain per-cell (deliberate).
+
+**No-build red lines follow the terrain.** NoBuildZoneRenderer subdivides merged-perimeter edges (~1m steps) and drapes every point at `GroundYAt + 0.08`; individual/ghost zone borders are world-space draped squares (8 samples/side), re-draped as the ghost moves.
+
+**Flee → garrison in huts** (user choice). FleeToHutExecutor rewritten; `Worker.SetGarrisoned` added. Old flee had a real bug: hut destinations targeted carved centers. Details in the new gotcha.
+
+**Ground pickups (sticks + stones).** `GroundPickup` (registry, claimedBy, instant-carry Collect), `PickupSpawner` (26 sticks / 16 stones on land + NavMesh, trickle respawn every 18s), `PickupAvailability` consideration + `CollectPickupExecutor`, new "Pickup" worker action (basePriority 1.1, momentum 0.15). Stick = +3 wood carry, stone chunk = +3 stone; wood/stone workers only.
+
+**Workshop + crafting.** `BuildingType.Workshop` (build key 5), `Workshop.cs` (ITargetable + registry; enemies target it via the extended `FindNearestReachableBuilding`), `CraftedUpgrades` (static one-time upgrades read at point-of-effect: Sharpened Tools +30% gather, Sturdy Scaffolds +50% build speed, Forged Blades +30% warrior damage), `CraftingUI` (runtime-built uGUI side panel, zero scene wiring, opened by clicking the workshop). Hooks: GatherExecutor rate, ConstructionSite.Update, EngageEnemyExecutor damage. 30W 20S, HP 150. `NewContentSetup.cs` editor tool builds Stick/StonePickup/Workshop/WorkshopGhost prefabs + WorkshopData.asset (borrows Hut's construction-site prefab), registers it in the scene BuildingDatabase, and creates the wired `_PickupSpawner`.
+
+**Trees: taller + shade variants.** BroadleafTree heights 4.5–5.8 (was 3.4–3.8), five variants (Tree, B olive, C, D deep-green, E olive) via two new canopy palette trios (FrondOlive*/FrondDeep*). TreeVariance now stores **art prefab** variants and copies mesh + materials (mesh-only swap couldn't change palettes); plumber wires `VariantPrefabs` and the tree click hitbox grew to 2.6×5.0.
+
+**Editor run order (nothing applies until these run, in order):** Generate All Assets → Plumb Everything → Setup Opening Scene → Scatter Environment Props → Setup Terrain Scene (T1) → Session Content > Setup Pickups + Workshop → save + Play.
+
+**Playtest checklist:** island noticeably bigger with nodes spread out; forests mix five tree silhouettes/shades and read taller; units path AROUND trees/rocks at full speed (no rubbing slow-down); enemies chasing warriors never wedge behind trunks; workers still pack around nodes and deliver promptly (carve changed the gather ring — watch for orbiting/unreachable-node give-ups); buildings flatten a pad and sit flush on slopes, ghost matches placed height; red no-build lines hug the hills; flee: workers sprint to a hut and vanish inside, pop out when enemies die, hut destroyed mid-hide pops them out; wood/stone workers detour to nearby sticks/stones and deliver them; key 5 places the Workshop, clicking it opens the crafting panel, each recipe crafts once and its effect visibly applies; enemy waves (ring 45) arrive from the shore and will chew the workshop like huts; F4 quick-start works on the big island; ~60 fps (terrain is ~2.25× the triangles; 440 carving obstacles are static after the initial carve).

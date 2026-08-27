@@ -161,25 +161,32 @@ public static class TerrainSetup
         }
 
         // Scatter props: each prop sits exactly on the ground (base-pivot
-        // art); anything that lands underwater is deleted
+        // art); anything that lands underwater is deleted. Props live one
+        // level down — the scatter root's direct children are per-prefab
+        // GROUP transforms (fixed 2026-08-26: the old loop snapped the group
+        // roots, not the props).
         GameObject scatter = GameObject.Find("_LowPolyScatter");
         if (scatter != null)
         {
             int snapped = 0, drowned = 0;
-            for (int i = scatter.transform.childCount - 1; i >= 0; i--)
+            for (int g = scatter.transform.childCount - 1; g >= 0; g--)
             {
-                Transform prop = scatter.transform.GetChild(i);
-                Vector3 p = prop.position;
-                float h = TerrainGrid.SampleField(heights, p.x, p.z);
-                if (h < 0.05f)
+                Transform child = scatter.transform.GetChild(g);
+                bool isGroup = child.childCount > 0 && child.GetComponent<Renderer>() == null;
+
+                if (isGroup)
                 {
-                    Object.DestroyImmediate(prop.gameObject);
-                    drowned++;
-                    continue;
+                    for (int i = child.childCount - 1; i >= 0; i--)
+                    {
+                        SnapOrDrown(child.GetChild(i), heights, ref snapped, ref drowned);
+                    }
+                    // Keep group roots at the origin so prop world-positions stay absolute
+                    child.localPosition = Vector3.zero;
                 }
-                p.y = h;
-                prop.position = p;
-                snapped++;
+                else
+                {
+                    SnapOrDrown(child, heights, ref snapped, ref drowned);
+                }
             }
             summary.AppendLine("    _LowPolyScatter: " + snapped + " props snapped to terrain, " + drowned + " underwater props removed");
         }
@@ -187,5 +194,20 @@ public static class TerrainSetup
         {
             summary.AppendLine("    _LowPolyScatter not found (run 'Scatter Environment Props' first if you want props re-snapped — safe to re-run this tool after)");
         }
+    }
+
+    private static void SnapOrDrown(Transform prop, float[,] heights, ref int snapped, ref int drowned)
+    {
+        Vector3 p = prop.position;
+        float h = TerrainGrid.SampleField(heights, p.x, p.z);
+        if (h < 0.05f)
+        {
+            Object.DestroyImmediate(prop.gameObject);
+            drowned++;
+            return;
+        }
+        p.y = h;
+        prop.position = p;
+        snapped++;
     }
 }

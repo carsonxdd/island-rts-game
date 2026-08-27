@@ -22,11 +22,11 @@ public static class IslandGenerator
 {
     // World-space anchors that generation guarantees (match the opening scene)
     public static readonly Vector2 CampfireSite = new Vector2(0f, 0f);
-    public static readonly Vector2 CoveCenter = new Vector2(-46f, 2f);
-    public static readonly Vector2 CoveRamp = new Vector2(-38f, 2f);
+    public static readonly Vector2 CoveCenter = new Vector2(-70f, 3f);
+    public static readonly Vector2 CoveRamp = new Vector2(-58f, 3f);
 
     // Shape tuning (T1: fixed gentle island; T4 revisits for random seeds)
-    private const float IslandRadius = 48f;   // divisor for the radial falloff
+    private const float IslandRadius = 72f;   // divisor for the radial falloff (150x150 world)
     private const float CoastWarp = 8f;       // ± meters of coastline wobble
     private const float CoastScale = 0.045f;  // coastline noise frequency
     private const float HillAmp = 3.0f;       // hills on top of the 0.5 base
@@ -77,7 +77,7 @@ public static class IslandGenerator
         }
 
         // Authored features (order matters: ramp first, cove shelf wins overlap)
-        FlattenDisc(heights, verts, spacing, CampfireSite.x, CampfireSite.y, 6f, 8f, 1.0f);
+        FlattenDisc(heights, verts, spacing, CampfireSite.x, CampfireSite.y, 8f, 10f, 1.0f);
         FlattenDisc(heights, verts, spacing, CoveRamp.x, CoveRamp.y, 5f, 6f, 0.6f);
         FlattenDisc(heights, verts, spacing, CoveCenter.x, CoveCenter.y, 5f, 5f, -0.25f);
 

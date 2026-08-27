@@ -110,6 +110,7 @@ public class BuildPlacement : MonoBehaviour
             if (Input.GetKeyDown(KeyCode.Alpha2)) SelectBuilding(BuildingType.WoodenWall);
             if (Input.GetKeyDown(KeyCode.Alpha3)) SelectBuilding(BuildingType.StoneWall);
             if (Input.GetKeyDown(KeyCode.Alpha4)) SelectBuilding(BuildingType.Watchtower);
+            if (Input.GetKeyDown(KeyCode.Alpha5)) SelectBuilding(BuildingType.Workshop);
 
             // G key: convert wall under cursor to gate (grid-based detection)
             if (Input.GetKeyDown(KeyCode.G))

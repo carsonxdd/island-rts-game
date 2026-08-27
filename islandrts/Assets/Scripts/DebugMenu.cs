@@ -303,6 +303,7 @@ public class DebugMenu : MonoBehaviour
             HealList(BaseBuilding.ActiveList);
             HealList(Hut.ActiveList);
             HealList(Watchtower.ActiveList);
+            HealList(Workshop.ActiveList);
             HealList(Wall.ActiveList);
             HealList(Gate.ActiveList);
         }
@@ -384,6 +385,13 @@ public class DebugMenu : MonoBehaviour
 
                 if (!IsClearForHut(pos)) continue;
 
+                // Terrain T2: level a pad like real placement does
+                if (TerrainGrid.Instance != null)
+                {
+                    TerrainGrid.Instance.FlattenArea(pos, 1.8f, 1.4f);
+                    pos.y = TerrainGrid.Instance.SampleHeight(pos);
+                }
+
                 GameObject hut = Instantiate(hutData.finishedBuildingPrefab, pos, Quaternion.identity);
                 if (buildingsLayer >= 0) hut.layer = buildingsLayer;
                 placed++;
@@ -408,7 +416,7 @@ public class DebugMenu : MonoBehaviour
         {
             if (!TerrainGrid.Instance.IsBuildable(pos)) return false;
         }
-        else if (Mathf.Abs(pos.x) > 42f || Mathf.Abs(pos.z) > 42f) return false;
+        else if (Mathf.Abs(pos.x) > 63f || Mathf.Abs(pos.z) > 63f) return false;
         NavMeshHit hit;
         if (!NavMesh.SamplePosition(pos, out hit, 1f, NavMesh.AllAreas)) return false;
 

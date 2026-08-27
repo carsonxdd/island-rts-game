@@ -2,22 +2,41 @@ using UnityEngine;
 using UnityEngine.AI;
 
 /// <summary>
-/// Worker executor: Flee away from enemies.
-/// Continuously recalculates a flee point in the opposite direction from the nearest threat.
-/// Prefers huts as shelter if one is roughly in the flee direction; otherwise just runs away.
+/// Worker executor: run to the nearest hut and GARRISON inside it until the
+/// threat passes (2026-08-26 redesign).
+///
+/// Replaces the old "run 15u directly away from the enemy" behavior, which
+/// routinely ran workers into the water — and whose hut-shelter branch pathed
+/// to hut CENTERS: huts carve the NavMesh, so those destinations were silently
+/// rejected and the worker just stood there while enemies closed in.
+///
+/// Behavior:
+///  - Nearest alive hut → move to its carve-safe approach point
+///    (TargetingUtil.GetApproachPoint) → at collider-edge arrival, slip inside
+///    (Worker.SetGarrisoned: renderers/agent/collider off). Enemies never
+///    target workers, so garrison is visual shelter + removes the worker from
+///    the crowd sim while hiding.
+///  - No huts alive → gather at the campfire edge (no hiding).
+///  - Neither → run directly away from the nearest enemy (legacy last resort).
+///  - When the threat clears, Flee's considerations drop to 0, the brain exits
+///    this action, and OnExit pops the worker back out at the hut edge.
+///  - If the sheltering hut is destroyed, the worker pops out immediately and
+///    re-picks a shelter.
 /// </summary>
 public class FleeToHutExecutor : ActionExecutor
 {
-    public override string DisplayName => "Fleeing!";
+    public override string DisplayName => displayName;
+    private string displayName = "Fleeing!";
 
-    private const float FleeDistance = 15f;        // How far ahead to pick the flee point
-    private const float RecalcInterval = 0.5f;     // How often to recalculate flee direction
-    private const float HutPreferAngle = 70f;      // Max angle from flee dir to still prefer a hut
-    private const float HutArrivalDist = 3f;       // Close enough to hut to count as sheltered
-    private const float ShelterSlowDist = 2f;      // Stop at shelter
+    private const float GarrisonEdgeDistance = 1.1f;  // close enough to slip inside
+    private const float RepickInterval = 0.75f;       // re-validate shelter this often
+    private const float FleeDistance = 15f;           // legacy run-away fallback
 
-    private float recalcTimer;
-    private Transform shelterTarget; // hut we're heading toward (if any)
+    private Hut shelterHut;
+    private Collider shelterCollider;
+    private bool garrisoned;
+    private float repickTimer;
+    private bool destinationQueued;
 
     public override void OnEnter(AIBlackboard bb)
     {
@@ -37,176 +56,154 @@ public class FleeToHutExecutor : ActionExecutor
         if (bb.stuckResolver != null)
             bb.stuckResolver.ResetStuckDetection();
 
-        shelterTarget = null;
-        recalcTimer = 0f; // calculate immediately
+        garrisoned = false;
+        shelterHut = null;
+        shelterCollider = null;
+        repickTimer = 0f;
+        destinationQueued = false;
 
         // Moving errand — drop stationary-importance if we were gathering/idle
         Worker.RollMovingAvoidance(bb.agent);
 
-        SetFleeDestination(bb);
+        PickShelterAndMove(bb);
     }
 
     public override void OnUpdate(AIBlackboard bb)
     {
-        if (bb.stuckResolver != null)
-            bb.stuckResolver.UpdateMoving();
-
-        // If we reached a hut shelter, stop and stay safe
-        if (shelterTarget != null)
+        if (garrisoned)
         {
-            float dist = Vector3.Distance(bb.transform.position, shelterTarget.position);
-            if (dist < ShelterSlowDist)
+            // Shelter died out from under us → pop out and re-pick
+            if (shelterHut == null || shelterHut.CachedHealth == null || !shelterHut.CachedHealth.IsAlive)
             {
-                if (bb.agent.isOnNavMesh) bb.agent.ResetPath();
-                // Sheltering = standing still; let other fleers route around us
-                Worker.SetStationaryAvoidance(bb.agent);
-                return;
+                bb.worker.SetGarrisoned(false);
+                garrisoned = false;
+                shelterHut = null;
+                shelterCollider = null;
+                Worker.RollMovingAvoidance(bb.agent);
+                PickShelterAndMove(bb);
             }
+            // Safe inside; the brain exits Flee when the threat clears.
+            return;
         }
 
-        // Periodically recalculate flee direction as enemies move.
-        // If the throttle/NavMesh rejected the destination, retry next frame
-        // instead of standing still for the full recalc interval.
-        recalcTimer -= Time.deltaTime;
-        if (recalcTimer <= 0f)
+        // Stuck resolution while moving. Honor the bool: a reset already
+        // ForceReeval'd — bail out for this tick (see Phase 6.25 gotcha).
+        if (bb.stuckResolver != null && bb.stuckResolver.UpdateMoving())
+            return;
+
+        // Re-validate the shelter pick periodically, and retry immediately if
+        // the last TrySetDestination was rejected (throttle/NavMesh recalc)
+        repickTimer -= Time.deltaTime;
+        if (repickTimer <= 0f || !destinationQueued)
         {
-            recalcTimer = SetFleeDestination(bb) ? RecalcInterval : 0f;
+            PickShelterAndMove(bb);
+        }
+
+        // Arrived at the hut edge? Slip inside.
+        if (shelterHut != null)
+        {
+            if (shelterHut.CachedHealth == null || !shelterHut.CachedHealth.IsAlive)
+            {
+                shelterHut = null;
+                shelterCollider = null;
+                return;
+            }
+
+            float edge = TargetingUtil.EdgeDistance(bb.transform.position, shelterHut.transform, shelterCollider);
+            if (edge <= GarrisonEdgeDistance)
+            {
+                if (bb.agent.isOnNavMesh) bb.agent.ResetPath();
+                bb.worker.SetGarrisoned(true);
+                garrisoned = true;
+                displayName = "Hiding";
+            }
         }
     }
 
     /// <summary>
-    /// Pick and set a flee destination. Returns false only when
-    /// AINavHelper.TrySetDestination rejected the set (throttled or
-    /// unmappable) so the caller can retry next frame.
+    /// Pick the best shelter (hut → campfire → run-away) and issue movement.
+    /// Sets destinationQueued=false when the set was rejected so OnUpdate
+    /// retries next frame instead of standing still.
     /// </summary>
-    bool SetFleeDestination(AIBlackboard bb)
+    void PickShelterAndMove(AIBlackboard bb)
     {
-        if (!bb.agent.isOnNavMesh || !bb.agent.enabled) return false;
+        repickTimer = RepickInterval;
 
-        Vector3 myPos = bb.transform.position;
-
-        // Find the average threat direction from nearby enemies
-        Vector3 threatDir = GetThreatDirection(bb, myPos);
-
-        if (threatDir == Vector3.zero)
+        if (bb.agent == null || !bb.agent.enabled || !bb.agent.isOnNavMesh)
         {
-            // No enemies visible — flee toward base as fallback
-            if (bb.baseBuilding != null)
+            destinationQueued = false;
+            return;
+        }
+
+        float unused;
+        Hut hut = TargetingUtil.FindNearest(Hut.ActiveList, bb.transform.position, 0f, out unused);
+        if (hut != null)
+        {
+            if (hut != shelterHut)
             {
-                if (!AINavHelper.TrySetDestination(bb.agent, bb.baseBuilding.transform.position))
-                    return false;
-                bb.agent.isStopped = false;
-                shelterTarget = bb.baseBuilding.transform;
+                shelterHut = hut;
+                shelterCollider = hut.GetComponent<Collider>();
             }
-            return true;
+            // Huts carve the NavMesh — destination MUST be the approach point
+            Vector3 approach = TargetingUtil.GetApproachPoint(bb.transform.position, hut.transform, shelterCollider);
+            destinationQueued = AINavHelper.TrySetDestination(bb.agent, approach);
+            if (destinationQueued) bb.agent.isStopped = false;
+            displayName = "Fleeing to hut!";
+            return;
         }
 
-        // Flee direction is opposite of threat
-        Vector3 fleeDir = -threatDir.normalized;
+        shelterHut = null;
+        shelterCollider = null;
 
-        // Check if any hut is roughly in the flee direction
-        Transform bestHut = FindHutInFleeDirection(bb, myPos, fleeDir);
-
-        if (bestHut != null)
+        // No huts: crowd at the campfire (no hiding)
+        if (bb.baseBuilding != null)
         {
-            if (!AINavHelper.TrySetDestination(bb.agent, bestHut.position))
-                return false;
-            shelterTarget = bestHut;
-            bb.agent.isStopped = false;
-            return true;
+            Collider fireCollider = bb.baseBuilding.GetComponent<Collider>();
+            Vector3 approach = TargetingUtil.GetApproachPoint(
+                bb.transform.position, bb.baseBuilding.transform, fireCollider);
+            destinationQueued = AINavHelper.TrySetDestination(bb.agent, approach);
+            if (destinationQueued) bb.agent.isStopped = false;
+            displayName = "Fleeing to camp!";
+            return;
         }
 
-        shelterTarget = null;
-
-        // Pick a point on the NavMesh in the flee direction
-        Vector3 fleePoint = myPos + fleeDir * FleeDistance;
-
-        if (NavMesh.SamplePosition(fleePoint, out NavMeshHit hit, FleeDistance, NavMesh.AllAreas))
+        // Last resort: run away from the nearest enemy (populated by EnemyPresence)
+        displayName = "Fleeing!";
+        if (bb.nearestEnemy == null)
         {
-            if (!AINavHelper.TrySetDestination(bb.agent, hit.position))
-                return false;
-            bb.agent.isStopped = false;
+            destinationQueued = false;
+            return;
+        }
+
+        Vector3 threatDir = (bb.nearestEnemy.position - bb.transform.position).normalized;
+        Vector3 fleePoint = bb.transform.position - threatDir * FleeDistance;
+
+        NavMeshHit hit;
+        if (NavMesh.SamplePosition(fleePoint, out hit, FleeDistance, NavMesh.AllAreas))
+        {
+            destinationQueued = AINavHelper.TrySetDestination(bb.agent, hit.position);
+            if (destinationQueued) bb.agent.isStopped = false;
         }
         else
         {
-            // Can't find a point in the ideal direction — try a shorter distance
-            fleePoint = myPos + fleeDir * (FleeDistance * 0.5f);
-            if (NavMesh.SamplePosition(fleePoint, out hit, FleeDistance * 0.5f, NavMesh.AllAreas))
-            {
-                if (!AINavHelper.TrySetDestination(bb.agent, hit.position))
-                    return false;
-                bb.agent.isStopped = false;
-            }
+            destinationQueued = false;
         }
-
-        return true;
-    }
-
-    /// <summary>
-    /// Returns the average direction FROM the worker TOWARD nearby enemies.
-    /// </summary>
-    Vector3 GetThreatDirection(AIBlackboard bb, Vector3 myPos)
-    {
-        Vector3 threatSum = Vector3.zero;
-        int count = 0;
-        float detectRange = bb.searchRadius > 0f ? bb.searchRadius : 30f;
-
-        for (int i = 0; i < Enemy.ActiveList.Count; i++)
-        {
-            Enemy enemy = Enemy.ActiveList[i];
-            if (enemy == null) continue;
-            Health h = enemy.CachedHealth;
-            if (h != null && !h.IsAlive) continue;
-
-            Vector3 toEnemy = enemy.transform.position - myPos;
-            float dist = toEnemy.magnitude;
-            if (dist < detectRange && dist > 0.1f)
-            {
-                // Weight closer enemies more heavily (inverse distance)
-                threatSum += toEnemy.normalized * (1f / dist);
-                count++;
-            }
-        }
-
-        return count > 0 ? threatSum.normalized : Vector3.zero;
-    }
-
-    /// <summary>
-    /// Find a hut that is roughly in the flee direction (within HutPreferAngle degrees).
-    /// Returns the nearest qualifying hut, or null.
-    /// </summary>
-    Transform FindHutInFleeDirection(AIBlackboard bb, Vector3 myPos, Vector3 fleeDir)
-    {
-        Transform best = null;
-        float bestDist = float.MaxValue;
-
-        for (int i = 0; i < Hut.ActiveList.Count; i++)
-        {
-            Hut hut = Hut.ActiveList[i];
-            if (hut == null) continue;
-            if (hut.CachedHealth != null && !hut.CachedHealth.IsAlive) continue;
-
-            Vector3 toHut = hut.transform.position - myPos;
-            float dist = toHut.magnitude;
-            if (dist < 1f) continue; // already here
-
-            float angle = Vector3.Angle(fleeDir, toHut);
-            if (angle < HutPreferAngle && dist < bestDist)
-            {
-                bestDist = dist;
-                best = hut.transform;
-            }
-        }
-
-        return best;
     }
 
     public override void OnExit(AIBlackboard bb)
     {
-        shelterTarget = null;
-        if (bb.agent != null && bb.agent.isOnNavMesh)
+        if (garrisoned)
+        {
+            bb.worker.SetGarrisoned(false);
+            garrisoned = false;
+        }
+        shelterHut = null;
+        shelterCollider = null;
+
+        if (bb.agent != null && bb.agent.enabled && bb.agent.isOnNavMesh)
         {
             bb.agent.isStopped = false;
+            Worker.RollMovingAvoidance(bb.agent);
         }
     }
 }

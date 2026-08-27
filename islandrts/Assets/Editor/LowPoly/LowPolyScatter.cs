@@ -38,15 +38,11 @@ namespace IslandRTS.ArtGen
         /// <summary>Change this for a completely different layout with the same density.</summary>
         private const int Seed = 20260823;
 
-        /// <summary>Half-extent of the playfield. Matches the Ground plane and ResourceSpawner's -50..50.</summary>
-        private const float IslandRadius = 47f;
+        /// <summary>Half-extent of the playfield (150x150 world, island radius ~72).</summary>
+        private const float IslandRadius = 70f;
 
         /// <summary>Nothing is placed inside this radius, so the campfire build area stays clear.</summary>
-        private const float CampfireClearing = 11f;
-
-        /// <summary>Height the placement ray starts from, and how far down it looks.</summary>
-        private const float RayStartHeight = 60f;
-        private const float RayLength = 120f;
+        private const float CampfireClearing = 13f;
 
         /// <summary>Give up on a prop after this many rejected candidates.</summary>
         private const int MaxTriesPerProp = 40;
@@ -68,22 +64,22 @@ namespace IslandRTS.ArtGen
         // trees, 100 bushes and 100 rocks at runtime, so this is dressing, not a forest.
         private static readonly PropDef[] Props =
         {
-            new PropDef { Prefab = "Palm_Tall.prefab",     Count = 18, MinRadius = 20f, MaxRadius = 46f, Spacing = 4f,   MinScale = 0.85f, MaxScale = 1.2f },
-            new PropDef { Prefab = "Palm_Bent.prefab",     Count = 12, MinRadius = 24f, MaxRadius = 46f, Spacing = 4f,   MinScale = 0.85f, MaxScale = 1.2f },
-            new PropDef { Prefab = "Palm_Young.prefab",    Count = 14, MinRadius = 18f, MaxRadius = 46f, Spacing = 3f,   MinScale = 0.9f,  MaxScale = 1.15f },
+            new PropDef { Prefab = "Palm_Tall.prefab",     Count = 30, MinRadius = 30f, MaxRadius = 69f, Spacing = 4f,   MinScale = 0.85f, MaxScale = 1.2f },
+            new PropDef { Prefab = "Palm_Bent.prefab",     Count = 20, MinRadius = 36f, MaxRadius = 69f, Spacing = 4f,   MinScale = 0.85f, MaxScale = 1.2f },
+            new PropDef { Prefab = "Palm_Young.prefab",    Count = 24, MinRadius = 27f, MaxRadius = 69f, Spacing = 3f,   MinScale = 0.9f,  MaxScale = 1.15f },
 
-            new PropDef { Prefab = "Rock_Large.prefab",    Count = 8,  MinRadius = 14f, MaxRadius = 46f, Spacing = 5f,   MinScale = 0.9f,  MaxScale = 1.3f },
-            new PropDef { Prefab = "Rock_Medium.prefab",   Count = 14, MinRadius = 12f, MaxRadius = 46f, Spacing = 3.5f, MinScale = 0.85f, MaxScale = 1.25f },
-            new PropDef { Prefab = "Rock_Small.prefab",    Count = 24, MinRadius = 12f, MaxRadius = 46f, Spacing = 2.5f, MinScale = 0.8f,  MaxScale = 1.3f },
+            new PropDef { Prefab = "Rock_Large.prefab",    Count = 14, MinRadius = 21f, MaxRadius = 69f, Spacing = 5f,   MinScale = 0.9f,  MaxScale = 1.3f },
+            new PropDef { Prefab = "Rock_Medium.prefab",   Count = 24, MinRadius = 18f, MaxRadius = 69f, Spacing = 3.5f, MinScale = 0.85f, MaxScale = 1.25f },
+            new PropDef { Prefab = "Rock_Small.prefab",    Count = 40, MinRadius = 18f, MaxRadius = 69f, Spacing = 2.5f, MinScale = 0.8f,  MaxScale = 1.3f },
 
-            new PropDef { Prefab = "Bush_Round.prefab",    Count = 26, MinRadius = 13f, MaxRadius = 45f, Spacing = 2.5f, MinScale = 0.85f, MaxScale = 1.25f },
-            new PropDef { Prefab = "Bush_Wide.prefab",     Count = 18, MinRadius = 13f, MaxRadius = 45f, Spacing = 2.5f, MinScale = 0.85f, MaxScale = 1.25f },
-            new PropDef { Prefab = "Fern.prefab",          Count = 30, MinRadius = 12f, MaxRadius = 44f, Spacing = 2f,   MinScale = 0.8f,  MaxScale = 1.2f },
-            new PropDef { Prefab = "GrassTuft.prefab",     Count = 70, MinRadius = 12f, MaxRadius = 46f, Spacing = 1.5f, MinScale = 0.8f,  MaxScale = 1.35f },
+            new PropDef { Prefab = "Bush_Round.prefab",    Count = 44, MinRadius = 19f, MaxRadius = 67f, Spacing = 2.5f, MinScale = 0.85f, MaxScale = 1.25f },
+            new PropDef { Prefab = "Bush_Wide.prefab",     Count = 30, MinRadius = 19f, MaxRadius = 67f, Spacing = 2.5f, MinScale = 0.85f, MaxScale = 1.25f },
+            new PropDef { Prefab = "Fern.prefab",          Count = 50, MinRadius = 18f, MaxRadius = 66f, Spacing = 2f,   MinScale = 0.8f,  MaxScale = 1.2f },
+            new PropDef { Prefab = "GrassTuft.prefab",     Count = 120, MinRadius = 18f, MaxRadius = 69f, Spacing = 1.5f, MinScale = 0.8f,  MaxScale = 1.35f },
 
-            new PropDef { Prefab = "DriftwoodLog.prefab",  Count = 10, MinRadius = 34f, MaxRadius = 46f, Spacing = 4f,   MinScale = 0.9f,  MaxScale = 1.2f },
-            new PropDef { Prefab = "Barrel.prefab",        Count = 5,  MinRadius = 32f, MaxRadius = 46f, Spacing = 3f,   MinScale = 0.95f, MaxScale = 1.1f },
-            new PropDef { Prefab = "Crate.prefab",         Count = 6,  MinRadius = 32f, MaxRadius = 46f, Spacing = 3f,   MinScale = 0.95f, MaxScale = 1.1f },
+            new PropDef { Prefab = "DriftwoodLog.prefab",  Count = 16, MinRadius = 50f, MaxRadius = 69f, Spacing = 4f,   MinScale = 0.9f,  MaxScale = 1.2f },
+            new PropDef { Prefab = "Barrel.prefab",        Count = 8,  MinRadius = 48f, MaxRadius = 69f, Spacing = 3f,   MinScale = 0.95f, MaxScale = 1.1f },
+            new PropDef { Prefab = "Crate.prefab",         Count = 10, MinRadius = 48f, MaxRadius = 69f, Spacing = 3f,   MinScale = 0.95f, MaxScale = 1.1f },
         };
 
         // ==================================================================
@@ -100,6 +96,15 @@ namespace IslandRTS.ArtGen
             Undo.RegisterCreatedObjectUndo(scatterRoot, "Scatter Environment Props");
 
             Vector3 centre = FindIslandCentre();
+
+            // Terrain-aware grounding: generate the same heightfield the game builds at
+            // runtime. (Terrain chunk colliders only exist in Play mode, so the old
+            // physics raycast found nothing once the Ground plane was deleted.) Seed
+            // comes from the scene's TerrainGrid when present.
+            TerrainGrid sceneGrid = Object.FindAnyObjectByType<TerrainGrid>();
+            float[,] heights = IslandGenerator.Generate(
+                TerrainGrid.VertsPerSide, TerrainGrid.Spacing,
+                sceneGrid != null ? sceneGrid.seed : 20260825);
 
             // Deterministic layout: same seed in, same island out. Save and restore Unity's
             // global random state so running this does not perturb anything else.
@@ -131,7 +136,7 @@ namespace IslandRTS.ArtGen
                     Transform group = new GameObject(System.IO.Path.GetFileNameWithoutExtension(def.Prefab)).transform;
                     group.SetParent(scatterRoot.transform, false);
 
-                    int made = PlaceGroup(def, prefab, group, centre, placed);
+                    int made = PlaceGroup(def, prefab, group, centre, placed, heights);
                     total += made;
                     skipped += def.Count - made;
 
@@ -179,7 +184,7 @@ namespace IslandRTS.ArtGen
         // ==================================================================
 
         private static int PlaceGroup(PropDef def, GameObject prefab, Transform group,
-                                      Vector3 centre, List<Vector3> placed)
+                                      Vector3 centre, List<Vector3> placed, float[,] heights)
         {
             int made = 0;
 
@@ -201,7 +206,7 @@ namespace IslandRTS.ArtGen
                     if (TooClose(candidate, placed, def.Spacing)) continue;
 
                     Vector3 grounded;
-                    if (!SampleGround(candidate, out grounded)) continue;
+                    if (!SampleGround(candidate, heights, out grounded)) continue;
 
                     GameObject instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab, group);
                     instance.transform.position = grounded;
@@ -236,18 +241,17 @@ namespace IslandRTS.ArtGen
         }
 
         /// <summary>
-        /// Drop the candidate onto whatever ground is under it. Failing the raycast is how
-        /// props are kept off the water - no ground hit means no prop.
+        /// Drop the candidate onto the generated island surface. Below-waterline
+        /// (h &lt; 0.05) candidates are rejected - that is how props stay off the water.
         /// </summary>
-        private static bool SampleGround(Vector3 candidate, out Vector3 grounded)
+        private static bool SampleGround(Vector3 candidate, float[,] heights, out Vector3 grounded)
         {
             grounded = candidate;
 
-            Ray ray = new Ray(new Vector3(candidate.x, RayStartHeight, candidate.z), Vector3.down);
-            RaycastHit hit;
-            if (!Physics.Raycast(ray, out hit, RayLength)) return false;
+            float h = TerrainGrid.SampleField(heights, candidate.x, candidate.z);
+            if (h < 0.05f) return false;
 
-            grounded = hit.point;
+            grounded = new Vector3(candidate.x, h, candidate.z);
             return true;
         }
 

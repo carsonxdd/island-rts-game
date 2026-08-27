@@ -59,6 +59,14 @@ namespace IslandRTS.ArtGen
             new Entry("FrondLight",  "#7CC24E", 0f, null, 0f),
             new Entry("FrondMid",    "#57A33C", 0f, null, 0f),
             new Entry("FrondDark",   "#3D7C2E", 0f, null, 0f),
+            // Tree variant canopy trios: same hue family, shifted tone, so mixed
+            // forests read as "all green but differently shaded" (2026-08-26)
+            new Entry("FrondOliveLight", "#A3B858", 0f, null, 0f),
+            new Entry("FrondOlive",      "#7E9A42", 0f, null, 0f),
+            new Entry("FrondOliveDark",  "#5C7530", 0f, null, 0f),
+            new Entry("FrondDeepLight",  "#4FA36B", 0f, null, 0f),
+            new Entry("FrondDeep",       "#357F4E", 0f, null, 0f),
+            new Entry("FrondDeepDark",   "#245E38", 0f, null, 0f),
             new Entry("BushGreen",   "#4E9B45", 0f, null, 0f),
             new Entry("BushDark",    "#37733A", 0f, null, 0f),
             new Entry("GrassGreen",  "#86C25A", 0f, null, 0f),

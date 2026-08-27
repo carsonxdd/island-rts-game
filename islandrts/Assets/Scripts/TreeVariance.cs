@@ -1,18 +1,26 @@
 using UnityEngine;
 
 /// <summary>
-/// Per-instance visual variance for trees: picks one of the authored mesh variants and
+/// Per-instance visual variance for trees: picks one of the authored art variants and
 /// applies a random yaw + slight scale jitter to the Model child, so a forest spawned
 /// from one prefab doesn't read as copy-paste.
 ///
+/// 2026-08-26: variants are now ART PREFAB references, not bare meshes — the picker
+/// copies BOTH sharedMesh and sharedMaterials from the chosen prefab, so variants may
+/// use different canopy palette trios (olive / deep green shades). The legacy
+/// variantMeshes path is kept as a fallback for prefabs plumbed before this change
+/// (mesh-only swap; requires identical material key order).
+///
 /// Visual-only by design: it touches the Model child, never the root, so ResourceNode's
-/// depletion scaling (root scale) and the runtime NavMeshObstacle are unaffected. All
-/// variant meshes must share the same material key order (they come from the same
-/// BroadleafTree builder), which is what makes the sharedMesh swap safe.
+/// depletion scaling (Model child too, lazily baselined) and the runtime NavMeshObstacle
+/// are unaffected.
 /// </summary>
 public class TreeVariance : MonoBehaviour
 {
-    [Tooltip("Mesh variants sharing the same material list/order. Wired by LowPolyPlumber.")]
+    [Tooltip("Art prefab variants (mesh + materials copied from each). Wired by LowPolyPlumber.")]
+    public GameObject[] variantPrefabs;
+
+    [Tooltip("Legacy mesh-only variants sharing one material list/order. Used only when variantPrefabs is empty.")]
     public Mesh[] variantMeshes;
 
     [Tooltip("Uniform scale jitter applied to the Model child.")]
@@ -27,10 +35,28 @@ public class TreeVariance : MonoBehaviour
         MeshFilter filter = model.GetComponent<MeshFilter>();
         if (filter == null) filter = model.GetComponentInChildren<MeshFilter>();
 
-        if (filter != null && variantMeshes != null && variantMeshes.Length > 0)
+        if (filter != null)
         {
-            Mesh pick = variantMeshes[Random.Range(0, variantMeshes.Length)];
-            if (pick != null) filter.sharedMesh = pick;
+            if (variantPrefabs != null && variantPrefabs.Length > 0)
+            {
+                GameObject pick = variantPrefabs[Random.Range(0, variantPrefabs.Length)];
+                if (pick != null)
+                {
+                    MeshFilter sourceFilter = pick.GetComponent<MeshFilter>();
+                    MeshRenderer sourceRenderer = pick.GetComponent<MeshRenderer>();
+                    if (sourceFilter != null && sourceFilter.sharedMesh != null)
+                        filter.sharedMesh = sourceFilter.sharedMesh;
+
+                    MeshRenderer targetRenderer = filter.GetComponent<MeshRenderer>();
+                    if (sourceRenderer != null && targetRenderer != null)
+                        targetRenderer.sharedMaterials = sourceRenderer.sharedMaterials;
+                }
+            }
+            else if (variantMeshes != null && variantMeshes.Length > 0)
+            {
+                Mesh pick = variantMeshes[Random.Range(0, variantMeshes.Length)];
+                if (pick != null) filter.sharedMesh = pick;
+            }
         }
 
         model.localRotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);

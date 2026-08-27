@@ -13,6 +13,8 @@ public class NoBuildZoneRenderer
 
     private readonly List<GameObject> noBuildZoneVisuals = new List<GameObject>();  // Visual circles for no-build zones
     private GameObject ghostNoBuildZone;  // No-build zone preview for the ghost building
+    private LineRenderer ghostZoneBorder; // Ghost zone's border line — re-draped over the terrain as it moves
+    private float ghostZoneRadius;
 
     public NoBuildZoneRenderer(BuildPlacement owner)
     {
@@ -82,16 +84,24 @@ public class NoBuildZoneRenderer
         CreateZoneBorder(zoneObj, radius, ghostBorderColor);
 
         ghostNoBuildZone = zoneObj;
+        ghostZoneBorder = zoneObj.GetComponentInChildren<LineRenderer>();
+        ghostZoneRadius = radius;
     }
 
     /// <summary>
-    /// Keep the ghost zone preview aligned with the ghost building.
+    /// Keep the ghost zone preview aligned with the ghost building —
+    /// and re-drape its border over the terrain at the new spot.
     /// </summary>
     public void UpdateGhostZone(Vector3 ghostPosition)
     {
         if (ghostNoBuildZone != null)
         {
-            ghostNoBuildZone.transform.position = new Vector3(ghostPosition.x, 0.05f, ghostPosition.z);
+            Vector3 pos = new Vector3(ghostPosition.x, 0.05f, ghostPosition.z);
+            ghostNoBuildZone.transform.position = pos;
+            if (ghostZoneBorder != null)
+            {
+                UpdateBorderPoints(ghostZoneBorder, pos, ghostZoneRadius);
+            }
         }
     }
 
@@ -101,6 +111,7 @@ public class NoBuildZoneRenderer
         {
             Object.Destroy(ghostNoBuildZone);
             ghostNoBuildZone = null;
+            ghostZoneBorder = null;
         }
     }
 
@@ -284,7 +295,10 @@ public class NoBuildZoneRenderer
         GameObject segmentObj = new GameObject("EdgeSegment");
         LineRenderer lineRenderer = segmentObj.AddComponent<LineRenderer>();
 
-        lineRenderer.positionCount = 2;
+        // Terrain-following (2026-08-26): subdivide the edge and drape every point
+        // on the ground. A flat y=0.05 line buried under hills / floated over dips.
+        int steps = Mathf.Max(1, Mathf.CeilToInt(Vector3.Distance(p1, p2)));
+        lineRenderer.positionCount = steps + 1;
         lineRenderer.useWorldSpace = true;
 
         lineRenderer.startWidth = 0.15f;
@@ -296,10 +310,12 @@ public class NoBuildZoneRenderer
         lineRenderer.material = new Material(Shader.Find("Sprites/Default"));
         lineRenderer.material.color = borderColor;
 
-        p1.y = 0.05f;
-        p2.y = 0.05f;
-        lineRenderer.SetPosition(0, p1);
-        lineRenderer.SetPosition(1, p2);
+        for (int i = 0; i <= steps; i++)
+        {
+            Vector3 p = Vector3.Lerp(p1, p2, (float)i / steps);
+            p.y = owner.GroundYAt(p) + 0.08f;
+            lineRenderer.SetPosition(i, p);
+        }
 
         noBuildZoneVisuals.Add(segmentObj);
     }
@@ -341,17 +357,18 @@ public class NoBuildZoneRenderer
         noBuildZoneVisuals.Add(zoneObj);
     }
 
-    // Square outline (LineRenderer) child shared by building zones and the ghost zone
+    // Square outline (LineRenderer) child shared by building zones and the ghost zone.
+    // World-space and terrain-draped (2026-08-26): a flat local-space square buried
+    // under hills / floated over dips on the shaped island.
     void CreateZoneBorder(GameObject zoneObj, float radius, Color borderColor)
     {
         GameObject borderObj = new GameObject("Border");
         borderObj.transform.SetParent(zoneObj.transform);
-        borderObj.transform.localPosition = new Vector3(0, 0.01f, 0);
+        borderObj.transform.localPosition = Vector3.zero;
 
         LineRenderer lineRenderer = borderObj.AddComponent<LineRenderer>();
-        lineRenderer.positionCount = 5;
         lineRenderer.loop = true;
-        lineRenderer.useWorldSpace = false;
+        lineRenderer.useWorldSpace = true;
 
         lineRenderer.startWidth = 0.15f;
         lineRenderer.endWidth = 0.15f;
@@ -361,11 +378,39 @@ public class NoBuildZoneRenderer
         lineRenderer.material = new Material(Shader.Find("Sprites/Default"));
         lineRenderer.material.color = borderColor;
 
-        lineRenderer.SetPosition(0, new Vector3(-radius, 0, -radius));
-        lineRenderer.SetPosition(1, new Vector3(radius, 0, -radius));
-        lineRenderer.SetPosition(2, new Vector3(radius, 0, radius));
-        lineRenderer.SetPosition(3, new Vector3(-radius, 0, radius));
-        lineRenderer.SetPosition(4, new Vector3(-radius, 0, -radius));
+        UpdateBorderPoints(lineRenderer, zoneObj.transform.position, radius);
+    }
+
+    // Drape the square outline over the terrain around `center` (8 samples per side)
+    void UpdateBorderPoints(LineRenderer lineRenderer, Vector3 center, float radius)
+    {
+        const int PerSide = 8;
+        const int Total = PerSide * 4;
+        if (lineRenderer.positionCount != Total) lineRenderer.positionCount = Total;
+
+        // Corner offsets, counter-clockwise
+        float r = radius;
+        Vector3 c0 = new Vector3(-r, 0f, -r);
+        Vector3 c1 = new Vector3(r, 0f, -r);
+        Vector3 c2 = new Vector3(r, 0f, r);
+        Vector3 c3 = new Vector3(-r, 0f, r);
+
+        int idx = 0;
+        idx = DrapeSide(lineRenderer, center + c0, center + c1, PerSide, idx);
+        idx = DrapeSide(lineRenderer, center + c1, center + c2, PerSide, idx);
+        idx = DrapeSide(lineRenderer, center + c2, center + c3, PerSide, idx);
+        DrapeSide(lineRenderer, center + c3, center + c0, PerSide, idx);
+    }
+
+    int DrapeSide(LineRenderer lineRenderer, Vector3 a, Vector3 b, int steps, int idx)
+    {
+        for (int i = 0; i < steps; i++)
+        {
+            Vector3 p = Vector3.Lerp(a, b, (float)i / steps);
+            p.y = owner.GroundYAt(p) + 0.08f;
+            lineRenderer.SetPosition(idx++, p);
+        }
+        return idx;
     }
 
     // Flat quad mesh used for zone fills

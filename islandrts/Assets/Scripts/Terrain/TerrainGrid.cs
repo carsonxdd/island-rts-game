@@ -34,7 +34,7 @@ public class TerrainGrid : MonoBehaviour
     public static TerrainGrid Instance { get; private set; }
 
     // Field dimensions: 101×101 verts at 1 m spacing = the classic 100×100 world
-    public const int VertsPerSide = 101;
+    public const int VertsPerSide = 151;
     public const float Spacing = 1f;
     private const float Half = (VertsPerSide - 1) * Spacing * 0.5f;
 
@@ -61,6 +61,8 @@ public class TerrainGrid : MonoBehaviour
     private float[,] heights;
     private NavMeshSurface surface;
     private Transform chunksRoot;
+    private GameObject[,] chunkObjects;   // [cx, cz] — kept for T2 dirty-chunk rebuilds
+    private int chunkGridCount;
 
     void Awake()
     {
@@ -159,18 +161,19 @@ public class TerrainGrid : MonoBehaviour
         chunksRoot.gameObject.layer = gameObject.layer;  // Default — BuildPlacement.groundLayer
 
         int quadsPerSide = VertsPerSide - 1;
-        int chunkCount = Mathf.CeilToInt(quadsPerSide / (float)ChunkQuads);
+        chunkGridCount = Mathf.CeilToInt(quadsPerSide / (float)ChunkQuads);
+        chunkObjects = new GameObject[chunkGridCount, chunkGridCount];
 
-        for (int cz = 0; cz < chunkCount; cz++)
+        for (int cz = 0; cz < chunkGridCount; cz++)
         {
-            for (int cx = 0; cx < chunkCount; cx++)
+            for (int cx = 0; cx < chunkGridCount; cx++)
             {
                 BuildChunk(cx, cz, quadsPerSide);
             }
         }
     }
 
-    void BuildChunk(int cx, int cz, int quadsPerSide)
+    Mesh BuildChunkMesh(int cx, int cz, int quadsPerSide)
     {
         int qx0 = cx * ChunkQuads;
         int qz0 = cz * ChunkQuads;
@@ -220,6 +223,12 @@ public class TerrainGrid : MonoBehaviour
         mesh.SetTriangles(rockTris, 2);
         mesh.RecalculateNormals();   // duplicated verts per tri → hard flat-shaded facets
         mesh.RecalculateBounds();
+        return mesh;
+    }
+
+    void BuildChunk(int cx, int cz, int quadsPerSide)
+    {
+        Mesh mesh = BuildChunkMesh(cx, cz, quadsPerSide);
 
         GameObject chunk = new GameObject($"Chunk_{cx}_{cz}");
         chunk.transform.SetParent(chunksRoot, false);
@@ -233,6 +242,61 @@ public class TerrainGrid : MonoBehaviour
 
         MeshCollider mc = chunk.AddComponent<MeshCollider>();
         mc.sharedMesh = mesh;
+
+        chunkObjects[cx, cz] = chunk;
+    }
+
+    /// <summary>
+    /// Rebuild one chunk's mesh from the (edited) heightfield in place —
+    /// renderer and collider both pick up the new mesh; the old one is freed.
+    /// </summary>
+    void RebuildChunk(int cx, int cz)
+    {
+        GameObject chunk = chunkObjects != null ? chunkObjects[cx, cz] : null;
+        if (chunk == null) return;
+
+        MeshFilter mf = chunk.GetComponent<MeshFilter>();
+        MeshCollider mc = chunk.GetComponent<MeshCollider>();
+        Mesh old = mf != null ? mf.sharedMesh : null;
+
+        Mesh fresh = BuildChunkMesh(cx, cz, VertsPerSide - 1);
+        if (mf != null) mf.sharedMesh = fresh;
+        if (mc != null) mc.sharedMesh = fresh;
+        if (old != null) Destroy(old);
+    }
+
+    /// <summary>
+    /// Terrain T2: level a disc of ground to the height at its center — full
+    /// weight inside <paramref name="radius"/>, blending out over
+    /// <paramref name="blend"/> meters. Rebuilds only the touched chunks and
+    /// kicks an async NavMesh refresh. Called when a building is placed so
+    /// structures sit flush on a level pad instead of clipping into slopes.
+    /// </summary>
+    public void FlattenArea(Vector3 center, float radius, float blend)
+    {
+        if (heights == null || chunkObjects == null) return;
+
+        float target = SampleHeight(center);
+        IslandGenerator.FlattenDisc(heights, VertsPerSide, Spacing, center.x, center.z, radius, blend, target);
+
+        // Chunk range touched by the disc (+1 vert margin: a quad's verts feed
+        // the neighboring chunk's triangles at the seam)
+        float reach = radius + blend + Spacing;
+        int vx0 = Mathf.Max(0, Mathf.FloorToInt((center.x - reach + Half) / Spacing));
+        int vx1 = Mathf.Min(VertsPerSide - 1, Mathf.CeilToInt((center.x + reach + Half) / Spacing));
+        int vz0 = Mathf.Max(0, Mathf.FloorToInt((center.z - reach + Half) / Spacing));
+        int vz1 = Mathf.Min(VertsPerSide - 1, Mathf.CeilToInt((center.z + reach + Half) / Spacing));
+
+        int cx0 = Mathf.Clamp((vx0 - 1) / ChunkQuads, 0, chunkGridCount - 1);
+        int cx1 = Mathf.Clamp(vx1 / ChunkQuads, 0, chunkGridCount - 1);
+        int cz0 = Mathf.Clamp((vz0 - 1) / ChunkQuads, 0, chunkGridCount - 1);
+        int cz1 = Mathf.Clamp(vz1 / ChunkQuads, 0, chunkGridCount - 1);
+
+        for (int cz = cz0; cz <= cz1; cz++)
+            for (int cx = cx0; cx <= cx1; cx++)
+                RebuildChunk(cx, cz);
+
+        UpdateNavMeshAsync();
     }
 
     /// <summary>
@@ -278,7 +342,7 @@ public class TerrainGrid : MonoBehaviour
         water.name = "_WaterPlane";
         Destroy(water.GetComponent<Collider>());
         water.transform.position = Vector3.zero;                 // sea level y = 0
-        water.transform.localScale = new Vector3(32f, 1f, 32f);  // 320×320 m, past the camera horizon
+        water.transform.localScale = new Vector3(48f, 1f, 48f);  // 320×320 m, past the camera horizon
         MeshRenderer mr = water.GetComponent<MeshRenderer>();
         mr.sharedMaterial = waterMaterial;
         mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -292,7 +356,7 @@ public class TerrainGrid : MonoBehaviour
         GameObject volGo = new GameObject("DeepWaterNotWalkable");
         volGo.transform.SetParent(transform, false);
         NavMeshModifierVolume vol = volGo.AddComponent<NavMeshModifierVolume>();
-        vol.size = new Vector3(340f, 4f, 340f);
+        vol.size = new Vector3(500f, 4f, 500f);
         vol.center = new Vector3(0f, DeepWaterY - 2f, 0f);  // covers −4.4..−0.4
         vol.area = NotWalkableArea;
     }

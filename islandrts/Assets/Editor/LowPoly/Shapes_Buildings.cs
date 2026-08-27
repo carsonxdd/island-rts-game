@@ -37,6 +37,9 @@ namespace IslandRTS.ArtGen
 
             list.Add(new AssetDef("Campfire", AssetCategory.Buildings,
                 () => Campfire(0.75f), "1.5 dia, ~1.0 tall including flame"));
+
+            list.Add(new AssetDef("Workshop", AssetCategory.Buildings,
+                () => Workshop(2f), "2.0 x 2.0 footprint, ~2.1 tall"));
         }
 
         // ==================================================================
@@ -219,6 +222,61 @@ namespace IslandRTS.ArtGen
 
             b.Use("ThatchDark");
             b.Pyramid(new Vector3(0f, roofPostY + roofPostH, 0f), footprint * 1.14f, 0.55f);
+
+            return b;
+        }
+
+        // ==================================================================
+        // Workshop (2026-08-26): open-fronted craft shed — plank body at the
+        // back, a wide light-thatch gable sheltering a workbench, an anvil,
+        // and a log pile. Reads distinct from the hut at RTS camera height.
+        // ==================================================================
+
+        private static MeshBuilder Workshop(float footprint)
+        {
+            MeshBuilder b = new MeshBuilder(2501);
+            float half = footprint * 0.5f;
+            float bodyH = 1.3f;
+
+            // ---- Base slab -----------------------------------------------------
+            b.Use("WoodDark");
+            b.BoxOnGround(Vector3.zero, new Vector3(footprint, 0.08f, footprint));
+
+            // ---- Shed body across the back half --------------------------------
+            b.Use("WoodPlank");
+            b.Push();
+            b.Translate(0f, 0.08f, half * 0.45f);
+            b.Frustum(Vector3.zero,
+                      new Vector2(footprint * 0.96f, footprint * 0.5f),
+                      new Vector2(footprint * 0.90f, footprint * 0.44f),
+                      bodyH);
+            b.Pop();
+
+            // ---- Wide gable roof sheltering the whole footprint -----------------
+            b.Use("ThatchLight");
+            b.GableRoof(new Vector3(0f, bodyH + 0.02f, 0.05f), footprint * 1.02f, footprint * 0.92f, 0.72f, 0.10f);
+
+            // ---- Two front posts holding the roof over the open work area -------
+            b.Use("WoodLog");
+            b.Prism(new Vector3(-half * 0.86f, 0.08f, -half * 0.86f), 0.07f, 0.06f, bodyH - 0.05f, 4);
+            b.Prism(new Vector3(half * 0.86f, 0.08f, -half * 0.86f), 0.07f, 0.06f, bodyH - 0.05f, 4);
+
+            // ---- Workbench under the open front --------------------------------
+            b.Use("WoodDark");
+            b.BoxOnGround(new Vector3(-footprint * 0.18f, 0.08f, -half * 0.42f), new Vector3(0.85f, 0.5f, 0.38f));
+            b.Use("WoodPale");
+            b.Box(new Vector3(-footprint * 0.18f, 0.62f, -half * 0.42f), new Vector3(1.0f, 0.07f, 0.48f));
+
+            // ---- Anvil ----------------------------------------------------------
+            b.Use("MetalDark");
+            b.BoxOnGround(new Vector3(footprint * 0.3f, 0.08f, -half * 0.38f), new Vector3(0.2f, 0.28f, 0.2f));
+            b.Box(new Vector3(footprint * 0.3f, 0.42f, -half * 0.38f), new Vector3(0.4f, 0.12f, 0.18f));
+
+            // ---- Log pile against the side --------------------------------------
+            b.Use("WoodLog");
+            b.LogBetween(new Vector3(half * 0.8f, 0.17f, -0.55f), new Vector3(half * 0.8f, 0.17f, 0.15f), 0.09f, 5);
+            b.LogBetween(new Vector3(half * 0.62f, 0.17f, -0.5f), new Vector3(half * 0.62f, 0.17f, 0.2f), 0.09f, 5);
+            b.LogBetween(new Vector3(half * 0.71f, 0.32f, -0.5f), new Vector3(half * 0.71f, 0.32f, 0.14f), 0.09f, 5);
 
             return b;
         }

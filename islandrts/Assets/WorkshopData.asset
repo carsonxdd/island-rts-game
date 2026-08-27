@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5b18d4c3764b3904b85798cad4ee4df7, type: 3}
+  m_Name: WorkshopData
+  m_EditorClassIdentifier: Assembly-CSharp::BuildingData
+  buildingType: 6
+  buildingName: Workshop
+  woodCost: 30
+  foodCost: 0
+  stoneCost: 20
+  ghostPrefab: {fileID: 2127347227685553891, guid: ecc2e07347c131c4a89c4ba193036de9, type: 3}
+  constructionSitePrefab: {fileID: 1713934267972723311, guid: 70d8b501cbfdcc645b9cbba0d90a5f01, type: 3}
+  finishedBuildingPrefab: {fileID: 719776906530385399, guid: d3734f3f2ffa8bb45a9cd1f96c9e93bc, type: 3}
+  buildingSize: {x: 2, y: 1.5, z: 2}
+  noBuildRadius: 3.5
+  visualNoBuildRadius: 3.5
+  placementHeight: 0
+  maxHealth: 150
+  blocksNavMesh: 0
+  isWall: 0

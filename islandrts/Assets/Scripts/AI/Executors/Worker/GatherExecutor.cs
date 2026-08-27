@@ -250,9 +250,10 @@ public class GatherExecutor : ActionExecutor
             returningToAnchor = false;
         }
 
-        // Gather incrementally (same logic as original Worker)
+        // Gather incrementally (same logic as original Worker).
+        // CraftedUpgrades.GatherRateMult: Workshop "Sharpened Tools" upgrade.
         float spaceInInventory = bb.carryCapacity - bb.carryAmount;
-        float wantToGather = bb.gatherRatePerSecond * Time.deltaTime;
+        float wantToGather = bb.gatherRatePerSecond * CraftedUpgrades.GatherRateMult * Time.deltaTime;
         float requestAmount = Mathf.Min(wantToGather, spaceInInventory);
 
         float actuallyGathered = bb.targetResource.GatherResources(requestAmount);

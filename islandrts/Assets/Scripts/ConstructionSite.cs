@@ -80,8 +80,8 @@ public class ConstructionSite : MonoBehaviour
     {
         if (isComplete) return;
 
-        // Auto-build over time
-        timeElapsed += Time.deltaTime;
+        // Auto-build over time (Workshop "Sturdy Scaffolds" upgrade speeds this up)
+        timeElapsed += Time.deltaTime * CraftedUpgrades.BuildSpeedMult;
         progress = Mathf.Clamp01(timeElapsed / buildTime);
 
         // Update progress text

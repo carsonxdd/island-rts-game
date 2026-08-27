@@ -46,6 +46,37 @@ public class Worker : UnitBase<Worker>
         if (agent != null) agent.avoidancePriority = Random.Range(30, 70);
     }
 
+    // --- Garrison (flee shelter, 2026-08-26): visually hide inside a hut ---
+    // Renderers (art, health bar, floating text), the NavMeshAgent, and the click
+    // collider all toggle off while hidden. Enemies never target workers, so this
+    // is shelter feel + removes the hidden worker from the crowd sim. Only
+    // FleeToHutExecutor calls this; its OnExit always restores before any other
+    // executor runs.
+    private Renderer[] garrisonHiddenRenderers;
+    private bool isGarrisoned;
+    public bool IsGarrisoned => isGarrisoned;
+
+    public void SetGarrisoned(bool hidden)
+    {
+        if (isGarrisoned == hidden) return;
+        isGarrisoned = hidden;
+
+        if (hidden) garrisonHiddenRenderers = GetComponentsInChildren<Renderer>(false);
+        if (garrisonHiddenRenderers != null)
+        {
+            for (int i = 0; i < garrisonHiddenRenderers.Length; i++)
+            {
+                if (garrisonHiddenRenderers[i] != null)
+                    garrisonHiddenRenderers[i].enabled = !hidden;
+            }
+        }
+
+        if (agent != null) agent.enabled = !hidden;
+
+        Collider col = GetComponent<Collider>();
+        if (col != null) col.enabled = !hidden;
+    }
+
     [Header("Current State")]
     public float carryAmount = 0f;  // Resources currently carrying (can be fractional)
 
@@ -171,6 +202,18 @@ public class Worker : UnitBase<Worker>
             {
                 new ReturnUrgency(15f, 3f, ResponseCurve.Linear(1f, 0f))
             }, new ReturnToBaseExecutor(), basePriority: 1.0f, momentumBonus: 0.15f),
+
+            // Collect Pickup — a stick/stone lying nearby is a quick top-up (2026-08-26).
+            // PickupAvailability fades with distance (0 beyond ~22u), so this only outbids
+            // Gather when the pickup is genuinely close; ThreatNearby hard-suppresses like
+            // Gather; ResourceCarry keeps full workers heading home instead. Zero yShift
+            // everywhere so the action early-outs cleanly when no pickup exists.
+            new ActionOption("Pickup", new Consideration[]
+            {
+                new PickupAvailability(ResponseCurve.Linear(1f, 0f)),          // Caches bb.bestPickup; 0 when none
+                new ResourceCarry(ResponseCurve.InverseLinear(0.9f, 0.1f)),    // Prefer when hands are empty
+                new ThreatNearby(1f, ResponseCurve.InverseLinear(1f, 0f))      // 1 enemy nearby → 0, hard suppression
+            }, new CollectPickupExecutor(), basePriority: 1.1f, momentumBonus: 0.15f),
 
             // Idle at Base
             new ActionOption("Idle", new Consideration[]

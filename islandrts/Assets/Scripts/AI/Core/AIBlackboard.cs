@@ -75,6 +75,9 @@ public class AIBlackboard
     // Nearest resource cache (refreshed periodically)
     public ResourceNode bestResource;
 
+    // Nearest matching ground pickup (refreshed by PickupAvailability)
+    public GroundPickup bestPickup;
+
     // Wall-under-attack cache
     public Transform wallUnderAttack;
 

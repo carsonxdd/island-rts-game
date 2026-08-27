@@ -78,22 +78,35 @@ public class ResourceNode : MonoBehaviour
             obstacle = gameObject.AddComponent<NavMeshObstacle>();
         }
 
-        // NO CARVING — resource nodes use local avoidance only.
-        // Carving caused constant NavMesh rebuilds every time a resource depleted/respawned,
-        // which invalidated paths for ALL nearby agents and caused synchronized stuttering.
-        // Workers already path to offset gather points, so carving is unnecessary.
-        obstacle.carving = false;
+        // CARVING ON (2026-08-26). Non-carving obstacles do not affect pathfinding
+        // at all — paths ran straight THROUGH trees, and agents' local avoidance then
+        // fought the obstacle: units visibly slowed when brushing past nodes and
+        // enemies chasing warriors froze dead behind trunks. Carving makes the
+        // pathfinder route around nodes like it already does for buildings.
+        //
+        // The old "carving caused constant rebuilds" rationale predates the runtime
+        // NavMeshSurface: nodes never move (carveOnlyStationary), so the only carve
+        // churn left is the one-off local patch when a node depletes/respawns —
+        // rare, and every destination in the codebase is already carve-safe
+        // (SamplePosition / TrySetDestination-with-retry everywhere).
+        //
+        // IMPORTANT: depletion shrink must NOT touch this obstacle — Update() scales
+        // the Model child, never the root, or every gather tick would re-carve.
+        obstacle.carving = true;
+        obstacle.carveOnlyStationary = true;
         obstacle.shape = NavMeshObstacleShape.Capsule;
 
-        // Size based on resource type
+        // Trunk-tight radii (the canopy is above agent height): big enough that
+        // paths clear the visible trunk, small enough that the carve hole plus
+        // bake-erosion (~0.5) keeps the gather ring reachable.
         switch (resourceType)
         {
-            case ResourceType.Wood:  // Trees
-                obstacle.radius = 0.8f;
+            case ResourceType.Wood:  // Trees — trunk only, not the old 0.8 canopy-sized blob
+                obstacle.radius = 0.45f;
                 obstacle.height = 2f;
                 break;
             case ResourceType.Food:  // Bushes
-                obstacle.radius = 0.5f;
+                obstacle.radius = 0.45f;
                 obstacle.height = 1f;
                 break;
             case ResourceType.Stone:  // Rocks
@@ -103,6 +116,13 @@ public class ResourceNode : MonoBehaviour
         }
     }
 
+    // Depletion shrink target: the Model child, NEVER the root. The root drives the
+    // (now carving) NavMeshObstacle — scaling it would re-carve the NavMesh every
+    // gather tick. Model's baseline scale is captured lazily at first shrink so it
+    // composes with TreeVariance's Start-time scale jitter (Start order is undefined).
+    private Vector3 modelOriginalScale;
+    private bool modelScaleCaptured = false;
+
     void Update()
     {
         // Update visual scale based on depletion
@@ -111,7 +131,21 @@ public class ResourceNode : MonoBehaviour
             float percentRemaining = Mathf.Clamp01(currentAmount / maxResourceAmount);
             // Don't shrink below 50% size
             float scaleFactor = Mathf.Lerp(0.5f, 1f, percentRemaining);
-            transform.localScale = originalScale * scaleFactor;
+
+            if (shakeModel != null)
+            {
+                if (!modelScaleCaptured)
+                {
+                    modelOriginalScale = shakeModel.localScale;
+                    modelScaleCaptured = true;
+                }
+                shakeModel.localScale = modelOriginalScale * scaleFactor;
+            }
+            else
+            {
+                // Pre-plumb fallback (no Model child): legacy root scaling
+                transform.localScale = originalScale * scaleFactor;
+            }
         }
 
         UpdateGatherShake();
@@ -195,8 +229,12 @@ public class ResourceNode : MonoBehaviour
     {
         get
         {
+            // Nodes carve the NavMesh now: the hole is the obstacle radius expanded
+            // by the bake agent radius (~0.5), so the ring must sit at the hole edge,
+            // not hug the obstacle. GetGatherPoint additionally snaps ring points
+            // through NavMesh.SamplePosition, so a slightly-inside point self-heals.
             float obstacleRadius = cachedObstacle != null ? cachedObstacle.radius : 0.5f;
-            return obstacleRadius * 1.1f;
+            return obstacleRadius + 0.55f;
         }
     }
 
