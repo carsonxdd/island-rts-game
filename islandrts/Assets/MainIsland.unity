@@ -275,90 +275,6 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 6951285013620240600, guid: 41f854117801c624eb8218fde9acaa9c, type: 3}
   m_PrefabInstance: {fileID: 8183755}
   m_PrefabAsset: {fileID: 0}
---- !u!1 &8635620
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 8635623}
-  - component: {fileID: 8635622}
-  - component: {fileID: 8635621}
-  m_Layer: 0
-  m_Name: Terrain
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &8635621
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8635620}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 7a5ac11cc976e418e8d13136b07e1f52, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Unity.AI.Navigation::Unity.AI.Navigation.NavMeshSurface
-  m_SerializedVersion: 0
-  m_AgentTypeID: 0
-  m_CollectObjects: 2
-  m_Size: {x: 10, y: 10, z: 10}
-  m_Center: {x: 0, y: 2, z: 0}
-  m_LayerMask:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  m_UseGeometry: 1
-  m_DefaultArea: 0
-  m_GenerateLinks: 0
-  m_IgnoreNavMeshAgent: 1
-  m_IgnoreNavMeshObstacle: 1
-  m_OverrideTileSize: 0
-  m_TileSize: 256
-  m_OverrideVoxelSize: 0
-  m_VoxelSize: 0.16666667
-  m_MinRegionArea: 2
-  m_NavMeshData: {fileID: 0}
-  m_BuildHeightMesh: 0
---- !u!114 &8635622
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8635620}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 06e573139a35f4f4f9d042dfe6578c58, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::TerrainGrid
-  seed: 20260825
-  sandMaterial: {fileID: 2100000, guid: 6faf574594f879343b98a351bcce5ef0, type: 2}
-  grassMaterial: {fileID: 2100000, guid: 0caa49cd8a91a9d4bb8568bdbe6f4f46, type: 2}
-  rockMaterial: {fileID: 2100000, guid: 13f4eb330598e3646a2ce4a116636df9, type: 2}
-  waterMaterial: {fileID: 2100000, guid: d91b30c52454d3243885c10de99ca972, type: 2}
-  minBuildHeight: 0.15
-  maxBuildSlope: 0.55
---- !u!4 &8635623
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8635620}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &8920119
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -7349,6 +7265,12 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   panSpeed: 20
   panSmoothTime: 0.12
+  enableFreeLook: 1
+  tiltSensitivity: 1.2
+  lookYawSensitivity: 1
+  minTilt: 30
+  maxTilt: 60
+  freeLookSmoothTime: 0.1
   rotationSpeed: 65
   rotationSmoothTime: 0.08
   rotateLeftKey: 113
@@ -7358,6 +7280,7 @@ MonoBehaviour:
   startOrthoSize: 10
   minOrthoSize: 5
   maxOrthoSize: 24
+  nearClip: -100
   useBounds: 0
   minBounds: {x: -120, y: -120}
   maxBounds: {x: 120, y: 120}
@@ -10186,6 +10109,90 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 1182767846347178907, guid: 809ec7b939c3d3147906778a8eba6644, type: 3}
   m_PrefabInstance: {fileID: 471237933}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &472700302
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 472700305}
+  - component: {fileID: 472700304}
+  - component: {fileID: 472700303}
+  m_Layer: 0
+  m_Name: Terrain
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &472700303
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 472700302}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7a5ac11cc976e418e8d13136b07e1f52, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.AI.Navigation::Unity.AI.Navigation.NavMeshSurface
+  m_SerializedVersion: 0
+  m_AgentTypeID: 0
+  m_CollectObjects: 2
+  m_Size: {x: 10, y: 10, z: 10}
+  m_Center: {x: 0, y: 2, z: 0}
+  m_LayerMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_UseGeometry: 1
+  m_DefaultArea: 0
+  m_GenerateLinks: 0
+  m_IgnoreNavMeshAgent: 1
+  m_IgnoreNavMeshObstacle: 1
+  m_OverrideTileSize: 0
+  m_TileSize: 256
+  m_OverrideVoxelSize: 0
+  m_VoxelSize: 0.16666667
+  m_MinRegionArea: 2
+  m_NavMeshData: {fileID: 0}
+  m_BuildHeightMesh: 0
+--- !u!114 &472700304
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 472700302}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 06e573139a35f4f4f9d042dfe6578c58, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TerrainGrid
+  seed: 20260825
+  sandMaterial: {fileID: 2100000, guid: 6faf574594f879343b98a351bcce5ef0, type: 2}
+  grassMaterial: {fileID: 2100000, guid: 0caa49cd8a91a9d4bb8568bdbe6f4f46, type: 2}
+  rockMaterial: {fileID: 2100000, guid: 13f4eb330598e3646a2ce4a116636df9, type: 2}
+  waterMaterial: {fileID: 2100000, guid: d91b30c52454d3243885c10de99ca972, type: 2}
+  minBuildHeight: 0.15
+  maxBuildSlope: 0.55
+--- !u!4 &472700305
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 472700302}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &489795342
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -12126,7 +12133,6 @@ MonoBehaviour:
   selectionUI: {fileID: 1941652225}
   cellSize: 1
   placementHeight: 0.75
-  movementSpeed: 10
   buildingSize: {x: 2, y: 1.5, z: 2}
   buildingsLayer:
     serializedVersion: 2
@@ -21248,6 +21254,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   grid: {fileID: 0}
+  toggleKey: 283
+  autoShowInBuildMode: 1
 --- !u!114 &1046744715
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -21260,10 +21268,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ef59bb713b03e354ab1390e8ce5f9dc9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  halfExtent: 50
   cellSize: 1
+  halfExtent: 50
   lineColor: {r: 1, g: 1, b: 1, a: 0.2}
-  lineWidth: 0.03
+  heightOffset: 0.06
   show: 0
 --- !u!4 &1046744716
 Transform:
@@ -37478,7 +37486,6 @@ MonoBehaviour:
   minResourceClearance: 3
   dryLandExtent: 63
   cellSize: 1
-  ghostFollowSpeed: 10
   validColor: {r: 0.5, g: 1, b: 0.5, a: 0.5}
   invalidColor: {r: 1, g: 0.3, b: 0.3, a: 0.5}
   settleEdgeDistance: 2
@@ -42805,5 +42812,5 @@ SceneRoots:
   - {fileID: 1303327903}
   - {fileID: 1914980054}
   - {fileID: 773003637}
-  - {fileID: 8635623}
   - {fileID: 215580447}
+  - {fileID: 472700305}
