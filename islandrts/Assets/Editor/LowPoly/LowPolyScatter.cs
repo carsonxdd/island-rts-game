@@ -89,6 +89,11 @@ namespace IslandRTS.ArtGen
         [MenuItem(MenuRoot + "Scatter Environment Props", false, 80)]
         public static void Scatter()
         {
+            // This decorates whatever scene is active, and every other setup
+            // tool guards on MainIsland — without this, running it with the
+            // menu scene open drops 400 props into the title screen.
+            if (!EnsureGameSceneOpen()) return;
+
             GameObject scatterRoot = FindScatterRoot();
             if (scatterRoot != null) Object.DestroyImmediate(scatterRoot);
 
@@ -264,6 +269,17 @@ namespace IslandRTS.ArtGen
             BaseBuilding campfire = Object.FindAnyObjectByType<BaseBuilding>();
             if (campfire != null) return new Vector3(campfire.transform.position.x, 0f, campfire.transform.position.z);
             return Vector3.zero;
+        }
+
+        /// <summary>Same guard the other setup tools use — scatter belongs in the game scene only.</summary>
+        private static bool EnsureGameSceneOpen()
+        {
+            const string ScenePath = "Assets/MainIsland.unity";
+            if (EditorSceneManager.GetActiveScene().path == ScenePath) return true;
+
+            if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return false;
+            EditorSceneManager.OpenScene(ScenePath);
+            return true;
         }
 
         private static GameObject FindScatterRoot()

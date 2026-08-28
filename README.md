@@ -25,7 +25,7 @@ A Unity-based real-time strategy survival game. Manage autonomous workers, gathe
 4. Recruit 2-3 warriors before nightfall
 5. Survive 5 nights to win
 
-> The opening plays only after the one-time editor setup (`Tools > Island RTS > Opening Sequence > Setup Opening Scene`, run **after** `Low-Poly Templates > Generate All Assets` + `Plumb Everything`). A `skipIntro` toggle on the `GameStart` object restores the classic instant start.
+> **First time in a fresh clone, run `Tools > Island RTS > Setup Everything (In Order)` once.** The art library, opening sequence, scattered props, island terrain, pickups/workshop and menu scene are all applied by editor tools, and the order they run in matters — the master item does all seven in dependency order and leaves `MainMenu` open, which is what a build starts on. `Tools > Island RTS > Open Game Scene (MainIsland)` skips the title screen. Every step is idempotent, so re-run it after pulling art or changing the island seed. A `skipIntro` toggle on the `GameStart` object restores the classic instant start.
 
 ---
 
