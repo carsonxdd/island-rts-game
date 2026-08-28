@@ -1,0 +1,58 @@
+{
+    "outputDir": "SimLogs",
+    "captureDeltaTime": 0.016666668,
+    "maxWallSecondsPerRun": 300,
+    "repeats": 8,
+    "runs": [
+        { "id": "s_control", "strategy": "Eco" },
+
+        { "id": "s_uncap",      "strategy": "Eco", "maxWarriors": 12 },
+        { "id": "s_home",       "strategy": "Eco", "warriorSearchRadius": 18 },
+        { "id": "s_group",      "strategy": "Eco", "spawnInterval": 0.15 },
+        { "id": "s_toughhuts",  "strategy": "Eco", "hutHealth": 250 },
+        { "id": "s_attrition",  "strategy": "Eco", "warriorHealRate": 1.5 },
+        { "id": "s_uncap_cost", "strategy": "Eco", "maxWarriors": 12, "warriorCostWood": 20, "warriorCostFood": 25 },
+
+        { "id": "s_uncap_home",       "strategy": "Eco", "maxWarriors": 12, "warriorSearchRadius": 18 },
+        { "id": "s_uncap_home_group", "strategy": "Eco", "maxWarriors": 12, "warriorSearchRadius": 18, "spawnInterval": 0.15 },
+
+        { "id": "s_struct", "strategy": "Eco",
+          "maxWarriors": 12, "warriorCostWood": 20, "warriorCostFood": 25,
+          "warriorSearchRadius": 18, "spawnInterval": 0.15, "hutHealth": 250 },
+
+        { "id": "s_struct_attr", "strategy": "Eco",
+          "maxWarriors": 12, "warriorCostWood": 20, "warriorCostFood": 25,
+          "warriorSearchRadius": 18, "spawnInterval": 0.15, "hutHealth": 250,
+          "warriorHealRate": 1.5 },
+
+        { "id": "s_struct_d1", "strategy": "Eco",
+          "maxWarriors": 12, "warriorCostWood": 20, "warriorCostFood": 25,
+          "warriorSearchRadius": 18, "spawnInterval": 0.15, "hutHealth": 250,
+          "warriorHealRate": 1.5, "baseEnemiesPerNight": 6 },
+
+        { "id": "s_struct_d2", "strategy": "Eco",
+          "maxWarriors": 12, "warriorCostWood": 20, "warriorCostFood": 25,
+          "warriorSearchRadius": 18, "spawnInterval": 0.15, "hutHealth": 250,
+          "warriorHealRate": 1.5, "baseEnemiesPerNight": 6, "enemyIncreasePerNight": 2 },
+
+        { "id": "s_struct_d3", "strategy": "Eco",
+          "maxWarriors": 12, "warriorCostWood": 20, "warriorCostFood": 25,
+          "warriorSearchRadius": 18, "spawnInterval": 0.15, "hutHealth": 250,
+          "warriorHealRate": 1.5, "baseEnemiesPerNight": 9, "enemyIncreasePerNight": 2, "enemyDamage": 14 },
+
+        { "id": "s_struct_d4", "strategy": "Eco",
+          "maxWarriors": 12, "warriorCostWood": 20, "warriorCostFood": 25,
+          "warriorSearchRadius": 18, "spawnInterval": 0.15, "hutHealth": 250,
+          "warriorHealRate": 1.5, "baseEnemiesPerNight": 12, "enemyIncreasePerNight": 3, "enemyDamage": 14 },
+
+        { "id": "r_struct_d2", "strategy": "Rush",
+          "maxWarriors": 12, "warriorCostWood": 20, "warriorCostFood": 25,
+          "warriorSearchRadius": 18, "spawnInterval": 0.15, "hutHealth": 250,
+          "warriorHealRate": 1.5, "baseEnemiesPerNight": 6, "enemyIncreasePerNight": 2 },
+
+        { "id": "t_struct_d2", "strategy": "Turtle",
+          "maxWarriors": 12, "warriorCostWood": 20, "warriorCostFood": 25,
+          "warriorSearchRadius": 18, "spawnInterval": 0.15, "hutHealth": 250,
+          "warriorHealRate": 1.5, "baseEnemiesPerNight": 6, "enemyIncreasePerNight": 2 }
+    ]
+}

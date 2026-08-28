@@ -35,6 +35,9 @@ public class HealthBar : MonoBehaviour
 
     void Start()
     {
+        // Nothing renders in a headless balance run; skip the two quads.
+        if (SimHooks.Simulating) { enabled = false; return; }
+
         // Get Health component
         healthComponent = GetComponent<Health>();
         if (healthComponent == null)

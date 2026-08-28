@@ -1,0 +1,12 @@
+{
+    "outputDir": "SimLogs",
+    "captureDeltaTime": 0.016666668,
+    "repeats": 1,
+    "runs": [
+        { "id": "smoke_eco", "strategy": "Eco", "seed": 1, "terrainSeed": -1, "nightsToSurvive": 1, "maxGameSeconds": 400,
+          "startingWood": -1, "startingFood": -1, "startingStone": -1, "workerGatherRate": -1, "workerCarryCapacity": -1,
+          "baseEnemiesPerNight": -1, "enemyIncreasePerNight": -1, "enemyHealth": -1, "enemyDamage": -1, "enemyMoveSpeed": -1,
+          "warriorHealth": -1, "warriorDamage": -1, "warriorMoveSpeed": -1, "warriorCostWood": -1, "warriorCostFood": -1, "maxWarriors": -1,
+          "dayLengthSeconds": -1, "nightLengthSeconds": -1 }
+    ]
+}

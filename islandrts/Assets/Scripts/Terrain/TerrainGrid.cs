@@ -73,6 +73,16 @@ public class TerrainGrid : MonoBehaviour
         }
         Instance = this;
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        // A balance sweep may want a different island per run. This has to
+        // happen here, not in a sceneLoaded callback: the whole world plus the
+        // NavMesh is built below, in Awake, by design.
+        if (SimOverrides.Active != null && SimOverrides.Active.terrainSeed >= 0)
+        {
+            seed = SimOverrides.Active.terrainSeed;
+        }
+#endif
+
         float startTime = Time.realtimeSinceStartup;
 
         heights = IslandGenerator.Generate(VertsPerSide, Spacing, seed);

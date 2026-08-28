@@ -1,0 +1,31 @@
+{
+    "outputDir": "SimLogs",
+    "captureDeltaTime": 0.016666668,
+    "maxWallSecondsPerRun": 300,
+    "repeats": 8,
+    "runs": [
+        { "id": "d_base3",   "strategy": "Eco" },
+        { "id": "d_base6",   "strategy": "Eco", "baseEnemiesPerNight": 6 },
+        { "id": "d_base9",   "strategy": "Eco", "baseEnemiesPerNight": 9 },
+        { "id": "d_base12",  "strategy": "Eco", "baseEnemiesPerNight": 12 },
+
+        { "id": "d_ramp2",   "strategy": "Eco", "enemyIncreasePerNight": 2 },
+        { "id": "d_ramp3",   "strategy": "Eco", "enemyIncreasePerNight": 3 },
+        { "id": "d_ramp4",   "strategy": "Eco", "enemyIncreasePerNight": 4 },
+
+        { "id": "d_base9_ramp3",  "strategy": "Eco", "baseEnemiesPerNight": 9,  "enemyIncreasePerNight": 3 },
+        { "id": "d_base12_ramp4", "strategy": "Eco", "baseEnemiesPerNight": 12, "enemyIncreasePerNight": 4 },
+
+        { "id": "d_hp100",       "strategy": "Eco", "enemyHealth": 100 },
+        { "id": "d_hp150",       "strategy": "Eco", "enemyHealth": 150 },
+        { "id": "d_dmg20",       "strategy": "Eco", "enemyDamage": 20 },
+        { "id": "d_dmg30",       "strategy": "Eco", "enemyDamage": 30 },
+        { "id": "d_hp100_dmg20", "strategy": "Eco", "enemyHealth": 100, "enemyDamage": 20 },
+
+        { "id": "d_brutal",    "strategy": "Eco", "baseEnemiesPerNight": 9,  "enemyIncreasePerNight": 3, "enemyHealth": 100, "enemyDamage": 20 },
+        { "id": "d_nightmare", "strategy": "Eco", "baseEnemiesPerNight": 12, "enemyIncreasePerNight": 4, "enemyHealth": 150, "enemyDamage": 30 },
+
+        { "id": "r_brutal",    "strategy": "Rush", "baseEnemiesPerNight": 9,  "enemyIncreasePerNight": 3, "enemyHealth": 100, "enemyDamage": 20 },
+        { "id": "r_nightmare", "strategy": "Rush", "baseEnemiesPerNight": 12, "enemyIncreasePerNight": 4, "enemyHealth": 150, "enemyDamage": 30 }
+    ]
+}

@@ -89,6 +89,11 @@ public class Worker : UnitBase<Worker>
 
     void Start()
     {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        // Balance-sim knobs, if a sweep is running. Must land before these
+        // values are copied into the AI blackboard below.
+        SimOverrides.Apply(this);
+#endif
         if (FetchAgent())
         {
             // Configure NavMeshAgent for smooth navigation around obstacles

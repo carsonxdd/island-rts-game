@@ -96,3 +96,14 @@ Thumbs.db
 
 # Perf recorder output (PerfLogger.cs)
 PerfLogs/
+
+# Balance simulation output + headless sim player (SimRunner.cs / SimTools.cs).
+# Sweep definitions under SimSweeps/ ARE tracked - they are the experiment.
+SimLogs/
+islandrts/SimLogs/
+islandrts/Build/
+
+# Unity crash-recovery scene backups
+islandrts/Assets/_Recovery/
+islandrts/Assets/_Recovery.meta
+SimSweeps/*.log

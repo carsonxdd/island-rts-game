@@ -1,0 +1,26 @@
+{
+    "outputDir": "SimLogs",
+    "captureDeltaTime": 0.016666668,
+    "maxWallSecondsPerRun": 300,
+    "repeats": 8,
+    "runs": [
+        { "id": "f_ramp20",  "strategy": "Eco", "enemyIncreasePerNight": 2.0 },
+        { "id": "f_ramp225", "strategy": "Eco", "enemyIncreasePerNight": 2.25 },
+        { "id": "f_ramp25",  "strategy": "Eco", "enemyIncreasePerNight": 2.5 },
+        { "id": "f_ramp275", "strategy": "Eco", "enemyIncreasePerNight": 2.75 },
+
+        { "id": "f_base4_ramp2",  "strategy": "Eco", "baseEnemiesPerNight": 4, "enemyIncreasePerNight": 2.0 },
+        { "id": "f_base5_ramp15", "strategy": "Eco", "baseEnemiesPerNight": 5, "enemyIncreasePerNight": 1.5 },
+
+        { "id": "f_ramp2_dmg12", "strategy": "Eco", "enemyIncreasePerNight": 2.0, "enemyDamage": 12 },
+        { "id": "f_ramp2_dmg14", "strategy": "Eco", "enemyIncreasePerNight": 2.0, "enemyDamage": 14 },
+
+        { "id": "f_ramp25_uncap",      "strategy": "Eco", "enemyIncreasePerNight": 2.5, "maxWarriors": 12, "warriorCostWood": 20, "warriorCostFood": 25 },
+        { "id": "f_ramp25_toughhuts",  "strategy": "Eco", "enemyIncreasePerNight": 2.5, "hutHealth": 180 },
+        { "id": "f_ramp25_attrition",  "strategy": "Eco", "enemyIncreasePerNight": 2.5, "warriorHealRate": 1.5 },
+        { "id": "f_ramp25_group",      "strategy": "Eco", "enemyIncreasePerNight": 2.5, "spawnInterval": 0.15 },
+
+        { "id": "r_ramp25", "strategy": "Rush",   "enemyIncreasePerNight": 2.5 },
+        { "id": "t_ramp25", "strategy": "Turtle", "enemyIncreasePerNight": 2.5 }
+    ]
+}

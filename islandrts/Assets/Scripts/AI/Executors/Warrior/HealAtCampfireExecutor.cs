@@ -66,7 +66,11 @@ public class HealAtCampfireExecutor : ActionExecutor
             }
 
             // Regenerate health
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            bb.health.Heal(SimOverrides.HealRate(HealRate) * Time.deltaTime);
+#else
             bb.health.Heal(HealRate * Time.deltaTime);
+#endif
 
             // Full HP — force re-eval so brain switches to Patrol
             if (bb.health.GetHealthPercentage() >= 1f)

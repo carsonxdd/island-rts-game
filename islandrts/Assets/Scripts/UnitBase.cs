@@ -75,7 +75,7 @@ public abstract class UnitBase<T> : MonoBehaviour, ITargetable where T : UnitBas
     /// <summary>Create the floating state text if <see cref="showStateText"/> is enabled.</summary>
     protected void CreateStateText(float fontSize, string initialText, Color initialColor)
     {
-        if (!showStateText) return;
+        if (!showStateText || SimHooks.Simulating) return;
         floatingText = gameObject.AddComponent<FloatingText>();
         floatingText.heightOffset = textHeightOffset;
         floatingText.fontSize = fontSize;

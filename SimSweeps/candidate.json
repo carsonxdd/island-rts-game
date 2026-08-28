@@ -1,0 +1,23 @@
+{
+    "outputDir": "SimLogs",
+    "captureDeltaTime": 0.016666668,
+    "maxWallSecondsPerRun": 300,
+    "repeats": 10,
+    "runs": [
+        { "id": "c_int40_ramp200", "strategy": "Eco", "spawnInterval": 0.40, "enemyIncreasePerNight": 2.00 },
+        { "id": "c_int40_ramp225", "strategy": "Eco", "spawnInterval": 0.40, "enemyIncreasePerNight": 2.25 },
+        { "id": "c_int40_ramp250", "strategy": "Eco", "spawnInterval": 0.40, "enemyIncreasePerNight": 2.50 },
+        { "id": "c_int40_ramp275", "strategy": "Eco", "spawnInterval": 0.40, "enemyIncreasePerNight": 2.75 },
+        { "id": "c_int60_ramp250", "strategy": "Eco", "spawnInterval": 0.60, "enemyIncreasePerNight": 2.50 },
+        { "id": "c_int25_ramp200", "strategy": "Eco", "spawnInterval": 0.25, "enemyIncreasePerNight": 2.00 },
+
+        { "id": "c_uncap_clean", "strategy": "Eco", "spawnInterval": 0.40, "enemyIncreasePerNight": 2.25, "maxWarriors": 12 },
+        { "id": "c_cost_only",   "strategy": "Eco", "spawnInterval": 0.40, "enemyIncreasePerNight": 2.25, "warriorCostWood": 20, "warriorCostFood": 25 },
+
+        { "id": "c_toughhuts", "strategy": "Eco", "spawnInterval": 0.40, "enemyIncreasePerNight": 2.25, "hutHealth": 180 },
+        { "id": "c_attrition", "strategy": "Eco", "spawnInterval": 0.40, "enemyIncreasePerNight": 2.25, "warriorHealRate": 1.5 },
+
+        { "id": "r_candidate", "strategy": "Rush",   "spawnInterval": 0.40, "enemyIncreasePerNight": 2.25 },
+        { "id": "t_candidate", "strategy": "Turtle", "spawnInterval": 0.40, "enemyIncreasePerNight": 2.25 }
+    ]
+}

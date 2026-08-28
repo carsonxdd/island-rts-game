@@ -56,6 +56,9 @@ public class BaseBuilding : MonoBehaviour, ITargetable
 
     void Start()
     {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        SimOverrides.Apply(this);
+#endif
         // Setup Health component
         healthComponent = GetComponent<Health>();
         if (healthComponent == null)
