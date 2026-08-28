@@ -31,7 +31,7 @@ public class Survivor : MonoBehaviour
     {
         // Same locomotion feel as a Worker (see Worker.Start)
         agent.speed = 3.5f;
-        agent.acceleration = 5f;
+        agent.acceleration = 18f;
         agent.angularSpeed = 360f;
         agent.stoppingDistance = 0.2f;
         agent.radius = Worker.AgentRadius;

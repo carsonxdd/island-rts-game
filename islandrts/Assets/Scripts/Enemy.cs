@@ -21,7 +21,7 @@ public class Enemy : UnitBase<Enemy>
     public float attackCooldown = 1.5f;
 
     [Header("Movement")]
-    public float moveSpeed = 2f;  // Slow, shambling speed for enemies
+    public float moveSpeed = 2.6f;  // Shambling; still the slowest thing on the field (warrior 3.5 outruns it cleanly). Raised from 2.0 in the snap pass: the island went to 150x150 and EnemySpawner.spawnDistance to 45, so at 2.0 a third of every 60s night was commute
 
     [Header("Targeting")]
     public float warriorDetectionRange = 15f;  // Only engage warriors within this range
@@ -36,8 +36,8 @@ public class Enemy : UnitBase<Enemy>
 
         // Configure NavMeshAgent for combat movement
         agent.speed = moveSpeed;
-        agent.acceleration = 4f;         // Low acceleration to prevent ice skating
-        agent.angularSpeed = 90f;        // Slower turning for more weight
+        agent.acceleration = 9f;         // Snap pass: 2.6 / 9 = ~0.29s spin-up (was 4 = 0.65s). Deliberately the longest ramp of the three so enemies keep visible mass
+        agent.angularSpeed = 200f;       // Snap pass: 180-deg pivot in 0.90s (was 90 = 2.00s). Still twice as slow to turn as a warrior -- that gap is where the lumbering read lives
         agent.stoppingDistance = 0.5f;  // Minimal — EnemyAttackExecutor uses ClosestPoint edge-distance to trip attack state
         agent.autoBraking = true;
         agent.radius = 0.5f;             // Agent size for collision

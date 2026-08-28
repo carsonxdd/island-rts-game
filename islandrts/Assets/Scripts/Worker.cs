@@ -93,7 +93,7 @@ public class Worker : UnitBase<Worker>
         {
             // Configure NavMeshAgent for smooth navigation around obstacles
             agent.stoppingDistance = GatherStopDistance;  // Walk nearly onto the gather point (arrival tolerance is gatherDistance)
-            agent.acceleration = 5f;  // Moderate acceleration for smoother movement (reduced from 8)
+            agent.acceleration = 18f;  // Snap pass: 3.5 / 18 = ~0.19s spin-up (was 5 = 0.70s). Weight should come from top speed, not from a long ramp -- a long ramp just reads as input lag. Braking uses the same value, so arrivals tighten too
             agent.angularSpeed = 360f;  // Snappy turning - workers face new headings quickly (was 120, an anti-jitter value; watch for turn jitter)
             agent.obstacleAvoidanceType = ObstacleAvoidanceType.HighQualityObstacleAvoidance;  // High predicts crossings early so meeting workers weave instead of side-step dancing. Walls are static obstacles, not avoidance agents — the cost scales with agent count and ~10 workers is cheap
             RollMovingAvoidance(agent);  // Randomized priority band prevents synchronized yielding; executors switch this by state (stationary = max-importance)

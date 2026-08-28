@@ -17,7 +17,7 @@ public class Warrior : UnitBase<Warrior>
     public float attackCooldown = 1.2f;
 
     [Header("Movement")]
-    public float moveSpeed = 3.5f;  // Faster than enemies, slower than workers
+    public float moveSpeed = 3.5f;  // Faster than enemies (2.6), slower than workers (3.5 but unencumbered). NOTE: the prefab serialized 2.5 for a long time, which silently made warriors the SLOWEST unit on the field and unable to close on anything they chased -- corrected in the snap pass. Keep script default and prefab in sync
 
     [Header("Behavior")]
     public float searchRadius = 50f;  // How far to search for enemies
@@ -36,8 +36,8 @@ public class Warrior : UnitBase<Warrior>
 
         // Configure NavMeshAgent for warrior movement
         agent.speed = moveSpeed;
-        agent.acceleration = 5f;  // Moderate acceleration for smoother movement (reduced from 8)
-        agent.angularSpeed = 120f;  // Smooth turning (reduced from 180 to prevent jitter)
+        agent.acceleration = 16f;  // Snap pass: 3.5 / 16 = ~0.22s spin-up (was 5 = 0.70s). A touch heavier than a worker so the armour reads
+        agent.angularSpeed = 400f;  // Snap pass: 180-deg pivot in 0.45s (was 120 = 1.50s) -- the single biggest source of sluggish on warriors. The old 120 was an anti-jitter value from the state-machine era; jitter now comes from re-pathing, not turn rate
         agent.stoppingDistance = attackRange - 1.0f;  // Stop before attack range for smoother movement
         agent.autoBraking = true;
         agent.radius = 0.5f;
