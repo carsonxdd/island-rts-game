@@ -37,11 +37,13 @@ public abstract class UnitBase<T> : MonoBehaviour, ITargetable where T : UnitBas
     protected virtual void Awake()
     {
         ActiveRegistry<T>.Register((T)this);
+        PerfCounters.Hit(PerfCounters.K.UnitSpawn);
     }
 
     protected virtual void OnDestroy()
     {
         ActiveRegistry<T>.Unregister((T)this);
+        PerfCounters.Hit(PerfCounters.K.UnitDeath);
     }
 
     /// <summary>Fetch the NavMeshAgent into <see cref="agent"/>; logs an error and returns false if missing.</summary>

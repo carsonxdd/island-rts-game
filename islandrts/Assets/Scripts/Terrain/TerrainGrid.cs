@@ -259,6 +259,7 @@ public class TerrainGrid : MonoBehaviour
         MeshCollider mc = chunk.GetComponent<MeshCollider>();
         Mesh old = mf != null ? mf.sharedMesh : null;
 
+        PerfCounters.Hit(PerfCounters.K.TerrainRebuild);
         Mesh fresh = BuildChunkMesh(cx, cz, VertsPerSide - 1);
         if (mf != null) mf.sharedMesh = fresh;
         if (mc != null) mc.sharedMesh = fresh;
@@ -381,6 +382,7 @@ public class TerrainGrid : MonoBehaviour
     {
         if (surface != null && surface.navMeshData != null)
         {
+            PerfCounters.Hit(PerfCounters.K.NavMeshUpdate);
             surface.UpdateNavMesh(surface.navMeshData);
         }
     }

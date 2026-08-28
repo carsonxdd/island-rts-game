@@ -178,13 +178,22 @@ public class AIBrain : MonoBehaviour
             if (evalCount < cap)
             {
                 evalCount++;
+                PerfCounters.Hit(PerfCounters.K.Eval);
+                if (forceNextEval) PerfCounters.Hit(PerfCounters.K.EvalForced);
                 forceNextEval = false;
                 // Only reset the timer once the evaluation ACTUALLY runs. The old code
                 // reset it before the throttle check, so a throttled brain silently
                 // dropped that evaluation and waited another full interval instead of
                 // retrying. Leaving the timer at/below zero makes it retry next frame.
                 evalTimer = evalInterval;
+
+                long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
                 EvaluateActions();
+                PerfCounters.EvalTicks += System.Diagnostics.Stopwatch.GetTimestamp() - t0;
+            }
+            else
+            {
+                PerfCounters.Hit(PerfCounters.K.EvalDeferred);
             }
             // Over budget: evalTimer stays <= 0 (and forceNextEval stays set), so this
             // brain retries next frame rather than losing the evaluation.
@@ -193,7 +202,10 @@ public class AIBrain : MonoBehaviour
         // --- Execute current action every frame ---
         if (currentActionIndex >= 0 && currentActionIndex < actions.Length)
         {
+            long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
             actions[currentActionIndex].executor.OnUpdate(blackboard);
+            PerfCounters.ExecTicks += System.Diagnostics.Stopwatch.GetTimestamp() - t0;
+
             blackboard.stateDisplayName = actions[currentActionIndex].executor.DisplayName;
         }
     }

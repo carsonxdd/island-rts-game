@@ -50,6 +50,18 @@ public class CombatEffects : MonoBehaviour
         particlesThisFrame = 0;
     }
 
+    // --- Perf instrumentation ---------------------------------------------
+    // Creating a ParticleSystem or a TextMeshPro object at runtime is one of the
+    // more expensive things this game does per combat hit, so the cost is timed
+    // and attributed rather than guessed at.
+    private long vfxT0;
+    void VfxBegin() { vfxT0 = System.Diagnostics.Stopwatch.GetTimestamp(); }
+    void VfxEnd()
+    {
+        PerfCounters.VfxTicks += System.Diagnostics.Stopwatch.GetTimestamp() - vfxT0;
+        PerfCounters.Hit(PerfCounters.K.VfxSpawn);
+    }
+
     /// <summary>
     /// Spawn attack effect at attacker's position toward target
     /// </summary>
@@ -58,6 +70,7 @@ public class CombatEffects : MonoBehaviour
         if (!enableAttackEffects || particlesThisFrame >= maxParticlesPerFrame)
             return;
 
+        VfxBegin();
         GameObject effectObj = new GameObject("AttackEffect");
         effectObj.transform.position = attackerPosition + Vector3.up * 1f;
 
@@ -93,6 +106,7 @@ public class CombatEffects : MonoBehaviour
         // Auto-destroy after particles finish
         Destroy(effectObj, 2f);
         particlesThisFrame++;
+        VfxEnd();
     }
 
     /// <summary>
@@ -104,6 +118,7 @@ public class CombatEffects : MonoBehaviour
             return;
 
         // Create impact particle burst
+        VfxBegin();
         GameObject effectObj = new GameObject("HitEffect");
         effectObj.transform.position = hitPosition + Vector3.up * 1f;
 
@@ -128,6 +143,7 @@ public class CombatEffects : MonoBehaviour
 
         Destroy(effectObj, 1f);
         particlesThisFrame++;
+        VfxEnd();
 
         // Spawn damage number
         if (showDamageNumbers)
@@ -141,6 +157,7 @@ public class CombatEffects : MonoBehaviour
     /// </summary>
     void SpawnDamageNumber(Vector3 position, float damage)
     {
+        VfxBegin();
         GameObject textObj = new GameObject("DamageNumber");
         textObj.transform.position = position + Vector3.up * 1.5f;
 
@@ -158,6 +175,7 @@ public class CombatEffects : MonoBehaviour
         textObj.AddComponent<DamageNumberAnimator>().Initialize(damageNumberDuration, damageNumberRiseSpeed);
 
         Destroy(textObj, damageNumberDuration);
+        VfxEnd();
     }
 
     /// <summary>
@@ -168,6 +186,7 @@ public class CombatEffects : MonoBehaviour
         if (!enableDeathEffects || particlesThisFrame >= maxParticlesPerFrame)
             return;
 
+        VfxBegin();
         GameObject effectObj = new GameObject("DeathEffect");
         effectObj.transform.position = deathPosition + Vector3.up * 0.5f;
 
@@ -193,6 +212,7 @@ public class CombatEffects : MonoBehaviour
 
         Destroy(effectObj, 2f);
         particlesThisFrame++;
+        VfxEnd();
     }
 
     /// <summary>

@@ -438,5 +438,8 @@ public class ResourceNode : MonoBehaviour
     void OnDestroy()
     {
         ActiveRegistry<ResourceNode>.Unregister(this);
+        // A carving obstacle disappearing patches the NavMesh locally — worth
+        // attributing when a frame spikes.
+        PerfCounters.Hit(PerfCounters.K.CarveChange);
     }
 }

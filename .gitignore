@@ -93,3 +93,6 @@ nul
 ehthumbs.db
 Thumbs.db
 *.slnx
+
+# Perf recorder output (PerfLogger.cs)
+PerfLogs/

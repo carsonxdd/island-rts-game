@@ -36,18 +36,26 @@ public static class AINavHelper
     {
         if (agent == null || !agent.isOnNavMesh || !agent.enabled) return false;
 
+        PerfCounters.Hit(PerfCounters.K.SetDestTry);
+
         if (Time.frameCount != setDestFrame)
         {
             setDestFrame = Time.frameCount;
             setDestCount = 0;
         }
-        if (setDestCount >= SetDestPerFrameLimit) return false;
+        if (setDestCount >= SetDestPerFrameLimit)
+        {
+            PerfCounters.Hit(PerfCounters.K.SetDestThrottled);
+            return false;
+        }
         setDestCount++;
         // Propagate Unity's actual result: SetDestination returns false if the
         // destination can't be mapped onto the NavMesh (e.g. the NavMesh is
         // mid-recalc after a carving obstacle was just disabled). Callers need
         // to know so they can retry next frame instead of pretending success.
-        return agent.SetDestination(destination);
+        bool ok = agent.SetDestination(destination);
+        PerfCounters.Hit(ok ? PerfCounters.K.SetDestOk : PerfCounters.K.SetDestRejected);
+        return ok;
     }
 
     /// <summary>
@@ -56,13 +64,20 @@ public static class AINavHelper
     /// </summary>
     public static bool TryCalculatePath(Vector3 source, Vector3 destination, int areaMask, NavMeshPath path)
     {
+        PerfCounters.Hit(PerfCounters.K.CalcPathTry);
+
         if (Time.frameCount != calcPathFrame)
         {
             calcPathFrame = Time.frameCount;
             calcPathCount = 0;
         }
-        if (calcPathCount >= 2) return false;
+        if (calcPathCount >= 2)
+        {
+            PerfCounters.Hit(PerfCounters.K.CalcPathThrottled);
+            return false;
+        }
         calcPathCount++;
+        PerfCounters.Hit(PerfCounters.K.CalcPathOk);
         NavMesh.CalculatePath(source, destination, areaMask, path);
         return true;
     }
