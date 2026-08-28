@@ -43,6 +43,7 @@ A Unity-based real-time strategy survival game. Manage autonomous workers, gathe
 | **R** | Toggle wall path direction / Rotate building |
 | **Shift** (hold) | Diagonal wall path |
 | **Delete / X** | Demolish building (50% resource refund) |
+| **Esc** | Cancel the current action (build ghost, wall line, demolish, crafting panel) — opens the pause menu when nothing is active |
 | **F2** | Build grid overlay (also auto-shows during build mode) |
 | **F3** | AI debug overlay (editor only) |
 | **F4** | Debug menu — cheats for testing (editor + dev builds only) |
@@ -90,6 +91,8 @@ islandrts/Assets/
 │   │   │   └── Enemy/           # EnemyAttack (single action + priority-based targeting)
 │   │   ├── Shared/              # NavMesh throttling, stuck detection
 │   │   └── Debug/               # F3 debug overlay
+│   ├── UI/                      # Menus — main, pause, options, controls, credits (runtime uGUI)
+│   ├── Sim/                     # Headless balance-simulation harness (editor + dev builds only)
 │   ├── GameManager.cs           # Victory/defeat, statistics
 │   ├── ResourceManager.cs       # Wood/food/stone economy
 │   ├── Worker.cs                # Worker unit + AI setup
@@ -105,7 +108,9 @@ islandrts/Assets/
 │   ├── DayNightCycle.cs         # Day/night with lighting
 │   └── ...                      # 38 root-level scripts total
 ├── Editor/
-│   └── LowPoly/                 # Procedural low-poly asset generator (editor-only)
+│   ├── LowPoly/                 # Procedural low-poly asset generator (editor-only)
+│   ├── Sim/                     # Sweep runner menu items + headless sim player build
+│   └── MenuSceneSetup.cs        # Creates the MainMenu scene, fixes the build scene list
 ├── Art/                         # Phase 10 low-poly art library + showcase scene
 ├── Prefabs/                     # Units, buildings, resources
 ├── Materials/
@@ -162,6 +167,8 @@ All units (Workers, Warriors, Enemies) use a **scoring-based Utility AI** — no
 | **Flee** | Workers garrison inside the nearest hut when enemies threaten, and pop back out when it's clear (or if the hut falls). |
 | **Demolish** | Delete/X key. 50% resource refund. Campfire protected. |
 | **Victory** | Survive 5 nights. Defeat if campfire is destroyed. |
+| **Menus** | Main menu (own scene), Esc pause, options (audio/video/gameplay, saved to PlayerPrefs), controls, credits, confirm dialogs. Built at runtime — see [`docs/MENU_WIREFRAMES`](docs/MENU_WIREFRAMES.md). |
+| **Balance sim** | Headless autoplay: scripted strategies play full games and write CSVs, so balance is measured rather than guessed. See [`docs/SIMULATION.md`](docs/SIMULATION.md). |
 
 ---
 
@@ -181,7 +188,13 @@ Everything else (per-unit spawn/death, per-damage, per-resource tick, per-button
 
 For detailed technical documentation, AI system internals, balancing data, phase history, and gotchas, see [`.claude/CLAUDE.md`](.claude/CLAUDE.md).
 
-Latest: **Movement snap pass + a perf recorder that measures the right thing** — unit locomotion was retuned for responsiveness without giving up weight. The key idea is that weight should come from a unit's *top speed and turn rate*, not from a long acceleration ramp: a slow ramp doesn't read as mass, it reads as input lag, because the delay sits between the decision and any visible response. So acceleration roughly tripled across the board (worker 5 → 18, warrior 5 → 16, enemy 4 → 9 — spin-up times of 0.19 s / 0.22 s / 0.29 s, down from ~0.7 s) while the *ordering* that makes the three unit types feel different was preserved and widened. Warrior turn rate went 120 → 400 °/s, which was the single largest source of sluggishness — a 180° pivot took a second and a half. Enemies stay deliberately the heaviest thing on the field: the longest ramp and half the warrior's turn rate, which is where the lumbering read lives.
+Latest: **Balance measured instead of guessed, plus menus** — two additions. First, a headless balance-simulation harness ([`docs/SIMULATION.md`](docs/SIMULATION.md)): the real game runs in a `-batchmode -nographics` player with a *scripted player* — worker assignment, build orders, recruitment, and nothing else — while pathing, gathering, combat and enemy targeting stay the game's own Utility AI. Three strategies (Turtle / Rush / Eco) play full 5-night games at ~25× realtime and write two CSVs: one row per game, one row per night. The load-bearing detail is that it speeds runs up with `Time.captureDeltaTime`, **not** `Time.timeScale` — this codebase's AI evaluation budget and NavMesh throttles are frame-based, so `timeScale` would starve every brain and report the resulting losses as "balance".
+
+It immediately paid for itself. Across 376 simulated games the shipping numbers turned out to be a shutout: Rush and Eco won **15–0** with the campfire at full HP on all five nights in 14 of 15 runs, and enemy count had to roughly triple before anything threatened it. Two findings changed the plan. Raising `enemyIncreasePerNight` produces a far better curve than raising `baseEnemiesPerNight` — both reach 0% win rate, but the ramp version has you lose on night 4.5 and the base-count version on night 2.4, so the *ramp* is the difficulty lever and the base count should stay low. And `spawnInterval` turned out to be the strongest knob of all: at the shipping 1 s, a 15-enemy wave arrives as fifteen one-enemy fights that warriors win in detail; tightening it to 0.15 s takes the same wave from a 100% win rate to 13%. Retuning is ongoing — final numbers are not committed yet, and the sweeps that produced these results live in `SimSweeps/`.
+
+Second, the **menu system**: main menu (its own scene), Esc pause, options with working audio/video/gameplay settings persisted to PlayerPrefs, controls, credits, and confirm dialogs — all built at runtime in uGUI with zero scene wiring, and all styled from a single `MenuStyle.cs` so an artist re-skins seven screens by editing one file. Esc is deliberately *contextual*: it was already bound by five systems, so it cancels the active mode first (building ghost, wall line, demolish, crafting panel) and only opens the pause menu when nothing is active. Wireframes and the asset checklist: [`docs/MENU_WIREFRAMES.md`](docs/MENU_WIREFRAMES.md). Setting up the menu scene also fixes the build scene list, which still pointed only at the stock `SampleScene` — a build made before this shipped an empty world.
+
+Before that: **Movement snap pass + a perf recorder that measures the right thing** — unit locomotion was retuned for responsiveness without giving up weight. The key idea is that weight should come from a unit's *top speed and turn rate*, not from a long acceleration ramp: a slow ramp doesn't read as mass, it reads as input lag, because the delay sits between the decision and any visible response. So acceleration roughly tripled across the board (worker 5 → 18, warrior 5 → 16, enemy 4 → 9 — spin-up times of 0.19 s / 0.22 s / 0.29 s, down from ~0.7 s) while the *ordering* that makes the three unit types feel different was preserved and widened. Warrior turn rate went 120 → 400 °/s, which was the single largest source of sluggishness — a 180° pivot took a second and a half. Enemies stay deliberately the heaviest thing on the field: the longest ramp and half the warrior's turn rate, which is where the lumbering read lives.
 
 Two prefab/script divergences surfaced during the pass and were corrected: `Warrior.moveSpeed` read `3.5f` in code (commented "faster than enemies") while the prefab serialized **2.5**, and `Enemy.moveSpeed` read `2f` while the prefab serialized **3** — so warriors were in fact the *slowest* unit in the game and could never close on anything they chased. Because a `public float` is deserialized from the prefab, the script value was dead data and the comment had been wrong for a long time. Enemy speed also had not kept up with the island growing to 150×150: at 2 m/s against a spawn ring of 45, a third of every 60-second night was spent walking.
 

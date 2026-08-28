@@ -86,6 +86,8 @@ public class CameraController : MonoBehaviour
 
     void Update()
     {
+        // Menus own input while paused/open (PauseController.BlockGameplayInput).
+        if (PauseController.BlockGameplayInput) return;
         if (cam == null) return;
         float dt = Time.unscaledDeltaTime;
 

@@ -76,6 +76,8 @@ public class BuildPlacement : MonoBehaviour
 
     void Update()
     {
+        // Menus own input while paused/open (PauseController.BlockGameplayInput).
+        if (PauseController.BlockGameplayInput) return;
         // Delete key: toggle demolish mode (works outside build mode)
         if (Input.GetKeyDown(KeyCode.Delete) || Input.GetKeyDown(KeyCode.X))
         {

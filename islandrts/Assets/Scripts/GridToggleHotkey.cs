@@ -42,6 +42,8 @@ public class GridToggleHotkey : MonoBehaviour
 
     void Update()
     {
+        // Menus own input while paused/open (PauseController.BlockGameplayInput).
+        if (PauseController.BlockGameplayInput) return;
         if (grid == null) return;
 
         bool auto = autoShowInBuildMode && buildPlacement != null && buildPlacement.isPlacing;
