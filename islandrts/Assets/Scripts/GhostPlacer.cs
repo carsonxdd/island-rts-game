@@ -64,18 +64,16 @@ public class GhostPlacer
         Vector3 snappedPos;
         if (!owner.GetSnappedMousePosition(out snappedPos)) return;
 
-        // Update target position (where we want to go)
+        // Snap straight onto the cell under the cursor. The grid snap already quantizes
+        // motion to whole cells, so there is nothing left to smooth — and smoothing
+        // actively hurt: the ghost was drawn trailing the cursor while validity was
+        // evaluated at the (unlagged) target position, so the green/red tint could
+        // disagree with the silhouette you were actually looking at.
         targetPosition = snappedPos;
-
-        // Smooth lerp for non-wall buildings
-        owner.currentGhost.transform.position = Vector3.Lerp(
-            owner.currentGhost.transform.position,
-            targetPosition,
-            owner.movementSpeed * Time.deltaTime
-        );
+        owner.currentGhost.transform.position = targetPosition;
 
         // Update ghost no-build zone position to follow the ghost
-        owner.zoneRenderer.UpdateGhostZone(owner.currentGhost.transform.position);
+        owner.zoneRenderer.UpdateGhostZone(targetPosition);
 
         // Check for collisions at TARGET position
         bool hasCollision = Physics.CheckBox(

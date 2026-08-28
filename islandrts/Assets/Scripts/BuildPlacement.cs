@@ -19,7 +19,6 @@ public class BuildPlacement : MonoBehaviour
     [Header("Grid Settings")]
     public float cellSize = 1f;  // Match your grid size
     public float placementHeight = 0.75f;  // Half the height of the hut
-    public float movementSpeed = 10f;  // How fast ghost follows mouse (lower = slower/smoother)
 
     [Header("Collision Detection")]
     public Vector3 buildingSize = new Vector3(2f, 1.5f, 2f);  // Size of the hut for collision check
@@ -39,6 +38,10 @@ public class BuildPlacement : MonoBehaviour
 
     [Header("Raycast Settings")]
     public LayerMask groundLayer;  // Set to "Default" layer for ground plane
+
+    // Unity's built-in layer 2. Ghosts are parked here so they can never occlude the
+    // ground ray, whatever groundLayer happens to be set to in the Inspector.
+    private const int IgnoreRaycastLayer = 2;
 
     // Shared runtime state (internal so the helpers can access it; internal
     // fields are not serialized, so the Inspector is unchanged)
@@ -157,7 +160,7 @@ public class BuildPlacement : MonoBehaviour
         {
             currentGhost = Instantiate(data.ghostPrefab);
         }
-        CacheGhostRenderer();
+        SetupGhost();
 
         // Update building properties from data
         buildingSize = data.buildingSize;
@@ -241,7 +244,7 @@ public class BuildPlacement : MonoBehaviour
         {
             currentGhost = Instantiate(data.ghostPrefab);
         }
-        CacheGhostRenderer();
+        SetupGhost();
 
         // Update building size and placement height for collision detection
         buildingSize = data.buildingSize;
@@ -342,11 +345,22 @@ public class BuildPlacement : MonoBehaviour
     }
 
     /// <summary>
-    /// Cache the ghost's renderer and instance its material slots. Called once per ghost
-    /// spawn so the per-frame validity tint is a plain array walk with no allocation.
+    /// Prepare a freshly spawned ghost: make it invisible to physics, then cache its
+    /// renderer and instance its material slots (so the per-frame validity tint stays a
+    /// plain array walk with no allocation).
+    ///
+    /// The physics step is load-bearing, not hygiene. HutGhost/WatchTowerGhost carry a
+    /// full-size BoxCollider on the Default layer — which is exactly what groundLayer is
+    /// set to — so GetSnappedMousePosition's ray hit the GHOST's roof instead of the
+    /// terrain. On a tilted camera the ghost then settled with its roof under the cursor,
+    /// parking its base a whole building-height down-screen from the mouse (worse the
+    /// taller the building). Nothing needs those colliders: placement validity uses
+    /// Physics.CheckBox against buildingsLayer, never the ghost's own collider.
     /// </summary>
-    private void CacheGhostRenderer()
+    private void SetupGhost()
     {
+        DisableGhostPhysics(currentGhost);
+
         ghostRenderer = currentGhost.GetComponent<Renderer>();
 
         if (ghostRenderer == null)
@@ -355,6 +369,33 @@ public class BuildPlacement : MonoBehaviour
         }
 
         ghostMaterials = RendererTint.Collect(ghostRenderer);
+    }
+
+    /// <summary>
+    /// Belt and braces so a future ghost prefab can't reintroduce the self-hit bug:
+    /// disable every collider on the ghost AND move it to Ignore Raycast, which is
+    /// excluded from every layer mask the placement code queries.
+    /// </summary>
+    private static void DisableGhostPhysics(GameObject ghost)
+    {
+        if (ghost == null) return;
+
+        Collider[] colliders = ghost.GetComponentsInChildren<Collider>(true);
+        for (int i = 0; i < colliders.Length; i++)
+        {
+            colliders[i].enabled = false;
+        }
+
+        SetLayerRecursive(ghost.transform, IgnoreRaycastLayer);
+    }
+
+    private static void SetLayerRecursive(Transform t, int layer)
+    {
+        t.gameObject.layer = layer;
+        for (int i = 0; i < t.childCount; i++)
+        {
+            SetLayerRecursive(t.GetChild(i), layer);
+        }
     }
 
     /// <summary>
@@ -375,7 +416,7 @@ public class BuildPlacement : MonoBehaviour
         Ray ray = mainCam.ScreenPointToRay(Input.mousePosition);
         RaycastHit hit;
 
-        if (Physics.Raycast(ray, out hit, 1000f, groundLayer))
+        if (Physics.Raycast(ray, out hit, 1000f, groundLayer, QueryTriggerInteraction.Ignore))
         {
             snapped = GridSnap.SnapXZ(hit.point, cellSize);
             snapped.y = GroundYAt(snapped) + placementHeight;

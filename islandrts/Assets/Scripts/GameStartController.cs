@@ -70,7 +70,6 @@ public class GameStartController : MonoBehaviour
     [Tooltip("|x| and |z| beyond this are beach/wading water — no campfire there.")]
     public float dryLandExtent = 63f;
     public float cellSize = 1f;
-    public float ghostFollowSpeed = 10f;
     public Color validColor = new Color(0.5f, 1f, 0.5f, 0.5f);
     public Color invalidColor = new Color(1f, 0.3f, 0.3f, 0.5f);
 
@@ -203,6 +202,10 @@ public class GameStartController : MonoBehaviour
         }
 
         ghost = Instantiate(campfireGhostPrefab);
+        // CampfireGhost.prefab carries no collider today, but park it on Ignore Raycast
+        // anyway: RaycastGround queries the Default layer, so a collider added here later
+        // would make the ghost occlude its own placement ray (see BuildPlacement.SetupGhost).
+        ghost.layer = 2;
         ghostTarget = survivor != null ? survivor.transform.position : Vector3.zero;
         ghost.transform.position = ghostTarget;
         ghostMaterials = RendererTint.Collect(ghost.GetComponent<Renderer>());
@@ -219,7 +222,7 @@ public class GameStartController : MonoBehaviour
             return;
         }
 
-        // Ghost follows the mouse, grid-snapped, smooth-lerped (same feel as GhostPlacer)
+        // Ghost follows the mouse, grid-snapped, no lag (same feel as GhostPlacer)
         Vector3 point;
         if (RaycastGround(out point))
         {
@@ -228,7 +231,7 @@ public class GameStartController : MonoBehaviour
             ghostTarget.y = TerrainGrid.Instance != null ? TerrainGrid.Instance.SampleHeight(ghostTarget) : 0f;
         }
 
-        ghost.transform.position = Vector3.Lerp(ghost.transform.position, ghostTarget, ghostFollowSpeed * Time.deltaTime);
+        ghost.transform.position = ghostTarget;
 
         ghostValid = IsValidCampfireSpot(ghostTarget);
         RendererTint.SetColor(ghostMaterials, ghostValid ? validColor : invalidColor);
