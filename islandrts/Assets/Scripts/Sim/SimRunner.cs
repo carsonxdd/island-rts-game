@@ -400,6 +400,25 @@ public class SimRunner : MonoBehaviour
     {
         if (!runActive || night == null) return;
 
+        CaptureDawn();
+        night.survived = SimBuilder.Campfire != null;
+
+        metrics.nights.Add(night);
+        night = null;
+    }
+
+    /// <summary>
+    /// Fills the dawn half of the current night row.
+    ///
+    /// Shared with <see cref="EndRun"/> on purpose: the night a run LOSES is
+    /// the most interesting row in the file, and it never reaches OnDayStart.
+    /// Leaving these at their defaults wrote a row of zeroes that reads as
+    /// "every wall, hut and worker was destroyed and nothing was killed" —
+    /// which is not what happened, and is exactly the row you go looking at
+    /// when you want to know why a run fell over.
+    /// </summary>
+    private void CaptureDawn()
+    {
         BaseBuilding fire = SimBuilder.Campfire;
         ResourceManager rm = ResourceManager.Instance;
 
@@ -413,19 +432,17 @@ public class SimRunner : MonoBehaviour
         night.towersDawn = SimBuilder.TowerCount;
         night.campfireHpDawn = fire != null ? fire.GetCurrentHealth() : 0f;
         night.enemiesKilledTotal = GameManager.Instance != null ? GameManager.Instance.totalEnemiesKilled : 0;
-        night.survived = fire != null;
-
-        metrics.nights.Add(night);
-        night = null;
     }
 
     private void EndRun()
     {
         runActive = false;
 
-        // A night in progress when the run ended still deserves its row.
+        // A night in progress when the run ended still deserves its row —
+        // with its dawn side filled in, since this is the losing night.
         if (night != null)
         {
+            CaptureDawn();
             night.survived = false;
             metrics.nights.Add(night);
             night = null;

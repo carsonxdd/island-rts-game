@@ -85,7 +85,15 @@ public static class GameSettings
         PlayerPrefs.Save();
     }
 
-    /// <summary>Pushes the current values into the live systems. Safe to call any time.</summary>
+    /// <summary>
+    /// Pushes the current values into the live systems. Safe to call any time.
+    ///
+    /// Note that not every setting is pushed from here: camera speed, edge pan,
+    /// screen shake and the build-grid default are read at their point of
+    /// effect instead (CameraController, CameraShake, GridToggleHotkey), the
+    /// same pattern CraftedUpgrades uses. That keeps them correct across a
+    /// scene load without this having to find the new scene's components.
+    /// </summary>
     public static void Apply()
     {
         AudioListener.volume = MasterVolume;
@@ -102,8 +110,15 @@ public static class GameSettings
         // A sim run mutes itself; never let a saved setting un-mute it.
         if (SimHooks.Simulating) AudioListener.volume = 0f;
 
-        QualitySettings.SetQualityLevel(Mathf.Clamp(QualityLevel, 0, QualitySettings.names.Length - 1), true);
-        QualitySettings.vSyncCount = VSync ? 1 : 0;
+        // Apply() runs on every frame of a slider drag, and SetQualityLevel
+        // with applyExpensiveChanges rebuilds render state — doing that per
+        // frame visibly hitches the game behind the options screen. Only touch
+        // these when the value actually changed.
+        int quality = Mathf.Clamp(QualityLevel, 0, QualitySettings.names.Length - 1);
+        if (QualitySettings.GetQualityLevel() != quality) QualitySettings.SetQualityLevel(quality, true);
+
+        int vsync = VSync ? 1 : 0;
+        if (QualitySettings.vSyncCount != vsync) QualitySettings.vSyncCount = vsync;
 
         if (Screen.fullScreen != Fullscreen) Screen.fullScreen = Fullscreen;
 

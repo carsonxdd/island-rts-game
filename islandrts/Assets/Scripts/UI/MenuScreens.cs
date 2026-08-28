@@ -25,8 +25,13 @@ public class MenuScreens : MonoBehaviour
     private Canvas canvas;
     private RectTransform backdrop;
     private RectTransform panel;
+    /// <summary>The column the current screen filled — used to size the panel to its content.</summary>
+    private VerticalLayoutGroup activeColumn;
     private Screen current = Screen.None;
     private readonly List<Screen> backStack = new List<Screen>();
+
+    /// <summary>True when Back() has somewhere to go rather than closing the menu outright.</summary>
+    public bool CanGoBack => backStack.Count > 0;
 
     private string confirmMessage;
     private Action confirmAction;
@@ -89,6 +94,7 @@ public class MenuScreens : MonoBehaviour
     {
         if (panel != null) Destroy(panel.gameObject);
         panel = null;
+        activeColumn = null;
 
         bool open = current != Screen.None;
         backdrop.gameObject.SetActive(open);
@@ -103,6 +109,11 @@ public class MenuScreens : MonoBehaviour
             case Screen.Credits: BuildCredits(); break;
             case Screen.Confirm: BuildConfirm(); break;
         }
+
+        // The height passed to Panel() is only a starting value — the panel is
+        // sized to whatever the screen actually put in it, so adding a row can
+        // never push content out through the bottom edge again.
+        if (panel != null && activeColumn != null) MenuBuilder.FitPanelHeight(panel, activeColumn);
     }
 
     // ---- screens ----------------------------------------------------------
@@ -110,12 +121,17 @@ public class MenuScreens : MonoBehaviour
     private void BuildMain()
     {
         panel = MenuBuilder.Panel(canvas.transform, "MainMenu", MenuStyle.MenuWidth, 620f);
-        VerticalLayoutGroup col = MenuBuilder.Column(panel, MenuStyle.ButtonSpacing);
+        VerticalLayoutGroup col = activeColumn = MenuBuilder.Column(panel, MenuStyle.ButtonSpacing);
 
-        MenuBuilder.Label(col.transform, "CASTAWAY", MenuStyle.TitleSize, MenuStyle.TextAccent)
-            .gameObject.AddComponent<LayoutElement>().preferredHeight = 66f;
-        MenuBuilder.Label(col.transform, "COLONY", MenuStyle.TitleSize, MenuStyle.TextAccent)
-            .gameObject.AddComponent<LayoutElement>().preferredHeight = 66f;
+        // One two-line label rather than two stacked ones: the title reads as a
+        // single lockup, and TMP's own line spacing keeps the words together
+        // instead of the column's spacing pushing them apart.
+        TextMeshProUGUI title = MenuBuilder.Label(col.transform, "CASTAWAY\nCOLONY",
+            MenuStyle.TitleSize, MenuStyle.TextAccent);
+        title.lineSpacing = -12f;
+        title.characterSpacing = 6f;
+        title.gameObject.AddComponent<LayoutElement>().preferredHeight = 126f;
+
         MenuBuilder.Label(col.transform, "survive five nights", MenuStyle.SmallSize, MenuStyle.TextMuted)
             .gameObject.AddComponent<LayoutElement>().preferredHeight = 24f;
 
@@ -137,7 +153,7 @@ public class MenuScreens : MonoBehaviour
     private void BuildPause()
     {
         panel = MenuBuilder.Panel(canvas.transform, "PauseMenu", MenuStyle.MenuWidth, 520f);
-        VerticalLayoutGroup col = MenuBuilder.Column(panel, MenuStyle.ButtonSpacing);
+        VerticalLayoutGroup col = activeColumn = MenuBuilder.Column(panel, MenuStyle.ButtonSpacing);
 
         MenuBuilder.Label(col.transform, "PAUSED", MenuStyle.HeadingSize, MenuStyle.TextAccent)
             .gameObject.AddComponent<LayoutElement>().preferredHeight = 40f;
@@ -175,7 +191,7 @@ public class MenuScreens : MonoBehaviour
     private void BuildOptions()
     {
         panel = MenuBuilder.Panel(canvas.transform, "Options", MenuStyle.OptionsWidth, 640f);
-        VerticalLayoutGroup col = MenuBuilder.Column(panel, 8f);
+        VerticalLayoutGroup col = activeColumn = MenuBuilder.Column(panel, 8f);
 
         MenuBuilder.Label(col.transform, "OPTIONS", MenuStyle.HeadingSize, MenuStyle.TextAccent)
             .gameObject.AddComponent<LayoutElement>().preferredHeight = 38f;
@@ -262,7 +278,7 @@ public class MenuScreens : MonoBehaviour
     private void BuildControls()
     {
         panel = MenuBuilder.Panel(canvas.transform, "Controls", MenuStyle.OptionsWidth, 640f);
-        VerticalLayoutGroup col = MenuBuilder.Column(panel, 4f);
+        VerticalLayoutGroup col = activeColumn = MenuBuilder.Column(panel, 4f);
 
         MenuBuilder.Label(col.transform, "CONTROLS", MenuStyle.HeadingSize, MenuStyle.TextAccent)
             .gameObject.AddComponent<LayoutElement>().preferredHeight = 38f;
@@ -290,7 +306,9 @@ public class MenuScreens : MonoBehaviour
 
         for (int i = 0; i < bindings.GetLength(0); i++)
         {
-            MenuBuilder.SettingRow(col.transform, bindings[i, 0], out RectTransform slot);
+            // Tighter than a settings row — this is a reference list, not a
+            // set of controls, and twelve full-height rows overran the screen.
+            MenuBuilder.SettingRow(col.transform, bindings[i, 0], out RectTransform slot, height: 34f);
             TextMeshProUGUI v = MenuBuilder.Label(slot, bindings[i, 1], MenuStyle.BodySize,
                 MenuStyle.TextAccent, TextAlignmentOptions.MidlineLeft);
             RectTransform vrt = v.rectTransform;
@@ -310,7 +328,7 @@ public class MenuScreens : MonoBehaviour
     private void BuildCredits()
     {
         panel = MenuBuilder.Panel(canvas.transform, "Credits", MenuStyle.MenuWidth + 120f, 520f);
-        VerticalLayoutGroup col = MenuBuilder.Column(panel, 8f);
+        VerticalLayoutGroup col = activeColumn = MenuBuilder.Column(panel, 8f);
 
         MenuBuilder.Label(col.transform, "CREDITS", MenuStyle.HeadingSize, MenuStyle.TextAccent)
             .gameObject.AddComponent<LayoutElement>().preferredHeight = 38f;
@@ -335,7 +353,7 @@ public class MenuScreens : MonoBehaviour
     private void BuildConfirm()
     {
         panel = MenuBuilder.Panel(canvas.transform, "Confirm", MenuStyle.MenuWidth, 260f);
-        VerticalLayoutGroup col = MenuBuilder.Column(panel, MenuStyle.ButtonSpacing);
+        VerticalLayoutGroup col = activeColumn = MenuBuilder.Column(panel, MenuStyle.ButtonSpacing);
 
         MenuBuilder.Spacer(col.transform, 12f);
         MenuBuilder.Label(col.transform, confirmMessage, MenuStyle.BodySize, MenuStyle.TextPrimary)

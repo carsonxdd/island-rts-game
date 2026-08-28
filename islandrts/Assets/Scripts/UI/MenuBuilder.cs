@@ -15,6 +15,9 @@ using UnityEngine.UI;
 /// </summary>
 public static class MenuBuilder
 {
+    /// <summary>Width of a slider knob, in reference pixels.</summary>
+    private const float HandleWidth = 16f;
+
     /// <summary>Full-screen canvas that renders above gameplay UI and survives a paused game.</summary>
     public static Canvas CreateCanvas(string name, int sortOrder = 500)
     {
@@ -141,11 +144,39 @@ public static class MenuBuilder
             (int)MenuStyle.PanelPadding, (int)MenuStyle.PanelPadding,
             (int)MenuStyle.PanelPadding, (int)MenuStyle.PanelPadding);
         v.childControlWidth = true;
-        v.childControlHeight = false;
+        // childControlHeight MUST stay true: every element in this file sizes
+        // itself with LayoutElement.preferredHeight, and a VerticalLayoutGroup
+        // ignores LayoutElement entirely when it isn't controlling the axis —
+        // it falls back to each child's raw sizeDelta, which for a
+        // code-created RectTransform is nothing like the intended height.
+        // That is what made every screen lay out at the wrong heights and
+        // spill out of its panel.
+        v.childControlHeight = true;
         v.childForceExpandWidth = true;
         v.childForceExpandHeight = false;
         v.childAlignment = TextAnchor.UpperCenter;
         return v;
+    }
+
+    /// <summary>
+    /// Sizes a panel to exactly fit the column inside it.
+    ///
+    /// Panel heights used to be hand-typed constants, which drift the moment a
+    /// row is added — the Controls screen needed ~780px and was declared at
+    /// 640, so its last rows and the Back button fell outside the panel.
+    /// Call this once at the end of building a screen instead.
+    /// </summary>
+    public static void FitPanelHeight(RectTransform panel, VerticalLayoutGroup col,
+                                      float min = 120f, float max = 980f)
+    {
+        // The layout group only computes its preferred height during a layout
+        // pass, so drive the two input steps directly rather than waiting a
+        // frame (the panel would visibly resize on the frame after it opened).
+        col.CalculateLayoutInputHorizontal();
+        col.CalculateLayoutInputVertical();
+
+        float wanted = LayoutUtility.GetPreferredHeight((RectTransform)col.transform);
+        panel.sizeDelta = new Vector2(panel.sizeDelta.x, Mathf.Clamp(wanted, min, max));
     }
 
     public static Button MenuButton(Transform parent, string text, Action onClick,
@@ -195,11 +226,12 @@ public static class MenuBuilder
     }
 
     /// <summary>Horizontal row: a left-aligned label and a right-aligned control slot.</summary>
-    public static RectTransform SettingRow(Transform parent, string label, out RectTransform controlSlot)
+    public static RectTransform SettingRow(Transform parent, string label, out RectTransform controlSlot,
+                                           float height = -1f)
     {
         GameObject go = new GameObject("Row", typeof(RectTransform), typeof(LayoutElement));
         go.transform.SetParent(parent, false);
-        go.GetComponent<LayoutElement>().preferredHeight = MenuStyle.RowHeight;
+        go.GetComponent<LayoutElement>().preferredHeight = height > 0f ? height : MenuStyle.RowHeight;
 
         RectTransform rt = go.GetComponent<RectTransform>();
 
@@ -231,15 +263,35 @@ public static class MenuBuilder
         RectTransform rt = go.GetComponent<RectTransform>();
         rt.anchorMin = new Vector2(0f, 0.5f);
         rt.anchorMax = new Vector2(0.78f, 0.5f);
-        rt.offsetMin = new Vector2(0f, -6f);
-        rt.offsetMax = new Vector2(0f, 6f);
+        rt.offsetMin = new Vector2(0f, -9f);
+        rt.offsetMax = new Vector2(0f, 9f);
 
-        RectTransform bg = SimpleImage(go.transform, "Background", MenuStyle.ButtonFill);
-        RectTransform fillArea = SimpleImage(go.transform, "Fill", MenuStyle.TextAccent);
+        // The background is the slider's targetGraphic AND its click surface —
+        // it must raycast, or the EventSystem never delivers the slider a
+        // pointer event and the control is silently inert. Same for the handle.
+        RectTransform bg = SimpleImage(go.transform, "Background", MenuStyle.ButtonFill, raycast: true);
+        Stretch(bg);
+
+        RectTransform fill = SimpleImage(go.transform, "Fill", MenuStyle.TextAccent);
+        Stretch(fill);   // Slider drives the anchors; the offsets must be zero or it overhangs
+
+        // Handle lives in its own container inset by half a handle width, so
+        // the knob stays inside the track at both ends.
+        GameObject slideArea = new GameObject("Handle Slide Area", typeof(RectTransform));
+        slideArea.transform.SetParent(go.transform, false);
+        RectTransform areaRt = slideArea.GetComponent<RectTransform>();
+        Stretch(areaRt);
+        areaRt.offsetMin = new Vector2(HandleWidth * 0.5f, 0f);
+        areaRt.offsetMax = new Vector2(-HandleWidth * 0.5f, 0f);
+
+        RectTransform handle = SimpleImage(slideArea.transform, "Handle", MenuStyle.TextPrimary, raycast: true);
+        handle.sizeDelta = new Vector2(HandleWidth, 0f);
 
         Slider slider = go.GetComponent<Slider>();
-        slider.targetGraphic = bg.GetComponent<Image>();
-        slider.fillRect = fillArea;
+        slider.targetGraphic = handle.GetComponent<Image>();
+        slider.fillRect = fill;
+        slider.handleRect = handle;
+        slider.direction = Slider.Direction.LeftToRight;
         slider.minValue = 0f;
         slider.maxValue = 1f;
         slider.SetValueWithoutNotify(value);
@@ -272,11 +324,10 @@ public static class MenuBuilder
         rt.pivot = new Vector2(0f, 0.5f);
         rt.sizeDelta = new Vector2(28f, 28f);
 
-        RectTransform box = SimpleImage(go.transform, "Box", MenuStyle.ButtonFill);
-        box.anchorMin = Vector2.zero;
-        box.anchorMax = Vector2.one;
-        box.offsetMin = Vector2.zero;
-        box.offsetMax = Vector2.zero;
+        // Raycastable for the same reason the slider background is: the box is
+        // the toggle's targetGraphic and its only click surface.
+        RectTransform box = SimpleImage(go.transform, "Box", MenuStyle.ButtonFill, raycast: true);
+        Stretch(box);
         AddBorder(box, MenuStyle.PanelBorder, 1f);
 
         RectTransform check = SimpleImage(go.transform, "Check", MenuStyle.TextAccent);
@@ -284,6 +335,7 @@ public static class MenuBuilder
         check.anchorMax = new Vector2(0.78f, 0.78f);
         check.offsetMin = Vector2.zero;
         check.offsetMax = Vector2.zero;
+        check.SetAsLastSibling();   // must draw over the box, not under it
 
         Toggle toggle = go.GetComponent<Toggle>();
         toggle.targetGraphic = box.GetComponent<Image>();
@@ -361,13 +413,28 @@ public static class MenuBuilder
         return go.GetComponent<RectTransform>();
     }
 
-    public static RectTransform SimpleImage(Transform parent, string name, Color color)
+    /// <summary>
+    /// A flat coloured rect. Defaults to <c>raycastTarget = false</c> because
+    /// most of these are decoration sitting on top of a control — but anything
+    /// that IS the control's click surface must pass <c>raycast: true</c>.
+    /// </summary>
+    public static RectTransform SimpleImage(Transform parent, string name, Color color, bool raycast = false)
     {
         GameObject go = new GameObject(name, typeof(Image));
         go.transform.SetParent(parent, false);
         Image img = go.GetComponent<Image>();
         img.color = color;
-        img.raycastTarget = false;
+        img.raycastTarget = raycast;
         return go.GetComponent<RectTransform>();
+    }
+
+    /// <summary>Fills the parent rect exactly. Code-created RectTransforms do not do this by default.</summary>
+    public static RectTransform Stretch(RectTransform rt)
+    {
+        rt.anchorMin = Vector2.zero;
+        rt.anchorMax = Vector2.one;
+        rt.offsetMin = Vector2.zero;
+        rt.offsetMax = Vector2.zero;
+        return rt;
     }
 }

@@ -1,0 +1,17 @@
+{
+    "outputDir": "SimLogs",
+    "captureDeltaTime": 0.016666668,
+    "maxWallSecondsPerRun": 300,
+    "repeats": 12,
+    "runs": [
+        { "id": "ship_eco",    "strategy": "Eco" },
+        { "id": "ship_rush",   "strategy": "Rush" },
+        { "id": "ship_turtle", "strategy": "Turtle" },
+
+        { "id": "b_ramp200", "strategy": "Eco", "enemyIncreasePerNight": 2.00 },
+        { "id": "b_ramp250", "strategy": "Eco", "enemyIncreasePerNight": 2.50 },
+        { "id": "b_heal250", "strategy": "Eco", "warriorHealRate": 2.5 },
+        { "id": "b_heal100", "strategy": "Eco", "warriorHealRate": 1.0 },
+        { "id": "b_int60",   "strategy": "Eco", "spawnInterval": 0.60 }
+    ]
+}

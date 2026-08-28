@@ -7,14 +7,14 @@ public class EnemySpawner : MonoBehaviour
     public GameObject enemyPrefab;
 
     [Header("Spawn Settings")]
-    public int baseEnemiesPerNight = 3;         // Starting number of enemies
-    public float enemyIncreasePerNight = 1f;    // How many more enemies each night
-    public float spawnDistance = 30f;           // Distance from center to spawn enemies
+    public int baseEnemiesPerNight = 5;         // Starting number of enemies (scene: 5)
+    public float enemyIncreasePerNight = 2.25f; // Extra enemies each night (scene: 2.25)
+    public float spawnDistance = 45f;           // Distance from center to spawn enemies (scene: 45)
     public float spawnHeight = 1f;              // Y position to spawn at
 
     [Header("Spawn Timing")]
     public float spawnDelay = 2f;               // Delay after night starts before spawning
-    public float spawnInterval = 1f;            // Time between each enemy spawn
+    public float spawnInterval = 0.4f;          // Time between spawns - low enough that a wave lands as one body (scene: 0.4)
 
     [Header("Group Spawning")]
     public float groupSpreadAngle = 15f;        // Max angle spread within a wave group (degrees)

@@ -187,6 +187,15 @@ Used by: ResourceManager, AudioManager, WallGrid, AIWorldState, PopulationManage
 - **`GridOverlay` draws only buildable cells, draped on the terrain (2026-08-26).** It used to draw a flat 50×50 square of `LineRenderer`s at y=0 — buried under an island that rises to ~3.5 m, so it was only visible out over the water. It now walks every cell centre, keeps the ones passing `TerrainGrid.IsBuildable`, and emits their boundaries into ONE `MeshTopology.Lines` mesh (a LineRenderer per line would be tens of thousands of GameObjects at island scale; `IndexFormat.UInt32` is required). Two things to preserve: boundaries sit on the **half**-offsets, because `GridSnap.SnapXZ` puts a building's *center* on a whole cell coordinate — the old overlay's lines ran through the centers, half a cell out of phase with placement; and the no-`TerrainGrid` branch still draws the legacy flat square so an un-set-up scene renders.
 - **The grid toggle is F2, and must never be G.** `GridToggleHotkey` was on G, which `BuildPlacement` also uses for wall→gate conversion — both handlers ran on the same frame. It now also auto-shows during build mode (`buildPlacement.isPlacing`), with `manual`/`suppressed` flags layering the user's explicit toggle over the auto behavior; `suppressed` clears when build mode ends so the next B starts fresh.
 
+### Runtime uGUI Gotchas (menus, crafting panel — anything built in code)
+
+- **A `VerticalLayoutGroup` with `childControlHeight = false` IGNORES `LayoutElement.preferredHeight`.** It falls back to each child's raw `sizeDelta`, which for a code-created `RectTransform` is nothing like the intended height. `MenuBuilder.Column` shipped with `childControlHeight = false` while every element sized itself via `LayoutElement` — so all seven menu screens laid out at wrong heights and spilled out of their panels (2026-08-28). If you size children with `LayoutElement`, the group must control that axis.
+- **A control's `targetGraphic` must have `raycastTarget = true` or the control is silently inert.** `MenuBuilder.SimpleImage` defaults it to false (correct for decoration), and the slider background and toggle box were built with it — neither had a single raycastable graphic, so the EventSystem never delivered them a pointer event and both were unclickable while looking fine. `SimpleImage(..., raycast: true)` for anything that IS the click surface. Buttons escaped this only because they use a bare `Image`, which defaults to true.
+- **Panel heights are computed, not typed.** `MenuBuilder.FitPanelHeight(panel, column)` sizes a panel to its content at the end of `MenuScreens.Rebuild`. Hand-typed heights drift the moment a row is added — the Controls screen needed ~780px and was declared 640, dropping its last rows and the Back button outside the panel.
+- **`[RuntimeInitializeOnLoadMethod]` fires ONCE per launch, not per scene load.** `PauseController` bootstrapped that way with no `DontDestroyOnLoad` (correct, per the stale-singleton rule), so it died with the menu scene on NEW GAME and Esc did nothing for the rest of the session. It now also subscribes to `SceneManager.sceneLoaded` and recreates itself per single-mode load. Any self-bootstrapping system that must exist in every scene needs both halves.
+- **Settings that must survive a scene load are read at the point of effect, not pushed by `GameSettings.Apply()`.** Camera speed, edge pan, screen shake and the grid default are read live by `CameraController` / `CameraShake` / `GridToggleHotkey` (same pattern as `CraftedUpgrades`), so `Apply` never has to go find the new scene's components. They were all dead settings before this — saved to PlayerPrefs and read by nothing.
+- **`GameSettings.Apply()` runs every frame of a slider drag**, so anything expensive in it must be change-guarded. `QualitySettings.SetQualityLevel(..., applyExpensiveChanges: true)` was being called per frame.
+
 ### Visual / Art Gotchas
 
 Phase 10 spec is in `PHASE_10_VISUAL_OVERHAUL.md`. Stage 1 (post-processing + lighting presets) is shipped; remaining stages are planned.
@@ -363,8 +372,8 @@ Ask: "would this log spam the console during a normal 5-minute play session?" If
 
 - Starting resources: 100W, 50F, 0S
 - Worker carry: 5 resources, 1/sec gather rate
-- Enemies per night: 3 + nightNumber
-- Warrior heals at campfire: 5 HP/sec (between waves only)
+- Enemies per night: `5 + (night - 1) * 2.25`, rounded → 5 / 7 / 10 / 12 / 14. Spawned 0.4s apart, so a wave arrives as one body rather than a trickle that warriors defeat in detail
+- Warrior heals at campfire: 1.5 HP/sec (between waves only) — deliberately slow so damage carries across nights
 - Gate HP: half of corresponding wall (wooden=75, stone=150)
 
 ---

@@ -38,6 +38,10 @@ public class GridToggleHotkey : MonoBehaviour
         }
 
         buildPlacement = FindAnyObjectByType<BuildPlacement>();
+
+        // "Show build grid by default" in Options is exactly the manual-on
+        // state, so it seeds the same flag the toggle key sets.
+        manual = GameSettings.GridByDefault;
     }
 
     void Update()

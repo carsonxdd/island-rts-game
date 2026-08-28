@@ -46,9 +46,15 @@ ghost, a wall line, demolish mode, the crafting panel, campfire placement during
 the opening. Only when nothing is active does it pause. That check lives in
 `PauseController.ModeActive()`; anything new that binds Esc must be added there.
 
+**Panels are only as wide as stated — their height is computed.** Each screen is
+sized to its own content by `MenuBuilder.FitPanelHeight` at the end of a rebuild,
+so adding a row never pushes content out through the bottom edge. The height
+argument passed to `MenuBuilder.Panel` is just a starting value. Design to the
+widths below and to the row rhythm; don't design to a fixed panel height.
+
 ---
 
-## Main Menu — 460 × 620, own scene
+## Main Menu — 460 wide, own scene
 
 ```
 ╔══════════════════════════════════════════════╗
@@ -126,7 +132,7 @@ the opening. Only when nothing is active does it pause. That check lives in
 
 ---
 
-## Options — 720 × 640, three tabs, shared
+## Options — 720 wide, three tabs, shared
 
 ```
 ╔══════════════════════════════════════════════════════════════════════╗
@@ -168,7 +174,7 @@ the opening. Only when nothing is active does it pause. That check lives in
 
 ---
 
-## Controls — 720 × 640, read-only for now
+## Controls — 720 wide, read-only for now
 
 ```
 ╔══════════════════════════════════════════════════════════════════════╗

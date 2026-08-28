@@ -39530,11 +39530,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   enemyPrefab: {fileID: 2549357510391453760, guid: 8f9cc3649bcdb8b4b8195681f2078872, type: 3}
   baseEnemiesPerNight: 5
-  enemyIncreasePerNight: 2
+  enemyIncreasePerNight: 2.25
   spawnDistance: 45
   spawnHeight: 1
   spawnDelay: 2
-  spawnInterval: 1
+  spawnInterval: 0.4
   groupSpreadAngle: 15
   groupSpreadDistance: 3
   increaseDifficulty: 1

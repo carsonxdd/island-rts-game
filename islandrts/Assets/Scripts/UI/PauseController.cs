@@ -34,11 +34,35 @@ public class PauseController : MonoBehaviour
     {
         // A headless balance run has no player and must never be paused.
         if (SimHooks.Simulating) return;
+
+        // RuntimeInitializeOnLoadMethod fires ONCE per launch, not once per
+        // scene load, and this object deliberately has no DontDestroyOnLoad
+        // (see the no-stale-singletons rule). So without this subscription the
+        // controller died with the menu scene the moment NEW GAME was pressed
+        // and Escape did nothing for the rest of the session.
+        SceneManager.sceneLoaded -= OnSceneLoaded;
+        SceneManager.sceneLoaded += OnSceneLoaded;
+        CreateForActiveScene();
+    }
+
+    private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        if (SimHooks.Simulating) return;
+        if (mode != LoadSceneMode.Single) return;
+        CreateForActiveScene();
+    }
+
+    private static void CreateForActiveScene()
+    {
         if (instance != null) return;
 
         GameObject go = new GameObject("~PauseController");
         instance = go.AddComponent<PauseController>();
         MenuScreens.Ensure().transform.SetParent(go.transform, false);
+
+        // GameSettings.Load() only applies once; re-push the values so the
+        // freshly loaded scene's AudioManager / CombatEffects get them too.
+        GameSettings.Apply();
 
         // The menu scene shows its own title screen; the game scene starts unpaused.
         if (SceneManager.GetActiveScene().name == MenuFlow.MenuSceneName)
@@ -60,13 +84,13 @@ public class PauseController : MonoBehaviour
     {
         if (!Input.GetKeyDown(KeyCode.Escape)) return;
 
-        // A menu is open: let it handle Back itself.
+        // A menu is open: let it handle Back itself. In the menu scene Escape
+        // still unwinds sub-screens (Options, Credits, a confirm dialog) but
+        // never closes the title screen — there is nothing behind it.
         if (MenuScreens.AnyOpen)
         {
-            if (SceneManager.GetActiveScene().name != MenuFlow.MenuSceneName)
-            {
-                MenuScreens.Instance.Back();
-            }
+            bool inMenuScene = SceneManager.GetActiveScene().name == MenuFlow.MenuSceneName;
+            if (!inMenuScene || MenuScreens.Instance.CanGoBack) MenuScreens.Instance.Back();
             return;
         }
 

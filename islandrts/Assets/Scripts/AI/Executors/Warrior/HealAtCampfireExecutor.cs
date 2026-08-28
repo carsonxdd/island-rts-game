@@ -16,7 +16,8 @@ public class HealAtCampfireExecutor : ActionExecutor
 {
     public override string DisplayName => isHealing ? "Healing..." : "Moving to Campfire";
 
-    private const float HealRate = 5f;         // HP per second
+    private const float HealRate = 1.5f;       // HP/sec. Deliberately slow: at 5 a warrior fully reset between
+                                               // every wave, so cross-night attrition could never build up.
     private const float HealRange = 3f;        // From the campfire's collider edge, not its center
     private const float StoppingDistance = 1.5f; // NavMesh stopping distance near campfire
 

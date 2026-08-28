@@ -1,0 +1,17 @@
+{
+    "outputDir": "SimLogs",
+    "captureDeltaTime": 0.016666668,
+    "maxWallSecondsPerRun": 300,
+    "repeats": 12,
+    "runs": [
+        { "id": "e_r50", "strategy": "Eco" },
+        { "id": "e_r30", "strategy": "Eco", "warriorSearchRadius": 30 },
+        { "id": "e_r22", "strategy": "Eco", "warriorSearchRadius": 22 },
+        { "id": "e_r18", "strategy": "Eco", "warriorSearchRadius": 18 },
+        { "id": "e_r12", "strategy": "Eco", "warriorSearchRadius": 12 },
+
+        { "id": "t_r50", "strategy": "Turtle" },
+        { "id": "t_r18", "strategy": "Turtle", "warriorSearchRadius": 18 },
+        { "id": "t_r12", "strategy": "Turtle", "warriorSearchRadius": 12 }
+    ]
+}

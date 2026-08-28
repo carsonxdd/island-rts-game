@@ -46,7 +46,9 @@ public class CameraShake : MonoBehaviour
             lastShakeOffset = Vector3.zero;
         }
 
-        if (!enableShake || currentShakeDuration <= 0f)
+        // GameSettings.ScreenShake is the player's Options toggle, read at the
+        // point of effect so it applies the instant it is changed.
+        if (!enableShake || !GameSettings.ScreenShake || currentShakeDuration <= 0f)
         {
             return;
         }

@@ -45,6 +45,10 @@ public class CameraController : MonoBehaviour
     [Tooltip("Ortho near clip. NEGATIVE on purpose: when tilted low / zoomed out, ground at the bottom of the view sits behind the camera plane and would be sliced off. A negative near extends the render box backwards (standard for ortho RTS cameras).")]
     public float nearClip = -100f;
 
+    [Header("Edge Pan")]
+    [Tooltip("Screen-edge thickness in pixels that pans the camera. Only active when the player turns Edge Pan on in Options.")]
+    public float edgePanBorder = 14f;
+
     [Header("Bounds")]
     public bool useBounds = false;
     public Vector2 minBounds = new Vector2(-120, -120);
@@ -110,6 +114,8 @@ public class CameraController : MonoBehaviour
         float horizontal = Input.GetAxisRaw("Horizontal");  // A/D
         float vertical = Input.GetAxisRaw("Vertical");      // W/S
 
+        if (GameSettings.EdgePan) ApplyEdgePan(ref horizontal, ref vertical);
+
         Vector3 targetVel = Vector3.zero;
         if (!isFreeLooking && (Mathf.Abs(horizontal) > 0.01f || Mathf.Abs(vertical) > 0.01f))
         {
@@ -120,13 +126,38 @@ public class CameraController : MonoBehaviour
 
             // Scale by zoom so screen-space speed stays constant
             float zoomScale = cam.orthographicSize / Mathf.Max(startOrthoSize, 0.01f);
-            targetVel = dir * panSpeed * zoomScale;
+            // GameSettings.CameraSpeed is the player's Options multiplier, read
+            // at the point of effect so changing the slider applies instantly.
+            targetVel = dir * panSpeed * GameSettings.CameraSpeed * zoomScale;
         }
 
         panVelocity = Vector3.SmoothDamp(panVelocity, targetVel, ref panVelocityRef,
                                          panSmoothTime, Mathf.Infinity, dt);
         if (panVelocity.sqrMagnitude > 0.0001f)
             transform.position += panVelocity * dt;
+    }
+
+    /// <summary>
+    /// Adds screen-edge input to the keyboard pan axes.
+    ///
+    /// Only counts while the pointer is actually inside the window — an
+    /// unfocused or alt-tabbed game reports a stale mouse position that would
+    /// otherwise pan the camera forever on its own.
+    /// </summary>
+    void ApplyEdgePan(ref float horizontal, ref float vertical)
+    {
+        Vector3 m = Input.mousePosition;
+        if (m.x < 0f || m.y < 0f || m.x >= UnityEngine.Screen.width || m.y >= UnityEngine.Screen.height) return;
+
+        if (m.x < edgePanBorder) horizontal -= 1f;
+        else if (m.x > UnityEngine.Screen.width - edgePanBorder) horizontal += 1f;
+
+        if (m.y < edgePanBorder) vertical -= 1f;
+        else if (m.y > UnityEngine.Screen.height - edgePanBorder) vertical += 1f;
+
+        // Keyboard + edge in the same direction must not double the speed.
+        horizontal = Mathf.Clamp(horizontal, -1f, 1f);
+        vertical = Mathf.Clamp(vertical, -1f, 1f);
     }
 
     /// <summary>
