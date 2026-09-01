@@ -1,16 +1,27 @@
 using UnityEngine;
 
-// Singleton pattern - only one ResourceManager exists
+/// <summary>
+/// The colony's single shared pool of wood, food and stone. Everything that earns or
+/// spends resources goes through this singleton.
+/// </summary>
+/// <remarks>
+/// Deliberately has no DontDestroyOnLoad: this is a single-scene game, and surviving a
+/// scene reload would carry a finished run's resources into the next one.
+/// Spending is always check-then-subtract in a single call - the Spend methods return
+/// false and change nothing when the colony cannot afford the cost, so no caller ever has
+/// to undo a partial spend.
+/// </remarks>
 public class ResourceManager : MonoBehaviour
 {
-    // Singleton instance
     public static ResourceManager Instance { get; private set; }
 
+    // Inspector defaults for a new colony, before the difficulty multiplier is applied.
     [Header("Starting Resources")]
     public int startingWood = 100;
     public int startingFood = 50;
     public int startingStone = 0;
 
+    // The live pool. Public because the debug menu and the balance sweep write it directly.
     [Header("Current Resources")]
     public int wood = 0;
     public int food = 0;
@@ -50,7 +61,7 @@ public class ResourceManager : MonoBehaviour
         }
     }
 
-    // Add resources
+    /// <summary>Deposits gathered resources. Uncapped by design.</summary>
     public void AddWood(int amount)
     {
         wood += amount;
@@ -66,7 +77,7 @@ public class ResourceManager : MonoBehaviour
         stone += amount;
     }
 
-    // Remove resources (returns true if successful, false if not enough)
+    /// <summary>Spends wood if the colony has it; returns false and changes nothing otherwise.</summary>
     public bool SpendWood(int amount)
     {
         if (wood >= amount)
@@ -106,13 +117,17 @@ public class ResourceManager : MonoBehaviour
         }
     }
 
-    // Check if player can afford a cost
+    /// <summary>True if all three costs can be paid. For enabling UI - SpendResources does
+    /// its own check, so there is no need to call this first.</summary>
     public bool CanAfford(int woodCost, int foodCost, int stoneCost)
     {
         return wood >= woodCost && food >= foodCost && stone >= stoneCost;
     }
 
-    // Spend multiple resources at once (returns true if successful)
+    /// <summary>
+    /// Pays a full building cost. All or nothing: returns false and leaves the pool
+    /// untouched unless every one of the three costs is affordable.
+    /// </summary>
     public bool SpendResources(int woodCost, int foodCost, int stoneCost)
     {
         if (!CanAfford(woodCost, foodCost, stoneCost))

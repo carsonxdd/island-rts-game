@@ -3,6 +3,22 @@ using UnityEngine.AI;
 using System.Collections.Generic;
 using TMPro;
 
+/// <summary>
+/// The campfire: the colony's heart and the game's single most important object. It spawns
+/// and assigns workers, recruits warriors, provides the first housing, is where workers
+/// deliver resources and warriors heal, and losing it ends the run.
+/// </summary>
+/// <remarks>
+/// Worker bookkeeping has exactly one owner. A worker leaves the colony through
+/// Worker.OnDestroy calling NotifyWorkerRemoved, which drops it from the roster, decrements
+/// the right job counter and frees its population slot. Roster membership is the
+/// idempotence guard, so it is safe to call more than once - but nothing else may
+/// decrement those counters, or a death that is also a demolition counts twice.
+///
+/// There is no campfire in the scene at startup: the opening sequence spawns it where the
+/// player places it, so anything that needs the campfire must poll BaseBuilding.ActiveList
+/// or listen for GameStartController.OnColonyStarted rather than caching it in Start.
+/// </remarks>
 public class BaseBuilding : MonoBehaviour, ITargetable
 {
     public static IReadOnlyList<BaseBuilding> ActiveList => ActiveRegistry<BaseBuilding>.List;

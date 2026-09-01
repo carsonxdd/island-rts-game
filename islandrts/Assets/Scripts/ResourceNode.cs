@@ -2,6 +2,21 @@ using UnityEngine;
 using UnityEngine.AI;
 using System.Collections.Generic;
 
+/// <summary>
+/// A harvestable tree, bush or rock. Owns how much is left in it, how many workers can
+/// work it at once, and the visual feedback while they do.
+/// </summary>
+/// <remarks>
+/// Nodes carve the NavMesh, so units path around them rather than through them. Two
+/// consequences follow and must be preserved: the standing ring workers gather from sits
+/// at the edge of the carve hole rather than at an arbitrary radius, and the depletion
+/// shrink scales the Model child rather than the root - scaling the root would move the
+/// obstacle and force a NavMesh recarve on every gather tick.
+///
+/// Crowding is managed by the node, not the worker: a node advertises how many workers fit
+/// around it and tracks both claims (on the way) and registrations (arrived), so the rest
+/// spill over to the next node instead of orbiting a full one.
+/// </remarks>
 public class ResourceNode : MonoBehaviour
 {
     public enum ResourceType { Wood, Food, Stone }
@@ -12,8 +27,6 @@ public class ResourceNode : MonoBehaviour
     [Header("Resource Amount")]
     public int maxResourceAmount = 10;  // Total resources when full
     public float currentAmount = 10f;   // Current resources remaining (can be fractional)
-
-    [Header("Gathering")]
 
     [Header("Visual Feedback")]
     public Color highlightColor = Color.yellow;

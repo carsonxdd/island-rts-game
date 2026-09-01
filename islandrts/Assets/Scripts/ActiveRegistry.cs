@@ -2,9 +2,15 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Generic static registry for tracking active instances of entity types.
-/// Replaces per-class activeList boilerplate with a centralized pattern.
+/// Static list of every live instance of T. Entities register in Awake and unregister in
+/// OnDestroy, which gives every scan in the game an O(1) list to walk.
 /// </summary>
+/// <remarks>
+/// This exists so nothing has to call FindObjectsByType, which is banned in this codebase:
+/// it walks the whole scene and allocates, and several systems used to do it every frame.
+/// Iterate with an index loop and null-check as you go - an entry can be a destroyed Unity
+/// object if something is removed mid-iteration.
+/// </remarks>
 public static class ActiveRegistry<T> where T : class
 {
     private static readonly List<T> list = new List<T>();
@@ -17,7 +23,9 @@ public static class ActiveRegistry<T> where T : class
 }
 
 /// <summary>
-/// Clears all ActiveRegistry lists on domain reload / play mode enter.
+/// Empties every registry when play mode starts. Required because the lists are static:
+/// with domain reload disabled they would otherwise still hold last session's destroyed
+/// entities. Any new registry type must be added here too.
 /// </summary>
 public static class ActiveRegistryReset
 {

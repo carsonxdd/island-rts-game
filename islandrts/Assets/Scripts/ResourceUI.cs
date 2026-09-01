@@ -1,6 +1,10 @@
 using UnityEngine;
 using TMPro;
 
+/// <summary>
+/// Draws the resource and population counters. Refreshed on a slow interval and
+/// dirty-checked, so an unchanged number never costs a string allocation.
+/// </summary>
 public class ResourceUI : MonoBehaviour
 {
     [Header("UI Text References")]

@@ -1,6 +1,19 @@
 using UnityEngine;
 using UnityEngine.Rendering;
 
+/// <summary>
+/// The game clock and the sun. Advances time of day, announces the day/night transitions
+/// that drive enemy raids, and lerps the scene lighting between the day and night presets.
+/// </summary>
+/// <remarks>
+/// Day and night each cover half of the 0..1 time parameter but run at their own rate, so
+/// the configured lengths are honoured even though they differ.
+///
+/// Lighting is driven entirely from the two LightingPreset assets: the values set in the
+/// Lighting window are scene-view fallback only and are overwritten on the first frame.
+/// The directional light sweeps across the sky by day and is parked at a fixed moon pose
+/// all night, blended through the dawn and dusk windows so neither switch pops.
+/// </remarks>
 public class DayNightCycle : MonoBehaviour
 {
     [Header("Time Settings")]
@@ -39,8 +52,7 @@ public class DayNightCycle : MonoBehaviour
     [Tooltip("While true, time of day is frozen (lighting still updates every frame). The opening sequence holds this until the campfire is placed.")]
     public bool clockPaused = false;
 
-    // Private
-    private bool wasNight = false;
+    private bool wasNight = false;  // Edge detection for the night/day start events
 
     // Cached OnGUI state to avoid per-frame allocations
     private GUIStyle cachedGuiStyle;

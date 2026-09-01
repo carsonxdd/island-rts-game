@@ -1,6 +1,16 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
+/// <summary>
+/// Owns the run: tracks which night it is, decides victory and defeat, and keeps the
+/// statistics the end screen reports.
+/// </summary>
+/// <remarks>
+/// Victory is surviving nightsToSurvive nights; defeat is the campfire being destroyed.
+/// Both freeze the game and hand off to MenuScreens, which builds the end screen - this
+/// class owns no UI of its own. The end screen is skipped entirely during a balance sweep,
+/// where a run finishes every few seconds and there is nobody to look at it.
+/// </remarks>
 public class GameManager : MonoBehaviour
 {
     [Header("Victory Conditions")]

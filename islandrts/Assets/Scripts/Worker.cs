@@ -3,6 +3,19 @@ using UnityEngine.AI;
 using System.Collections;
 using System.Collections.Generic;
 
+/// <summary>
+/// The colony's civilian: gathers one assigned resource type, carries it back to the
+/// campfire, grabs loose ground pickups on the way, and hides in a hut when enemies come.
+/// </summary>
+/// <remarks>
+/// This class only holds the worker's stats and builds its Utility AI (Gather, Return,
+/// Pickup, Idle, Flee); all the actual behaviour lives in those executors.
+///
+/// Workers spend their lives in crowds, so most of the tuning here is about spacing rather
+/// than speed: the agent's avoidance radius, not its collider, is what keeps them apart,
+/// and the stationary/moving avoidance roles below are what stop a worker standing at a
+/// tree from being shoved off its spot by one walking past.
+/// </remarks>
 public class Worker : UnitBase<Worker>
 {
     [Header("Assignment")]

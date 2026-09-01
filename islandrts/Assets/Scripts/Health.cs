@@ -2,6 +2,20 @@ using UnityEngine;
 using UnityEngine.Events;
 using TMPro;
 
+/// <summary>
+/// Universal hit points. Every damageable thing in the game - units, buildings, walls,
+/// gates - carries one of these, which is what lets combat, AI targeting and the health
+/// bars treat them all the same way.
+/// </summary>
+/// <remarks>
+/// Damage and death fan out through the two UnityEvents rather than through hard
+/// references: this component knows nothing about what it is attached to, and the owner
+/// wires up the consequences. Presentation (hit effect, sound, camera shake) is fired from
+/// here so no caller has to remember it.
+///
+/// The floating "50 / 100 HP" text is this component's own; the coloured bar above units
+/// is the separate HealthBar component.
+/// </remarks>
 public class Health : MonoBehaviour
 {
     [Header("Health Settings")]
@@ -16,16 +30,19 @@ public class Health : MonoBehaviour
     public bool showHealthText = true;
     public float healthTextHeight = 2.5f;
     public bool showObjectName = true;
-    public bool hideWhenFull = false;  // Buildings set true — hides HP text at full health
+    // Buildings set this so their HP text only appears once they have been hit. Unrelated
+    // to the HealthBar component's own visibility setting, which the player controls.
+    public bool hideWhenFull = false;
 
+    // How the rest of the game reacts. Wired in the inspector for scene objects and in
+    // code by the unit scripts.
     [Header("Events")]
-    public UnityEvent onDeath;  // Triggered when health reaches 0
-    public UnityEvent onDamaged; // Triggered when taking damage
+    public UnityEvent onDeath;
+    public UnityEvent onDamaged;
 
-    // Private
     private TextMeshPro healthText;
     private GameObject healthTextObject;
-    private float lastDisplayedHealth = -1f;
+    private float lastDisplayedHealth = -1f;  // Dirty check: rebuild the string only when HP changes
     private Camera cachedCamera;
 
     // Public property to check if alive
@@ -82,7 +99,9 @@ public class Health : MonoBehaviour
     }
 
     /// <summary>
-    /// Apply damage to this object
+    /// Applies damage, plays the hit effect, sound and camera shake, then fires onDamaged.
+    /// A hit on something already dead is a no-op, so several attackers landing blows on
+    /// the same frame cannot run the death sequence twice.
     /// </summary>
     public void TakeDamage(float damageAmount)
     {
@@ -122,9 +141,7 @@ public class Health : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Heal this object
-    /// </summary>
+    /// <summary>Restores health up to maxHealth. The dead cannot be healed.</summary>
     public void Heal(float healAmount)
     {
         if (!IsAlive)
@@ -144,6 +161,11 @@ public class Health : MonoBehaviour
         return maxHealth > 0 ? currentHealth / maxHealth : 0;
     }
 
+    /// <summary>
+    /// Death sequence: effect, shake, listeners, then the delayed destroy. onDeath fires
+    /// BEFORE the object is destroyed, which is what lets listeners do their bookkeeping
+    /// (housing, worker rosters, registries) while it is still a valid reference.
+    /// </summary>
     void Die()
     {
         // Spawn death visual effect
@@ -238,7 +260,8 @@ public class Health : MonoBehaviour
         }
     }
 
-    // Visual debug in inspector
+    // A zero maxHealth would make GetHealthPercentage meaningless and spawn something
+    // already dead, so clamp it as soon as it is typed in the inspector.
     void OnValidate()
     {
         // Ensure max health is positive

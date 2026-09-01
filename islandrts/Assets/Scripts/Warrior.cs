@@ -2,6 +2,15 @@ using UnityEngine;
 using UnityEngine.AI;
 using System.Collections.Generic;
 
+/// <summary>
+/// The colony's soldier: hunts enemies, defends walls under attack, patrols the perimeter
+/// when nothing is happening, and heals at the campfire between waves.
+/// </summary>
+/// <remarks>
+/// Stats and AI wiring only - the behaviour is in the Engage, Intercept, DefendWall,
+/// Patrol, Retreat and Heal executors. Healing is deliberately slow and only happens
+/// between waves, so damage taken on one night still matters on the next.
+/// </remarks>
 public class Warrior : UnitBase<Warrior>
 {
     // Static event: fires when any warrior dies (with death position for proximity checks)

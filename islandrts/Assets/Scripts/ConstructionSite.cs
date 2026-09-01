@@ -3,6 +3,16 @@ using UnityEngine.AI;
 using TMPro;
 using System.Collections.Generic;
 
+/// <summary>
+/// A building under construction. Stands in for the real building while it goes up, then
+/// replaces itself with the finished prefab.
+/// </summary>
+/// <remarks>
+/// The site is what the player has already paid for, so it is a real obstacle from the
+/// moment it appears: it occupies its grid cell, blocks further placement there and can be
+/// attacked. Walls and gates register their cell with WallGrid while still being built, so
+/// a wall line reserves its cells immediately.
+/// </remarks>
 public class ConstructionSite : MonoBehaviour
 {
     public static IReadOnlyList<ConstructionSite> ActiveList => ActiveRegistry<ConstructionSite>.List;
@@ -10,9 +20,9 @@ public class ConstructionSite : MonoBehaviour
     void Awake() { ActiveRegistry<ConstructionSite>.Register(this); }
 
     [Header("Construction Settings")]
-    public float buildTime = 5f;  // Seconds to auto-complete
-    public GameObject finishedBuildingPrefab;  // Legacy: What to spawn when done (use BuildingDatabase instead)
-    public float targetHealth = 100f;  // Health the finished building will have
+    public float buildTime = 5f;               // Seconds to complete, before build-speed upgrades
+    public GameObject finishedBuildingPrefab;  // Legacy fallback; the type is normally resolved via BuildingDatabase
+    public float targetHealth = 100f;          // Health the finished building will have
 
     [Header("Building Type (Set by BuildPlacement)")]
     public BuildingType buildingType = BuildingType.Hut;  // Which building type to construct

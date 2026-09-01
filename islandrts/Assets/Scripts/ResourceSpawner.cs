@@ -1,6 +1,16 @@
 using UnityEngine;
 using System.Collections.Generic;
 
+/// <summary>
+/// Populates the island with resource nodes at startup and respawns them after they are
+/// depleted, so a colony can never permanently exhaust the map.
+/// </summary>
+/// <remarks>
+/// Trees are placed in clusters so the island reads as having forests rather than an even
+/// sprinkle of trunks, with a handful of scattered extras between them. Every candidate
+/// position has to clear the terrain (land, not too steep), its neighbours, the campfire
+/// and existing buildings, so nodes never spawn in the sea, on a cliff or inside the base.
+/// </remarks>
 public class ResourceSpawner : MonoBehaviour
 {
     [Header("Resource Prefabs")]

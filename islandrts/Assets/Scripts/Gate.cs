@@ -2,6 +2,17 @@ using UnityEngine;
 using UnityEngine.AI;
 using System.Collections.Generic;
 
+/// <summary>
+/// A doorway in the wall line. Friendly units walk through it, enemies have to break it.
+/// Gates are never placed directly - the player converts a finished wall into one.
+/// </summary>
+/// <remarks>
+/// Unlike a wall, a gate does not carve the NavMesh, which is what lets workers path
+/// through the colony's perimeter. That also means an enemy pathing through the gap would
+/// simply walk past it, so a trigger volume catches enemies inside the doorway and tells
+/// them to attack this gate instead.
+/// Gates are deliberately half the HP of the wall they were converted from.
+/// </remarks>
 public class Gate : MonoBehaviour, ITargetable
 {
     [Header("Gate Type")]

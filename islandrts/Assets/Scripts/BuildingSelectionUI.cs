@@ -1,6 +1,10 @@
 using UnityEngine;
 using TMPro;
 
+/// <summary>
+/// The build-mode palette: lists the placeable buildings with their costs and highlights
+/// the selected one. Display only - the number keys and BuildPlacement own the selection.
+/// </summary>
 public class BuildingSelectionUI : MonoBehaviour
 {
     [Header("UI References")]

@@ -1,6 +1,15 @@
 using UnityEngine;
 using System.Collections.Generic;
 
+/// <summary>
+/// Player-built housing. Each hut adds worker slots to the colony's population cap and is
+/// a target enemies will chew through on their way to the campfire.
+/// </summary>
+/// <remarks>
+/// Housing has exactly one owner: a hut adds its capacity in Start and gives it back
+/// through ReleaseHousing, which is flag-guarded and called from BOTH death and OnDestroy
+/// so demolishing counts too. Nothing else may add or remove housing on a hut's behalf.
+/// </remarks>
 public class Hut : MonoBehaviour, ITargetable
 {
     public static IReadOnlyList<Hut> ActiveList => ActiveRegistry<Hut>.List;
@@ -20,10 +29,10 @@ public class Hut : MonoBehaviour, ITargetable
     public Health CachedHealth => healthComponent;
 
     [Header("Building Placement")]
-    public float noBuildRadius = 3.5f;  // Creates 7x7 square no-build zone (3 grid cell buffer)
+    public float noBuildRadius = 3.5f;  // Keeps other buildings a 3-cell buffer away
 
     [Header("Population & Housing")]
-    public int workerCapacity = 2;  // Huts provide 2 worker slots
+    public int workerCapacity = 2;      // Worker slots this hut contributes to the population cap
 
     private bool housingReleased = false;  // Guards against double RemoveHousing (death + destroy)
 
@@ -62,6 +71,10 @@ public class Hut : MonoBehaviour, ITargetable
         }
     }
 
+    /// <summary>
+    /// Runs the moment the hut's health hits zero, a second before the object is actually
+    /// destroyed, so nothing is left waiting on the corpse.
+    /// </summary>
     void OnHutDestroyed()
     {
         // Immediately release the NavMesh carve and disable colliders so stacked
@@ -110,7 +123,7 @@ public class Hut : MonoBehaviour, ITargetable
         ReleaseHousing();
     }
 
-    // Visual helper in Scene view
+    // Scene-view only: shows the clearance other buildings must respect.
     void OnDrawGizmosSelected()
     {
         // Draw no-build radius

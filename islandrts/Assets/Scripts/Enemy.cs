@@ -2,6 +2,17 @@ using UnityEngine;
 using UnityEngine.AI;
 using System.Collections.Generic;
 
+/// <summary>
+/// A night raider. Spawns offshore at nightfall, wades in and works its way toward the
+/// campfire, fighting warriors and chewing through whatever the colony put in its way.
+/// </summary>
+/// <remarks>
+/// Enemies have a single AI action, Attack. Everything about their behaviour comes from
+/// the priority order in which its executor picks a target - warriors first, then huts and
+/// towers, then walls and gates, then the campfire. That is deliberate: an earlier version
+/// had four competing actions for those cases, and momentum plus the commitment threshold
+/// made them fight each other every time a target died, which read as a group freeze.
+/// </remarks>
 public class Enemy : UnitBase<Enemy>
 {
     // Static event: fires when any enemy dies (with death position for proximity checks)

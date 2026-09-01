@@ -1,6 +1,10 @@
 using UnityEngine;
 using System.Collections.Generic;
 
+/// <summary>
+/// Maps each BuildingType to its BuildingData asset. One scene object holds the array; the
+/// rest of the game asks this singleton rather than carrying prefab references around.
+/// </summary>
 public class BuildingDatabase : MonoBehaviour
 {
     public static BuildingDatabase Instance { get; private set; }

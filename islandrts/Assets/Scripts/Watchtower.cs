@@ -2,6 +2,10 @@ using UnityEngine;
 using UnityEngine.AI;
 using System.Collections.Generic;
 
+/// <summary>
+/// Defensive support building: extends enemy detection around it and buffs the damage of
+/// warriors fighting nearby. Contributes no housing and holds no garrison.
+/// </summary>
 public class Watchtower : MonoBehaviour, ITargetable
 {
     [Header("Health")]

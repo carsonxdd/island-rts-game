@@ -1,6 +1,16 @@
 using UnityEngine;
 using System.Collections.Generic;
 
+/// <summary>
+/// Runs the nightly raid: listens for nightfall, works out how many enemies this night
+/// deserves, and spawns them offshore so the wave wades in from one direction.
+/// </summary>
+/// <remarks>
+/// A wave arrives as one body rather than a trickle - spawns are only fractions of a
+/// second apart and clustered around a single randomly chosen bearing - because a trickle
+/// lets a couple of warriors defeat a whole night in detail.
+/// Anything still alive at dawn is despawned; nights do not overlap.
+/// </remarks>
 public class EnemySpawner : MonoBehaviour
 {
     [Header("Enemy Prefab")]
