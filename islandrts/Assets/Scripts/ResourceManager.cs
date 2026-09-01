@@ -28,10 +28,14 @@ public class ResourceManager : MonoBehaviour
 
         Instance = this;
 
-        // Initialize resources
-        wood = startingWood;
-        food = startingFood;
-        stone = startingStone;
+        // Initialize resources, scaled by the run's difficulty. Applied here
+        // rather than pushed later because several systems read the pool in
+        // their own Start — a colony that briefly had the unscaled amount could
+        // afford a building it should not have.
+        float scale = Difficulty.StartingResourceMultiplier;
+        wood = Mathf.RoundToInt(startingWood * scale);
+        food = Mathf.RoundToInt(startingFood * scale);
+        stone = Mathf.RoundToInt(startingStone * scale);
 
         Debug.Log($"ResourceManager: Initialized with Wood={wood}, Food={food}, Stone={stone}");
     }

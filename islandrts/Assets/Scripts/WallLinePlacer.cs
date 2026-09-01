@@ -47,7 +47,7 @@ public class WallLinePlacer
             owner.currentGhost.transform.position = cursorPos;
 
             // R toggles L-path direction (X-first vs Z-first) before starting a line
-            if (Input.GetKeyDown(KeyCode.R))
+            if (KeyBindings.Down(KeyBindings.Action.RotateBuilding))
             {
                 xFirst = !xFirst;
             }
@@ -84,7 +84,7 @@ public class WallLinePlacer
         {
             // Phase 2: Drawing line from start to current mouse position
             // R toggles L-path direction while drawing
-            if (Input.GetKeyDown(KeyCode.R))
+            if (KeyBindings.Down(KeyBindings.Action.RotateBuilding))
             {
                 xFirst = !xFirst;
             }
@@ -138,7 +138,7 @@ public class WallLinePlacer
     void UpdateWallLinePreview(Vector3 endSnapped)
     {
         // Choose path algorithm based on Shift modifier
-        bool useBresenham = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+        bool useBresenham = KeyBindings.Held(KeyBindings.Action.StaircaseWalls);
 
         if (useBresenham)
         {

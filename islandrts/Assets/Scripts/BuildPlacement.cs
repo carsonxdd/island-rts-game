@@ -33,8 +33,9 @@ public class BuildPlacement : MonoBehaviour
     public Color noBuildZoneColor = new Color(1f, 0.2f, 0.2f, 0.3f);  // Semi-transparent red
     public Material noBuildZoneMaterial;  // Optional material for zone circles (if null, will create default)
 
-    [Header("Controls")]
-    public KeyCode startBuildKey = KeyCode.B;
+    // Build-mode and building-selection keys live in KeyBindings now, so the
+    // Controls screen can list and rebind them. A KeyCode field here would be a
+    // second source of truth the options screen could not see.
 
     [Header("Raycast Settings")]
     public LayerMask groundLayer;  // Set to "Default" layer for ground plane
@@ -78,8 +79,8 @@ public class BuildPlacement : MonoBehaviour
     {
         // Menus own input while paused/open (PauseController.BlockGameplayInput).
         if (PauseController.BlockGameplayInput) return;
-        // Delete key: toggle demolish mode (works outside build mode)
-        if (Input.GetKeyDown(KeyCode.Delete) || Input.GetKeyDown(KeyCode.X))
+        // Demolish key: toggle demolish mode (works outside build mode)
+        if (KeyBindings.Down(KeyBindings.Action.Demolish))
         {
             if (demolishTool.IsActive)
             {
@@ -101,8 +102,8 @@ public class BuildPlacement : MonoBehaviour
             return;
         }
 
-        // Start placement mode when B is pressed
-        if (Input.GetKeyDown(startBuildKey) && !isPlacing)
+        // Start placement mode
+        if (KeyBindings.Down(KeyBindings.Action.BuildMode) && !isPlacing)
         {
             StartPlacement();
         }
@@ -110,15 +111,15 @@ public class BuildPlacement : MonoBehaviour
         // If we're in placement mode
         if (isPlacing && currentGhost != null)
         {
-            // Building type selection hotkeys (1-4)
-            if (Input.GetKeyDown(KeyCode.Alpha1)) SelectBuilding(BuildingType.Hut);
-            if (Input.GetKeyDown(KeyCode.Alpha2)) SelectBuilding(BuildingType.WoodenWall);
-            if (Input.GetKeyDown(KeyCode.Alpha3)) SelectBuilding(BuildingType.StoneWall);
-            if (Input.GetKeyDown(KeyCode.Alpha4)) SelectBuilding(BuildingType.Watchtower);
-            if (Input.GetKeyDown(KeyCode.Alpha5)) SelectBuilding(BuildingType.Workshop);
+            // Building type selection hotkeys
+            if (KeyBindings.Down(KeyBindings.Action.SelectHut)) SelectBuilding(BuildingType.Hut);
+            if (KeyBindings.Down(KeyBindings.Action.SelectWoodWall)) SelectBuilding(BuildingType.WoodenWall);
+            if (KeyBindings.Down(KeyBindings.Action.SelectStoneWall)) SelectBuilding(BuildingType.StoneWall);
+            if (KeyBindings.Down(KeyBindings.Action.SelectWatchtower)) SelectBuilding(BuildingType.Watchtower);
+            if (KeyBindings.Down(KeyBindings.Action.SelectWorkshop)) SelectBuilding(BuildingType.Workshop);
 
-            // G key: convert wall under cursor to gate (grid-based detection)
-            if (Input.GetKeyDown(KeyCode.G))
+            // Convert the wall under the cursor to a gate (grid-based detection)
+            if (KeyBindings.Down(KeyBindings.Action.ConvertToGate))
             {
                 TryConvertWallToGate();
             }

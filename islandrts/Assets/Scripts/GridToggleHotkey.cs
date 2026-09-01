@@ -4,7 +4,7 @@ using UnityEngine;
 /// Shows/hides the build grid.
 ///
 /// The grid appears automatically whenever build mode is active (that's when it's
-/// actually useful) and <see cref="toggleKey"/> forces it on or off on top of that.
+/// actually useful) and the Toggle Grid binding forces it on or off on top of that.
 ///
 /// NOTE: this used to be bound to G, which collided with BuildPlacement's
 /// wall-to-gate conversion — both fired on the same frame. Keep it off G.
@@ -12,8 +12,10 @@ using UnityEngine;
 public class GridToggleHotkey : MonoBehaviour
 {
     public GridOverlay grid;
-    [Tooltip("Toggle key. F3 is the AI overlay and F4 is the debug menu — don't reuse those, and never G (gate conversion).")]
-    public KeyCode toggleKey = KeyCode.F2;
+    // The toggle key moved into KeyBindings (Action.ToggleGrid) so it appears on
+    // the Controls screen and can be rebound. It defaults to F2 there, and the
+    // reserved-key list keeps a player from putting it on F3/F4 (AI overlay,
+    // debug menu). Never G — that is gate conversion.
     [Tooltip("Show the grid automatically while build mode is active.")]
     public bool autoShowInBuildMode = true;
 
@@ -52,7 +54,7 @@ public class GridToggleHotkey : MonoBehaviour
 
         bool auto = autoShowInBuildMode && buildPlacement != null && buildPlacement.isPlacing;
 
-        if (Input.GetKeyDown(toggleKey))
+        if (KeyBindings.Down(KeyBindings.Action.ToggleGrid))
         {
             if (grid.show)
             {

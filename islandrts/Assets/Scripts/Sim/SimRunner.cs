@@ -26,9 +26,10 @@ using UnityEngine.SceneManagement;
 /// </summary>
 /// <remarks>
 /// Runs very early so run 0's scene knobs land before the components that read
-/// them in their own Start (ResourceManager applies startingWood there,
-/// GameManager reads nightsToSurvive). Runs 1..n get configured from the
-/// sceneLoaded callback instead, which is already ahead of every Start.
+/// them in their own Start (GameManager reads nightsToSurvive there). Runs 1..n
+/// get configured from the sceneLoaded callback instead, which is already ahead
+/// of every Start — but NOT ahead of any Awake, which is why ConfigureScene has
+/// to write ResourceManager's live pool rather than just its starting amounts.
 /// </remarks>
 [DefaultExecutionOrder(-1000)]
 public class SimRunner : MonoBehaviour
@@ -149,7 +150,9 @@ public class SimRunner : MonoBehaviour
     /// <summary>
     /// Fires after every Awake in the new scene but before any Start — the one
     /// window where scene singletons can be reconfigured before they read their
-    /// own inspector values (ResourceManager.Start applies startingWood, etc.).
+    /// own inspector values in Start. Anything a component consumes in AWAKE is
+    /// already too late here and must be written directly — see the
+    /// ResourceManager case in ConfigureScene.
     /// </summary>
     private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
@@ -220,9 +223,14 @@ public class SimRunner : MonoBehaviour
         ResourceManager rm = FindAnyObjectByType<ResourceManager>();
         if (rm != null)
         {
-            if (cfg.startingWood >= 0) rm.startingWood = cfg.startingWood;
-            if (cfg.startingFood >= 0) rm.startingFood = cfg.startingFood;
-            if (cfg.startingStone >= 0) rm.startingStone = cfg.startingStone;
+            // ResourceManager copies its starting amounts into the live pool in
+            // AWAKE, not Start — and sceneLoaded runs after every Awake. Setting
+            // only the startingX fields here therefore did nothing at all: the
+            // three starting-resource knobs were silently ignored by every sweep
+            // run so far. Write the live pool as well.
+            if (cfg.startingWood >= 0) { rm.startingWood = cfg.startingWood; rm.wood = cfg.startingWood; }
+            if (cfg.startingFood >= 0) { rm.startingFood = cfg.startingFood; rm.food = cfg.startingFood; }
+            if (cfg.startingStone >= 0) { rm.startingStone = cfg.startingStone; rm.stone = cfg.startingStone; }
         }
 
         EnemySpawner es = FindAnyObjectByType<EnemySpawner>();

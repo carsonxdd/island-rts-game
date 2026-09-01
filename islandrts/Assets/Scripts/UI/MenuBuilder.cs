@@ -28,8 +28,9 @@ public static class MenuBuilder
 
         CanvasScaler scaler = go.GetComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1920f, 1080f);
+        scaler.referenceResolution = MenuScaler.BaseReference;
         scaler.matchWidthOrHeight = 0.5f;
+        MenuScaler.Register(scaler);   // picks up the player's UI Scale setting
 
         EnsureEventSystem();
         return canvas;
@@ -254,7 +255,26 @@ public static class MenuBuilder
         return rt;
     }
 
-    public static Slider SliderRow(Transform parent, string label, float value, Action<float> onChange)
+    /// <summary>A 0..1 slider with a percentage readout — volumes and the like.</summary>
+    public static Slider SliderRow(Transform parent, string label, float value, Action<float> onChange,
+                                   string description = null)
+    {
+        return RangeSliderRow(parent, label, value, 0f, 1f, Percent, onChange, description);
+    }
+
+    /// <summary>The default slider readout.</summary>
+    public static string Percent(float v) => Mathf.RoundToInt(v * 100f) + "%";
+
+    /// <summary>
+    /// A slider over an arbitrary range with its own readout formatter.
+    ///
+    /// Volumes are 0..1 percentages, but camera speed is a multiplier and a
+    /// frame cap is a whole number of frames — rendering those as "62%" tells
+    /// the player nothing about what they are actually setting.
+    /// </summary>
+    public static Slider RangeSliderRow(Transform parent, string label, float value,
+                                        float min, float max, Func<float, string> format,
+                                        Action<float> onChange, string description = null)
     {
         SettingRow(parent, label, out RectTransform slot);
 
@@ -292,11 +312,12 @@ public static class MenuBuilder
         slider.fillRect = fill;
         slider.handleRect = handle;
         slider.direction = Slider.Direction.LeftToRight;
-        slider.minValue = 0f;
-        slider.maxValue = 1f;
-        slider.SetValueWithoutNotify(value);
+        slider.minValue = min;
+        slider.maxValue = max;
+        slider.SetValueWithoutNotify(Mathf.Clamp(value, min, max));
 
-        TextMeshProUGUI readout = Label(slot, Mathf.RoundToInt(value * 100f) + "%",
+        if (format == null) format = Percent;
+        TextMeshProUGUI readout = Label(slot, format(slider.value),
             MenuStyle.SmallSize, MenuStyle.TextMuted, TextAlignmentOptions.MidlineRight);
         RectTransform rrt = readout.rectTransform;
         rrt.anchorMin = new Vector2(0.80f, 0f);
@@ -306,13 +327,16 @@ public static class MenuBuilder
 
         slider.onValueChanged.AddListener(v =>
         {
-            readout.text = Mathf.RoundToInt(v * 100f) + "%";
+            readout.text = format(v);
             onChange?.Invoke(v);
         });
+
+        if (description != null) RowDescription(parent, description);
         return slider;
     }
 
-    public static Toggle ToggleRow(Transform parent, string label, bool value, Action<bool> onChange)
+    public static Toggle ToggleRow(Transform parent, string label, bool value, Action<bool> onChange,
+                                   string description = null)
     {
         SettingRow(parent, label, out RectTransform slot);
 
@@ -342,11 +366,14 @@ public static class MenuBuilder
         toggle.graphic = check.GetComponent<Image>();
         toggle.SetIsOnWithoutNotify(value);
         toggle.onValueChanged.AddListener(v => onChange?.Invoke(v));
+
+        if (description != null) RowDescription(parent, description);
         return toggle;
     }
 
     /// <summary>Left/right stepper over a list of choices — avoids TMP_Dropdown's prefab requirements.</summary>
-    public static void StepperRow(Transform parent, string label, string[] choices, int index, Action<int> onChange)
+    public static void StepperRow(Transform parent, string label, string[] choices, int index,
+                                  Action<int> onChange, string description = null)
     {
         SettingRow(parent, label, out RectTransform slot);
 
@@ -369,6 +396,159 @@ public static class MenuBuilder
 
         Arrow(slot, "<", new Vector2(0f, 0f), new Vector2(0.16f, 1f), () => step(-1));
         Arrow(slot, ">", new Vector2(0.84f, 0f), new Vector2(1f, 1f), () => step(1));
+
+        if (description != null) RowDescription(parent, description);
+    }
+
+    /// <summary>
+    /// The muted line under a setting explaining what it does.
+    ///
+    /// Sits in the column as its own element rather than inside the row, so a
+    /// description can never squeeze the control it belongs to — the row keeps
+    /// its full height and the column simply grows. Keep these to one line;
+    /// two-line descriptions clip, because the height here is fixed (TMP cannot
+    /// report a wrapped height until after a layout pass, and the panel is
+    /// sized in the same frame it is built).
+    /// </summary>
+    public static TextMeshProUGUI RowDescription(Transform parent, string text)
+    {
+        TextMeshProUGUI t = Label(parent, text, MenuStyle.SmallSize, MenuStyle.TextMuted,
+                                  TextAlignmentOptions.MidlineLeft);
+        t.gameObject.name = "Description";
+        t.gameObject.AddComponent<LayoutElement>().preferredHeight = 20f;
+        return t;
+    }
+
+    /// <summary>A small capitalised heading that groups the rows beneath it.</summary>
+    public static TextMeshProUGUI SectionHeader(Transform parent, string text)
+    {
+        Spacer(parent, 8f);
+        TextMeshProUGUI t = Label(parent, text.ToUpperInvariant(), MenuStyle.SmallSize,
+                                  MenuStyle.TextAccent, TextAlignmentOptions.MidlineLeft);
+        t.gameObject.name = "SectionHeader";
+        t.characterSpacing = 4f;
+        t.gameObject.AddComponent<LayoutElement>().preferredHeight = 22f;
+        Divider(parent);
+        return t;
+    }
+
+    /// <summary>A row whose right-hand side is a read-only value rather than a control.</summary>
+    public static TextMeshProUGUI ValueRow(Transform parent, string label, string value,
+                                           Color? color = null, string description = null)
+    {
+        SettingRow(parent, label, out RectTransform slot);
+        TextMeshProUGUI t = Label(slot, value, MenuStyle.BodySize, color ?? MenuStyle.TextAccent,
+                                  TextAlignmentOptions.MidlineLeft);
+        Stretch(t.rectTransform);
+        if (description != null) RowDescription(parent, description);
+        return t;
+    }
+
+    /// <summary>
+    /// A setting row whose control is two clickable key slots (primary and
+    /// alternate). Used by the Controls screen; clicking a slot arms capture.
+    /// </summary>
+    public static void KeyBindRow(Transform parent, string label,
+                                  string primaryText, string secondaryText,
+                                  Action onPrimary, Action onSecondary,
+                                  bool highlightPrimary = false, bool highlightSecondary = false,
+                                  bool modified = false)
+    {
+        SettingRow(parent, modified ? label + " *" : label, out RectTransform slot, height: 40f);
+
+        KeySlot(slot, primaryText, new Vector2(0f, 0f), new Vector2(0.47f, 1f), onPrimary, highlightPrimary);
+        KeySlot(slot, secondaryText, new Vector2(0.53f, 0f), new Vector2(1f, 1f), onSecondary, highlightSecondary);
+    }
+
+    private static void KeySlot(Transform parent, string text, Vector2 aMin, Vector2 aMax,
+                                Action onClick, bool armed)
+    {
+        GameObject go = new GameObject("KeySlot", typeof(Image), typeof(Button));
+        go.transform.SetParent(parent, false);
+
+        Image img = go.GetComponent<Image>();
+        img.color = armed ? MenuStyle.ButtonPressed : MenuStyle.ButtonFill;
+
+        RectTransform rt = go.GetComponent<RectTransform>();
+        rt.anchorMin = aMin;
+        rt.anchorMax = aMax;
+        rt.offsetMin = new Vector2(0f, 5f);
+        rt.offsetMax = new Vector2(0f, -5f);
+
+        Button btn = go.GetComponent<Button>();
+        btn.targetGraphic = img;
+        btn.onClick.AddListener(() => onClick?.Invoke());
+
+        ColorBlock cb = btn.colors;
+        cb.highlightedColor = new Color(1.5f, 1.5f, 1.5f, 1f);
+        cb.fadeDuration = 0.08f;
+        btn.colors = cb;
+
+        TextMeshProUGUI t = Label(go.transform, text, MenuStyle.SmallSize,
+                                  armed ? MenuStyle.TextAccent : MenuStyle.TextPrimary);
+        Stretch(t.rectTransform);
+        AddBorder(rt, MenuStyle.Divider, 1f);
+    }
+
+    /// <summary>
+    /// A fixed-height scrolling region inside a panel, returning the column to
+    /// fill. Screens that can outgrow the window (the keybinding list, a long
+    /// options tab) use this instead of <see cref="FitPanelHeight"/>, which
+    /// would otherwise size a panel taller than the screen.
+    ///
+    /// The content column anchors to the top and is driven by a
+    /// ContentSizeFitter, so it grows downward as rows are added and the
+    /// ScrollRect picks the new height up without a manual measure.
+    /// </summary>
+    public static VerticalLayoutGroup ScrollColumn(Transform parent, float spacing, float height,
+                                                   float sidePadding = 4f)
+    {
+        GameObject viewportGo = new GameObject("Viewport", typeof(Image), typeof(Mask), typeof(ScrollRect), typeof(LayoutElement));
+        viewportGo.transform.SetParent(parent, false);
+        viewportGo.GetComponent<LayoutElement>().preferredHeight = height;
+
+        // Mask needs a graphic to define the visible rect. It must raycast, or
+        // the scroll wheel and drags never reach the ScrollRect underneath.
+        Image vpImage = viewportGo.GetComponent<Image>();
+        vpImage.color = new Color(0f, 0f, 0f, 0.001f);
+        vpImage.raycastTarget = true;
+        viewportGo.GetComponent<Mask>().showMaskGraphic = false;
+
+        RectTransform viewport = viewportGo.GetComponent<RectTransform>();
+
+        GameObject contentGo = new GameObject("Content", typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
+        contentGo.transform.SetParent(viewport, false);
+
+        RectTransform content = contentGo.GetComponent<RectTransform>();
+        content.anchorMin = new Vector2(0f, 1f);
+        content.anchorMax = new Vector2(1f, 1f);
+        content.pivot = new Vector2(0.5f, 1f);
+        content.offsetMin = new Vector2(0f, 0f);
+        content.offsetMax = new Vector2(0f, 0f);
+
+        VerticalLayoutGroup v = contentGo.GetComponent<VerticalLayoutGroup>();
+        v.spacing = spacing;
+        v.padding = new RectOffset((int)sidePadding, (int)sidePadding, 0, 8);
+        v.childControlWidth = true;
+        v.childControlHeight = true;      // same reason as Column: LayoutElement is how rows size themselves
+        v.childForceExpandWidth = true;
+        v.childForceExpandHeight = false;
+        v.childAlignment = TextAnchor.UpperCenter;
+
+        ContentSizeFitter fitter = contentGo.GetComponent<ContentSizeFitter>();
+        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+
+        ScrollRect scroll = viewportGo.GetComponent<ScrollRect>();
+        scroll.content = content;
+        scroll.viewport = viewport;
+        scroll.horizontal = false;
+        scroll.vertical = true;
+        scroll.movementType = ScrollRect.MovementType.Clamped;
+        scroll.scrollSensitivity = 28f;
+        scroll.inertia = false;   // a settings list should stop where the player stops it
+
+        return v;
     }
 
     private static void Arrow(Transform parent, string glyph, Vector2 aMin, Vector2 aMax, Action onClick)

@@ -87,7 +87,12 @@ public class DayNightCycle : MonoBehaviour
         if (!clockPaused)
         {
             bool nightNow = currentTimeOfDay < 0.25f || currentTimeOfDay >= 0.75f;
-            float phaseLength = nightNow ? nightLengthInSeconds : dayLengthInSeconds;
+            // A harder difficulty stretches the night — more time under attack
+            // per wave — without touching the day, so the economy phase a player
+            // gets to plan in stays the same length at every difficulty.
+            float phaseLength = nightNow
+                ? nightLengthInSeconds * Difficulty.NightLengthMultiplier
+                : dayLengthInSeconds;
             currentTimeOfDay += (0.5f / Mathf.Max(phaseLength, 1f)) * Time.deltaTime;
 
             // Wrap around at end of day

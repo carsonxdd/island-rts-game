@@ -46,9 +46,12 @@ public class CameraShake : MonoBehaviour
             lastShakeOffset = Vector3.zero;
         }
 
-        // GameSettings.ScreenShake is the player's Options toggle, read at the
-        // point of effect so it applies the instant it is changed.
-        if (!enableShake || !GameSettings.ScreenShake || currentShakeDuration <= 0f)
+        // GameSettings.ScreenShakeStrength is the player's Options slider, read
+        // at the point of effect so it applies the instant it is changed. It
+        // replaced a plain on/off toggle: players who find full shake nauseating
+        // often still want some, and 0 is still exactly "off".
+        float strength = GameSettings.ScreenShakeStrength;
+        if (!enableShake || strength <= 0.001f || currentShakeDuration <= 0f)
         {
             return;
         }
@@ -59,7 +62,7 @@ public class CameraShake : MonoBehaviour
         if (currentShakeDuration > 0f)
         {
             // Calculate shake amount with linear decay
-            float shakeAmount = currentShakeIntensity * (currentShakeDuration / initialShakeDuration);
+            float shakeAmount = currentShakeIntensity * strength * (currentShakeDuration / initialShakeDuration);
 
             // Random shake offset
             Vector3 shakeOffset = new Vector3(

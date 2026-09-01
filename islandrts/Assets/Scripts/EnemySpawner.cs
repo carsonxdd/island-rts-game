@@ -58,13 +58,18 @@ public class EnemySpawner : MonoBehaviour
 
     int CalculateEnemyCount()
     {
+        // Wave size is the knob the player's difficulty moves hardest, because
+        // the sim runs show campfire damage tracks how many enemies arrive at
+        // once far more closely than how hard each one hits.
+        float scale = Difficulty.EnemyCountMultiplier;
+
         if (!increaseDifficulty)
         {
-            return baseEnemiesPerNight;
+            return Mathf.Max(1, Mathf.RoundToInt(baseEnemiesPerNight * scale));
         }
 
         // Increase enemies each night
-        int count = Mathf.RoundToInt(baseEnemiesPerNight + (currentNight - 1) * enemyIncreasePerNight);
+        int count = Mathf.RoundToInt((baseEnemiesPerNight + (currentNight - 1) * enemyIncreasePerNight) * scale);
         return Mathf.Max(1, count);  // At least 1 enemy
     }
 

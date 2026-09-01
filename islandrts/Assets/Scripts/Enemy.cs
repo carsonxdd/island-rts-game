@@ -33,6 +33,13 @@ public class Enemy : UnitBase<Enemy>
         // values are copied into the AI blackboard below.
         SimOverrides.Apply(this);
 #endif
+        // The run's difficulty, applied the same way and for the same reason:
+        // these values are copied into the AI blackboard below, so patching an
+        // enemy after it spawns is too late. Difficulty.Active is a snapshot
+        // taken when the run began, so a wave never changes mid-game.
+        maxHealth *= Difficulty.EnemyHealthMultiplier;
+        damage *= Difficulty.EnemyDamageMultiplier;
+
         // Get NavMeshAgent component
         if (!FetchAgent())
         {

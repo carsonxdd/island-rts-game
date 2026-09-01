@@ -1,4 +1,6 @@
 using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
 /// <summary>
 /// RTS camera: smoothed WASD pan (screen-relative), smoothed Q/E rotation,
@@ -32,8 +34,9 @@ public class CameraController : MonoBehaviour
     public float rotationSpeed = 90f;         // degrees per second
     [Tooltip("Seconds for rotation to ease in/out.")]
     public float rotationSmoothTime = 0.08f;
-    public KeyCode rotateLeftKey = KeyCode.Q;
-    public KeyCode rotateRightKey = KeyCode.E;
+    // The rotate keys are no longer inspector fields. Every gameplay key lives
+    // in KeyBindings now, so the Controls screen can list and rebind it —
+    // a binding hidden on a component is one a player cannot find.
 
     [Header("Zoom (Orthographic)")]
     public float zoomSpeed = 2f;              // ortho size change per scroll unit
@@ -44,6 +47,15 @@ public class CameraController : MonoBehaviour
     public float maxOrthoSize = 30f;
     [Tooltip("Ortho near clip. NEGATIVE on purpose: when tilted low / zoomed out, ground at the bottom of the view sits behind the camera plane and would be sliced off. A negative near extends the render box backwards (standard for ortho RTS cameras).")]
     public float nearClip = -100f;
+
+    [Header("Shadows")]
+    [Tooltip("Drive URP's shadow distance from the current zoom/tilt. The asset's fixed value only covers the view when zoomed in — zoomed out, everything past it renders unshadowed.")]
+    public bool scaleShadowDistanceWithZoom = true;
+    [Tooltip("Safety factor over the computed view depth, so shadow casters just off-screen still cast in.")]
+    public float shadowDistanceMargin = 1.25f;
+    public float minShadowDistance = 50f;
+    [Tooltip("Upper bound. Higher covers more, but spreads the shadowmap thinner (softer/blockier close-up shadows).")]
+    public float maxShadowDistance = 160f;
 
     [Header("Edge Pan")]
     [Tooltip("Screen-edge thickness in pixels that pans the camera. Only active when the player turns Edge Pan on in Options.")]
@@ -74,6 +86,13 @@ public class CameraController : MonoBehaviour
     float yawVelRef;                          // SmoothDampAngle internal
     static readonly Plane groundPlane = new Plane(Vector3.up, 0f);
 
+    // Shadow-distance state. The URP asset is a ScriptableObject on disk, so the
+    // original value is cached and restored on disable — otherwise a Play session
+    // would permanently rewrite the asset in the editor.
+    UniversalRenderPipelineAsset shadowAsset;
+    float originalShadowDistance;
+    float appliedShadowDistance = -1f;
+
     void Awake()
     {
         cam = Camera.main;
@@ -99,6 +118,7 @@ public class CameraController : MonoBehaviour
         UpdateFreeLook(dt);
         UpdateKeyboardPan(dt);
         UpdateRotation(dt);
+        UpdateShadowDistance();
 
         if (useBounds)
         {
@@ -111,8 +131,12 @@ public class CameraController : MonoBehaviour
 
     void UpdateKeyboardPan(float dt)
     {
-        float horizontal = Input.GetAxisRaw("Horizontal");  // A/D
-        float vertical = Input.GetAxisRaw("Vertical");      // W/S
+        // Read through KeyBindings rather than the "Horizontal"/"Vertical" input
+        // axes. Those axes are fixed in the project's input settings, so pan
+        // would be the one action a player could see on the Controls screen and
+        // not actually change.
+        float horizontal = KeyBindings.Axis(KeyBindings.Action.PanLeft, KeyBindings.Action.PanRight);
+        float vertical = KeyBindings.Axis(KeyBindings.Action.PanDown, KeyBindings.Action.PanUp);
 
         if (GameSettings.EdgePan) ApplyEdgePan(ref horizontal, ref vertical);
 
@@ -192,8 +216,11 @@ public class CameraController : MonoBehaviour
 
         if (isFreeLooking)
         {
+            // Default is "drag down to look up", the RTS convention; the Options
+            // toggle flips it for players who read the drag as moving the world.
+            float tiltDir = GameSettings.InvertTilt ? 1f : -1f;
             targetPitch = Mathf.Clamp(
-                targetPitch - Input.GetAxisRaw("Mouse Y") * tiltSensitivity,
+                targetPitch + Input.GetAxisRaw("Mouse Y") * tiltSensitivity * tiltDir,
                 minTilt, maxTilt);
             targetYaw += Input.GetAxisRaw("Mouse X") * lookYawSensitivity;
         }
@@ -228,8 +255,11 @@ public class CameraController : MonoBehaviour
         if (isFreeLooking) return;            // free-look owns rotation while held
 
         float target = 0f;
-        if (Input.GetKey(rotateLeftKey)) target -= rotationSpeed;
-        if (Input.GetKey(rotateRightKey)) target += rotationSpeed;
+        // GameSettings.RotationSpeed is the player's Options multiplier, read at
+        // the point of effect so the slider applies instantly.
+        float speed = rotationSpeed * GameSettings.RotationSpeed;
+        if (KeyBindings.Held(KeyBindings.Action.RotateCameraLeft)) target -= speed;
+        if (KeyBindings.Held(KeyBindings.Action.RotateCameraRight)) target += speed;
 
         if (target != 0f && freeLookSettling)
             freeLookSettling = false;         // keyboard takes over, drop the ease-out
@@ -245,8 +275,9 @@ public class CameraController : MonoBehaviour
         float scroll = Input.GetAxis("Mouse ScrollWheel");
         if (Mathf.Abs(scroll) > 0.0001f)
         {
-            targetOrthoSize = Mathf.Clamp(targetOrthoSize - scroll * zoomSpeed,
-                                          minOrthoSize, maxOrthoSize);
+            targetOrthoSize = Mathf.Clamp(
+                targetOrthoSize - scroll * zoomSpeed * GameSettings.ZoomSpeed,
+                minOrthoSize, maxOrthoSize);
         }
 
         if (Mathf.Abs(cam.orthographicSize - targetOrthoSize) > 0.001f)
@@ -255,6 +286,58 @@ public class CameraController : MonoBehaviour
                                                     ref zoomVelocityRef, zoomSmoothTime,
                                                     Mathf.Infinity, dt);
         }
+    }
+
+    /// <summary>
+    /// Keeps URP's shadow distance covering what's actually on screen.
+    ///
+    /// Shadow distance is measured along the view axis from the camera, and the
+    /// furthest thing visible is the ground at the TOP edge of the view — at depth
+    /// (cameraHeight + orthoSize * cos(pitch)) / sin(pitch). The asset ships a fixed
+    /// 50, which covers a zoomed-in view but is roughly half of what a fully zoomed-out
+    /// low-tilt view spans, so distant trees rendered with no shadow at all.
+    ///
+    /// Scaling it means close-up shadows keep the full shadowmap resolution instead of
+    /// paying for coverage they never use.
+    /// </summary>
+    void UpdateShadowDistance()
+    {
+        if (!scaleShadowDistanceWithZoom) return;
+
+        var asset = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
+        if (asset == null) return;
+
+        if (asset != shadowAsset)
+        {
+            RestoreShadowDistance();          // quality level switched — put the old asset back
+            shadowAsset = asset;
+            originalShadowDistance = asset.shadowDistance;
+            appliedShadowDistance = -1f;
+        }
+
+        float pitch = Mathf.Max(NormalizePitch(transform.eulerAngles.x), 1f) * Mathf.Deg2Rad;
+        float sin = Mathf.Max(Mathf.Sin(pitch), 0.0001f);
+        float viewDepth = (transform.position.y + cam.orthographicSize * Mathf.Cos(pitch)) / sin;
+
+        float want = Mathf.Clamp(viewDepth * shadowDistanceMargin,
+                                 minShadowDistance, maxShadowDistance);
+        if (Mathf.Abs(want - appliedShadowDistance) < 0.5f) return;
+
+        appliedShadowDistance = want;
+        shadowAsset.shadowDistance = want;
+    }
+
+    void OnDisable()
+    {
+        RestoreShadowDistance();
+    }
+
+    void RestoreShadowDistance()
+    {
+        if (shadowAsset == null) return;
+        shadowAsset.shadowDistance = originalShadowDistance;
+        shadowAsset = null;
+        appliedShadowDistance = -1f;
     }
 
     /// <summary>

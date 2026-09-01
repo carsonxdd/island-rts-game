@@ -23,7 +23,7 @@ public class GhostPlacer
     /// </summary>
     public void Tick()
     {
-        if (Input.GetKeyDown(KeyCode.R))
+        if (KeyBindings.Down(KeyBindings.Action.RotateBuilding))
         {
             RotateGhost();
         }

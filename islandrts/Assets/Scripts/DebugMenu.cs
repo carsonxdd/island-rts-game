@@ -156,6 +156,12 @@ public class DebugMenu : MonoBehaviour
         GUILayout.Label(clock);
         GUILayout.Label("Phase: " + GameStartController.Phase
             + "   Speed: " + Time.timeScale.ToString("F0") + "x");
+        // Pressing Play straight into MainIsland skips the menu, so the run uses
+        // whatever difficulty was last chosen there. Showing it here is what
+        // stops "why is this wave enormous" turning into a bug hunt.
+        GUILayout.Label("Difficulty: " + Difficulty.ActiveName
+            + "   (raids " + Difficulty.EnemyCountMultiplier.ToString("0.##") + "x"
+            + ", nights to win " + Difficulty.NightsToSurvive + ")");
         GUILayout.Label("Pop " + (pm != null ? pm.GetCurrentWorkers() + "/" + pm.GetHousingCapacity() : "?/?")
             + "   Warriors " + (fire != null ? fire.GetWarriorCount() : 0)
             + "   Enemies " + Enemy.ActiveList.Count);

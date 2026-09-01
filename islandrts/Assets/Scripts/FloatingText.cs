@@ -42,6 +42,13 @@ public class FloatingText : MonoBehaviour
     {
         if (textObject == null) return;
 
+        // The player's "Unit state labels" setting, read live rather than at
+        // spawn so it applies to units already on the field. Hidden labels also
+        // skip the billboard work below, which is the per-frame cost here.
+        bool show = GameSettings.UnitStateText;
+        if (show != textObject.activeSelf) textObject.SetActive(show);
+        if (!show) return;
+
         // Update position
         textObject.transform.position = transform.position + Vector3.up * heightOffset;
 

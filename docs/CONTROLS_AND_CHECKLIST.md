@@ -32,6 +32,15 @@ A build made right now ships the empty stock scene. Fix in *File > Build Profile
 
 ## Controls
 
+Every key below is a **default**, not a fixed binding. `KeyBindings.cs` owns the
+whole map and *Options → Controls & Keybindings* rebinds it, with two slots per
+action (main and alternate). No script holds a `KeyCode` of its own any more, so
+this table and the in-game Controls screen are generated from the same source.
+
+**The exceptions are deliberately not rebindable:** Esc (a back-out gesture five
+systems consume in order — see `PauseController.ModeActive`), the mouse buttons,
+and the debug keys F3 / F4 / F6 / F7.
+
 ### Camera — `CameraController.cs`
 
 | Input | Action |
@@ -73,6 +82,7 @@ A build made right now ships the empty stock scene. Fix in *File > Build Profile
 |---|---|
 | Click campfire | Worker assignment panel |
 | Click workshop | Crafting panel (Esc closes) |
+| Esc | Cancels the active mode; pauses when nothing is active (not rebindable) |
 | F2 | Build grid overlay — also auto-shows while build mode is active |
 | F3 | AI debug overlay (editor only) |
 | F4 | Debug cheat menu (editor + development builds only) |
@@ -198,3 +208,67 @@ Covers Phase 6.24's rerouting of worker executors through `AINavHelper` and the
 - [ ] 4× timescale doesn't visibly starve AI evaluation (eval throttles are frame-based)
 - [ ] Kill All Enemies clears the wave and the stats count the kills
 - [ ] Restart (defeat → restart button) replays the intro cleanly and regenerates the identical island
+- [ ] F4 status shows the run's difficulty, and it matches what was picked on New Game
+
+### Settings, keybinding & difficulty (2026-08-30)
+
+**Options — all four tabs**
+
+- [ ] Every row's description line sits under its control and doesn't clip or overlap
+- [ ] Tab bodies scroll by wheel and drag; switching tabs and coming back keeps the scroll position
+- [ ] Sliders read out in their own units — `80%` for volumes, `1.25x` for camera and shake, whole numbers for the frame cap
+- [ ] Audio sliders change the mix live; Master scales the others
+- [ ] Mute when unfocused: alt-tab away silences the game, coming back restores the exact volume (not full)
+- [ ] Video: display mode and resolution apply in a **built** game (the editor ignores them by design and says so)
+- [ ] V-Sync on greys the frame-cap description to "Ignored while V-Sync is on"; off, a cap actually limits FPS
+- [ ] Quality stepper doesn't hitch the game per frame while stepping (change-guarded in `Apply`)
+- [ ] Camera: pan / zoom / rotation sliders visibly change feel; Invert tilt flips middle-mouse drag
+- [ ] Screen shake at `0x` is completely still; at `1.5x` noticeably heavier than default
+- [ ] Interface: UI scale resizes menus as the slider drags, at both extremes buttons stay on screen
+- [ ] Health bars — Always / When damaged / Never all take effect **immediately** on units already alive
+- [ ] Unit state labels toggle on units already on the field, not just newly spawned ones
+- [ ] Pause when unfocused opens the pause menu on alt-tab (and does nothing in the menu scene)
+- [ ] RESET TO DEFAULTS restores settings *and* keybindings, and the game still plays
+- [ ] Every setting survives quitting and relaunching
+
+**Controls screen**
+
+- [ ] Clicking a slot highlights it and the hint changes to "Press any key… (Esc cancels)"
+- [ ] The next key pressed binds; Esc cancels without binding; F3/F4/F6/F7 and mouse buttons are refused
+- [ ] Binding a key that's already used blanks it on the old action (and promotes its alternate into the empty main slot)
+- [ ] Changed rows show `*`; RESET KEYS is disabled until something is changed
+- [ ] Rebinding a key **actually works in game** — rebind Build Mode off B and confirm the new key opens build mode and B does not
+- [ ] Pan rebinds work: WASD is no longer read through the fixed input axes
+- [ ] Scroll position is preserved after each rebind (the clicked row doesn't jump off screen)
+- [ ] Bindings persist across a relaunch
+
+**Difficulty**
+
+- [ ] NEW GAME opens the difficulty screen; Normal is all `1.0x` / 5 nights
+- [ ] Custom turns the rules block into six working sliders
+- [ ] Starting resources scale (Peaceful ≈ 150 wood, Brutal ≈ 60)
+- [ ] Wave sizes visibly differ between Peaceful and Brutal on night 1
+- [ ] Nights to survive matches the preset (Hard = 7, Brutal = 10) in the victory message
+- [ ] Nights are longer on Hard/Brutal; **days are not**
+- [ ] The pause menu shows the difficulty as locked, and Options has no way to change it mid-run
+- [ ] RESTART from the pause menu keeps the same difficulty even after changing the menu selection
+
+**Victory / defeat screens (2026-08-31)**
+
+- [ ] Losing the campfire brings up DEFEAT in the menu style, not the old scene panel
+- [ ] Surviving the required nights brings up VICTORY in accent gold
+- [ ] Stats are right: nights survived (defeat shows one fewer — the night you lost doesn't count), enemies defeated, peak workers/warriors, resources on hand, difficulty
+- [ ] **RESTART** replays the scene at the same difficulty
+- [ ] **MAIN MENU** returns to the title screen with the game unfrozen (this never worked before)
+- [ ] **QUIT TO DESKTOP** exits the build / stops Play in the editor
+- [ ] **KEEP PLAYING** (victory only) closes the screen and the game actually resumes — not frozen
+- [ ] Keep Playing then losing later still brings up DEFEAT correctly
+- [ ] Esc does nothing on the end screen (it must not be dismissable)
+- [ ] Defeat has no Keep Playing button
+- [ ] After running `Tools > Island RTS > Menus > Remove Legacy Victory-Defeat Panels`, the scene Canvas has no VictoryScreen/DefeatScreen children and no missing-script warnings
+
+**Balance harness (regression — difficulty must not leak into sweeps)**
+
+- [ ] A sweep run reports the same numbers with the developer's difficulty set to Brutal as to Normal
+- [ ] `nightsToSurvive` in `runs.csv` matches the sweep config, not the difficulty preset
+- [ ] The `startingWood` / `startingFood` / `startingStone` knobs now actually take effect (they were silently ignored before — `ResourceManager` reads them in `Awake`)

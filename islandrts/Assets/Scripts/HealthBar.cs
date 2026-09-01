@@ -19,7 +19,10 @@ public class HealthBar : MonoBehaviour
     public Color backgroundColor = new Color(0.2f, 0.2f, 0.2f, 0.8f);
 
     [Header("Behavior")]
-    public bool hideWhenFull = true;
+    // hideWhenFull used to live here. It is now GameSettings.HealthBarMode:
+    // every prefab set the flag identically and no player could reach it, so it
+    // was a preference wearing a prefab field's clothes. Stale serialized
+    // values in the prefabs are ignored and drop out on the next save.
     public bool hideWhenDead = true;
 
     // Private
@@ -73,6 +76,11 @@ public class HealthBar : MonoBehaviour
         {
             lastHealthPercent = currentPercent;
             UpdateHealthBar();
+        }
+        else
+        {
+            // The Health Bars setting can change without any health changing.
+            RefreshVisibility();
         }
     }
 
@@ -147,20 +155,44 @@ public class HealthBar : MonoBehaviour
             fillRenderer.material.color = lowHealthColor;
         }
 
-        // Hide/show logic
-        bool shouldShow = showHealthBar && healthComponent.IsAlive;
+        RefreshVisibility();
+    }
 
-        if (hideWhenFull && healthPercent >= 0.99f)
+    /// <summary>
+    /// Whether the bar should currently be on screen.
+    ///
+    /// Called every frame rather than only when health changes, because the
+    /// player can change the Health Bars setting from the pause menu — a bar
+    /// that only re-evaluated on damage would stay wrong until something hit
+    /// the unit. It is a handful of boolean comparisons and one cached
+    /// percentage; nothing here allocates or searches.
+    /// </summary>
+    private void RefreshVisibility()
+    {
+        if (barContainer == null || healthComponent == null) return;
+
+        bool alive = healthComponent.IsAlive;
+        bool shouldShow = showHealthBar && alive;
+
+        if (hideWhenDead && !alive) shouldShow = false;
+
+        // GameSettings.HealthBarMode owns the "hide at full health" rule now —
+        // it replaced the old per-prefab hideWhenFull flag, which every prefab
+        // set the same way and no player could reach.
+        if (shouldShow)
         {
-            shouldShow = false;
+            switch (GameSettings.HealthBarMode)
+            {
+                case GameSettings.HealthBars.Never:
+                    shouldShow = false;
+                    break;
+                case GameSettings.HealthBars.WhenDamaged:
+                    if (healthComponent.GetHealthPercentage() >= 0.99f) shouldShow = false;
+                    break;
+            }
         }
 
-        if (hideWhenDead && !healthComponent.IsAlive)
-        {
-            shouldShow = false;
-        }
-
-        if (barContainer != null && shouldShow != lastShouldShow)
+        if (shouldShow != lastShouldShow)
         {
             lastShouldShow = shouldShow;
             barContainer.SetActive(shouldShow);

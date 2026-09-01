@@ -80,6 +80,28 @@ public class PauseController : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Window focus changes drive two Options settings.
+    ///
+    /// Muting is done on AudioListener.volume rather than by pausing the audio
+    /// sources, so music and ambience keep their positions and come back
+    /// mid-track instead of restarting. GameSettings.Apply is what restores the
+    /// player's real volume, which also means a volume changed while unfocused
+    /// (impossible today, but true of any future overlay) lands correctly.
+    /// </summary>
+    private void OnApplicationFocus(bool focused)
+    {
+        if (SimHooks.Simulating) return;
+
+        if (GameSettings.MuteWhenUnfocused)
+        {
+            if (focused) GameSettings.Apply();
+            else AudioListener.volume = 0f;
+        }
+
+        if (!focused && GameSettings.PauseOnFocusLoss) TryOpenPauseMenu();
+    }
+
     private void Update()
     {
         if (!Input.GetKeyDown(KeyCode.Escape)) return;
@@ -89,6 +111,16 @@ public class PauseController : MonoBehaviour
         // never closes the title screen — there is nothing behind it.
         if (MenuScreens.AnyOpen)
         {
+            // The Controls screen is waiting for a key: Escape means "never
+            // mind", not "leave this screen". This component runs at execution
+            // order -50, ahead of MenuScreens, so it has to check rather than
+            // assume the other Update saw the press first.
+            if (MenuScreens.Instance.IsCapturingKey)
+            {
+                MenuScreens.Instance.CancelCapture();
+                return;
+            }
+
             bool inMenuScene = SceneManager.GetActiveScene().name == MenuFlow.MenuSceneName;
             if (!inMenuScene || MenuScreens.Instance.CanGoBack) MenuScreens.Instance.Back();
             return;
@@ -97,6 +129,21 @@ public class PauseController : MonoBehaviour
         // Something else owns this Escape press (cancelling a ghost, a wall
         // line, demolish mode, the crafting panel, campfire placement).
         if (ModeActive()) return;
+
+        TryOpenPauseMenu();
+    }
+
+    /// <summary>
+    /// Opens the pause menu if the game is in a state that can be paused.
+    /// Shared by the Escape key and the pause-on-focus-loss setting.
+    /// </summary>
+    private static void TryOpenPauseMenu()
+    {
+        if (MenuScreens.AnyOpen) return;
+
+        // The menu scene is already showing its title screen; there is nothing
+        // to pause behind it.
+        if (SceneManager.GetActiveScene().name == MenuFlow.MenuSceneName) return;
 
         // Don't pause over the victory/defeat screen — it owns timeScale.
         if (GameManager.Instance != null && GameManager.Instance.isGameOver) return;

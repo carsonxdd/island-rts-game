@@ -4,15 +4,20 @@ using UnityEngine.SceneManagement;
 public class GameManager : MonoBehaviour
 {
     [Header("Victory Conditions")]
-    public int nightsToSurvive = 5;  // Win after surviving this many nights
+    // Seeded from the run's difficulty in Start (Peaceful..Normal are 5 nights,
+    // Hard 7, Brutal 10). The serialized value is only the fallback for a scene
+    // played without going through the menu.
+    public int nightsToSurvive = 5;
 
     [Header("Game State")]
     public bool isGameOver = false;
     public bool isVictory = false;
 
     [Header("References")]
-    public GameObject victoryScreen;
-    public GameObject defeatScreen;
+    // The victoryScreen / defeatScreen object references are gone. Both screens
+    // are built at runtime by MenuScreens now, on the same widgets as the pause
+    // and options menus, so there is nothing to wire in the scene and nothing
+    // that can be left unassigned.
     public BaseBuilding campfire;  // Reference to campfire
 
     [Header("Statistics")]
@@ -44,6 +49,11 @@ public class GameManager : MonoBehaviour
 
     void Start()
     {
+        // The run's difficulty owns the win condition — except during a sweep,
+        // which sets nightsToSurvive itself from sceneLoaded (before this Start)
+        // and would have it silently clobbered back to 5 here.
+        if (!SimHooks.Simulating) nightsToSurvive = Difficulty.NightsToSurvive;
+
         // Find references
         dayNightCycle = FindAnyObjectByType<DayNightCycle>();
         enemySpawner = FindAnyObjectByType<EnemySpawner>();
@@ -52,13 +62,6 @@ public class GameManager : MonoBehaviour
         {
             campfire = FindAnyObjectByType<BaseBuilding>();
         }
-
-        // Hide victory/defeat screens at start
-        if (victoryScreen != null)
-            victoryScreen.SetActive(false);
-
-        if (defeatScreen != null)
-            defeatScreen.SetActive(false);
 
         // Subscribe to day/night events to track progress
         DayNightCycle.OnDayStart += OnDayStart;
@@ -138,15 +141,7 @@ public class GameManager : MonoBehaviour
         // Pause the game
         Time.timeScale = 0f;
 
-        // Show defeat screen
-        if (defeatScreen != null)
-        {
-            defeatScreen.SetActive(true);
-        }
-        else
-        {
-            Debug.LogWarning("GameManager: No defeat screen assigned!");
-        }
+        ShowEndScreen(victory: false);
     }
 
     /// <summary>
@@ -172,60 +167,39 @@ public class GameManager : MonoBehaviour
         // Pause the game
         Time.timeScale = 0f;
 
-        // Show victory screen
-        if (victoryScreen != null)
-        {
-            victoryScreen.SetActive(true);
-        }
-        else
-        {
-            Debug.LogWarning("GameManager: No victory screen assigned!");
-        }
+        ShowEndScreen(victory: true);
     }
 
     /// <summary>
-    /// Restart the game
+    /// Puts up the victory or defeat screen.
+    ///
+    /// Skipped entirely during a balance sweep: a headless run ends a game every
+    /// few seconds, and MenuScreens.Ensure would build a canvas, an EventSystem
+    /// and a full screen of TMP labels each time — for a process with no
+    /// display, whose only output is a CSV row. It would also block the sim's
+    /// own input path through PauseController.BlockGameplayInput.
     /// </summary>
-    public void RestartGame()
+    private void ShowEndScreen(bool victory)
     {
-        // Unpause the game
-        Time.timeScale = 1f;
-
-        // Reload the current scene
-        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+        if (SimHooks.Simulating) return;
+        MenuScreens.Ensure().ShowGameOver(victory);
     }
 
     /// <summary>
-    /// Quit to main menu (or quit application for now)
-    /// </summary>
-    public void QuitGame()
-    {
-        // Unpause the game
-        Time.timeScale = 1f;
-
-        #if UNITY_EDITOR
-        // In editor, stop playing
-        UnityEditor.EditorApplication.isPlaying = false;
-        #else
-        // In build, quit application
-        Application.Quit();
-        #endif
-    }
-
-    /// <summary>
-    /// Continue playing after victory (optional sandbox mode)
+    /// Keep playing after a victory (sandbox mode).
+    ///
+    /// Clearing isGameOver must happen BEFORE the screen closes: closing routes
+    /// through PauseController.SetPaused(false), which refuses to touch
+    /// timeScale while the game is over — it deliberately never fights the
+    /// game-over pause. With the flag still set, the menu would close onto a
+    /// permanently frozen game.
     /// </summary>
     public void ContinuePlaying()
     {
-        // Unpause the game
+        isGameOver = false;
         Time.timeScale = 1f;
 
-        // Hide victory screen
-        if (victoryScreen != null)
-            victoryScreen.SetActive(false);
-
-        // Reset game over flag so player can keep playing
-        isGameOver = false;
+        if (MenuScreens.Instance != null) MenuScreens.Instance.Close();
     }
 
     // Track enemy kills

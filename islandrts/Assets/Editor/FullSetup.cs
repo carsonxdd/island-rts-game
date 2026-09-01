@@ -27,14 +27,15 @@ public static class FullSetup
     {
         if (!EditorUtility.DisplayDialog(
                 "Set up everything?",
-                "Runs all seven setup steps in dependency order:\n\n" +
+                "Runs all eight setup steps in dependency order:\n\n" +
                 "1. Generate the low-poly art library\n" +
                 "2. Plumb it onto the gameplay prefabs\n" +
                 "3. Set up the opening sequence (survivor + wreck)\n" +
                 "4. Scatter environment props\n" +
                 "5. Build the island terrain + runtime NavMesh\n" +
                 "6. Add pickups and the workshop\n" +
-                "7. Create the MainMenu scene and fix the build scene list\n\n" +
+                "7. Remove the legacy victory/defeat panels\n" +
+                "8. Create the MainMenu scene and fix the build scene list\n\n" +
                 "This rewrites prefabs and MainIsland, and leaves MainMenu open " +
                 "so you can press Play on the real entry point.\n\n" +
                 "Unsaved changes to the open scene will be saved first.",
@@ -57,18 +58,18 @@ public static class FullSetup
         try
         {
             // --- art library: prefabs only, no scene involvement -------------
-            Step(0, 7, "Generating art library");
+            Step(0, 8, "Generating art library");
             LowPolyAssetGenerator.GenerateAll();
             log.AppendLine("  1. art library generated");
 
-            Step(1, 7, "Plumbing art onto gameplay prefabs");
+            Step(1, 8, "Plumbing art onto gameplay prefabs");
             LowPolyPlumber.PlumbEverything();
             log.AppendLine("  2. prefabs plumbed");
 
             // --- scene steps: each needs MainIsland to be the active scene ---
             if (!OpenGameScene()) return;
 
-            Step(2, 7, "Setting up the opening sequence");
+            Step(2, 8, "Setting up the opening sequence");
             OpeningSequenceSetup.SetupOpeningScene();
             log.AppendLine("  3. opening sequence set up");
 
@@ -77,28 +78,34 @@ public static class FullSetup
             // before calling it rather than trusting the previous step.
             if (!OpenGameScene()) return;
 
-            Step(3, 7, "Scattering environment props");
+            Step(3, 8, "Scattering environment props");
             LowPolyScatter.Scatter();
             log.AppendLine("  4. environment props scattered");
 
             // Terrain must follow the opening sequence and the scatter: it
             // deletes the flat Ground plane and the ocean quad frame, and snaps
             // the wreck and every scattered prop onto the generated island.
-            Step(4, 7, "Generating terrain and NavMesh");
+            Step(4, 8, "Generating terrain and NavMesh");
             TerrainSetup.SetupTerrainScene();
             log.AppendLine("  5. terrain set up, props snapped to the island");
 
-            Step(5, 7, "Adding pickups and the workshop");
+            Step(5, 8, "Adding pickups and the workshop");
             NewContentSetup.Setup();
             log.AppendLine("  6. pickups + workshop added");
+
+            // Must precede the menu step for the usual reason: it is a
+            // MainIsland edit, and the menu step swaps the active scene.
+            Step(6, 8, "Removing the legacy victory/defeat panels");
+            LegacyEndScreenCleanup.Cleanup();
+            log.AppendLine("  7. legacy end-screen panels removed");
 
             // Save MainIsland before the menu step: it opens a brand new scene
             // and would otherwise prompt (or discard) everything above.
             EditorSceneManager.SaveOpenScenes();
 
-            Step(6, 7, "Creating the menu scene");
+            Step(7, 8, "Creating the menu scene");
             MenuSceneSetup.SetupMenuScene();
-            log.AppendLine("  7. MainMenu created, build scene list fixed");
+            log.AppendLine("  8. MainMenu created, build scene list fixed");
         }
         finally
         {

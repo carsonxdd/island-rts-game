@@ -75,6 +75,10 @@ public abstract class UnitBase<T> : MonoBehaviour, ITargetable where T : UnitBas
     /// <summary>Create the floating state text if <see cref="showStateText"/> is enabled.</summary>
     protected void CreateStateText(float fontSize, string initialText, Color initialColor)
     {
+        // The prefab flag decides whether this unit type has a label at all; the
+        // player's Interface setting decides whether labels are drawn, and it is
+        // read live inside FloatingText so toggling it affects units that
+        // already exist rather than only ones spawned afterwards.
         if (!showStateText || SimHooks.Simulating) return;
         floatingText = gameObject.AddComponent<FloatingText>();
         floatingText.heightOffset = textHeightOffset;

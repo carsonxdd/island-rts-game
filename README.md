@@ -4,7 +4,7 @@ A Unity-based real-time strategy survival game. Manage autonomous workers, gathe
 
 **Genre:** Top-down RTS + Survival  
 **Setting:** Age of Sail shipwreck on an uncharted island  
-**Status:** Playable alpha (Phase 6.26 + Opening Sequence Stage 1 + Terrain T1) — the game opens with the story beat (a lone survivor wades ashore from the shipwreck and places the campfire himself; applied in-scene via the Opening Sequence setup tool) and the world is now a procedurally shaped island (Terrain T1). All of that is applied by editor tools that must run in a specific order — **`Tools > Island RTS > Setup Everything (In Order)` does all seven in one go.** An F4 debug menu (editor/dev builds) covers resource grants, a quick-start colony, time controls, and combat cheats for playtesting. Phase 10 Stage 2 (low-poly art) is applied in-editor. Now on Unity 6000.5.9f1; Phases 6.24–6.26, the opening sequence, the terrain, the art plumbing and the repaired menus all still await a proper playtest — the accumulated checklist, and the editor setup steps that must run first, are in [`docs/CONTROLS_AND_CHECKLIST.md`](docs/CONTROLS_AND_CHECKLIST.md).
+**Status:** Playable alpha (Phase 6.26 + Opening Sequence Stage 1 + Terrain T1) — the game opens with the story beat (a lone survivor wades ashore from the shipwreck and places the campfire himself; applied in-scene via the Opening Sequence setup tool) and the world is now a procedurally shaped island (Terrain T1). All of that is applied by editor tools that must run in a specific order — **`Tools > Island RTS > Setup Everything (In Order)` does all eight in one go.** An F4 debug menu (editor/dev builds) covers resource grants, a quick-start colony, time controls, and combat cheats for playtesting. Phase 10 Stage 2 (low-poly art) is applied in-editor. Now on Unity 6000.5.9f1; Phases 6.24–6.26, the opening sequence, the terrain, the art plumbing, the menus, the settings/keybinding/difficulty pass and the rebuilt end screens all still await a proper playtest — the accumulated checklist, and the editor setup steps that must run first, are in [`docs/CONTROLS_AND_CHECKLIST.md`](docs/CONTROLS_AND_CHECKLIST.md).
 
 ---
 
@@ -19,13 +19,14 @@ A Unity-based real-time strategy survival game. Manage autonomous workers, gathe
 
 ### First Game
 
-1. Opening: **right-click** to walk your survivor ashore, then press **B** and click to place the campfire (free, must be near him — he becomes your first worker)
-2. Click the campfire to assign 5-6 workers (wood + food)
-3. Press **B** to build — place 1-2 Huts for housing
-4. Recruit 2-3 warriors before nightfall
-5. Survive 5 nights to win
+1. From the title screen, **NEW GAME** → pick a difficulty (Normal is the intended balance) → **BEGIN**
+2. Opening: **right-click** to walk your survivor ashore, then press **B** and click to place the campfire (free, must be near him — he becomes your first worker)
+3. Click the campfire to assign 5-6 workers (wood + food)
+4. Press **B** to build — place 1-2 Huts for housing
+5. Recruit 2-3 warriors before nightfall
+6. Survive 5 nights to win
 
-> **First time in a fresh clone, run `Tools > Island RTS > Setup Everything (In Order)` once.** The art library, opening sequence, scattered props, island terrain, pickups/workshop and menu scene are all applied by editor tools, and the order they run in matters — the master item does all seven in dependency order and leaves `MainMenu` open, which is what a build starts on. `Tools > Island RTS > Open Game Scene (MainIsland)` skips the title screen. Every step is idempotent, so re-run it after pulling art or changing the island seed. A `skipIntro` toggle on the `GameStart` object restores the classic instant start.
+> **First time in a fresh clone, run `Tools > Island RTS > Setup Everything (In Order)` once.** The art library, opening sequence, scattered props, island terrain, pickups/workshop and menu scene are all applied by editor tools, and the order they run in matters — the master item does all eight in dependency order and leaves `MainMenu` open, which is what a build starts on. `Tools > Island RTS > Open Game Scene (MainIsland)` skips the title screen. Every step is idempotent, so re-run it after pulling art or changing the island seed. A `skipIntro` toggle on the `GameStart` object restores the classic instant start.
 
 ---
 
@@ -50,6 +51,8 @@ A Unity-based real-time strategy survival game. Manage autonomous workers, gathe
 | **F6 / F7** | Perf recorder — F6 marks the frame where you saw a stutter, F7 stops/resumes (editor + dev builds only) |
 | **Right-click** (opening) | Move the survivor |
 | **B** (opening) | Place the campfire (Esc / right-click cancels) |
+
+Every gameplay key above is a **default, not a fixed binding** — *Options → Controls & Keybindings* rebinds all of them, with a main and an alternate slot per action. Esc, the mouse buttons and the debug keys are deliberately reserved: Esc in particular is a back-out gesture five systems consume in order, not a binding.
 
 Full reference — including how to drive the F3/F4 debug tools, the editor setup run order, and the current playtest checklist: [`docs/CONTROLS_AND_CHECKLIST.md`](docs/CONTROLS_AND_CHECKLIST.md).
 
@@ -91,7 +94,7 @@ islandrts/Assets/
 │   │   │   └── Enemy/           # EnemyAttack (single action + priority-based targeting)
 │   │   ├── Shared/              # NavMesh throttling, stuck detection
 │   │   └── Debug/               # F3 debug overlay
-│   ├── UI/                      # Menus — main, pause, options, controls, credits (runtime uGUI)
+│   ├── UI/                      # Menus (runtime uGUI) + GameSettings, KeyBindings, Difficulty
 │   ├── Sim/                     # Headless balance-simulation harness (editor + dev builds only)
 │   ├── GameManager.cs           # Victory/defeat, statistics
 │   ├── ResourceManager.cs       # Wood/food/stone economy
@@ -110,6 +113,7 @@ islandrts/Assets/
 ├── Editor/
 │   ├── LowPoly/                 # Procedural low-poly asset generator (editor-only)
 │   ├── Sim/                     # Sweep runner menu items + headless sim player build
+│   ├── FullSetup.cs             # Runs all eight setup steps in dependency order
 │   └── MenuSceneSetup.cs        # Creates the MainMenu scene, fixes the build scene list
 ├── Art/                         # Phase 10 low-poly art library + showcase scene
 ├── Prefabs/                     # Units, buildings, resources
@@ -166,8 +170,9 @@ All units (Workers, Warriors, Enemies) use a **scoring-based Utility AI** — no
 | **Healing** | Warriors heal 1.5 HP/sec at campfire between waves — slow on purpose, so damage carries across nights. |
 | **Flee** | Workers garrison inside the nearest hut when enemies threaten, and pop back out when it's clear (or if the hut falls). |
 | **Demolish** | Delete/X key. 50% resource refund. Campfire protected. |
-| **Victory** | Survive 5 nights. Defeat if campfire is destroyed. |
-| **Menus** | Main menu (own scene), Esc pause, options (audio/video/gameplay, saved to PlayerPrefs), controls, credits, confirm dialogs. Built at runtime — see [`docs/MENU_WIREFRAMES`](docs/MENU_WIREFRAMES.md). |
+| **Victory** | Survive 5 nights (7 on Hard, 10 on Brutal). Defeat if the campfire is destroyed. Both end on a screen offering Restart / Main Menu / Quit, plus Keep Playing after a win. |
+| **Difficulty** | Peaceful / Relaxed / Normal / Hard / Brutal / Custom, chosen on New Game and **locked for the run**. Scales raid size, enemy health and damage, night length, starting resources, and nights to survive. |
+| **Menus** | Main menu (own scene), New Game, Esc pause, options (audio / video / camera / interface, saved to PlayerPrefs), rebindable controls, credits, confirm dialogs, victory/defeat. Built at runtime — see [`docs/MENU_WIREFRAMES`](docs/MENU_WIREFRAMES.md). |
 | **Balance sim** | Headless autoplay: scripted strategies play full games and write CSVs, so balance is measured rather than guessed. See [`docs/SIMULATION.md`](docs/SIMULATION.md). |
 
 ---
@@ -188,7 +193,17 @@ Everything else (per-unit spawn/death, per-damage, per-resource tick, per-button
 
 For detailed technical documentation, AI system internals, balancing data, phase history, and gotchas, see [`.claude/CLAUDE.md`](.claude/CLAUDE.md).
 
-Latest: **Balance measured instead of guessed, plus menus** — two additions. First, a headless balance-simulation harness ([`docs/SIMULATION.md`](docs/SIMULATION.md)): the real game runs in a `-batchmode -nographics` player with a *scripted player* — worker assignment, build orders, recruitment, and nothing else — while pathing, gathering, combat and enemy targeting stay the game's own Utility AI. Three strategies (Turtle / Rush / Eco) play full 5-night games at ~25× realtime and write two CSVs: one row per game, one row per night. The load-bearing detail is that it speeds runs up with `Time.captureDeltaTime`, **not** `Time.timeScale` — this codebase's AI evaluation budget and NavMesh throttles are frame-based, so `timeScale` would starve every brain and report the resulting losses as "balance".
+Latest: **Settings with real depth, and the end screens finally lead somewhere.**
+
+The options screen went from 12 settings on three tabs to 22 on four, and grew the two things it had been stubbing out. **Key rebinding is real**: `KeyBindings.cs` is now the single source of truth for all 17 gameplay actions, with a main and an alternate slot each — which is how WASD *and* the arrow keys, or Delete *and* X, work without a special case. No script holds a `KeyCode` of its own any more, and camera panning stopped reading Unity's fixed `"Horizontal"`/`"Vertical"` axes, which had made pan the one action visible on the Controls screen that couldn't actually be changed. Binding a key already in use takes it from the old action rather than throwing a modal error mid-remap. **Resolution is real too** — a proper display-mode and resolution list, plus a frame cap. New alongside them: a Camera tab (zoom and rotation speed, invert tilt, screen shake as a 0–1.5× slider instead of a toggle), an Interface tab (UI scale, health-bar mode, unit state labels, pause-when-unfocused), and per-row description lines so a setting says what it does.
+
+**Difficulty** arrived with them: six presets from Peaceful to Brutal plus an editable Custom, picked on a new NEW GAME screen and *locked for the run* — waves already spawned wouldn't retroactively change, and "survived five nights" stops meaning anything if night four can be softened from the pause menu. The presets show their actual multipliers rather than just a label. Every knob is read at the point of effect, and `Difficulty.Active` forces Normal during a balance sweep so a difficulty saved in a developer's PlayerPrefs can't silently skew simulated runs.
+
+Wiring that up turned up a quiet harness bug worth flagging: `SimRunner` set `ResourceManager.startingWood/Food/Stone` from the `sceneLoaded` callback, but `ResourceManager` consumes them in `Awake` — which runs first. Those three sweep knobs had never done anything. Fixed; any past sweep that varied starting resources needs re-running.
+
+Finally, **victory and defeat moved onto the menu system**. They were the last screens still hand-built in the scene, and the real problem wasn't that they looked different — it was that neither could return to the main menu at all. The old Quit button called `Application.Quit`, which in the editor just stopped Play, and it bypassed the menu flow entirely so settings were never saved. Both are now one screen with two dressings (accent gold or danger red), showing nights survived, enemies defeated, peak colony size, resources on hand and the run's difficulty, over **Restart · Main Menu · Quit to Desktop** — plus Keep Playing after a win. The screen deliberately has no Back: dismissing it would strand the player on a frozen world with no UI.
+
+Before that: **Balance measured instead of guessed, plus menus** — two additions. First, a headless balance-simulation harness ([`docs/SIMULATION.md`](docs/SIMULATION.md)): the real game runs in a `-batchmode -nographics` player with a *scripted player* — worker assignment, build orders, recruitment, and nothing else — while pathing, gathering, combat and enemy targeting stay the game's own Utility AI. Three strategies (Turtle / Rush / Eco) play full 5-night games at ~25× realtime and write two CSVs: one row per game, one row per night. The load-bearing detail is that it speeds runs up with `Time.captureDeltaTime`, **not** `Time.timeScale` — this codebase's AI evaluation budget and NavMesh throttles are frame-based, so `timeScale` would starve every brain and report the resulting losses as "balance".
 
 It immediately paid for itself. Across 376 simulated games the shipping numbers turned out to be a shutout: Rush and Eco won **15–0** with the campfire at full HP on all five nights in 14 of 15 runs, and enemy count had to roughly triple before anything threatened it. Two findings changed the plan. Raising `enemyIncreasePerNight` produces a far better curve than raising `baseEnemiesPerNight` — both reach 0% win rate, but the ramp version has you lose on night 4.5 and the base-count version on night 2.4, so the *ramp* is the difficulty lever and the base count should stay low. And `spawnInterval` turned out to be the strongest knob of all: at the shipping 1 s, a 15-enemy wave arrives as fifteen one-enemy fights that warriors win in detail; tightening it to 0.15 s takes the same wave from a 100% win rate to 13%.
 
@@ -202,7 +217,7 @@ The obvious explanation was engagement geometry. `Warrior.searchRadius` is 50 an
 
 Turtle barely moved either (0% → 8–17% across those radii), so its losses are not about walls sitting behind the front line — it fields 1–3 warriors where Eco fields 5, and it is losing on army size. Making night 5 a *graded* fight rather than a coin flip now looks like it needs a design change — something that reaches the base past the warrior line — rather than a number. The sweep files that produced all of this live in `SimSweeps/`.
 
-Second, the **menu system**: main menu (its own scene), Esc pause, options with working audio/video/gameplay settings persisted to PlayerPrefs, controls, credits, and confirm dialogs — all built at runtime in uGUI with zero scene wiring, and all styled from a single `MenuStyle.cs` so an artist re-skins seven screens by editing one file. Esc is deliberately *contextual*: it was already bound by five systems, so it cancels the active mode first (building ghost, wall line, demolish, crafting panel) and only opens the pause menu when nothing is active. Wireframes and the asset checklist: [`docs/MENU_WIREFRAMES.md`](docs/MENU_WIREFRAMES.md). Setting up the menu scene also fixes the build scene list, which still pointed only at the stock `SampleScene` — a build made before this shipped an empty world.
+Second, the **menu system**: main menu (its own scene), Esc pause, options persisted to PlayerPrefs, controls, credits, and confirm dialogs — all built at runtime in uGUI with zero scene wiring, and all styled from a single `MenuStyle.cs` so an artist re-skins every screen by editing one file. Esc is deliberately *contextual*: it was already bound by five systems, so it cancels the active mode first (building ghost, wall line, demolish, crafting panel) and only opens the pause menu when nothing is active. Wireframes and the asset checklist: [`docs/MENU_WIREFRAMES.md`](docs/MENU_WIREFRAMES.md). Setting up the menu scene also fixes the build scene list, which still pointed only at the stock `SampleScene` — a build made before this shipped an empty world.
 
 The menus' first pass shipped with three faults, since fixed. Every screen laid out at the wrong heights because `MenuBuilder.Column` had `childControlHeight = false`, and a `VerticalLayoutGroup` that isn't controlling an axis ignores `LayoutElement.preferredHeight` entirely — so the 52px buttons and 44px rows the screens asked for were never applied, and content spilled out of its panel. Sliders and toggles were completely unclickable: both are built from a helper that defaults `raycastTarget` to false, and in each case that graphic was the control's `targetGraphic` *and* its only click surface, so the EventSystem never delivered them a pointer event. And `PauseController` bootstrapped from `[RuntimeInitializeOnLoadMethod]`, which fires once per launch rather than once per scene load — with no `DontDestroyOnLoad` (correct here), it died with the menu scene on NEW GAME and Esc did nothing for the rest of the session. Panel heights are now computed from content rather than hand-typed, and the four settings that were saved to PlayerPrefs but read by nothing (camera speed, edge pan, screen shake, grid default) are wired to the systems that own them.
 
