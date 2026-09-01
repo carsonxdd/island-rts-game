@@ -40,7 +40,11 @@ public class WallGrid : MonoBehaviour
     public const int SOUTH = 4;  // -Z
     public const int WEST  = 8;  // -X
 
-    private static readonly Vector2Int[] NeighborOffsets = new Vector2Int[]
+    // The four cardinal directions, and the bit each one contributes to a neighbour mask.
+    // The two arrays are parallel and must stay in the same order. Shared (rather than
+    // rebuilt per call) because the ghost preview walks them for every cell of a wall line
+    // on every frame of a drag. Treat as read-only.
+    public static readonly Vector2Int[] NeighborOffsets = new Vector2Int[]
     {
         new Vector2Int(0, 1),   // North
         new Vector2Int(1, 0),   // East
@@ -48,7 +52,7 @@ public class WallGrid : MonoBehaviour
         new Vector2Int(-1, 0)   // West
     };
 
-    private static readonly int[] NeighborBits = new int[] { NORTH, EAST, SOUTH, WEST };
+    public static readonly int[] NeighborBits = new int[] { NORTH, EAST, SOUTH, WEST };
 
     private Dictionary<Vector2Int, MonoBehaviour> grid = new Dictionary<Vector2Int, MonoBehaviour>();
 

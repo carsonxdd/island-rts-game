@@ -269,25 +269,28 @@ public class WallConnector : MonoBehaviour
     }
 
     /// <summary>
-    /// Compute neighbor mask for a grid position using both the WallGrid
-    /// and a set of additional ghost positions. Used for ghost previews.
+    /// Neighbour mask for a cell, counting both walls that already exist and other cells in
+    /// the wall line currently being previewed - which is what makes a dragged line connect
+    /// to itself as it is drawn.
     /// </summary>
+    /// <remarks>
+    /// Called once per cell of the line every frame of a drag, so it uses WallGrid's shared
+    /// direction tables rather than building its own.
+    /// </remarks>
     public static int GetPreviewNeighborMask(Vector2Int pos, HashSet<Vector2Int> ghostPositions)
     {
         int mask = 0;
-        Vector2Int[] offsets = { new Vector2Int(0, 1), new Vector2Int(1, 0), new Vector2Int(0, -1), new Vector2Int(-1, 0) };
-        int[] bits = { WallGrid.NORTH, WallGrid.EAST, WallGrid.SOUTH, WallGrid.WEST };
 
         for (int i = 0; i < 4; i++)
         {
-            Vector2Int neighbor = pos + offsets[i];
+            Vector2Int neighbor = pos + WallGrid.NeighborOffsets[i];
             if (ghostPositions.Contains(neighbor))
             {
-                mask |= bits[i];
+                mask |= WallGrid.NeighborBits[i];
             }
             else if (WallGrid.Instance != null && WallGrid.Instance.HasWallAt(neighbor))
             {
-                mask |= bits[i];
+                mask |= WallGrid.NeighborBits[i];
             }
         }
         return mask;

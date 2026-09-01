@@ -41,5 +41,8 @@ public static class ActiveRegistryReset
         ActiveRegistry<Gate>.Clear();
         ActiveRegistry<Watchtower>.Clear();
         ActiveRegistry<ResourceNode>.Clear();
+        ActiveRegistry<ConstructionSite>.Clear();
+        ActiveRegistry<Workshop>.Clear();
+        ActiveRegistry<GroundPickup>.Clear();
     }
 }
