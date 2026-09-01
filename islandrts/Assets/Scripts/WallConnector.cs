@@ -2,10 +2,20 @@ using UnityEngine;
 using System.Collections.Generic;
 
 /// <summary>
-/// Shape-driven wall visuals. Uses WallGrid neighbor mask to select
-/// the correct procedural mesh (isolated/endcap/straight/corner/T/cross)
-/// and rotation.
+/// Gives a wall its shape. Reads the four-bit neighbour mask from WallGrid and picks the
+/// matching procedural mesh and rotation, so a line of walls joins up on its own and a
+/// broken one re-caps itself.
 /// </summary>
+/// <remarks>
+/// Six shapes (isolated, endcap, straight, corner, T-junction, cross), each with a gate
+/// variant, are generated in code and cached statically - one mesh per shape for the whole
+/// game, not one per wall.
+///
+/// Because this writes the mesh onto the root MeshFilter at runtime, a wall cannot be
+/// given hand-authored art by swapping its mesh: anything assigned is overwritten on the
+/// next refresh. Walls can only be re-materialed until the generator learns to emit all
+/// twelve variants.
+/// </remarks>
 public class WallConnector : MonoBehaviour
 {
     public enum WallShape

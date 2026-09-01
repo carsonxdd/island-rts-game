@@ -2,10 +2,17 @@ using UnityEngine;
 using System.Collections.Generic;
 
 /// <summary>
-/// Central authority for wall occupancy and neighbor lookups.
-/// Replaces FindObjectsByType scanning with O(1) dictionary lookups.
-/// Auto-creates itself if not in the scene.
+/// The authority on which grid cells hold a wall, gate or wall construction site. One
+/// dictionary keyed by cell, so any "is there a wall here" question is O(1).
 /// </summary>
+/// <remarks>
+/// This is what makes gate conversion reliable: the G key asks the grid what is in the
+/// hovered cell rather than raycasting at a procedurally generated mesh. It is also what
+/// lets a wall know its neighbours, since a wall's visible shape is chosen from the four
+/// cells around it - which is why registering or unregistering a cell also refreshes the
+/// shape of that cell and its four neighbours.
+/// Auto-creates itself if the scene has no WallGrid.
+/// </remarks>
 public class WallGrid : MonoBehaviour
 {
     private static WallGrid _instance;
@@ -26,7 +33,8 @@ public class WallGrid : MonoBehaviour
         }
     }
 
-    // Bitmask constants for neighbor directions
+    // Neighbour directions as bit flags. A cell's four-bit mask is what WallConnector
+    // turns into a shape (isolated, endcap, straight, corner, T, cross) and a rotation.
     public const int NORTH = 1;  // +Z
     public const int EAST  = 2;  // +X
     public const int SOUTH = 4;  // -Z
@@ -62,12 +70,18 @@ public class WallGrid : MonoBehaviour
             _instance = null;
     }
 
+    /// <summary>
+    /// Claims a cell for a wall, gate or construction site, and reshapes the neighbourhood
+    /// so the new piece connects to what is around it.
+    /// </summary>
     public void Register(Vector2Int pos, MonoBehaviour occupant)
     {
         grid[pos] = occupant;
         RefreshTileAndNeighbors(pos);
     }
 
+    /// <summary>Frees a cell and reshapes its neighbours, so a broken wall leaves endcaps
+    /// rather than pieces still pointing at nothing.</summary>
     public void Unregister(Vector2Int pos)
     {
         grid.Remove(pos);
@@ -101,6 +115,7 @@ public class WallGrid : MonoBehaviour
         return mask;
     }
 
+    /// <summary>World position to the cell containing it. Height is ignored - the grid is flat.</summary>
     public Vector2Int WorldToGrid(Vector3 worldPos)
     {
         int x = Mathf.RoundToInt(worldPos.x / cellSize);
@@ -125,6 +140,10 @@ public class WallGrid : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Re-selects one cell's wall shape. Doubles as lazy cleanup: a cell whose occupant has
+    /// been destroyed is dropped from the dictionary here.
+    /// </summary>
     private void RefreshTile(Vector2Int pos)
     {
         MonoBehaviour occupant;
