@@ -85,6 +85,7 @@ public class Worker : UnitBase<Worker>
     // Audio - 3D Spatial Sound
     private AudioSource gatheringAudioSource;
     private Coroutine gatheringSoundCoroutine;
+    private ResourceNode soundNode;  // node to shake on each gathering-sound tick
     private bool isGatheringSoundActive = false;  // Tracks gathering sound state for coroutine guard
 
     void Start()
@@ -290,7 +291,9 @@ public class Worker : UnitBase<Worker>
     }
 
     // --- Public sound methods for Utility AI executors ---
-    public void StartGatheringSoundPublic() { StartGatheringSound(); }
+    // The node whose sound we're playing — pulsed on every audio tick so the node
+    // shakes on the beat of the chop/mining sound.
+    public void StartGatheringSoundPublic(ResourceNode node) { soundNode = node; StartGatheringSound(); }
     public void StopGatheringSoundPublic() { StopGatheringSound(); }
 
     // --- Audio ---
@@ -317,6 +320,7 @@ public class Worker : UnitBase<Worker>
     void StopGatheringSound()
     {
         isGatheringSoundActive = false;
+        soundNode = null;
 
         // Stop the looping coroutine
         if (gatheringSoundCoroutine != null)
@@ -351,6 +355,9 @@ public class Worker : UnitBase<Worker>
                 gatheringAudioSource.clip = clipToPlay;
                 gatheringAudioSource.Play();
 
+                // Shake the node on the beat (destroyed-node safe: Unity null check)
+                if (soundNode != null) soundNode.TriggerShakePulse();
+
                 // Wait for clip to finish
                 yield return new WaitForSeconds(clipToPlay.length);
 
@@ -365,8 +372,9 @@ public class Worker : UnitBase<Worker>
             }
             else
             {
-                // No clip available, wait and try again
-                yield return new WaitForSeconds(1f);
+                // No clip assigned — still beat the shake so nodes react without audio
+                if (soundNode != null) soundNode.TriggerShakePulse();
+                yield return new WaitForSeconds(1.5f);
             }
         }
     }

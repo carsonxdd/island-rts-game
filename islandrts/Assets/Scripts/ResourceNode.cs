@@ -20,7 +20,7 @@ public class ResourceNode : MonoBehaviour
     public bool scaleWithDepletion = true;  // Shrink as resources deplete
     public float shakeDegrees = 1f;         // Gather-shake pulse amplitude (small tree sway)
     public float shakeFrequency = 7f;       // Wobble speed within a pulse, in Hz
-    public float shakeInterval = 1.5f;      // Seconds between shake pulses while being gathered
+    public float minShakeSpacing = 0.15f;   // Minimum seconds between pulses (stops several workers stacking pulses into a jitter)
 
     public static IReadOnlyList<ResourceNode> ActiveList => ActiveRegistry<ResourceNode>.List;
 
@@ -42,7 +42,6 @@ public class ResourceNode : MonoBehaviour
     private Quaternion shakeBaseRotation;
     private bool shakeBaselineCaptured = false;
     private bool isShaking = false;
-    private float lastGatherTime = -999f;
     private float pulseStartTime = -999f;  // when the current shake pulse began
     private float nextPulseTime = 0f;      // earliest time the next pulse may fire
     private const float PulseDuration = 0.3f;  // length of one shake pulse
@@ -152,27 +151,33 @@ public class ResourceNode : MonoBehaviour
     }
 
     /// <summary>
-    /// Short damped wobble pulse on the Model child, fired every shakeInterval seconds
-    /// while the node was gathered from in the last 0.2s (a "chop lands" beat, not a
-    /// continuous sway). The sin(pi*x) envelope starts and ends at zero so the pulse
-    /// never snaps. Restores the exact baseline rotation when the pulse ends.
+    /// Fire one shake pulse. Called by a Worker every time its gathering sound ticks, so
+    /// the node visibly reacts on the beat of the chop/mining sound rather than on a timer
+    /// of its own. Spacing-guarded so several workers on one node can't stack pulses into
+    /// a continuous jitter.
+    /// </summary>
+    public void TriggerShakePulse()
+    {
+        if (shakeModel == null || Time.time < nextPulseTime) return;
+
+        if (!shakeBaselineCaptured)
+        {
+            shakeBaseRotation = shakeModel.localRotation;
+            shakeBaselineCaptured = true;
+        }
+        pulseStartTime = Time.time;
+        nextPulseTime = Time.time + Mathf.Max(0.05f, minShakeSpacing);
+    }
+
+    /// <summary>
+    /// Plays out the pulse started by TriggerShakePulse: a short damped wobble on the
+    /// Model child. The sin(pi*x) envelope starts and ends at zero so the pulse never
+    /// snaps. Restores the exact baseline rotation when the pulse ends.
     /// Zero GC; a single transform write per frame while a pulse is playing.
     /// </summary>
     void UpdateGatherShake()
     {
         if (shakeModel == null) return;
-
-        bool beingGathered = Time.time - lastGatherTime < 0.2f;
-        if (beingGathered && Time.time >= nextPulseTime)
-        {
-            if (!shakeBaselineCaptured)
-            {
-                shakeBaseRotation = shakeModel.localRotation;
-                shakeBaselineCaptured = true;
-            }
-            pulseStartTime = Time.time;
-            nextPulseTime = Time.time + shakeInterval;
-        }
 
         float elapsed = Time.time - pulseStartTime;
         if (elapsed < PulseDuration)
@@ -331,10 +336,6 @@ public class ResourceNode : MonoBehaviour
 
         // Deplete the node
         currentAmount -= amountGathered;
-
-        // Feed the gather-shake (workers gather incrementally every frame, so this
-        // stays fresh for as long as anyone is actively working the node)
-        lastGatherTime = Time.time;
 
         // Destroy node if empty
         if (currentAmount <= 0.01f)  // Small threshold for floating point

@@ -157,7 +157,7 @@ public class GatherExecutor : ActionExecutor
                 displayName = "Collecting " + bb.assignedResourceType;
 
                 // Start gathering sound
-                bb.worker.StartGatheringSoundPublic();
+                bb.worker.StartGatheringSoundPublic(bb.targetResource);
             }
             else
             {
