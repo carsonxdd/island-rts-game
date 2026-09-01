@@ -2,9 +2,23 @@ using UnityEngine;
 using System.Collections.Generic;
 
 /// <summary>
-/// Manages all audio in the game (combat, UI, ambient, music)
-/// Singleton pattern for global access
+/// All game audio in one place: music, ambience, UI and combat one-shots. Four dedicated
+/// AudioSources (music, ambient, SFX, looping gather) so each layer can be faded and mixed
+/// independently.
 /// </summary>
+/// <remarks>
+/// Two things here exist to stop combat from wrecking the mix. Repeatable sounds go
+/// through a short per-sound-id cooldown, so a dozen units swinging on the same frame
+/// plays one hit rather than a wall of them. And music never cuts: day, night and combat
+/// tracks crossfade through one shared routine, with a guard that ignores a second
+/// crossfade request while one is already running.
+///
+/// Every clip is loaded once at startup - reading them on demand caused visible hitches
+/// the first time each sound played.
+///
+/// Positional sounds are NOT played here: units own their own spatial AudioSource (see
+/// AudioHelper). This singleton is for sounds that come from the game rather than a place.
+/// </remarks>
 public class AudioManager : MonoBehaviour
 {
     public static AudioManager Instance { get; private set; }
@@ -56,7 +70,9 @@ public class AudioManager : MonoBehaviour
     [Header("Music Transitions")]
     public float musicFadeTime = 2f;
 
-    // Private
+    // Per-sound-id cooldowns, so one loud moment does not play the same clip 20 times.
+    // The buffer is reused when ticking them down - a dictionary cannot be edited while
+    // being iterated, and allocating a key list every frame would be pure garbage.
     private Dictionary<string, float> soundCooldowns = new Dictionary<string, float>();
     private readonly List<string> cooldownKeysBuffer = new List<string>();
     private AudioClip currentMusic;
@@ -80,6 +96,10 @@ public class AudioManager : MonoBehaviour
     /// <summary>
     /// Force all audio clips into memory at startup so they don't cause
     /// synchronous disk loads (184ms+ freezes) when played mid-gameplay.
+    /// </summary>
+    /// <summary>
+    /// Forces every clip into memory at startup. Without this, the first play of each sound
+    /// blocks on a synchronous disk read - a very visible hitch the first time combat starts.
     /// </summary>
     void PreloadAllAudioClips()
     {
@@ -394,6 +414,11 @@ public class AudioManager : MonoBehaviour
         StartCoroutine(CrossfadeAmbient(ambientClip));
     }
 
+    /// <summary>
+    /// Switches the music track with a crossfade. A request that arrives while a fade is
+    /// already running is dropped rather than queued, so rapid day/night/combat changes
+    /// cannot stack fades on top of each other.
+    /// </summary>
     void FadeToMusic(AudioClip newClip)
     {
         if (newClip == null)
@@ -472,6 +497,8 @@ public class AudioManager : MonoBehaviour
         }
     }
 
+    /// <summary>False while this sound id is still on cooldown. Repeatable combat sounds
+    /// check this so a crowd of attackers does not play the same clip dozens of times.</summary>
     bool CanPlaySound(string soundId)
     {
         return !soundCooldowns.ContainsKey(soundId);

@@ -2,9 +2,21 @@ using UnityEngine;
 using TMPro;
 
 /// <summary>
-/// Manages all combat visual effects (particles, damage numbers, screen shake)
-/// Singleton pattern for easy access from combat scripts
+/// Every visual reaction to combat: attack flashes, hit sparks, floating damage numbers
+/// and the fade-out a dying unit plays before it disappears.
 /// </summary>
+/// <remarks>
+/// All of it is generated from primitives and materials at runtime, so there are no
+/// particle prefabs to wire up, and each effect cleans itself up on a timer.
+///
+/// A unit's visible mesh lives on a Model child rather than on its root, and art meshes
+/// carry several material slots, so anything that tints or fades a unit must walk the
+/// children and every slot - tinting the root's first material only would leave most of
+/// the body untouched.
+///
+/// Effects are suppressed entirely during a balance sweep, where there is no one watching
+/// and thousands of them would only cost frames.
+/// </remarks>
 public class CombatEffects : MonoBehaviour
 {
     public static CombatEffects Instance { get; private set; }

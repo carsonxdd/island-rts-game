@@ -3,9 +3,14 @@ using UnityEngine.UI;
 using TMPro;  // TextMeshPro for text
 
 /// <summary>
-/// Controls the Worker Assignment UI panel
-/// Shows worker counts and +/- buttons for assigning workers to resource types
+/// The campfire panel: assign workers to wood, food or stone and recruit warriors.
+/// This is the player's main lever on the economy.
 /// </summary>
+/// <remarks>
+/// Display only - the campfire owns the worker roster and every count shown here. Buttons
+/// disable themselves when an action is unaffordable or the population is capped, and the
+/// labels are dirty-checked so an idle panel costs nothing.
+/// </remarks>
 public class WorkerAssignmentUI : MonoBehaviour
 {
     [Header("UI References - Drag from Hierarchy")]
