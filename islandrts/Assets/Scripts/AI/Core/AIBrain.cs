@@ -2,10 +2,24 @@ using UnityEngine;
 using UnityEngine.AI;
 
 /// <summary>
-/// Core Utility AI controller. Attached to each unit (Worker, Warrior, Enemy).
-/// Staggered evaluation picks the highest-scoring ActionOption and drives its executor.
-/// Zero GC per frame: no allocations in hot paths.
+/// Core Utility AI controller, one per unit (Worker, Warrior, Enemy). There are no state
+/// machines in this codebase: a unit's behaviour is whichever ActionOption currently
+/// scores highest.
 /// </summary>
+/// <remarks>
+/// Each evaluation:
+/// 1. Every action multiplies its considerations together and scales by basePriority, so
+///    any single consideration near zero kills that action outright.
+/// 2. The action already running adds its momentum bonus, which stops rapid flip-flopping.
+/// 3. The winner only takes over if it beats the current action by commitmentThreshold
+///    (20%), so a marginally better option cannot interrupt work in progress.
+/// Steps 2 and 3 compound: an action with generous momentum can be very hard to leave, so
+/// always verify a new action's EXIT conditions, not just its entry conditions.
+///
+/// Evaluations are throttled: each brain thinks every 0.25-0.35s (randomized per unit so
+/// they never phase-lock), within a global per-frame budget that scales with population.
+/// The chosen executor's OnUpdate still runs every frame. No allocation in any of it.
+/// </remarks>
 public class AIBrain : MonoBehaviour
 {
     // --- Evaluation throttle ---
@@ -274,9 +288,16 @@ public class AIBrain : MonoBehaviour
     }
 
     /// <summary>
-    /// Force re-evaluation on next frame (used when external events change state).
-    /// Bypasses both the per-unit timer and the per-frame throttle.
+    /// Ask for an evaluation as soon as possible, for external events that invalidate the
+    /// current decision (a target died, damage was taken, a nearby enemy fell).
     /// </summary>
+    /// <remarks>
+    /// This skips the per-unit timer but is NOT a throttle bypass: a forced evaluation
+    /// still consumes frame budget, may run up to MaxEvalsPerFrame, and is deferred to the
+    /// next frame rather than dropped if the frame is already full. Broadcasting it from a
+    /// static death or damage event costs one evaluation per listener on the same frame,
+    /// so filter listeners by radius and accept a frame of latency.
+    /// </remarks>
     public void ForceReeval()
     {
         evalTimer = 0f;

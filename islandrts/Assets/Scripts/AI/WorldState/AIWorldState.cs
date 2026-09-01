@@ -2,10 +2,16 @@ using UnityEngine;
 using System.Collections.Generic;
 
 /// <summary>
-/// Singleton that caches global world state for AI evaluation.
-/// Updated periodically to avoid redundant calculations across units.
-/// Zero GC: all arrays pre-allocated.
+/// Singleton cache of the world facts that many units would otherwise each compute for
+/// themselves every brain tick: time of day, where enemies are massed, campfire health,
+/// and which walls are being hit.
 /// </summary>
+/// <remarks>
+/// Everything here is refreshed on its own schedule and read for free by considerations,
+/// which is the point: one shared scan per interval instead of one per unit per tick.
+/// All storage is pre-allocated, so the refreshes allocate nothing.
+/// Auto-created by the first AIBrain via EnsureExists, so no scene wiring is needed.
+/// </remarks>
 public class AIWorldState : MonoBehaviour
 {
     public static AIWorldState Instance { get; private set; }
@@ -16,13 +22,15 @@ public class AIWorldState : MonoBehaviour
     public float dayProgress { get; private set; } // 0 = full night, 1 = full day
 
     // --- Enemy density grid ---
-    // Divides the world into cells and counts enemies per cell for O(1) threat lookups
+    // A coarse bucket count of enemies per cell. GetNearbyEnemyCount then answers
+    // "how dangerous is it here" by summing a 3x3 block (~30x30 world units) instead
+    // of distance-testing every enemy on the field.
     private const float CELL_SIZE = 10f;
     private const int GRID_SIZE = 30; // 300x300 world units
     private const int GRID_OFFSET = GRID_SIZE / 2;
     private readonly int[,] enemyDensityGrid = new int[GRID_SIZE, GRID_SIZE];
     private int densityUpdateFrame = -1;
-    private int densityUpdateInterval = 10; // Rebuild every 10 frames
+    private int densityUpdateInterval = 10; // Rebuild every 10 frames - threat shifts slowly
 
     // --- Campfire state ---
     public float campfireHealthPercent { get; private set; }
@@ -30,12 +38,14 @@ public class AIWorldState : MonoBehaviour
     public bool campfireExists { get; private set; }
 
     // --- Walls-under-attack cache ---
-    // Tracks which walls/gates are being attacked by enemies (refreshed periodically)
+    // Drives the warrior DefendWall action. Inferred from where enemies are HEADING
+    // (their agent destination lands on a wall cell) rather than from damage events, so
+    // warriors start moving while the wall is still being approached.
     private readonly List<Transform> wallsUnderAttack = new List<Transform>();
     private float wallAttackCheckTimer = 0f;
     private float wallAttackCheckInterval = 1f;
 
-    // Cached DayNightCycle reference
+    // Looked up once - there is exactly one cycle and it lives for the whole scene.
     private DayNightCycle cachedDayNight;
     private bool dayNightCached = false;
 
@@ -83,6 +93,12 @@ public class AIWorldState : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Mirrors the day/night clock and derives dayProgress: 1 during the day, 0 at night,
+    /// with short ramps at dawn and dusk so light-sensitive actions ease across the
+    /// boundary instead of snapping. These windows are deliberately narrower than the
+    /// visual dawn/dusk blend - AI behaviour should not drift when the lighting is retuned.
+    /// </summary>
     void UpdateTimeOfDay()
     {
         if (!dayNightCached)
@@ -110,6 +126,10 @@ public class AIWorldState : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Polls the campfire from the registry every frame rather than caching it, because
+    /// during the opening sequence the campfire does not exist until the player places it.
+    /// </summary>
     void UpdateCampfireState()
     {
         if (BaseBuilding.ActiveList.Count > 0)
@@ -132,6 +152,7 @@ public class AIWorldState : MonoBehaviour
         }
     }
 
+    /// <summary>Re-buckets every live enemy into the density grid. Cheap: one pass, no allocation.</summary>
     void RebuildEnemyDensityGrid()
     {
         // Clear grid
@@ -174,6 +195,11 @@ public class AIWorldState : MonoBehaviour
         return count;
     }
 
+    /// <summary>
+    /// Rebuilds the walls-under-attack list by asking where each enemy is walking: if its
+    /// agent destination maps to a cell holding a wall or gate, that piece is treated as
+    /// under attack.
+    /// </summary>
     void UpdateWallsUnderAttack()
     {
         wallsUnderAttack.Clear();

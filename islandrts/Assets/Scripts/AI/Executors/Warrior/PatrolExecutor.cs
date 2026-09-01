@@ -3,9 +3,19 @@ using UnityEngine.AI;
 using System.Collections.Generic;
 
 /// <summary>
-/// Warrior executor: Wall patrol or building perimeter patrol.
-/// Ports existing Warrior patrol logic with wall-preference and building perimeter fallback.
+/// Warrior executor: the idle-time behaviour. Walks a loop of guard posts so warriors
+/// are spread over the colony's edge instead of clumping at the campfire.
 /// </summary>
+/// <remarks>
+/// Post selection falls through three tiers, best first:
+/// 1. Just inside a random wall or gate (only while walls exist) - the defensive line.
+/// 2. On the outer perimeter of a random campfire/hut, skipping points that fall inside
+///    another building's no-build radius, so warriors ring the colony rather than
+///    standing between two overlapping buildings.
+/// 3. A random point within patrolRadius of wherever the warrior is standing.
+/// Every candidate is NavMesh.SamplePosition-snapped before it is accepted, so a post
+/// is never handed to the agent inside a building's carve hole.
+/// </remarks>
 public class PatrolExecutor : ActionExecutor
 {
     public override string DisplayName => hasWalls ? "Guarding Walls" : "Patrolling";
@@ -13,15 +23,18 @@ public class PatrolExecutor : ActionExecutor
     private Vector3 currentPatrolPoint;
     private bool isWaitingAtPatrol = false;
     private float patrolWaitTimer = 0f;
-    private float patrolWaitTime = 3f;
+    private float patrolWaitTime = 3f;   // Seconds spent standing at a post before picking the next one.
+    // TrySetDestination can be throttled or rejected by Unity, so the move is retried
+    // every frame until it takes rather than assumed to have happened.
     private bool patrolDestinationSet = false;
-    private bool hasWalls = false;
+    private bool hasWalls = false;       // Re-checked on enter and at every post; walls get built mid-run.
 
-    // Cached campfire
+    // Campfire, looked up once: it only supplies an "which way is inward" direction,
+    // and the null check below covers it being destroyed later.
     private BaseBuilding cachedCampfire;
     private bool campfireCached = false;
 
-    // Pooled building list
+    // Reused across calls so building up the candidate list allocates nothing per patrol point.
     private readonly List<(Transform t, float radius)> buildingBuffer = new List<(Transform, float)>();
 
     public override void OnEnter(AIBlackboard bb)
@@ -38,7 +51,8 @@ public class PatrolExecutor : ActionExecutor
     {
         float distanceToPatrolPoint = Vector3.Distance(bb.transform.position, currentPatrolPoint);
 
-        // Stuck resolution while moving
+        // Patrol has no target to null out, so unlike Gather/Engage/EnemyAttack it can
+        // ignore UpdateMoving's reset return and keep going in the same tick.
         if (!isWaitingAtPatrol && bb.stuckResolver != null)
         {
             bb.stuckResolver.UpdateMoving();
@@ -77,6 +91,7 @@ public class PatrolExecutor : ActionExecutor
         }
     }
 
+    /// <summary>Picks the next guard post, walls first and the spawn-area wander last.</summary>
     Vector3 GetRandomPatrolPoint(AIBlackboard bb)
     {
         if (hasWalls)
@@ -88,6 +103,11 @@ public class PatrolExecutor : ActionExecutor
         return GetBuildingPerimeterPatrolPoint(bb);
     }
 
+    /// <summary>
+    /// Tries to find a standing spot just inside a random wall or gate. Offsetting along
+    /// (wall - campfire) puts the warrior on the colony side of the line, not outside it.
+    /// Ten attempts, then gives up so a walled-off or unsampleable line can't stall the tick.
+    /// </summary>
     bool TryGetWallPatrolPoint(AIBlackboard bb, out Vector3 point)
     {
         point = Vector3.zero;
@@ -143,6 +163,11 @@ public class PatrolExecutor : ActionExecutor
         return false;
     }
 
+    /// <summary>
+    /// Fallback post for a colony with no walls: a point on the no-build ring of a random
+    /// campfire or hut. Points that land inside another building's ring are rejected, which
+    /// keeps the patrol on the colony's outer edge instead of in the gaps between buildings.
+    /// </summary>
     Vector3 GetBuildingPerimeterPatrolPoint(AIBlackboard bb)
     {
         buildingBuffer.Clear();
@@ -175,6 +200,8 @@ public class PatrolExecutor : ActionExecutor
                     Mathf.Sin(angle) * noBuildRadius
                 );
 
+                // Reject the point if it sits inside another building's no-build radius:
+                // that means it is interior to the colony, not on the outer edge.
                 bool isOuterPerimeter = true;
                 for (int j = 0; j < buildingBuffer.Count; j++)
                 {
@@ -197,7 +224,8 @@ public class PatrolExecutor : ActionExecutor
             }
         }
 
-        // Fallback: patrol near spawn
+        // Last resort (no buildings at all, or every perimeter candidate was off-NavMesh):
+        // wander within patrolRadius of the warrior's current position.
         for (int attempts = 0; attempts < 5; attempts++)
         {
             float angle = Random.Range(0f, 360f) * Mathf.Deg2Rad;

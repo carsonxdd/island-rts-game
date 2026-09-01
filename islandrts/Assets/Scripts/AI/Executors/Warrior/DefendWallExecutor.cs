@@ -10,9 +10,10 @@ public class DefendWallExecutor : ActionExecutor
 {
     public override string DisplayName => "Defending Wall!";
 
+    /// <summary>Guard post just inside the wall, computed once on entry and then held.</summary>
     private Vector3 lastDefendPosition;
     private bool hasDefendPosition = false;
-    private bool destinationSet = false;
+    private bool destinationSet = false;   // false = the move was rejected; retry next frame
 
     public override void OnEnter(AIBlackboard bb)
     {
@@ -24,7 +25,8 @@ public class DefendWallExecutor : ActionExecutor
             // Move to the wall under attack
             Vector3 wallPos = bb.wallUnderAttack.position;
 
-            // Get campfire direction to position on interior side
+            // Stand on the colony side of the wall, not out in the open with the enemies:
+            // offset from the wall toward the campfire.
             Vector3 interiorDir = Vector3.zero;
             if (bb.baseBuilding != null)
             {
@@ -50,7 +52,8 @@ public class DefendWallExecutor : ActionExecutor
 
     public override void OnUpdate(AIBlackboard bb)
     {
-        // If we've arrived near the wall, engage any nearby enemies
+        // WallIntegrity clears wallUnderAttack once the wall dies or stops taking hits.
+        // Do nothing this tick; the brain re-scores and moves on to Engage or Patrol.
         if (bb.wallUnderAttack == null)
         {
             return; // Wall destroyed or no longer under attack, brain will re-evaluate
@@ -68,8 +71,9 @@ public class DefendWallExecutor : ActionExecutor
 
         if (distToDefendPos < 3f)
         {
-            // Near the wall - look for enemies to fight
-            // The brain will likely switch to EngageEnemy if enemies are in range
+            // In position. This executor deliberately does no fighting of its own - holding
+            // still here puts enemies inside the warrior's detection range, and Engage
+            // outscores Defend as soon as one is close enough to hit.
             bb.agent.isStopped = true;
         }
         else

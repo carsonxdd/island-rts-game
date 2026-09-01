@@ -89,6 +89,8 @@ public class AIBlackboard
     public readonly float[] unreachableNodeExpiry = new float[4];
     private int unreachableRing;
 
+    /// <summary>Remember that this worker could not path to <paramref name="node"/>, so
+    /// node selection skips it for <paramref name="duration"/> seconds.</summary>
     public void MarkNodeUnreachable(ResourceNode node, float duration = 15f)
     {
         if (node == null) return;
@@ -97,6 +99,7 @@ public class AIBlackboard
         unreachableRing = (unreachableRing + 1) % unreachableNodes.Length;
     }
 
+    /// <summary>True while a MarkNodeUnreachable entry for this node is still unexpired.</summary>
     public bool IsNodeUnreachable(ResourceNode node)
     {
         if (node == null) return false;
@@ -135,6 +138,7 @@ public class AIBlackboard
         return true;
     }
 
+    /// <summary>Drop the current target and every cached reference derived from it.</summary>
     public void ClearTarget()
     {
         currentTarget = null;
