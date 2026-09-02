@@ -162,6 +162,10 @@ public class DebugMenu : MonoBehaviour
         GUILayout.Label("Difficulty: " + Difficulty.ActiveName
             + "   (raids " + Difficulty.EnemyCountMultiplier.ToString("0.##") + "x"
             + ", nights to win " + Difficulty.NightsToSurvive + ")");
+        // The island seed is what reproduces a layout bug report — restart
+        // keeps it, NEW GAME rolls a fresh one
+        if (TerrainGrid.Instance != null)
+            GUILayout.Label("Island seed: " + TerrainGrid.Instance.seed);
         GUILayout.Label("Pop " + (pm != null ? pm.GetCurrentWorkers() + "/" + pm.GetHousingCapacity() : "?/?")
             + "   Warriors " + (fire != null ? fire.GetWarriorCount() : 0)
             + "   Enemies " + Enemy.ActiveList.Count);
@@ -182,15 +186,16 @@ public class DebugMenu : MonoBehaviour
         ResourceRow("Wood " + rm.wood, amt => rm.AddWood(amt));
         ResourceRow("Food " + rm.food, amt => rm.AddFood(amt));
         ResourceRow("Stone " + rm.stone, amt => rm.AddStone(amt));
+        ResourceRow("Metal " + rm.metal, amt => rm.AddMetal(amt));
 
         GUILayout.BeginHorizontal();
         if (GUILayout.Button("+1000 all"))
         {
-            rm.AddWood(1000); rm.AddFood(1000); rm.AddStone(1000);
+            rm.AddWood(1000); rm.AddFood(1000); rm.AddStone(1000); rm.AddMetal(1000);
         }
         if (GUILayout.Button("Zero all"))
         {
-            rm.wood = 0; rm.food = 0; rm.stone = 0;
+            rm.wood = 0; rm.food = 0; rm.stone = 0; rm.metal = 0;
         }
         GUILayout.EndHorizontal();
     }
@@ -351,7 +356,7 @@ public class DebugMenu : MonoBehaviour
         var rm = ResourceManager.Instance;
         if (rm != null)
         {
-            rm.AddWood(1000); rm.AddFood(1000); rm.AddStone(1000);
+            rm.AddWood(1000); rm.AddFood(1000); rm.AddStone(1000); rm.AddMetal(1000);
         }
 
         // 1. Campfire — skip the intro if it's still running

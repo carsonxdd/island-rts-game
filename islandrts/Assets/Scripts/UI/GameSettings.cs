@@ -213,6 +213,7 @@ public static class GameSettings
 
         KeyBindings.Load();
         Difficulty.Load();
+        IslandOptions.Load();
 
         Apply();
     }

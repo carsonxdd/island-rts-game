@@ -195,7 +195,6 @@ public struct SimState
 {
     public BaseBuilding Campfire;
     public int Day;
-    public bool IsNight;
     public int Workers;
     public int Warriors;
     public int Enemies;

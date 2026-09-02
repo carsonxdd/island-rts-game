@@ -1,6 +1,6 @@
 # Terrain System Plan — Dynamic Island Terrain
 
-**Status: T1 IMPLEMENTED (2026-08-25) — pending editor setup run + playtest; T2–T4 not started.**
+**Status: T1 (2026-08-25), T2 flatten (2026-08-26), and the T3 connectivity validation + T4 random seed / runtime scatter (2026-09-01, "Island Generator v2" in CLAUDE.md) are implemented — pending editor setup re-run + playtest. Still open from T3: shoreline enemy spawns that emerge from the water (the spawn ring only walks inward to reachable land today). 2026-09-01 evening added player-facing world options (Small / Medium / Large maps of 110 / 150 / 190 m, Rolling / Terraced / Rugged styles, optional seed), habitat-driven node placement and the stylized water shader — see CLAUDE.md "World Options, Metal, Purposeful Nodes, HUD + Water".**
 T1 code: `Assets/Scripts/Terrain/` (`TerrainGrid`, `IslandGenerator`) + `Assets/Editor/TerrainSetup.cs`.
 Apply with `Tools > Island RTS > Terrain > Setup Terrain Scene (T1)` — run AFTER the Opening Sequence setup.
 One deviation from the staging table: the deep-water NotWalkable volume (a T3 item) ships in T1, because

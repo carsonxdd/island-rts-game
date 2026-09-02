@@ -21,13 +21,16 @@ public static class MenuFlow
     public static void NewGame()
     {
         Difficulty.BeginRun();
+        IslandOptions.BeginRun();
+        TerrainGrid.RunSeed = 0;   // fresh island; TerrainGrid.Awake picks the seed
         LoadScene(GameSceneName);
     }
 
     /// <summary>
     /// Replays the current scene under the SAME rules — deliberately no
     /// BeginRun call, so a restart cannot quietly pick up a difficulty the
-    /// player changed on the menu since this run started.
+    /// player changed on the menu since this run started. The island seed
+    /// is kept for the same reason: "try again" means the same island.
     /// </summary>
     public static void Restart()
     {

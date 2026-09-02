@@ -56,6 +56,7 @@ public static class NewContentSetup
         RegisterInDatabase(workshopData, summary);
 
         BuildPickupSpawner(stickPrefab, stonePrefab, summary);
+        WireResourceSpawner(summary);
 
         var scene = EditorSceneManager.GetActiveScene();
         EditorSceneManager.MarkSceneDirty(scene);
@@ -75,6 +76,49 @@ public static class NewContentSetup
         if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return false;
         EditorSceneManager.OpenScene(ScenePath);
         return true;
+    }
+
+    /// <summary>
+    /// Point the scene ResourceSpawner at the ore node prefab (created by the
+    /// plumber as a copy of RockNode) and write the 2026-09-01 sparse,
+    /// terrain-purposed counts. The scene's serialized values are what the
+    /// game reads, so a code-default change never reaches the scene without
+    /// this — hence it lives in a setup step and re-runs idempotently.
+    /// </summary>
+    private static void WireResourceSpawner(StringBuilder summary)
+    {
+        ResourceSpawner spawner = Object.FindAnyObjectByType<ResourceSpawner>();
+        if (spawner == null)
+        {
+            summary.AppendLine("    ResourceSpawner: not found in the scene — ore node NOT wired");
+            return;
+        }
+
+        GameObject ore = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/OreNode.prefab");
+        if (ore == null)
+        {
+            Debug.LogError("[Session Content] OreNode.prefab missing — run 'Low-Poly Templates > Plumb Everything' first (it creates the ore node from RockNode).");
+        }
+
+        SerializedObject so = new SerializedObject(spawner);
+        if (ore != null) so.FindProperty("oreNodePrefab").objectReferenceValue = ore;
+        so.FindProperty("treeCount").intValue = 150;
+        so.FindProperty("berryBushCount").intValue = 60;
+        so.FindProperty("rockNodeCount").intValue = 55;
+        so.FindProperty("oreNodeCount").intValue = 24;
+        so.FindProperty("treeClusters").intValue = 5;
+        so.FindProperty("clusterRadius").floatValue = 12f;
+        so.FindProperty("minTreeSpacing").floatValue = 2.2f;
+        so.FindProperty("minClusterDistFromCampfire").floatValue = 14f;
+        so.FindProperty("scatteredTreeCount").intValue = 20;
+        so.FindProperty("minScatteredTreeSpacing").floatValue = 6f;
+        so.FindProperty("minDistanceBetweenNodes").floatValue = 3.5f;
+        so.FindProperty("minDistanceFromCampfire").floatValue = 6f;
+        so.ApplyModifiedPropertiesWithoutUndo();
+        EditorUtility.SetDirty(spawner);
+
+        summary.AppendLine("    ResourceSpawner: " + (ore != null ? "OreNode wired, " : "")
+            + "counts set to 150 trees / 60 bushes / 55 rocks / 24 ore (5 forests of r12)");
     }
 
     private static GameObject BuildPickupPrefab(string path, string name,

@@ -1,6 +1,5 @@
 using UnityEngine;
 using UnityEngine.AI;
-using System.Collections.Generic;
 
 /// <summary>
 /// The colony's soldier: hunts enemies, defends walls under attack, patrols the perimeter

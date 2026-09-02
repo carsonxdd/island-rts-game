@@ -1,0 +1,73 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 860b843f54852354ba88241fba6bab63, type: 3}
+  m_Name: IslandSettings
+  m_EditorClassIdentifier: Assembly-CSharp::IslandSettings
+  islandRadius: 82
+  aspectMin: 0.8
+  axisSwing: 35
+  borderFalloffStart: 66
+  borderFalloffWidth: 7
+  coastWarp: 8
+  coastScale: 0.045
+  coastWarpLarge: 14
+  coastScaleLarge: 0.016
+  coastStart: 0.6
+  coastWidthSandy: 0.45
+  coastWidthRocky: 0.16
+  rockyCoastAmount: 0.35
+  rockyCoastScale: 0.02
+  baseHeight: 0.5
+  hillAmplitude: 6
+  hillScale: 0.045
+  hillOctaves: 4
+  hillLacunarity: 2
+  hillGain: 0.5
+  interiorStart: 0.7
+  terraceLevels: 4
+  terraceCoverage: 0.65
+  terraceScale: 0.03
+  cliffFraction: 0.65
+  cliffSharpness: 0.1
+  rampSharpness: 0.7
+  rampScale: 0.08
+  ponds: 1
+  pondThreshold: 0.62
+  pondDepth: -0.8
+  pondMaxGround: 3
+  pondShore: 0.24
+  pondScale: 0.05
+  deepDepth: 2.2
+  sandbarAmplitude: 0.5
+  sandbarScale: 0.07
+  microJitter: 0.05
+  toneScale: 0.05
+  bandJitter: 0.25
+  campfireSite: {x: 0, y: 0}
+  coveCenter: {x: -70, y: 3}
+  coveRamp: {x: -58, y: 3}
+  corridorHalfWidth: 5
+  corridorHalfWidthCove: 13
+  corridorBlend: 6
+  campfireFlatRadius: 8
+  campfireFlatBlend: 10
+  campfireHeightMin: 0.8
+  campfireHeightMax: 2.5
+  validate: 1
+  maxAttempts: 8
+  maxWalkableStep: 0.9
+  minRegionCells: 40
+  rampSlope: 0.4
+  rampHalfWidth: 2.5
+  maxRamps: 6
+  minReachableFraction: 0.9
+  minBuildableCells: 1500

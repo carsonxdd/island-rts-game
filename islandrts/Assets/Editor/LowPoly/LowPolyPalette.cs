@@ -79,11 +79,18 @@ namespace IslandRTS.ArtGen
             new Entry("StoneBlock",  "#B4BABE", 0f, null, 0f),
             new Entry("StoneShadow", "#8D9498", 0f, null, 0f),
             new Entry("OreVein",     "#C9B07A", 0.25f, null, 0f),
+            new Entry("OreRock",     "#4E5257", 0f, null, 0f),        // dark host rock of the metal node
+            new Entry("OreMetal",    "#B9C6D2", 0.55f, null, 0f),     // bright metal veins / nuggets
 
             // ---- Thatch / sand -----------------------------------------------
             new Entry("ThatchLight", "#DCB663", 0f, null, 0f),
             new Entry("ThatchDark",  "#B58C3F", 0f, null, 0f),
             new Entry("Sand",        "#E4D2A2", 0f, null, 0f),
+
+            // ---- Terrain bands (TerrainGrid.Surface) ---------------------------
+            new Entry("SandWet",     "#C9B489", 0f, null, 0f),
+            new Entry("GrassDark",   "#5E9E44", 0f, null, 0f),
+            new Entry("GrassDry",    "#B9C25E", 0f, null, 0f),
 
             // ---- Cloth / units -----------------------------------------------
             new Entry("ClothCream",  "#E8DCC0", 0f, null, 0f),

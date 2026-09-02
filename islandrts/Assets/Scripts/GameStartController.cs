@@ -486,7 +486,11 @@ public class GameStartController : MonoBehaviour
             return;
         }
 
-        Vector3 spawnPos = survivorSpawnPoint != null ? survivorSpawnPoint.position : new Vector3(-69f, 0f, 3f);
+        // The cove moves with the island size; the authored spawn point is
+        // one metre east of the cove centre on the standard map
+        Vector3 spawnPos = TerrainGrid.Instance != null
+            ? TerrainGrid.Instance.CoveCenter + new Vector3(1f, 0f, 0f)
+            : (survivorSpawnPoint != null ? survivorSpawnPoint.position : new Vector3(-69f, 0f, 3f));
         NavMeshHit hit;
         if (NavMesh.SamplePosition(spawnPos, out hit, 6f, NavMesh.AllAreas))
         {

@@ -298,13 +298,6 @@ public static class KeyBindings
         }
     }
 
-    public static string Describe(Action action)
-    {
-        Binding b = Get(action);
-        if (b.secondary == KeyCode.None) return Name(b.primary);
-        return Name(b.primary) + "  /  " + Name(b.secondary);
-    }
-
     /// <summary>
     /// The key the player just pressed, for the rebind capture state. Walks the
     /// KeyCode enum rather than using Input.inputString, which only reports

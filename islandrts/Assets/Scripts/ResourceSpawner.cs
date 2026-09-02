@@ -6,10 +6,18 @@ using System.Collections.Generic;
 /// depleted, so a colony can never permanently exhaust the map.
 /// </summary>
 /// <remarks>
-/// Trees are placed in clusters so the island reads as having forests rather than an even
-/// sprinkle of trunks, with a handful of scattered extras between them. Every candidate
-/// position has to clear the terrain (land, not too steep), its neighbours, the campfire
-/// and existing buildings, so nodes never spawn in the sea, on a cliff or inside the base.
+/// Placement is terrain-purposed (2026-09-01): each node type has a <see cref="Habitat"/>
+/// — a height band, a slope band and a grass-tone band — so forests fill the low, dark
+/// valleys, berry bushes sit on the open meadows, stone shows on high or broken ground,
+/// and ore veins are found up on the plateaus and at cliff feet. Trees still cluster into
+/// a few large forests; everything else is spread with generous spacing so the island
+/// reads as places rather than a sprinkle. If a habitat cannot be satisfied on a given
+/// island (a Rolling island has little high ground), the rule relaxes to "any dry,
+/// gentle, reachable ground" rather than leaving the colony without that resource.
+/// Every candidate also clears the campfire and existing buildings.
+///
+/// Counts and distances are authored for the standard 150 m map and scale with
+/// <see cref="TerrainGrid.SizeScale"/> (counts by area, distances linearly).
 /// </remarks>
 public class ResourceSpawner : MonoBehaviour
 {
@@ -17,39 +25,81 @@ public class ResourceSpawner : MonoBehaviour
     public GameObject treePrefab;
     public GameObject berryBushPrefab;
     public GameObject rockNodePrefab;
+    public GameObject oreNodePrefab;
 
-    [Header("Spawn Counts")]
-    public int treeCount = 15;
-    public int berryBushCount = 10;
-    public int rockNodeCount = 8;
+    [Header("Spawn Counts (150 m map; scaled by area)")]
+    public int treeCount = 150;
+    public int berryBushCount = 60;
+    public int rockNodeCount = 55;
+    public int oreNodeCount = 24;
 
-    [Header("Spawn Area")]
-    public Vector2 spawnAreaMin = new Vector2(-20f, -20f);  // Min X/Z
-    public Vector2 spawnAreaMax = new Vector2(20f, 20f);    // Max X/Z
-    public float spawnHeight = 0f;  // Y position
+    [Header("Spawn Area (150 m map; scaled)")]
+    public Vector2 spawnAreaMin = new Vector2(-70f, -70f);  // Min X/Z
+    public Vector2 spawnAreaMax = new Vector2(70f, 70f);    // Max X/Z
+    public float spawnHeight = 0f;  // Y position on the legacy flat world
 
     [Header("Spacing")]
-    public float minDistanceBetweenNodes = 2f;  // Minimum space between resources
-    public float minDistanceFromCampfire = 5f;  // Keep resources away from campfire
-    public float minDistanceFromBuildings = 5f;  // Keep resources away from buildings
+    public float minDistanceBetweenNodes = 3.5f;  // Minimum space between resources
+    public float minDistanceFromCampfire = 6f;    // Keep resources away from campfire
+    public float minDistanceFromBuildings = 5f;   // Keep resources away from buildings
 
     [Header("Tree Clustering")]
-    public int treeClusters = 3;              // Number of forest clusters
-    public float clusterRadius = 6f;          // How spread out trees are within a cluster
-    public float minTreeSpacing = 1.5f;       // Minimum distance between trees in a cluster
-    public float minClusterDistFromCampfire = 8f;  // Keep forests away from campfire
+    public int treeClusters = 5;              // Number of forest clusters
+    public float clusterRadius = 12f;         // How spread out trees are within a cluster
+    public float minTreeSpacing = 2.2f;       // Minimum distance between trees in a cluster
+    public float minClusterDistFromCampfire = 14f;  // Keep forests away from campfire
 
     [Header("Scattered Trees")]
-    public int scatteredTreeCount = 6;        // Extra trees randomly placed between clusters
-    public float minScatteredTreeSpacing = 3f;  // Minimum distance between scattered trees
+    public int scatteredTreeCount = 20;       // Extra trees randomly placed between clusters
+    public float minScatteredTreeSpacing = 6f;  // Minimum distance between scattered trees
+
+    [Header("Habitats (terrain rules per node type)")]
+    public Habitat treeHabitat = new Habitat { minHeight = 0.5f, maxHeight = 4.2f, minSlope = 0f, maxSlope = 0.5f, minTone = 0f, maxTone = 0.62f };
+    public Habitat bushHabitat = new Habitat { minHeight = 0.6f, maxHeight = 4.5f, minSlope = 0f, maxSlope = 0.35f, minTone = 0.42f, maxTone = 1f };
+    public Habitat rockHabitat = new Habitat { minHeight = 1.8f, maxHeight = 8f, minSlope = 0f, maxSlope = 0.55f, minTone = 0f, maxTone = 1f, orSlopeAbove = 0.28f };
+    public Habitat oreHabitat = new Habitat { minHeight = 3.4f, maxHeight = 8f, minSlope = 0f, maxSlope = 0.55f, minTone = 0f, maxTone = 1f, orSlopeAbove = 0.32f, orSlopeMinHeight = 1.5f };
 
     [Header("Respawning")]
     public bool enableRespawning = true;  // Toggle resource respawning
     public float respawnDelay = 10f;  // Seconds before respawning a depleted resource
 
+    /// <summary>Where a node type likes to live. Any band can be left wide open.</summary>
+    [System.Serializable]
+    public class Habitat
+    {
+        public float minHeight, maxHeight;
+        public float minSlope, maxSlope;
+        [Tooltip("Grass tone band 0..1 (0 = dark valley grass, 1 = dry plateau meadow).")]
+        public float minTone, maxTone;
+        [Tooltip("Alternatively accept any ground steeper than this (cliff feet / broken ground), 0 = off.")]
+        public float orSlopeAbove;
+        [Tooltip("...as long as it is at least this high.")]
+        public float orSlopeMinHeight;
+
+        public bool Accepts(TerrainGrid t, Vector3 pos)
+        {
+            float h = t.SampleHeight(pos);
+            float slope = t.SlopeAt(pos);
+            if (orSlopeAbove > 0f && slope >= orSlopeAbove && h >= orSlopeMinHeight) return true;
+            if (h < minHeight || h > maxHeight) return false;
+            if (slope < minSlope || slope > maxSlope) return false;
+            if (minTone > 0f || maxTone < 1f)
+            {
+                float tone = t.ToneAt(pos);
+                if (tone < minTone || tone > maxTone) return false;
+            }
+            return true;
+        }
+    }
+
     private List<Vector3> spawnedPositions = new List<Vector3>();
     private List<Vector3> clusterCenters = new List<Vector3>();  // Track forest centers for respawning
     private Vector3 campfirePosition = Vector3.zero;
+
+    // Effective (scaled) values for this island
+    private float scale = 1f;
+    private Vector2 areaMin, areaMax;
+    private float clusterR;
 
     // Singleton pattern for easy access from ResourceNode
     public static ResourceSpawner Instance { get; private set; }
@@ -70,6 +120,11 @@ public class ResourceSpawner : MonoBehaviour
 
     void Start()
     {
+        scale = TerrainGrid.Instance != null ? TerrainGrid.SizeScale : 1f;
+        areaMin = spawnAreaMin * scale;
+        areaMax = spawnAreaMax * scale;
+        clusterR = clusterRadius * scale;
+
         // Find the campfire position using BaseBuilding component
         BaseBuilding campfire = FindAnyObjectByType<BaseBuilding>();
         if (campfire != null)
@@ -79,9 +134,9 @@ public class ResourceSpawner : MonoBehaviour
         else if (GameStartController.IntroInProgress)
         {
             // Opening sequence: the campfire is placed by the player later.
-            // Spawn around the island center; the campfire placer keeps its own
+            // Spawn around the campfire site; the placer keeps its own
             // clearance from resource nodes instead of the reverse.
-            campfirePosition = Vector3.zero;
+            campfirePosition = TerrainGrid.Instance != null ? TerrainGrid.Instance.CampfireSite : Vector3.zero;
         }
         else
         {
@@ -92,6 +147,8 @@ public class ResourceSpawner : MonoBehaviour
         SpawnAllResources();
     }
 
+    int Scaled(int count) => Mathf.RoundToInt(count * scale * scale);
+
     void SpawnAllResources()
     {
         // Spawn trees in clusters (forests)
@@ -100,11 +157,10 @@ public class ResourceSpawner : MonoBehaviour
         // Spawn scattered individual trees between clusters
         SpawnScatteredTrees();
 
-        // Spawn berry bushes (scattered)
-        SpawnResourceType(berryBushPrefab, berryBushCount, "BerryBush");
-
-        // Spawn rocks (scattered)
-        SpawnResourceType(rockNodePrefab, rockNodeCount, "RockNode");
+        // Bushes on the meadows, stone on the high ground, ore up on the plateaus
+        SpawnResourceType(berryBushPrefab, Scaled(berryBushCount), "BerryBush", bushHabitat);
+        SpawnResourceType(rockNodePrefab, Scaled(rockNodeCount), "RockNode", rockHabitat);
+        SpawnResourceType(oreNodePrefab, Scaled(oreNodeCount), "OreNode", oreHabitat);
     }
 
     void SpawnTreeClusters()
@@ -115,10 +171,12 @@ public class ResourceSpawner : MonoBehaviour
             return;
         }
 
-        int treesPerCluster = Mathf.CeilToInt((float)treeCount / treeClusters);
+        int wantedTrees = Scaled(treeCount);
+        int clusters = Mathf.Max(1, Mathf.RoundToInt(treeClusters * scale));
+        int treesPerCluster = Mathf.CeilToInt((float)wantedTrees / clusters);
         int totalTreesSpawned = 0;
 
-        for (int cluster = 0; cluster < treeClusters; cluster++)
+        for (int cluster = 0; cluster < clusters; cluster++)
         {
             // Find a valid cluster center
             Vector3 clusterCenter = FindClusterCenter();
@@ -131,7 +189,7 @@ public class ResourceSpawner : MonoBehaviour
             clusterCenters.Add(clusterCenter);
 
             // Determine how many trees this cluster gets
-            int treesForThisCluster = Mathf.Min(treesPerCluster, treeCount - totalTreesSpawned);
+            int treesForThisCluster = Mathf.Min(treesPerCluster, wantedTrees - totalTreesSpawned);
 
             int spawned = 0;
             int attempts = 0;
@@ -144,18 +202,21 @@ public class ResourceSpawner : MonoBehaviour
                 // Generate position within cluster radius using gaussian-like distribution
                 // Trees closer to center are more likely (tighter clusters)
                 float angle = Random.Range(0f, 360f) * Mathf.Deg2Rad;
-                float dist = Random.Range(0f, 1f) * Random.Range(0f, 1f) * clusterRadius;  // Bias toward center
+                float dist = Random.Range(0f, 1f) * Random.Range(0f, 1f) * clusterR;  // Bias toward center
                 Vector3 offset = new Vector3(Mathf.Cos(angle) * dist, 0f, Mathf.Sin(angle) * dist);
                 Vector3 treePos = clusterCenter + offset;
                 treePos.y = spawnHeight;
 
                 // Clamp within spawn area, sit on the ground
-                treePos.x = Mathf.Clamp(treePos.x, spawnAreaMin.x, spawnAreaMax.x);
-                treePos.z = Mathf.Clamp(treePos.z, spawnAreaMin.y, spawnAreaMax.y);
+                treePos.x = Mathf.Clamp(treePos.x, areaMin.x, areaMax.x);
+                treePos.z = Mathf.Clamp(treePos.z, areaMin.y, areaMax.y);
                 treePos.y = GroundY(treePos);
 
-                // Validate: on good ground, not too close to other trees, not on buildings
-                if (IsPositionValidForTree(treePos))
+                // Validate: on good ground, not too close to other trees, not on buildings.
+                // Inside a forest the habitat is relaxed after the first half of the
+                // attempts so a cluster on a hillside still fills in.
+                bool relaxed = attempts > maxAttempts / 2;
+                if (IsPositionValidForTree(treePos, relaxed))
                 {
                     GameObject spawnedNode = Instantiate(treePrefab, treePos, Quaternion.identity);
                     // Add slight random rotation for visual variety
@@ -176,21 +237,18 @@ public class ResourceSpawner : MonoBehaviour
     {
         if (treePrefab == null || scatteredTreeCount <= 0) return;
 
+        int wanted = Scaled(scatteredTreeCount);
         int spawned = 0;
         int attempts = 0;
-        int maxAttempts = scatteredTreeCount * 15;
+        int maxAttempts = wanted * 20;
 
-        while (spawned < scatteredTreeCount && attempts < maxAttempts)
+        while (spawned < wanted && attempts < maxAttempts)
         {
             attempts++;
 
-            Vector3 randomPos = new Vector3(
-                Random.Range(spawnAreaMin.x, spawnAreaMax.x),
-                spawnHeight,
-                Random.Range(spawnAreaMin.y, spawnAreaMax.y)
-            );
-            randomPos.y = GroundY(randomPos);
+            Vector3 randomPos = RandomInArea();
             if (!IsTerrainOk(randomPos)) continue;
+            if (attempts <= maxAttempts / 2 && !HabitatOk(treeHabitat, randomPos)) continue;
 
             // Must be away from campfire
             if (Vector3.Distance(randomPos, campfirePosition) < minDistanceFromCampfire)
@@ -200,7 +258,7 @@ public class ResourceSpawner : MonoBehaviour
             bool tooCloseToCluster = false;
             foreach (Vector3 center in clusterCenters)
             {
-                if (Vector3.Distance(randomPos, center) < clusterRadius + 2f)
+                if (Vector3.Distance(randomPos, center) < clusterR + 2f)
                 {
                     tooCloseToCluster = true;
                     break;
@@ -209,16 +267,7 @@ public class ResourceSpawner : MonoBehaviour
             if (tooCloseToCluster) continue;
 
             // Must be away from other resources
-            bool tooCloseToResource = false;
-            foreach (Vector3 pos in spawnedPositions)
-            {
-                if (Vector3.Distance(randomPos, pos) < minScatteredTreeSpacing)
-                {
-                    tooCloseToResource = true;
-                    break;
-                }
-            }
-            if (tooCloseToResource) continue;
+            if (TooClose(randomPos, minScatteredTreeSpacing)) continue;
 
             // Must be away from buildings
             if (!IsPositionClearOfBuildings(randomPos))
@@ -236,29 +285,31 @@ public class ResourceSpawner : MonoBehaviour
     Vector3 FindClusterCenter()
     {
         int attempts = 0;
-        int maxAttempts = 100;
+        int maxAttempts = 160;
 
         while (attempts < maxAttempts)
         {
             attempts++;
 
             Vector3 candidate = new Vector3(
-                Random.Range(spawnAreaMin.x + clusterRadius, spawnAreaMax.x - clusterRadius),
+                Random.Range(areaMin.x + clusterR, areaMax.x - clusterR),
                 spawnHeight,
-                Random.Range(spawnAreaMin.y + clusterRadius, spawnAreaMax.y - clusterRadius)
+                Random.Range(areaMin.y + clusterR, areaMax.y - clusterR)
             );
             candidate.y = GroundY(candidate);
             if (!IsTerrainOk(candidate)) continue;
+            // Forests grow in the low, dark ground; give up on that only late
+            if (attempts <= maxAttempts * 2 / 3 && !HabitatOk(treeHabitat, candidate)) continue;
 
             // Must be far from campfire
-            if (Vector3.Distance(candidate, campfirePosition) < minClusterDistFromCampfire)
+            if (Vector3.Distance(candidate, campfirePosition) < minClusterDistFromCampfire * scale)
                 continue;
 
             // Must be far from other cluster centers (spread forests out)
             bool tooCloseToOtherCluster = false;
             foreach (Vector3 existingCenter in clusterCenters)
             {
-                if (Vector3.Distance(candidate, existingCenter) < clusterRadius * 2.5f)
+                if (Vector3.Distance(candidate, existingCenter) < clusterR * 2.5f)
                 {
                     tooCloseToOtherCluster = true;
                     break;
@@ -275,16 +326,18 @@ public class ResourceSpawner : MonoBehaviour
 
         // Fallback: just pick a random position far from campfire
         return new Vector3(
-            Random.Range(spawnAreaMin.x + clusterRadius, spawnAreaMax.x - clusterRadius),
+            Random.Range(areaMin.x + clusterR, areaMax.x - clusterR),
             spawnHeight,
-            Random.Range(spawnAreaMin.y + clusterRadius, spawnAreaMax.y - clusterRadius)
+            Random.Range(areaMin.y + clusterR, areaMax.y - clusterR)
         );
     }
 
-    bool IsPositionValidForTree(Vector3 position)
+    bool IsPositionValidForTree(Vector3 position, bool relaxedHabitat)
     {
         // Terrain first — no trees in the water or on cliff faces
         if (!IsTerrainOk(position))
+            return false;
+        if (!relaxedHabitat && !HabitatOk(treeHabitat, position))
             return false;
 
         // Check distance from campfire
@@ -292,11 +345,8 @@ public class ResourceSpawner : MonoBehaviour
             return false;
 
         // Check distance from other spawned resources (use tighter tree spacing)
-        foreach (Vector3 spawnedPos in spawnedPositions)
-        {
-            if (Vector3.Distance(position, spawnedPos) < minTreeSpacing)
-                return false;
-        }
+        if (TooClose(position, minTreeSpacing))
+            return false;
 
         // Check distance from buildings
         if (!IsPositionClearOfBuildings(position))
@@ -305,36 +355,35 @@ public class ResourceSpawner : MonoBehaviour
         return true;
     }
 
-    void SpawnResourceType(GameObject prefab, int count, string resourceName)
+    void SpawnResourceType(GameObject prefab, int count, string resourceName, Habitat habitat)
     {
         if (prefab == null)
         {
-            Debug.LogWarning($"ResourceSpawner: {resourceName} prefab is not assigned!");
+            if (count > 0) Debug.LogWarning($"ResourceSpawner: {resourceName} prefab is not assigned!");
             return;
         }
 
         int spawned = 0;
         int attempts = 0;
-        int maxAttempts = count * 10;  // Try 10x the count to find valid positions
+        int maxAttempts = count * 24;
 
         while (spawned < count && attempts < maxAttempts)
         {
             attempts++;
 
-            // Generate random position within spawn area
-            Vector3 randomPos = new Vector3(
-                Random.Range(spawnAreaMin.x, spawnAreaMax.x),
-                spawnHeight,
-                Random.Range(spawnAreaMin.y, spawnAreaMax.y)
-            );
-            randomPos.y = GroundY(randomPos);
+            Vector3 randomPos = RandomInArea();
             if (!IsTerrainOk(randomPos)) continue;
+
+            // Habitat first; relax it for the last third of the attempts so a
+            // resource never goes missing on an island that lacks its ground
+            bool relaxed = attempts > maxAttempts * 2 / 3;
+            if (!relaxed && !HabitatOk(habitat, randomPos)) continue;
 
             // Check if position is far enough from other resources
             if (IsPositionValid(randomPos))
             {
                 // Spawn the resource
-                GameObject spawnedNode = Instantiate(prefab, randomPos, Quaternion.identity);
+                GameObject spawnedNode = Instantiate(prefab, randomPos, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f));
                 spawnedNode.name = $"{resourceName}_{spawned + 1}";
                 spawnedNode.transform.parent = transform;  // Organize under spawner
 
@@ -350,18 +399,47 @@ public class ResourceSpawner : MonoBehaviour
         }
     }
 
-    // --- Terrain integration (T1): resources sit on and validate against the island surface ---
+    // --- Terrain integration: resources sit on and validate against the island surface ---
+
+    Vector3 RandomInArea()
+    {
+        Vector3 p = new Vector3(Random.Range(areaMin.x, areaMax.x), spawnHeight, Random.Range(areaMin.y, areaMax.y));
+        p.y = GroundY(p);
+        return p;
+    }
 
     float GroundY(Vector3 pos)
     {
         return TerrainGrid.Instance != null ? TerrainGrid.Instance.SampleHeight(pos) : spawnHeight;
     }
 
-    /// <summary>Always true on the legacy flat world. On terrain: dry land, gentle slope.</summary>
+    /// <summary>Always true on the legacy flat world. On terrain: dry land, gentle slope, reachable.</summary>
     bool IsTerrainOk(Vector3 pos)
     {
         if (TerrainGrid.Instance == null) return true;
-        return TerrainGrid.Instance.SampleHeight(pos) > 0.15f && TerrainGrid.Instance.SlopeAt(pos) < 0.55f;
+        // Dry, gentle, and reachable from the campfire — a node on a cut-off
+        // outcrop would only ever feed the unreachable-node fallback
+        return TerrainGrid.Instance.SampleHeight(pos) > 0.15f
+            && TerrainGrid.Instance.SlopeAt(pos) < 0.55f
+            && TerrainGrid.Instance.IsReachable(pos);
+    }
+
+    bool HabitatOk(Habitat habitat, Vector3 pos)
+    {
+        if (TerrainGrid.Instance == null || habitat == null) return true;
+        return habitat.Accepts(TerrainGrid.Instance, pos);
+    }
+
+    bool TooClose(Vector3 position, float spacing)
+    {
+        float sq = spacing * spacing;
+        for (int i = 0; i < spawnedPositions.Count; i++)
+        {
+            Vector3 d = spawnedPositions[i] - position;
+            d.y = 0f;
+            if (d.sqrMagnitude < sq) return true;
+        }
+        return false;
     }
 
     bool IsPositionValid(Vector3 position)
@@ -371,27 +449,16 @@ public class ResourceSpawner : MonoBehaviour
             return false;
 
         // Check distance from campfire first
-        float distanceFromCampfire = Vector3.Distance(position, campfirePosition);
-        if (distanceFromCampfire < minDistanceFromCampfire)
-        {
+        if (Vector3.Distance(position, campfirePosition) < minDistanceFromCampfire)
             return false;  // Too close to campfire
-        }
 
         // Check distance from all previously spawned resources
-        foreach (Vector3 spawnedPos in spawnedPositions)
-        {
-            float distance = Vector3.Distance(position, spawnedPos);
-            if (distance < minDistanceBetweenNodes)
-            {
-                return false;  // Too close to another resource
-            }
-        }
+        if (TooClose(position, minDistanceBetweenNodes))
+            return false;
 
         // Check distance from all buildings
         if (!IsPositionClearOfBuildings(position))
-        {
             return false;  // Too close to a building
-        }
 
         return true;  // Position is valid
     }
@@ -467,30 +534,26 @@ public class ResourceSpawner : MonoBehaviour
 
     private Queue<ResourceNode.ResourceType> pendingRespawns = new Queue<ResourceNode.ResourceType>();
 
+    GameObject PrefabFor(ResourceNode.ResourceType type, out string name, out Habitat habitat)
+    {
+        switch (type)
+        {
+            case ResourceNode.ResourceType.Food: name = "BerryBush"; habitat = bushHabitat; return berryBushPrefab;
+            case ResourceNode.ResourceType.Stone: name = "RockNode"; habitat = rockHabitat; return rockNodePrefab;
+            case ResourceNode.ResourceType.Metal: name = "OreNode"; habitat = oreHabitat; return oreNodePrefab;
+            default: name = "Tree"; habitat = treeHabitat; return treePrefab;
+        }
+    }
+
     // Respawn a resource of the same type that was depleted
     void RespawnResource()
     {
         if (pendingRespawns.Count == 0) return;
 
         ResourceNode.ResourceType typeToSpawn = pendingRespawns.Dequeue();
-        GameObject prefabToSpawn = null;
-        string resourceName = "";
-
-        switch (typeToSpawn)
-        {
-            case ResourceNode.ResourceType.Wood:
-                prefabToSpawn = treePrefab;
-                resourceName = "Tree";
-                break;
-            case ResourceNode.ResourceType.Food:
-                prefabToSpawn = berryBushPrefab;
-                resourceName = "BerryBush";
-                break;
-            case ResourceNode.ResourceType.Stone:
-                prefabToSpawn = rockNodePrefab;
-                resourceName = "RockNode";
-                break;
-        }
+        string resourceName;
+        Habitat habitat;
+        GameObject prefabToSpawn = PrefabFor(typeToSpawn, out resourceName, out habitat);
 
         if (prefabToSpawn == null)
         {
@@ -505,25 +568,21 @@ public class ResourceSpawner : MonoBehaviour
                 return;
         }
 
-        // Fallback: spawn at random valid position
+        // Fallback: spawn at random valid position (habitat first, then anywhere)
         int attempts = 0;
-        int maxAttempts = 50;
+        int maxAttempts = 80;
 
         while (attempts < maxAttempts)
         {
             attempts++;
 
-            Vector3 randomPos = new Vector3(
-                Random.Range(spawnAreaMin.x, spawnAreaMax.x),
-                spawnHeight,
-                Random.Range(spawnAreaMin.y, spawnAreaMax.y)
-            );
-            randomPos.y = GroundY(randomPos);
+            Vector3 randomPos = RandomInArea();
             if (!IsTerrainOk(randomPos)) continue;
+            if (attempts <= maxAttempts / 2 && !HabitatOk(habitat, randomPos)) continue;
 
             if (IsPositionValid(randomPos))
             {
-                GameObject spawnedNode = Instantiate(prefabToSpawn, randomPos, Quaternion.identity);
+                GameObject spawnedNode = Instantiate(prefabToSpawn, randomPos, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f));
                 spawnedNode.name = $"{resourceName}_Respawned";
                 spawnedNode.transform.parent = transform;
 
@@ -548,14 +607,14 @@ public class ResourceSpawner : MonoBehaviour
             attempts++;
 
             float angle = Random.Range(0f, 360f) * Mathf.Deg2Rad;
-            float dist = Random.Range(0f, 1f) * Random.Range(0f, 1f) * clusterRadius;
+            float dist = Random.Range(0f, 1f) * Random.Range(0f, 1f) * clusterR;
             Vector3 treePos = cluster + new Vector3(Mathf.Cos(angle) * dist, spawnHeight, Mathf.Sin(angle) * dist);
 
-            treePos.x = Mathf.Clamp(treePos.x, spawnAreaMin.x, spawnAreaMax.x);
-            treePos.z = Mathf.Clamp(treePos.z, spawnAreaMin.y, spawnAreaMax.y);
+            treePos.x = Mathf.Clamp(treePos.x, areaMin.x, areaMax.x);
+            treePos.z = Mathf.Clamp(treePos.z, areaMin.y, areaMax.y);
             treePos.y = GroundY(treePos);
 
-            if (IsPositionValidForTree(treePos))
+            if (IsPositionValidForTree(treePos, attempts > maxAttempts / 2))
             {
                 GameObject spawnedNode = Instantiate(prefab, treePos, Quaternion.identity);
                 spawnedNode.transform.rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
@@ -591,7 +650,7 @@ public class ResourceSpawner : MonoBehaviour
         Gizmos.color = new Color(0f, 0.8f, 0f, 0.5f);
         foreach (Vector3 clusterCenter in clusterCenters)
         {
-            Gizmos.DrawWireSphere(clusterCenter, clusterRadius);
+            Gizmos.DrawWireSphere(clusterCenter, clusterR);
         }
     }
 }

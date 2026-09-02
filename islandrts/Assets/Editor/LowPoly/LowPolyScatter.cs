@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Text;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -7,287 +6,182 @@ using UnityEngine;
 namespace IslandRTS.ArtGen
 {
     /// <summary>
-    /// Scatters the generated environment props into the open scene as set dressing.
+    /// Builds the <see cref="ScatterSettings"/> asset that <see cref="PropScatter"/>
+    /// reads at runtime, from a code table of terrain rules.
     ///
-    /// The 13 Environment assets (palms, rocks, bushes, ferns, grass, driftwood, barrel,
-    /// crate) have no gameplay prefab to plumb into - they are pure decor, so "plumbing"
-    /// them means placing them in MainIsland.unity. Doing that by hand across a 100x100
-    /// island is tedious and unrepeatable, so this does it from a seed.
+    /// Environment props used to be scattered into the scene at edit time from
+    /// a fixed seed. With a random island per run that is impossible — the
+    /// props have to be placed after the island exists — so the editor's job
+    /// shrank to resolving prefab references into an asset the runtime can
+    /// load. Counts and bands are then tunable on the asset without touching
+    /// code; re-running this menu item rewrites the asset from the table
+    /// below (it is the source of truth, so put lasting tuning here).
     ///
-    /// Everything lands under one parent object, so a re-scatter is destroy-and-rebuild and
-    /// the scene diff stays regenerable rather than hand-authored. Nothing here is a
-    /// prefab-breaking change: the art prefabs carry no colliders, so scattered props never
-    /// block pathing, never intercept clicks, and never affect the NavMesh bake.
-    ///
-    /// Placement rules:
-    ///   - a downward raycast must hit ground, so props never land on water
-    ///   - a clearing is kept around the campfire so the build area stays usable
-    ///   - each prop type gets a radial band (palms and flotsam outward, ferns inward)
-    ///   - a spacing grid stops props from interpenetrating
+    /// Rules are terrain-based (height band, slope band, grass tone): palms
+    /// and flotsam hug the shore by HEIGHT, ferns prefer dark grass by TONE,
+    /// rocks lean toward slopes and cliff feet by SLOPE. Nothing is radial —
+    /// the island is a different shape every run.
     /// </summary>
     public static class LowPolyScatter
     {
         private const string MenuRoot = "Tools/Island RTS/Low-Poly Templates/";
-        private const string ScatterRootName = "_LowPolyScatter";
+        private const string LegacyScatterRootName = "_LowPolyScatter";
         private const string ArtPrefabRoot = "Assets/Art/Prefabs/Environment/";
+        public const string SettingsAssetPath = "Assets/Settings/ScatterSettings.asset";
 
-        // ---- Tuning ------------------------------------------------------
-        // Deliberately constants rather than a window: re-scattering is cheap, so tuning is
-        // "edit a number, run it again" instead of a UI nobody maintains.
-
-        /// <summary>Change this for a completely different layout with the same density.</summary>
-        private const int Seed = 20260823;
-
-        /// <summary>Half-extent of the playfield (150x150 world, island radius ~72).</summary>
-        private const float IslandRadius = 70f;
-
-        /// <summary>Nothing is placed inside this radius, so the campfire build area stays clear.</summary>
-        private const float CampfireClearing = 13f;
-
-        /// <summary>Give up on a prop after this many rejected candidates.</summary>
-        private const int MaxTriesPerProp = 40;
-
-        private class PropDef
+        private struct Def
         {
             public string Prefab;
             public int Count;
-            /// <summary>Radial band from the island centre, in world units.</summary>
-            public float MinRadius, MaxRadius;
-            /// <summary>Minimum distance to any other scattered prop.</summary>
+            public float MinH, MaxH;
+            public float MinSlope, MaxSlope;
+            public float MinTone, MaxTone;
             public float Spacing;
-            /// <summary>Uniform scale jitter range.</summary>
             public float MinScale, MaxScale;
+
+            public Def(string prefab, int count, float minH, float maxH, float minSlope, float maxSlope,
+                       float minTone, float maxTone, float spacing, float minScale, float maxScale)
+            {
+                Prefab = prefab; Count = count; MinH = minH; MaxH = maxH; MinSlope = minSlope; MaxSlope = maxSlope;
+                MinTone = minTone; MaxTone = maxTone; Spacing = spacing; MinScale = minScale; MaxScale = maxScale;
+            }
         }
 
-        // Palms and flotsam sit outward toward the shoreline; ferns, grass and bushes fill
-        // the interior. Counts are deliberately moderate - ResourceSpawner already drops 200
-        // trees, 100 bushes and 100 rocks at runtime, so this is dressing, not a forest.
-        private static readonly PropDef[] Props =
+        // Height reference: wading band −0.4..0, wet sand to ~0.2, beach to ~0.65,
+        // grass above, plateau tops up to ~6.5. Counts are dressing, not a forest —
+        // ResourceSpawner drops ~440 gameplay nodes on top of this.
+        private static readonly Def[] Table =
         {
-            new PropDef { Prefab = "Palm_Tall.prefab",     Count = 30, MinRadius = 30f, MaxRadius = 69f, Spacing = 4f,   MinScale = 0.85f, MaxScale = 1.2f },
-            new PropDef { Prefab = "Palm_Bent.prefab",     Count = 20, MinRadius = 36f, MaxRadius = 69f, Spacing = 4f,   MinScale = 0.85f, MaxScale = 1.2f },
-            new PropDef { Prefab = "Palm_Young.prefab",    Count = 24, MinRadius = 27f, MaxRadius = 69f, Spacing = 3f,   MinScale = 0.9f,  MaxScale = 1.15f },
+            //          prefab                 count  minH   maxH   minSl  maxSl  minT  maxT  spacing minS  maxS
+            // Deliberately sparse (halved 2026-09-01): decor should frame the
+            // gameplay nodes, not compete with them. Counts are for the 150 m
+            // map; PropScatter scales them with map area.
+            new Def("Palm_Tall.prefab",         26,   0.20f, 1.60f, 0f,    0.50f, 0f,   1f,   5.0f,  0.85f, 1.20f),
+            new Def("Palm_Bent.prefab",         16,   0.15f, 1.20f, 0f,    0.50f, 0f,   1f,   5.0f,  0.85f, 1.20f),
+            new Def("Palm_Young.prefab",        18,   0.30f, 2.50f, 0f,    0.55f, 0f,   1f,   4.0f,  0.90f, 1.15f),
 
-            new PropDef { Prefab = "Rock_Large.prefab",    Count = 14, MinRadius = 21f, MaxRadius = 69f, Spacing = 5f,   MinScale = 0.9f,  MaxScale = 1.3f },
-            new PropDef { Prefab = "Rock_Medium.prefab",   Count = 24, MinRadius = 18f, MaxRadius = 69f, Spacing = 3.5f, MinScale = 0.85f, MaxScale = 1.25f },
-            new PropDef { Prefab = "Rock_Small.prefab",    Count = 40, MinRadius = 18f, MaxRadius = 69f, Spacing = 2.5f, MinScale = 0.8f,  MaxScale = 1.3f },
+            // Rocks: one rule for cliff feet and slopes, one for open ground
+            new Def("Rock_Large.prefab",         9,   0.60f, 7.50f, 0.30f, 1.50f, 0f,   1f,   6.0f,  0.90f, 1.30f),
+            new Def("Rock_Large.prefab",         4,   0.60f, 7.50f, 0f,    0.30f, 0f,   1f,   8.0f,  0.90f, 1.30f),
+            new Def("Rock_Medium.prefab",       16,   0.50f, 7.50f, 0.15f, 1.50f, 0f,   1f,   4.5f,  0.85f, 1.25f),
+            new Def("Rock_Small.prefab",        26,   0.50f, 7.50f, 0f,    1.50f, 0f,   1f,   3.5f,  0.80f, 1.30f),
 
-            new PropDef { Prefab = "Bush_Round.prefab",    Count = 44, MinRadius = 19f, MaxRadius = 67f, Spacing = 2.5f, MinScale = 0.85f, MaxScale = 1.25f },
-            new PropDef { Prefab = "Bush_Wide.prefab",     Count = 30, MinRadius = 19f, MaxRadius = 67f, Spacing = 2.5f, MinScale = 0.85f, MaxScale = 1.25f },
-            new PropDef { Prefab = "Fern.prefab",          Count = 50, MinRadius = 18f, MaxRadius = 66f, Spacing = 2f,   MinScale = 0.8f,  MaxScale = 1.2f },
-            new PropDef { Prefab = "GrassTuft.prefab",     Count = 120, MinRadius = 18f, MaxRadius = 69f, Spacing = 1.5f, MinScale = 0.8f,  MaxScale = 1.35f },
+            new Def("Bush_Round.prefab",        24,   0.70f, 7.00f, 0f,    0.60f, 0f,   1f,   3.5f,  0.85f, 1.25f),
+            new Def("Bush_Wide.prefab",         16,   0.70f, 7.00f, 0f,    0.60f, 0f,   1f,   3.5f,  0.85f, 1.25f),
+            new Def("Fern.prefab",              30,   0.70f, 7.00f, 0f,    0.60f, 0f,   0.40f, 3.0f, 0.80f, 1.20f),
+            new Def("GrassTuft.prefab",         90,   0.60f, 7.20f, 0f,    0.70f, 0f,   1f,   2.0f,  0.80f, 1.35f),
 
-            new PropDef { Prefab = "DriftwoodLog.prefab",  Count = 16, MinRadius = 50f, MaxRadius = 69f, Spacing = 4f,   MinScale = 0.9f,  MaxScale = 1.2f },
-            new PropDef { Prefab = "Barrel.prefab",        Count = 8,  MinRadius = 48f, MaxRadius = 69f, Spacing = 3f,   MinScale = 0.95f, MaxScale = 1.1f },
-            new PropDef { Prefab = "Crate.prefab",         Count = 10, MinRadius = 48f, MaxRadius = 69f, Spacing = 3f,   MinScale = 0.95f, MaxScale = 1.1f },
+            // Flotsam: wading band + wet sand
+            new Def("DriftwoodLog.prefab",      12,  -0.30f, 0.50f, 0f,    0.40f, 0f,   1f,   5.0f,  0.90f, 1.20f),
+            new Def("Barrel.prefab",             5,  -0.20f, 0.50f, 0f,    0.40f, 0f,   1f,   4.0f,  0.95f, 1.10f),
+            new Def("Crate.prefab",              6,  -0.20f, 0.50f, 0f,    0.40f, 0f,   1f,   4.0f,  0.95f, 1.10f),
         };
 
         // ==================================================================
         // Menu entries
         // ==================================================================
 
-        [MenuItem(MenuRoot + "Scatter Environment Props", false, 80)]
-        public static void Scatter()
+        [MenuItem(MenuRoot + "Build Scatter Settings", false, 80)]
+        public static void BuildSettingsMenu()
         {
-            // This decorates whatever scene is active, and every other setup
-            // tool guards on MainIsland — without this, running it with the
-            // menu scene open drops 400 props into the title screen.
-            if (!EnsureGameSceneOpen()) return;
-
-            GameObject scatterRoot = FindScatterRoot();
-            if (scatterRoot != null) Object.DestroyImmediate(scatterRoot);
-
-            scatterRoot = new GameObject(ScatterRootName);
-            Undo.RegisterCreatedObjectUndo(scatterRoot, "Scatter Environment Props");
-
-            Vector3 centre = FindIslandCentre();
-
-            // Terrain-aware grounding: generate the same heightfield the game builds at
-            // runtime. (Terrain chunk colliders only exist in Play mode, so the old
-            // physics raycast found nothing once the Ground plane was deleted.) Seed
-            // comes from the scene's TerrainGrid when present.
-            TerrainGrid sceneGrid = Object.FindAnyObjectByType<TerrainGrid>();
-            float[,] heights = IslandGenerator.Generate(
-                TerrainGrid.VertsPerSide, TerrainGrid.Spacing,
-                sceneGrid != null ? sceneGrid.seed : 20260825);
-
-            // Deterministic layout: same seed in, same island out. Save and restore Unity's
-            // global random state so running this does not perturb anything else.
-            Random.State previousState = Random.state;
-            Random.InitState(Seed);
-
-            List<Vector3> placed = new List<Vector3>();
-            StringBuilder summary = new StringBuilder();
-            summary.AppendLine("[LowPoly] Environment scatter complete (seed " + Seed + ").");
-            summary.AppendLine("  PROP                 PLACED / WANTED");
-
-            int total = 0;
-            int skipped = 0;
-
-            try
-            {
-                for (int i = 0; i < Props.Length; i++)
-                {
-                    PropDef def = Props[i];
-
-                    GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(ArtPrefabRoot + def.Prefab);
-                    if (prefab == null)
-                    {
-                        Debug.LogError("[LowPoly] Prop prefab not found: " + ArtPrefabRoot + def.Prefab
-                            + ". Run 'Generate All Assets' first.");
-                        continue;
-                    }
-
-                    Transform group = new GameObject(System.IO.Path.GetFileNameWithoutExtension(def.Prefab)).transform;
-                    group.SetParent(scatterRoot.transform, false);
-
-                    int made = PlaceGroup(def, prefab, group, centre, placed, heights);
-                    total += made;
-                    skipped += def.Count - made;
-
-                    summary.AppendLine(string.Format("  {0,-20} {1,3} / {2,3}",
-                        System.IO.Path.GetFileNameWithoutExtension(def.Prefab), made, def.Count));
-                }
-            }
-            finally
-            {
-                Random.state = previousState;
-            }
-
-            summary.AppendLine();
-            summary.AppendLine("  " + total + " props placed under '" + ScatterRootName + "'.");
-            if (skipped > 0)
-            {
-                // Never let a density cap look like full coverage.
-                summary.AppendLine("  " + skipped + " could not find a free spot in " + MaxTriesPerProp
-                    + " tries - lower Spacing or Count in LowPolyScatter.cs to fit more.");
-            }
-            summary.AppendLine("  Props carry no colliders, so pathing, clicks and the NavMesh are unaffected.");
-            summary.AppendLine("  Scene is dirty - save it to keep the layout.");
-
-            EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
-            Debug.Log(summary.ToString());
+            ScatterSettings asset = EnsureSettingsAsset();
+            if (asset != null) Selection.activeObject = asset;
         }
 
-        [MenuItem(MenuRoot + "Clear Scattered Props", false, 81)]
+        /// <summary>
+        /// Write (or rewrite) the ScatterSettings asset from the table.
+        /// Called by the terrain setup so a fresh project gets one without a
+        /// separate step. Returns null if the art library is missing.
+        /// </summary>
+        public static ScatterSettings EnsureSettingsAsset()
+        {
+            ScatterSettings asset = AssetDatabase.LoadAssetAtPath<ScatterSettings>(SettingsAssetPath);
+            bool isNew = asset == null;
+            if (isNew)
+            {
+                asset = ScriptableObject.CreateInstance<ScatterSettings>();
+                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(SettingsAssetPath));
+                AssetDatabase.CreateAsset(asset, SettingsAssetPath);
+            }
+
+            StringBuilder summary = new StringBuilder();
+            summary.AppendLine("[LowPoly] ScatterSettings " + (isNew ? "created" : "rewritten") + " at " + SettingsAssetPath);
+
+            var rules = new System.Collections.Generic.List<ScatterSettings.Rule>();
+            int missing = 0;
+            for (int i = 0; i < Table.Length; i++)
+            {
+                Def d = Table[i];
+                GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(ArtPrefabRoot + d.Prefab);
+                if (prefab == null)
+                {
+                    missing++;
+                    summary.AppendLine("    MISSING " + ArtPrefabRoot + d.Prefab + " — run 'Generate All Assets' first");
+                    continue;
+                }
+
+                rules.Add(new ScatterSettings.Rule
+                {
+                    prefab = prefab,
+                    count = d.Count,
+                    minHeight = d.MinH, maxHeight = d.MaxH,
+                    minSlope = d.MinSlope, maxSlope = d.MaxSlope,
+                    minTone = d.MinTone, maxTone = d.MaxTone,
+                    spacing = d.Spacing,
+                    minScale = d.MinScale, maxScale = d.MaxScale,
+                });
+            }
+
+            asset.rules = rules.ToArray();
+            EditorUtility.SetDirty(asset);
+            AssetDatabase.SaveAssets();
+
+            summary.AppendLine("    " + rules.Count + " rules, " + TotalCount(rules) + " props wanted per island");
+            if (missing > 0)
+            {
+                Debug.LogError(summary.ToString());
+                return rules.Count > 0 ? asset : null;
+            }
+            Debug.Log(summary.ToString());
+            return asset;
+        }
+
+        /// <summary>
+        /// Remove the pre-runtime-scatter scene decor (the old _LowPolyScatter
+        /// root). Also called by the terrain setup.
+        /// </summary>
+        [MenuItem(MenuRoot + "Clear Legacy Scattered Props", false, 81)]
         public static void Clear()
         {
-            GameObject scatterRoot = FindScatterRoot();
+            GameObject scatterRoot = FindLegacyScatterRoot();
             if (scatterRoot == null)
             {
-                Debug.Log("[LowPoly] Nothing to clear - no '" + ScatterRootName + "' in the open scene.");
+                Debug.Log("[LowPoly] Nothing to clear - no '" + LegacyScatterRootName + "' in the open scene.");
                 return;
             }
 
             Undo.DestroyObjectImmediate(scatterRoot);
             EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
-            Debug.Log("[LowPoly] Removed '" + ScatterRootName + "'.");
+            Debug.Log("[LowPoly] Removed '" + LegacyScatterRootName + "' — props are scattered at runtime now (PropScatter).");
         }
+
+        public static bool HasLegacyScatter() => FindLegacyScatterRoot() != null;
 
         // ==================================================================
-        // Placement
-        // ==================================================================
 
-        private static int PlaceGroup(PropDef def, GameObject prefab, Transform group,
-                                      Vector3 centre, List<Vector3> placed, float[,] heights)
+        private static int TotalCount(System.Collections.Generic.List<ScatterSettings.Rule> rules)
         {
-            int made = 0;
-
-            for (int i = 0; i < def.Count; i++)
-            {
-                for (int attempt = 0; attempt < MaxTriesPerProp; attempt++)
-                {
-                    // Sqrt on the radius keeps the distribution area-uniform instead of
-                    // bunching everything against the inner edge of the band.
-                    float t = Mathf.Sqrt(Random.value);
-                    float radius = Mathf.Lerp(def.MinRadius, def.MaxRadius, t);
-                    float angle = Random.value * Mathf.PI * 2f;
-
-                    Vector3 candidate = centre + new Vector3(
-                        Mathf.Cos(angle) * radius, 0f, Mathf.Sin(angle) * radius);
-
-                    if (candidate.magnitude > IslandRadius) continue;
-                    if (Vector3.Distance(candidate, centre) < CampfireClearing) continue;
-                    if (TooClose(candidate, placed, def.Spacing)) continue;
-
-                    Vector3 grounded;
-                    if (!SampleGround(candidate, heights, out grounded)) continue;
-
-                    GameObject instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab, group);
-                    instance.transform.position = grounded;
-                    instance.transform.rotation = Quaternion.Euler(0f, Random.value * 360f, 0f);
-
-                    float scale = Random.Range(def.MinScale, def.MaxScale);
-                    instance.transform.localScale = new Vector3(scale, scale, scale);
-
-                    // Decor never moves, so let it batch now and be lightmap-ready for Stage 4.
-                    GameObjectUtility.SetStaticEditorFlags(instance, StaticEditorFlags.BatchingStatic
-                        | StaticEditorFlags.ContributeGI | StaticEditorFlags.OccludeeStatic);
-
-                    placed.Add(grounded);
-                    made++;
-                    break;
-                }
-            }
-
-            return made;
+            int n = 0;
+            for (int i = 0; i < rules.Count; i++) n += rules[i].count;
+            return n;
         }
 
-        private static bool TooClose(Vector3 candidate, List<Vector3> placed, float spacing)
-        {
-            float sqrSpacing = spacing * spacing;
-            for (int i = 0; i < placed.Count; i++)
-            {
-                Vector3 delta = placed[i] - candidate;
-                delta.y = 0f;
-                if (delta.sqrMagnitude < sqrSpacing) return true;
-            }
-            return false;
-        }
-
-        /// <summary>
-        /// Drop the candidate onto the generated island surface. Below-waterline
-        /// (h &lt; 0.05) candidates are rejected - that is how props stay off the water.
-        /// </summary>
-        private static bool SampleGround(Vector3 candidate, float[,] heights, out Vector3 grounded)
-        {
-            grounded = candidate;
-
-            float h = TerrainGrid.SampleField(heights, candidate.x, candidate.z);
-            if (h < 0.05f) return false;
-
-            grounded = new Vector3(candidate.x, h, candidate.z);
-            return true;
-        }
-
-        /// <summary>
-        /// The campfire is the island centre for layout purposes. Falls back to the origin,
-        /// which is where MainIsland actually puts it.
-        /// </summary>
-        private static Vector3 FindIslandCentre()
-        {
-            BaseBuilding campfire = Object.FindAnyObjectByType<BaseBuilding>();
-            if (campfire != null) return new Vector3(campfire.transform.position.x, 0f, campfire.transform.position.z);
-            return Vector3.zero;
-        }
-
-        /// <summary>Same guard the other setup tools use — scatter belongs in the game scene only.</summary>
-        private static bool EnsureGameSceneOpen()
-        {
-            const string ScenePath = "Assets/MainIsland.unity";
-            if (EditorSceneManager.GetActiveScene().path == ScenePath) return true;
-
-            if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return false;
-            EditorSceneManager.OpenScene(ScenePath);
-            return true;
-        }
-
-        private static GameObject FindScatterRoot()
+        private static GameObject FindLegacyScatterRoot()
         {
             GameObject[] roots = EditorSceneManager.GetActiveScene().GetRootGameObjects();
             for (int i = 0; i < roots.Length; i++)
             {
-                if (roots[i].name == ScatterRootName) return roots[i];
+                if (roots[i].name == LegacyScatterRootName) return roots[i];
             }
             return null;
         }

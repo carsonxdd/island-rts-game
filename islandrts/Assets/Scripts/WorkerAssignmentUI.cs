@@ -1,154 +1,90 @@
 using UnityEngine;
 using UnityEngine.UI;
-using TMPro;  // TextMeshPro for text
+using TMPro;
+using System;
+using System.Collections.Generic;
 
 /// <summary>
-/// The campfire panel: assign workers to wood, food or stone and recruit warriors.
-/// This is the player's main lever on the economy.
+/// The campfire panel: assign workers to wood, food, stone or metal and
+/// recruit warriors. This is the player's main lever on the economy.
 /// </summary>
 /// <remarks>
-/// Display only - the campfire owns the worker roster and every count shown here. Buttons
-/// disable themselves when an action is unaffordable or the population is capped, and the
-/// labels are dirty-checked so an idle panel costs nothing.
+/// Built entirely in code on the menu system's widgets (2026-09-01) — no
+/// scene wiring, one row per job with a coloured swatch, a −/+ pair and a
+/// live count, a warriors row with its cost, and a housing line. The old
+/// hand-built WorkerAssignmentPanel is removed by the legacy cleanup step.
+///
+/// Display only — the campfire owns the worker roster and every count shown
+/// here. Buttons disable themselves when an action is unaffordable or the
+/// population is capped, and every label is dirty-checked so an open panel
+/// costs nothing while idle. Esc closes it (PauseController defers to
+/// <see cref="IsOpen"/>), as does clicking X.
 /// </remarks>
 public class WorkerAssignmentUI : MonoBehaviour
 {
-    [Header("UI References - Drag from Hierarchy")]
-    public GameObject uiPanel;  // The main panel that shows/hides
-    public Button closeButton;  // X button to close panel
+    public static WorkerAssignmentUI Instance { get; private set; }
 
-    [Header("Wood Worker UI")]
-    public TextMeshProUGUI woodCountText;  // Shows "Wood: 2"
-    public Button woodPlusButton;   // + button for wood workers
-    public Button woodMinusButton;  // - button for wood workers
+    /// <summary>True while the panel is showing — PauseController lets Esc close it instead of pausing.</summary>
+    public static bool IsOpen => Instance != null && Instance.panel != null && Instance.panel.gameObject.activeSelf;
 
-    [Header("Food Worker UI")]
-    public TextMeshProUGUI foodCountText;  // Shows "Food: 1"
-    public Button foodPlusButton;   // + button for food workers
-    public Button foodMinusButton;  // - button for food workers
-
-    [Header("Stone Worker UI")]
-    public TextMeshProUGUI stoneCountText;  // Shows "Stone: 0"
-    public Button stonePlusButton;   // + button for stone workers
-    public Button stoneMinusButton;  // - button for stone workers
-
-    [Header("Warrior UI")]
-    public TextMeshProUGUI warriorCountText;  // Shows "Warriors: 2"
-    public Button warriorPlusButton;   // + button for warriors
-    public Button warriorMinusButton;  // - button for warriors
-    public TextMeshProUGUI warriorCostText;  // Shows cost "Cost: 10 Wood, 15 Food"
-
-    [Header("Total Workers")]
-    public TextMeshProUGUI totalWorkersCountText;  // Shows just "3 / 10" (not the label)
-
-    // Reference to the Campfire building
     private BaseBuilding baseBuilding;
+    private RectTransform panel;
 
-    // Dirty-check caches so UpdateDisplay only rebuilds strings when a value changes
-    private int lastWoodWorkers = -1;
-    private int lastFoodWorkers = -1;
-    private int lastStoneWorkers = -1;
-    private int lastTotalWorkers = -1;
-    private int lastHousingCapacity = -1;
-    private int lastWarriorCount = -1;
+    private class JobRow
+    {
+        public ResourceNode.ResourceType type;
+        public TextMeshProUGUI count;
+        public Button minus, plus;
+        public int last = -1;
+    }
+
+    private readonly List<JobRow> jobs = new List<JobRow>();
+    private TextMeshProUGUI warriorCount, warriorCost, housingText;
+    private Button warriorMinus, warriorPlus;
+    private int lastWarriors = -1, lastHousingUsed = -1, lastHousingCap = -1;
+    private bool lastCanRecruit;
+
+    void Awake()
+    {
+        Instance = this;
+    }
 
     void Start()
     {
-        // Hide the panel when game starts
-        if (uiPanel != null)
-        {
-            uiPanel.SetActive(false);
-        }
-
-        // Connect button clicks to functions
-        SetupButtons();
+        if (SimHooks.Simulating) { enabled = false; return; }
+        Build();
+        panel.gameObject.SetActive(false);
     }
 
-    void SetupButtons()
+    void OnDestroy()
     {
-        // Close button
-        if (closeButton != null)
-        {
-            closeButton.onClick.AddListener(ClosePanel);
-        }
-
-        // Wood buttons
-        if (woodPlusButton != null)
-        {
-            woodPlusButton.onClick.AddListener(() => OnPlusClicked(ResourceNode.ResourceType.Wood));
-        }
-        if (woodMinusButton != null)
-        {
-            woodMinusButton.onClick.AddListener(() => OnMinusClicked(ResourceNode.ResourceType.Wood));
-        }
-
-        // Food buttons
-        if (foodPlusButton != null)
-        {
-            foodPlusButton.onClick.AddListener(() => OnPlusClicked(ResourceNode.ResourceType.Food));
-        }
-        if (foodMinusButton != null)
-        {
-            foodMinusButton.onClick.AddListener(() => OnMinusClicked(ResourceNode.ResourceType.Food));
-        }
-
-        // Stone buttons
-        if (stonePlusButton != null)
-        {
-            stonePlusButton.onClick.AddListener(() => OnPlusClicked(ResourceNode.ResourceType.Stone));
-        }
-        if (stoneMinusButton != null)
-        {
-            stoneMinusButton.onClick.AddListener(() => OnMinusClicked(ResourceNode.ResourceType.Stone));
-        }
-
-        // Warrior buttons
-        if (warriorPlusButton != null)
-        {
-            warriorPlusButton.onClick.AddListener(OnWarriorPlusClicked);
-        }
-        if (warriorMinusButton != null)
-        {
-            warriorMinusButton.onClick.AddListener(OnWarriorMinusClicked);
-        }
+        if (Instance == this) Instance = null;
     }
 
     /// <summary>
-    /// Opens the UI panel and connects it to a specific base building
-    /// Called from BaseBuilding.cs when player clicks the Campfire
+    /// Opens the panel for a specific base building. Called from
+    /// BaseBuilding when the player clicks the campfire, and from the HUD.
     /// </summary>
     public void OpenPanel(BaseBuilding building)
     {
+        if (panel == null) Build();
         baseBuilding = building;
 
         // Invalidate dirty caches so everything refreshes for this building
-        lastWoodWorkers = lastFoodWorkers = lastStoneWorkers = -1;
-        lastTotalWorkers = lastHousingCapacity = lastWarriorCount = -1;
+        for (int i = 0; i < jobs.Count; i++) jobs[i].last = -1;
+        lastWarriors = lastHousingUsed = lastHousingCap = -1;
 
-        // Warrior cost never changes while the panel is open — set it once here
-        if (warriorCostText != null)
-        {
-            warriorCostText.text = $"Cost: {building.warriorCost_Wood} Wood, {building.warriorCost_Food} Food";
-        }
+        warriorCost.text = building.warriorCost_Wood + " wood  ·  " + building.warriorCost_Food + " food";
 
-        if (uiPanel != null)
-        {
-            uiPanel.SetActive(true);
-            UpdateDisplay();  // Refresh the numbers
-        }
+        panel.gameObject.SetActive(true);
+        UpdateDisplay();
     }
 
-    /// <summary>
-    /// Closes the UI panel
-    /// </summary>
     public void ClosePanel()
     {
-        if (uiPanel != null)
-        {
-            uiPanel.SetActive(false);
-        }
+        if (panel != null) panel.gameObject.SetActive(false);
+        baseBuilding = null;
 
-        // Play button click sound
         if (AudioManager.Instance != null)
         {
             AudioManager.Instance.PlayButtonClick();
@@ -157,176 +93,236 @@ public class WorkerAssignmentUI : MonoBehaviour
 
     void Update()
     {
-        // Keep UI updated in real-time while panel is open
-        if (uiPanel != null && uiPanel.activeSelf && baseBuilding != null)
+        if (panel == null || !panel.gameObject.activeSelf) return;
+
+        if (baseBuilding == null)  // campfire destroyed while open
         {
-            UpdateDisplay();
+            panel.gameObject.SetActive(false);
+            return;
         }
+
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            ClosePanel();
+            return;
+        }
+
+        UpdateDisplay();
     }
 
-    /// <summary>
-    /// Updates all the text displays with current worker counts
-    /// </summary>
+    // ------------------------------------------------------------------
+    // Construction
+    // ------------------------------------------------------------------
+
+    void Build()
+    {
+        // Root-level canvas on purpose (a canvas nested in a canvas ignores its own scaler)
+        Canvas canvas = MenuBuilder.CreateCanvas("CampfireCanvas", 60);
+
+        panel = MenuBuilder.Panel(canvas.transform, "CampfirePanel", 520f, 100f);
+        // Bottom-centre, above the build bar area, so it never hides the base
+        panel.anchorMin = panel.anchorMax = new Vector2(0.5f, 0f);
+        panel.pivot = new Vector2(0.5f, 0f);
+        panel.anchoredPosition = new Vector2(0f, 36f);
+
+        VerticalLayoutGroup col = MenuBuilder.Column(panel, 4f);
+
+        // Title row with an X
+        RectTransform title = MenuBuilder.SettingRow(col.transform, "CAMPFIRE", out RectTransform titleSlot, 40f);
+        TextMeshProUGUI titleText = title.GetComponentInChildren<TextMeshProUGUI>();
+        titleText.color = MenuStyle.TextAccent;
+        titleText.fontSize = MenuStyle.HeadingSize - 4f;
+        titleText.characterSpacing = 3f;
+        SmallButton(titleSlot, "X", ClosePanel, new Vector2(0.84f, 0.1f), new Vector2(1f, 0.9f));
+        MenuBuilder.Divider(col.transform);
+
+        MenuBuilder.SectionHeader(col.transform, "Workers");
+        jobs.Add(MakeJobRow(col.transform, ResourceNode.ResourceType.Wood, "Wood cutters"));
+        jobs.Add(MakeJobRow(col.transform, ResourceNode.ResourceType.Food, "Foragers"));
+        jobs.Add(MakeJobRow(col.transform, ResourceNode.ResourceType.Stone, "Quarriers"));
+        jobs.Add(MakeJobRow(col.transform, ResourceNode.ResourceType.Metal, "Miners"));
+
+        housingText = MenuBuilder.RowDescription(col.transform, "Housing 0 / 0");
+
+        MenuBuilder.SectionHeader(col.transform, "Defence");
+        MenuBuilder.SettingRow(col.transform, "Warriors", out RectTransform wslot);
+        CounterControls(wslot, OnWarriorMinusClicked, OnWarriorPlusClicked, out warriorCount, out warriorMinus, out warriorPlus);
+        warriorCost = MenuBuilder.RowDescription(col.transform, "");
+
+        MenuBuilder.Spacer(col.transform, 4f);
+        MenuBuilder.FitPanelHeight(panel, col);
+    }
+
+    JobRow MakeJobRow(Transform parent, ResourceNode.ResourceType type, string label)
+    {
+        JobRow row = new JobRow { type = type };
+        RectTransform rt = MenuBuilder.SettingRow(parent, label, out RectTransform slot);
+
+        // Colour swatch in front of the label, matching the HUD chip
+        RectTransform sw = MenuBuilder.SimpleImage(rt, "Swatch", ResourceUI.ColorFor(type));
+        sw.anchorMin = new Vector2(0f, 0.25f);
+        sw.anchorMax = new Vector2(0f, 0.75f);
+        sw.pivot = new Vector2(0f, 0.5f);
+        sw.anchoredPosition = new Vector2(-14f, 0f);
+        sw.sizeDelta = new Vector2(8f, 0f);
+
+        CounterControls(slot, () => OnMinusClicked(type), () => OnPlusClicked(type), out row.count, out row.minus, out row.plus);
+        return row;
+    }
+
+    /// <summary>[ − ]  count  [ + ] inside a row's control slot.</summary>
+    static void CounterControls(RectTransform slot, Action onMinus, Action onPlus,
+        out TextMeshProUGUI count, out Button minus, out Button plus)
+    {
+        minus = SmallButton(slot, "−", onMinus, new Vector2(0.20f, 0.1f), new Vector2(0.40f, 0.9f));
+        plus = SmallButton(slot, "+", onPlus, new Vector2(0.72f, 0.1f), new Vector2(0.92f, 0.9f));
+
+        count = MenuBuilder.Label(slot, "0", MenuStyle.BodySize, MenuStyle.TextAccent);
+        RectTransform crt = count.rectTransform;
+        crt.anchorMin = new Vector2(0.42f, 0f);
+        crt.anchorMax = new Vector2(0.70f, 1f);
+        crt.offsetMin = Vector2.zero;
+        crt.offsetMax = Vector2.zero;
+    }
+
+    static Button SmallButton(RectTransform parent, string text, Action onClick, Vector2 anchorMin, Vector2 anchorMax)
+    {
+        Button b = MenuBuilder.MenuButton(parent, text, onClick);
+        UnityEngine.Object.Destroy(b.GetComponent<LayoutElement>());   // anchored, not laid out
+        RectTransform rt = b.GetComponent<RectTransform>();
+        rt.anchorMin = anchorMin;
+        rt.anchorMax = anchorMax;
+        rt.offsetMin = Vector2.zero;
+        rt.offsetMax = Vector2.zero;
+        return b;
+    }
+
+    // ------------------------------------------------------------------
+    // Refresh
+    // ------------------------------------------------------------------
+
     void UpdateDisplay()
     {
         if (baseBuilding == null) return;
 
-        // Update wood count
-        if (woodCountText != null && baseBuilding.woodWorkers != lastWoodWorkers)
-        {
-            lastWoodWorkers = baseBuilding.woodWorkers;
-            woodCountText.text = $"Wood: {lastWoodWorkers}";
-        }
+        int housingCap = PopulationManager.Instance != null ? PopulationManager.Instance.GetHousingCapacity() : 10;
+        int housingUsed = PopulationManager.Instance != null ? PopulationManager.Instance.GetCurrentWorkers() : baseBuilding.GetTotalWorkers();
+        bool canAssign = PopulationManager.Instance == null || PopulationManager.Instance.HasAvailableHousing();
 
-        // Update food count
-        if (foodCountText != null && baseBuilding.foodWorkers != lastFoodWorkers)
+        for (int i = 0; i < jobs.Count; i++)
         {
-            lastFoodWorkers = baseBuilding.foodWorkers;
-            foodCountText.text = $"Food: {lastFoodWorkers}";
-        }
-
-        // Update stone count
-        if (stoneCountText != null && baseBuilding.stoneWorkers != lastStoneWorkers)
-        {
-            lastStoneWorkers = baseBuilding.stoneWorkers;
-            stoneCountText.text = $"Stone: {lastStoneWorkers}";
-        }
-
-        // Update total workers count (just the numbers, not the label)
-        if (totalWorkersCountText != null)
-        {
-            int total = baseBuilding.GetTotalWorkers();
-            int max = PopulationManager.Instance != null ? PopulationManager.Instance.GetHousingCapacity() : 10;
-            if (total != lastTotalWorkers || max != lastHousingCapacity)
+            JobRow row = jobs[i];
+            int n = WorkersOn(row.type);
+            if (n != row.last)
             {
-                lastTotalWorkers = total;
-                lastHousingCapacity = max;
-                totalWorkersCountText.text = $"{total} / {max}";
+                row.last = n;
+                row.count.text = n.ToString();
             }
+            row.minus.interactable = n > 0;
+            row.plus.interactable = canAssign;
         }
 
-        // Update warrior count
-        if (warriorCountText != null)
+        if (housingUsed != lastHousingUsed || housingCap != lastHousingCap)
         {
-            int current = baseBuilding.GetWarriorCount();
-            if (current != lastWarriorCount)
-            {
-                lastWarriorCount = current;
-                warriorCountText.text = $"Warriors: {current} / {baseBuilding.maxWarriors}";
-            }
+            lastHousingUsed = housingUsed;
+            lastHousingCap = housingCap;
+            housingText.text = "Housing " + housingUsed + " / " + housingCap
+                + (housingUsed >= housingCap ? "  —  build a hut for more workers" : "");
+            housingText.color = housingUsed >= housingCap ? MenuStyle.TextAccent : MenuStyle.TextMuted;
+        }
+
+        int warriors = baseBuilding.GetWarriorCount();
+        if (warriors != lastWarriors)
+        {
+            lastWarriors = warriors;
+            warriorCount.text = warriors + " / " + baseBuilding.maxWarriors;
+        }
+
+        bool canRecruit = warriors < baseBuilding.maxWarriors
+            && ResourceManager.Instance != null
+            && ResourceManager.Instance.wood >= baseBuilding.warriorCost_Wood
+            && ResourceManager.Instance.food >= baseBuilding.warriorCost_Food;
+        if (canRecruit != lastCanRecruit || warriorPlus.interactable != canRecruit)
+        {
+            lastCanRecruit = canRecruit;
+            warriorPlus.interactable = canRecruit;
+        }
+        warriorMinus.interactable = warriors > 0;
+    }
+
+    int WorkersOn(ResourceNode.ResourceType t)
+    {
+        switch (t)
+        {
+            case ResourceNode.ResourceType.Food: return baseBuilding.foodWorkers;
+            case ResourceNode.ResourceType.Stone: return baseBuilding.stoneWorkers;
+            case ResourceNode.ResourceType.Metal: return baseBuilding.metalWorkers;
+            default: return baseBuilding.woodWorkers;
         }
     }
 
-    /// <summary>
-    /// Called when + button is clicked
-    /// Assigns a new worker to the resource type
-    /// </summary>
+    // ------------------------------------------------------------------
+    // Actions
+    // ------------------------------------------------------------------
+
     void OnPlusClicked(ResourceNode.ResourceType resourceType)
     {
-        if (baseBuilding == null)
-        {
-            Debug.LogError("WorkerAssignmentUI: No baseBuilding reference!");
-            return;
-        }
+        if (baseBuilding == null) return;
 
-        // Add worker through BaseBuilding (it will check housing capacity internally)
+        // Add worker through BaseBuilding (it checks housing capacity internally)
         baseBuilding.AssignWorker(resourceType);
 
-        // Play worker assigned sound
         if (AudioManager.Instance != null)
         {
             AudioManager.Instance.PlayWorkerAssigned();
         }
 
-        // Update the UI display
         UpdateDisplay();
     }
 
-    /// <summary>
-    /// Called when - button is clicked
-    /// Removes a worker from the resource type
-    /// </summary>
     void OnMinusClicked(ResourceNode.ResourceType resourceType)
     {
-        if (baseBuilding == null)
-        {
-            Debug.LogError("WorkerAssignmentUI: No baseBuilding reference!");
-            return;
-        }
+        if (baseBuilding == null) return;
 
-        // Remove worker through BaseBuilding
         baseBuilding.UnassignWorker(resourceType);
 
-        // Play button click sound
         if (AudioManager.Instance != null)
         {
             AudioManager.Instance.PlayButtonClick();
         }
 
-        // Update the UI display
         UpdateDisplay();
     }
 
-    /// <summary>
-    /// Called when warrior + button is clicked
-    /// Recruits a new warrior
-    /// </summary>
     void OnWarriorPlusClicked()
     {
-        if (baseBuilding == null)
-        {
-            Debug.LogError("WorkerAssignmentUI: No baseBuilding reference!");
-            return;
-        }
+        if (baseBuilding == null) return;
 
-        // Check if at max warriors
-        if (baseBuilding.GetWarriorCount() >= baseBuilding.maxWarriors)
-        {
-            return;
-        }
-
-        // Check resources
+        if (baseBuilding.GetWarriorCount() >= baseBuilding.maxWarriors) return;
         if (ResourceManager.Instance.wood < baseBuilding.warriorCost_Wood ||
-            ResourceManager.Instance.food < baseBuilding.warriorCost_Food)
-        {
-            return;
-        }
+            ResourceManager.Instance.food < baseBuilding.warriorCost_Food) return;
 
-        // Spawn warrior through BaseBuilding
         baseBuilding.SpawnWarrior();
 
-        // Play button click sound
         if (AudioManager.Instance != null)
         {
             AudioManager.Instance.PlayButtonClick();
         }
 
-        // Update the UI display
         UpdateDisplay();
     }
 
-    /// <summary>
-    /// Called when warrior - button is clicked
-    /// Removes a warrior
-    /// </summary>
     void OnWarriorMinusClicked()
     {
-        if (baseBuilding == null)
-        {
-            Debug.LogError("WorkerAssignmentUI: No baseBuilding reference!");
-            return;
-        }
+        if (baseBuilding == null) return;
 
-        // Remove warrior through BaseBuilding
         baseBuilding.RemoveWarrior();
 
-        // Play button click sound
         if (AudioManager.Instance != null)
         {
             AudioManager.Instance.PlayButtonClick();
         }
 
-        // Update the UI display
         UpdateDisplay();
     }
 }

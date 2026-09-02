@@ -4,7 +4,7 @@ A Unity-based real-time strategy survival game. Manage autonomous workers, gathe
 
 **Genre:** Top-down RTS + Survival  
 **Setting:** Age of Sail shipwreck on an uncharted island  
-**Status:** Playable alpha (Phase 6.26 + Opening Sequence Stage 1 + Terrain T1) — the game opens with the story beat (a lone survivor wades ashore from the shipwreck and places the campfire himself; applied in-scene via the Opening Sequence setup tool) and the world is now a procedurally shaped island (Terrain T1). All of that is applied by editor tools that must run in a specific order — **`Tools > Island RTS > Setup Everything (In Order)` does all eight in one go.** An F4 debug menu (editor/dev builds) covers resource grants, a quick-start colony, time controls, and combat cheats for playtesting. Phase 10 Stage 2 (low-poly art) is applied in-editor. Now on Unity 6000.5.9f1; Phases 6.24–6.26, the opening sequence, the terrain, the art plumbing, the menus, the settings/keybinding/difficulty pass and the rebuilt end screens all still await a proper playtest — the accumulated checklist, and the editor setup steps that must run first, are in [`docs/CONTROLS_AND_CHECKLIST.md`](docs/CONTROLS_AND_CHECKLIST.md).
+**Status:** Playable alpha (Phase 6.26 + Opening Sequence Stage 1 + Terrain T1–T4) — the game opens with the story beat (a lone survivor wades ashore from the shipwreck and places the campfire himself; applied in-scene via the Opening Sequence setup tool) and the world is a procedurally generated island that is different every game (size, terrain style and seed picked on the New Game screen). All of that is applied by editor tools that must run in a specific order — **`Tools > Island RTS > Setup Everything (In Order)` does all eight in one go.** An F4 debug menu (editor/dev builds) covers resource grants, a quick-start colony, time controls, and combat cheats for playtesting. Phase 10 Stage 2 (low-poly art) is applied in-editor. Now on Unity 6000.5.9f1; Phases 6.24–6.26, the opening sequence, the terrain, the art plumbing, the menus, the settings/keybinding/difficulty pass and the rebuilt end screens all still await a proper playtest — the accumulated checklist, and the editor setup steps that must run first, are in [`docs/CONTROLS_AND_CHECKLIST.md`](docs/CONTROLS_AND_CHECKLIST.md).
 
 ---
 
@@ -26,7 +26,7 @@ A Unity-based real-time strategy survival game. Manage autonomous workers, gathe
 5. Recruit 2-3 warriors before nightfall
 6. Survive 5 nights to win
 
-> **First time in a fresh clone, run `Tools > Island RTS > Setup Everything (In Order)` once.** The art library, opening sequence, scattered props, island terrain, pickups/workshop and menu scene are all applied by editor tools, and the order they run in matters — the master item does all eight in dependency order and leaves `MainMenu` open, which is what a build starts on. `Tools > Island RTS > Open Game Scene (MainIsland)` skips the title screen. Every step is idempotent, so re-run it after pulling art or changing the island seed. A `skipIntro` toggle on the `GameStart` object restores the classic instant start.
+> **First time in a fresh clone, run `Tools > Island RTS > Setup Everything (In Order)` once.** The art library, opening sequence, prop-scatter settings, island terrain, pickups/workshop and menu scene are all applied by editor tools, and the order they run in matters — the master item does all eight in dependency order and leaves `MainMenu` open, which is what a build starts on. `Tools > Island RTS > Open Game Scene (MainIsland)` skips the title screen. Every step is idempotent, so re-run it after pulling art or a generator defaults pass. A `skipIntro` toggle on the `GameStart` object restores the classic instant start.
 
 ---
 
@@ -102,7 +102,7 @@ islandrts/Assets/
 │   ├── Warrior.cs               # Warrior unit + AI setup
 │   ├── Enemy.cs                 # Enemy unit + AI setup
 │   ├── BuildPlacement.cs        # Building placement, wall drawing, demolish
-│   ├── Terrain/                 # TerrainGrid (chunked island mesh + runtime NavMesh), IslandGenerator
+│   ├── Terrain/                 # TerrainGrid (chunked island mesh + runtime NavMesh), IslandGenerator pipeline, IslandSettings/IslandOptions, PropScatter
 │   ├── GameStartController.cs   # Opening sequence (survivor landing → campfire → colony)
 │   ├── DebugMenu.cs             # F4 cheat menu (editor + dev builds only)
 │   ├── WallGrid.cs              # O(1) wall/gate grid registry
@@ -161,7 +161,8 @@ All units (Workers, Warriors, Enemies) use a **scoring-based Utility AI** — no
 | System | Description |
 |--------|-------------|
 | **Opening** | Survivor lands at the wreck, walks ashore, places the campfire (day/night clock held until it's lit). |
-| **Economy** | Wood, food, stone. Workers gather autonomously. Carry capacity 5, 1/sec rate. |
+| **Economy** | Wood, food, stone, metal. Workers gather autonomously (cutters, foragers, quarriers, miners). Carry capacity 5, 1/sec rate. Metal has no cost sink yet. |
+| **World** | A new island every game: size (110 / 150 / 190 m), terrain style (Rolling / Terraced / Rugged) and an optional seed are picked on the New Game screen and locked for the run. Plateaus, cliffs, ramps, ponds, rocky and sandy shores; every plateau is guaranteed reachable. |
 | **Pickups** | Sticks and stones scattered on the island (+3 wood / +3 stone). Wood and stone workers detour to collect nearby ones; they trickle-respawn. |
 | **Building** | Hut (housing), Wooden/Stone Wall, Gate, Watchtower, Workshop. Placement flattens a pad in the terrain. Construction sites auto-complete. |
 | **Crafting** | Click the Workshop for one-time upgrades: Sharpened Tools (+30% gather), Sturdy Scaffolds (+50% build speed), Forged Blades (+30% warrior damage). |
@@ -193,7 +194,9 @@ Everything else (per-unit spawn/death, per-damage, per-resource tick, per-button
 
 For detailed technical documentation, AI system internals, balancing data, phase history, and gotchas, see [`.claude/CLAUDE.md`](.claude/CLAUDE.md).
 
-Latest: **Settings with real depth, and the end screens finally lead somewhere.**
+Latest: **A random island every game, and a world worth picking.** The island generator became a settings-driven pipeline (`IslandSettings` asset: shape → relief → terraces → ponds → seabed → detail → anchors → validation). Every NEW GAME rolls a fresh island — restart replays the same one — and the New Game screen gained a **World** section: island size (110 / 150 / 190 m), terrain style (Rolling / Terraced / Rugged) and an optional seed. Landforms are broad and gradual with stepped plateaus whose edges are true cliffs in places and walkable ramps in others; a flood-fill validator from the campfire site carves ramps to any cut-off region and rerolls seeds that still fail, so every plateau is reachable and the survivor's walk from the cove never meets a cliff. Seven terrain material bands (wet sand, sand, three grass tones, rock, cliff) are classified from the smooth field so hillsides read as one flowing band, with valleys dark and plateau tops dry. Environment props are scattered at runtime from terrain rules instead of baked into the scene, and are deliberately sparse. Resource nodes are placed by habitat — forests in the low dark ground, bushes on meadows, stone on high or broken ground — with a new **metal** resource from ore nodes on the plateaus, gathered by a Miner job (nothing costs it yet). The resource bar and campfire panel were rebuilt in code on the menu widgets (four resources plus housing, every chip a shortcut to the panel), and the placeholder grey sea is now a hand-written stylized water shader: depth-based turquoise-to-blue, drifting shoreline foam, gentle low-poly waves and a stepped sun glint. `Tools > Island RTS > Terrain > Preview Island Seeds` renders twelve islands to PNG without Play mode for tuning. Re-run `Setup Everything (In Order)` to apply.
+
+Before that: **Settings with real depth, and the end screens finally lead somewhere.**
 
 The options screen went from 12 settings on three tabs to 22 on four, and grew the two things it had been stubbing out. **Key rebinding is real**: `KeyBindings.cs` is now the single source of truth for all 17 gameplay actions, with a main and an alternate slot each — which is how WASD *and* the arrow keys, or Delete *and* X, work without a special case. No script holds a `KeyCode` of its own any more, and camera panning stopped reading Unity's fixed `"Horizontal"`/`"Vertical"` axes, which had made pan the one action visible on the Controls screen that couldn't actually be changed. Binding a key already in use takes it from the old action rather than throwing a modal error mid-remap. **Resolution is real too** — a proper display-mode and resolution list, plus a frame cap. New alongside them: a Camera tab (zoom and rotation speed, invert tilt, screen shake as a 0–1.5× slider instead of a toggle), an Interface tab (UI scale, health-bar mode, unit state labels, pause-when-unfocused), and per-row description lines so a setting says what it does.
 
@@ -258,11 +261,11 @@ Future roadmap:
 - **Phase 10: Visual Overhaul** — stylized low-poly tropical aesthetic in the Bad North / Townscaper / Islanders family. Five stages:
   - **Stage 1 ✓ shipped** — URP Global Volume (Bloom, Color Adjustments, White Balance, ACES Tonemapping, Vignette) + warm directional light + ambient gradient. New `LightingPreset` ScriptableObject drives day/night via `DayNightCycle` (replaces old `dayColor`/`nightColor` inspector fields). Campfire has HDR emission so it blooms with threshold at spec value. Night is moonlit: the directional light holds a fixed moon pose during night with soft shadows (`shadowStrength` lerped via the presets), instead of sweeping below the horizon and leaving the scene ambient-only.
   - **Stage 2 (in progress)** — Asset replacement via the in-repo procedural generator (`Assets/Editor/LowPoly/`): template-simple units/buildings/resource nodes plumbed onto the gameplay prefabs, environment scatter, per-instance tree variants. Bought-pack / Blender assets remain an option for later hero polish.
-  - **Stage 3** — Stylized URP water shader (Shader Graph): Gerstner displacement, depth-blended turquoise, shoreline foam, quantized sun specular, flat-shaded normals
+  - **Stage 3 ✓ shipped (simple form)** — hand-written URP water shader (`Assets/Shaders/StylizedWater.shader`): sine displacement on a real grid mesh, depth-blended turquoise-to-blue, noise-broken shoreline foam, stepped sun specular, derivative-based flat normals
   - **Stage 4** — Lighting bake (mixed mode), exponential fog, shadow cascade tuning, optional SSAO
   - **Stage 5** — Sequencing: post-processing now, water shader as Phase 7–8 side project, full asset swap during Phase 10 proper
   - Full spec: [`PHASE_10_VISUAL_OVERHAUL.md`](PHASE_10_VISUAL_OVERHAUL.md)
-- **Terrain System:** dynamic island terrain — chunked low-poly heightmap with hills, valleys, beaches, and real water. **T1 (fixed-seed shaped island + runtime NavMesh) implemented**; ahead: T2 terrain smoothing under placed buildings, T3 enemies wading ashore from the shallows, T4 a new random island each run. Full spec: [`TERRAIN_SYSTEM_PLAN.md`](TERRAIN_SYSTEM_PLAN.md)
+- **Terrain System:** dynamic island terrain — chunked low-poly heightmap with hills, valleys, beaches, and real water. **T1–T4 implemented** (shaped island + runtime NavMesh, flatten-on-placement, connectivity validation with ramp repair, a random island per run with player-chosen size / style / seed); still ahead from T3: enemies wading ashore from the shallows. Full spec: [`TERRAIN_SYSTEM_PLAN.md`](TERRAIN_SYSTEM_PLAN.md)
 
 ---
 

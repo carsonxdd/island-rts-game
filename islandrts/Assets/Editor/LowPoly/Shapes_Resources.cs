@@ -39,6 +39,9 @@ namespace IslandRTS.ArtGen
 
             list.Add(new AssetDef("RockNode", AssetCategory.Resources,
                 () => OreRock(4301, 1.3f), "1.3 x 1.0"));
+
+            list.Add(new AssetDef("OreNode", AssetCategory.Resources,
+                () => MetalOreRock(4351, 1.35f), "1.35 x 1.0 — dark host rock, bright metal veins"));
         }
 
         // ==================================================================
@@ -144,6 +147,43 @@ namespace IslandRTS.ArtGen
                 Vector3 inner = center + Vector3.Scale(unit * 0.35f, half);                // buried root
                 Vector3 outer = center + Vector3.Scale(unit * b.Rand(1.25f, 1.45f), half); // tip past the surface
                 b.TaperedSegment(inner, outer, size * b.Rand(0.10f, 0.14f), 0f, 4, 45f);
+            }
+
+            return b;
+        }
+
+        /// <summary>
+        /// The metal node: a darker, blockier boulder than the stone node, with
+        /// bright metal veins as flat wedges lying ALONG the surface (rather
+        /// than the stone node's spiky crystals) so the two read differently
+        /// from the RTS camera at a glance. Same embedding rule as the ore
+        /// crystals: rooted inside the nominal surface, tips just past it.
+        /// </summary>
+        private static MeshBuilder MetalOreRock(int seed, float size)
+        {
+            MeshBuilder b = new MeshBuilder(seed);
+
+            b.Use("OreRock");
+            Vector3 bodySize = new Vector3(size * 1.1f, size * 0.85f, size * 1.0f);
+            b.Rock(Vector3.zero, bodySize, 0.12f, 3, 6);
+
+            b.Use("OreMetal");
+            Vector3 half = bodySize * 0.5f;
+            Vector3 center = new Vector3(0f, half.y, 0f);
+            const int veins = 5;
+            for (int i = 0; i < veins; i++)
+            {
+                float a = ((360f / veins) * i + 10f + b.Rand(-20f, 20f)) * Mathf.Deg2Rad;
+                float yUnit = b.Rand(0.15f, 0.65f);
+                float ring = Mathf.Sqrt(1f - yUnit * yUnit);
+                Vector3 unit = new Vector3(Mathf.Cos(a) * ring, yUnit, Mathf.Sin(a) * ring);
+
+                // A short thick wedge straddling the surface, leaning sideways
+                Vector3 tangent = Vector3.Cross(unit, Vector3.up).normalized;
+                Vector3 mid = center + Vector3.Scale(unit * 0.95f, half);
+                Vector3 from = mid - tangent * size * b.Rand(0.14f, 0.22f) - unit * size * 0.12f;
+                Vector3 to = mid + tangent * size * b.Rand(0.14f, 0.22f) + unit * size * 0.10f;
+                b.TaperedSegment(from, to, size * b.Rand(0.09f, 0.12f), size * 0.05f, 4, b.Rand(0f, 90f));
             }
 
             return b;

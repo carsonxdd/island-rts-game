@@ -29,7 +29,6 @@ public static class SimBuilder
     public static int HutCount => Hut.ActiveList.Count;
     public static int WallCount => Wall.ActiveList.Count + Gate.ActiveList.Count;
     public static int TowerCount => Watchtower.ActiveList.Count;
-    public static int SiteCount => ConstructionSite.ActiveList.Count;
 
     /// <summary>Construction sites of one type currently in flight (so a policy doesn't double-order).</summary>
     public static int PendingSites(BuildingType type)

@@ -19,7 +19,8 @@ using System.Collections.Generic;
 /// </remarks>
 public class ResourceNode : MonoBehaviour
 {
-    public enum ResourceType { Wood, Food, Stone }
+    /// <summary>Order is serialized (prefabs store the int) — append, never reorder.</summary>
+    public enum ResourceType { Wood, Food, Stone, Metal }
 
     [Header("Resource Type")]
     public ResourceType resourceType = ResourceType.Wood;
@@ -122,6 +123,7 @@ public class ResourceNode : MonoBehaviour
                 obstacle.height = 1f;
                 break;
             case ResourceType.Stone:  // Rocks
+            case ResourceType.Metal:  // Ore boulders — same footprint as rocks
                 obstacle.radius = 0.5f;
                 obstacle.height = 1.0f;
                 break;
@@ -369,12 +371,6 @@ public class ResourceNode : MonoBehaviour
     public bool HasResources()
     {
         return currentAmount > 0;
-    }
-
-    // Get number of workers currently gathering
-    public int GetWorkerCount()
-    {
-        return activeWorkers.Count;
     }
 
     // Claim system: track workers heading TO this node (not just gathering)

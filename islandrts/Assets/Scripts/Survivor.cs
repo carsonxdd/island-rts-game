@@ -54,14 +54,6 @@ public class Survivor : MonoBehaviour
         }
     }
 
-    /// <summary>Remaining distance to the current destination (straight-line to the pending point if the agent hasn't accepted it yet).</summary>
-    public bool HasArrived(float tolerance)
-    {
-        if (hasPendingDestination) return false;
-        if (agent.pathPending) return false;
-        return agent.remainingDistance <= tolerance;
-    }
-
     void Update()
     {
         if (hasPendingDestination)

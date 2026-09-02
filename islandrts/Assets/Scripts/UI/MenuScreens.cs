@@ -317,12 +317,28 @@ public class MenuScreens : MonoBehaviour
             MenuBuilder.ValueRow(col.transform, "Nights to survive", p.nightsToSurvive.ToString());
         }
 
+        // The world: island size, terrain style, optional seed. Same locking
+        // rule as difficulty — TerrainGrid reads the snapshot in its Awake.
+        MenuBuilder.SectionHeader(col.transform, "World");
+
+        MenuBuilder.StepperRow(col.transform, "Island size", IslandOptions.SizeNames, (int)IslandOptions.SelectedSize,
+            i => { IslandOptions.SelectedSize = (IslandOptions.Size)i; IslandOptions.Save(); Rebuild(); },
+            IslandOptions.SizeBlurbs[(int)IslandOptions.SelectedSize]);
+
+        MenuBuilder.StepperRow(col.transform, "Terrain", IslandSettings.StyleNames, (int)IslandOptions.SelectedStyle,
+            i => { IslandOptions.SelectedStyle = (IslandSettings.Style)i; IslandOptions.Save(); Rebuild(); },
+            IslandSettings.StyleBlurbs[(int)IslandOptions.SelectedStyle]);
+
+        MenuBuilder.InputRow(col.transform, "Seed", IslandOptions.SelectedSeedText, "random",
+            v => { IslandOptions.SelectedSeedText = v; IslandOptions.Save(); },
+            "Leave empty for a new island every game. A number or a word replays the same one.");
+
         MenuBuilder.Spacer(col.transform, 10f);
-        MenuBuilder.Label(col.transform, "Difficulty is locked once the run begins.",
+        MenuBuilder.Label(col.transform, "Difficulty and world are locked once the run begins.",
             MenuStyle.SmallSize, MenuStyle.TextMuted).gameObject
             .AddComponent<LayoutElement>().preferredHeight = 22f;
 
-        MenuBuilder.MenuButton(col.transform, "BEGIN", () => { Difficulty.Save(); MenuFlow.NewGame(); },
+        MenuBuilder.MenuButton(col.transform, "BEGIN", () => { Difficulty.Save(); IslandOptions.Save(); MenuFlow.NewGame(); },
             textColor: MenuStyle.TextAccent);
         MenuBuilder.MenuButton(col.transform, "BACK", () => Back());
     }
@@ -343,7 +359,10 @@ public class MenuScreens : MonoBehaviour
 
         // Read-only: the run's rules are fixed, and saying so here is what stops
         // a player hunting for the difficulty setting in Options.
-        MenuBuilder.Label(col.transform, Difficulty.ActiveName.ToUpperInvariant() + " · locked for this run",
+        string island = TerrainGrid.Instance != null
+            ? IslandOptions.ActiveName + " island · seed " + TerrainGrid.Instance.seed
+            : IslandOptions.ActiveName + " island";
+        MenuBuilder.Label(col.transform, Difficulty.ActiveName.ToUpperInvariant() + " · " + island + " · locked for this run",
             MenuStyle.SmallSize, MenuStyle.TextMuted)
             .gameObject.AddComponent<LayoutElement>().preferredHeight = 22f;
 
@@ -716,7 +735,7 @@ public class MenuScreens : MonoBehaviour
         if (rm != null)
         {
             MenuBuilder.ValueRow(parent, "Resources on hand",
-                rm.wood + "W  ·  " + rm.food + "F  ·  " + rm.stone + "S");
+                rm.wood + "W  ·  " + rm.food + "F  ·  " + rm.stone + "S  ·  " + rm.metal + "M");
         }
 
         MenuBuilder.ValueRow(parent, "Difficulty", Difficulty.ActiveName, MenuStyle.TextMuted);

@@ -55,7 +55,6 @@ public class WallConnector : MonoBehaviour
     private const float PILLAR_SIZE = 0.4f;
     private const float Y_OFFSET = 0.02f; // Slight raise to avoid ground z-fighting
     private const float GATE_HEIGHT_RATIO = 0.5f; // Gates are half the height of walls
-    private const float GATE_ARCHWAY_WIDTH = 0.35f; // Width of the archway opening
 
     private float wallHeight;
 

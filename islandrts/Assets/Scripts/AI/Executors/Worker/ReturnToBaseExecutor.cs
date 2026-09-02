@@ -134,18 +134,7 @@ public class ReturnToBaseExecutor : ActionExecutor
 
         int amountToDeliver = Mathf.RoundToInt(bb.carryAmount);
 
-        switch (bb.assignedResourceType)
-        {
-            case ResourceNode.ResourceType.Wood:
-                ResourceManager.Instance.AddWood(amountToDeliver);
-                break;
-            case ResourceNode.ResourceType.Food:
-                ResourceManager.Instance.AddFood(amountToDeliver);
-                break;
-            case ResourceNode.ResourceType.Stone:
-                ResourceManager.Instance.AddStone(amountToDeliver);
-                break;
-        }
+        ResourceManager.Instance.Add(bb.assignedResourceType, amountToDeliver);
 
         bb.carryAmount = 0f;
         bb.worker.carryAmount = 0f;

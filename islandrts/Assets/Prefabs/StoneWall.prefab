@@ -152,7 +152,6 @@ MonoBehaviour:
   mediumHealthColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   lowHealthColor: {r: 1, g: 0, b: 0, a: 1}
   backgroundColor: {r: 0.2, g: 0.2, b: 0.2, a: 0.8}
-  hideWhenFull: 1
   hideWhenDead: 1
 --- !u!114 &131755715600747303
 MonoBehaviour:

@@ -1,6 +1,5 @@
 using UnityEngine;
 using UnityEngine.AI;
-using System.Collections.Generic;
 
 /// <summary>
 /// Warrior executor: Form up at colony perimeter facing approaching enemies.

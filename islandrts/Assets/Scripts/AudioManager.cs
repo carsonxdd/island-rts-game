@@ -226,26 +226,6 @@ public class AudioManager : MonoBehaviour
 
     #region Combat Sounds
 
-    public void PlayWarriorAttack()
-    {
-        if (!enableCombatSounds) return;
-        if (CanPlaySound("warrior_attack"))
-        {
-            PlaySFX(warriorAttackSound, 0.6f);
-            SetSoundCooldown("warrior_attack");
-        }
-    }
-
-    public void PlayEnemyAttack()
-    {
-        if (!enableCombatSounds) return;
-        if (CanPlaySound("enemy_attack"))
-        {
-            PlaySFX(enemyAttackSound, 0.6f);
-            SetSoundCooldown("enemy_attack");
-        }
-    }
-
     public void PlayHitSound()
     {
         if (!enableCombatSounds) return;
@@ -254,16 +234,6 @@ public class AudioManager : MonoBehaviour
             PlaySFX(hitSound, 0.8f);
             SetSoundCooldown("hit");
         }
-    }
-
-    public void PlayWarriorDeath()
-    {
-        PlaySFX(warriorDeathSound, 1f);
-    }
-
-    public void PlayEnemyDeath()
-    {
-        PlaySFX(enemyDeathSound, 1f);
     }
 
     #endregion
@@ -315,6 +285,7 @@ public class AudioManager : MonoBehaviour
                 clipToPlay = gatherFoodSound;
                 break;
             case ResourceNode.ResourceType.Stone:
+            case ResourceNode.ResourceType.Metal:
                 clipToPlay = gatherStoneSound;
                 break;
         }

@@ -83,6 +83,14 @@ namespace IslandRTS.ArtGen
 
             /// <summary>Art PREFAB variants (mesh + materials) wired onto TreeVariance — allows per-variant palettes.</summary>
             public string[] VariantPrefabs;
+
+            /// <summary>
+            /// If the gameplay prefab does not exist yet, duplicate this one
+            /// first (a node type that is a re-skin of an existing node).
+            /// </summary>
+            public string CopyFrom;
+            /// <summary>Set the copied prefab's ResourceNode type (only with CopyFrom).</summary>
+            public ResourceNode.ResourceType? NodeType;
         }
 
         // ---- Units -------------------------------------------------------
@@ -206,6 +214,17 @@ namespace IslandRTS.ArtGen
             {
                 GameplayPrefab = "Assets/Prefabs/RockNode.prefab",
                 ArtPrefab      = ArtPrefabRoot + "Resources/RockNode.prefab",
+                RemoveChildren = new[] { "Cube" },
+                BoxSize = new Vector3(1.4f, 1f, 1.4f), BoxCenter = new Vector3(0f, 0.5f, 0f)
+            },
+            new Plumb
+            {
+                // Metal ore node (2026-09-01): a re-skin of the stone node —
+                // created by copying RockNode.prefab the first time this runs
+                GameplayPrefab = "Assets/Prefabs/OreNode.prefab",
+                CopyFrom       = "Assets/Prefabs/RockNode.prefab",
+                NodeType       = ResourceNode.ResourceType.Metal,
+                ArtPrefab      = ArtPrefabRoot + "Resources/OreNode.prefab",
                 RemoveChildren = new[] { "Cube" },
                 BoxSize = new Vector3(1.4f, 1f, 1.4f), BoxCenter = new Vector3(0f, 0.5f, 0f)
             },
@@ -407,6 +426,19 @@ namespace IslandRTS.ArtGen
                 return false;
             }
 
+            // A re-skinned node type starts life as a copy of its sibling
+            if (!string.IsNullOrEmpty(p.CopyFrom)
+                && AssetDatabase.LoadAssetAtPath<GameObject>(p.GameplayPrefab) == null)
+            {
+                if (!AssetDatabase.CopyAsset(p.CopyFrom, p.GameplayPrefab))
+                {
+                    Debug.LogError("[LowPoly] Could not copy " + p.CopyFrom + " to " + p.GameplayPrefab);
+                    return false;
+                }
+                AssetDatabase.ImportAsset(p.GameplayPrefab);
+                summary.AppendLine("    " + p.GameplayPrefab + " created as a copy of " + p.CopyFrom);
+            }
+
             GameObject root = PrefabUtility.LoadPrefabContents(p.GameplayPrefab);
             if (root == null)
             {
@@ -416,6 +448,12 @@ namespace IslandRTS.ArtGen
 
             try
             {
+                if (p.NodeType.HasValue)
+                {
+                    ResourceNode node = root.GetComponent<ResourceNode>();
+                    if (node != null) node.resourceType = p.NodeType.Value;
+                }
+
                 // 1. Drop the old primitive visual off the root.
                 if (p.StripRootMesh)
                 {

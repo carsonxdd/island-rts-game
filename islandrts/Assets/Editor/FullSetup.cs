@@ -31,7 +31,7 @@ public static class FullSetup
                 "1. Generate the low-poly art library\n" +
                 "2. Plumb it onto the gameplay prefabs\n" +
                 "3. Set up the opening sequence (survivor + wreck)\n" +
-                "4. Scatter environment props\n" +
+                "4. Build the environment scatter settings\n" +
                 "5. Build the island terrain + runtime NavMesh\n" +
                 "6. Add pickups and the workshop\n" +
                 "7. Remove the legacy victory/defeat panels\n" +
@@ -73,21 +73,20 @@ public static class FullSetup
             OpeningSequenceSetup.SetupOpeningScene();
             log.AppendLine("  3. opening sequence set up");
 
-            // LowPolyScatter has no scene guard of its own — it decorates
-            // whatever scene happens to be active — so re-assert MainIsland
-            // before calling it rather than trusting the previous step.
+            // Props are scattered at RUNTIME now (the island is random per
+            // run); this step just resolves the prop table into an asset.
+            Step(3, 8, "Building the environment scatter settings");
+            LowPolyScatter.EnsureSettingsAsset();
+            log.AppendLine("  4. scatter settings asset built");
+
+            // Terrain must follow the opening sequence: it deletes the flat
+            // Ground plane, the ocean quad frame and any legacy edit-time
+            // scatter, and snaps the wreck onto the landing cove.
             if (!OpenGameScene()) return;
 
-            Step(3, 8, "Scattering environment props");
-            LowPolyScatter.Scatter();
-            log.AppendLine("  4. environment props scattered");
-
-            // Terrain must follow the opening sequence and the scatter: it
-            // deletes the flat Ground plane and the ocean quad frame, and snaps
-            // the wreck and every scattered prop onto the generated island.
             Step(4, 8, "Generating terrain and NavMesh");
             TerrainSetup.SetupTerrainScene();
-            log.AppendLine("  5. terrain set up, props snapped to the island");
+            log.AppendLine("  5. terrain set up (random island per run, runtime scatter)");
 
             Step(5, 8, "Adding pickups and the workshop");
             NewContentSetup.Setup();

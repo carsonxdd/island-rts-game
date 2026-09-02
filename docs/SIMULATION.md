@@ -93,7 +93,7 @@ these. Every field defaults to `-1`, so a run only has to name what it varies.
 
 | Field | Applied to |
 |---|---|
-| `terrainSeed` | `TerrainGrid` (different island per run; `-1` keeps the fixed T1 island) |
+| `terrainSeed` | `TerrainGrid` (different island per run; `-1` keeps the inspector seed — a sweep never gets the random per-run island the menu's NEW GAME does) |
 | `startingWood/Food/Stone` | `ResourceManager` |
 | `workerGatherRate`, `workerCarryCapacity` | each `Worker` at spawn |
 | `baseEnemiesPerNight`, `enemyIncreasePerNight` | `EnemySpawner` |

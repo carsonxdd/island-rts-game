@@ -107,3 +107,10 @@ islandrts/Build/
 islandrts/Assets/_Recovery/
 islandrts/Assets/_Recovery.meta
 SimSweeps/*.log
+
+# Island seed preview gallery (Tools > Island RTS > Terrain > Preview Island Seeds)
+[Tt]errainPreviews/
+
+# Editor backup copies
+*.bak
+*.bak.meta

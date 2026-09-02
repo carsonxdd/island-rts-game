@@ -44,6 +44,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable
     public int woodWorkers = 0;
     public int foodWorkers = 0;
     public int stoneWorkers = 0;
+    public int metalWorkers = 0;
 
     [Header("Warrior Management")]
     public GameObject warriorPrefab;
@@ -141,14 +142,17 @@ public class BaseBuilding : MonoBehaviour, ITargetable
 
     void OnMouseDown()
     {
-        // When clicked, open worker assignment UI
-        if (workerUI != null)
+        // When clicked, open worker assignment UI (the panel is code-built
+        // and self-registering now, so a missing scene reference is fine)
+        if (PauseController.BlockGameplayInput) return;
+        WorkerAssignmentUI ui = workerUI != null ? workerUI : WorkerAssignmentUI.Instance;
+        if (ui != null)
         {
-            workerUI.OpenPanel(this);
+            ui.OpenPanel(this);
         }
         else
         {
-            Debug.LogWarning("BaseBuilding: No WorkerAssignmentUI assigned!");
+            Debug.LogWarning("BaseBuilding: No WorkerAssignmentUI in the scene!");
         }
     }
 
@@ -172,6 +176,9 @@ public class BaseBuilding : MonoBehaviour, ITargetable
                 break;
             case ResourceNode.ResourceType.Stone:
                 stoneWorkers++;
+                break;
+            case ResourceNode.ResourceType.Metal:
+                metalWorkers++;
                 break;
         }
 
@@ -221,6 +228,9 @@ public class BaseBuilding : MonoBehaviour, ITargetable
                 break;
             case ResourceNode.ResourceType.Stone:
                 if (stoneWorkers > 0) stoneWorkers--;
+                break;
+            case ResourceNode.ResourceType.Metal:
+                if (metalWorkers > 0) metalWorkers--;
                 break;
         }
 
@@ -329,7 +339,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable
     // Get total number of workers
     public int GetTotalWorkers()
     {
-        return woodWorkers + foodWorkers + stoneWorkers;
+        return woodWorkers + foodWorkers + stoneWorkers + metalWorkers;
     }
 
     // Spawn a warrior

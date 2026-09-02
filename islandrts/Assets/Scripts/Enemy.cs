@@ -1,6 +1,5 @@
 using UnityEngine;
 using UnityEngine.AI;
-using System.Collections.Generic;
 
 /// <summary>
 /// A night raider. Spawns offshore at nightfall, wades in and works its way toward the

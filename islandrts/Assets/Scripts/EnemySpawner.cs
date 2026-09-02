@@ -129,7 +129,8 @@ public class EnemySpawner : MonoBehaviour
     {
         // Spawn enemies clustered together around the wave's chosen direction
         float angle = waveBaseAngle + Random.Range(-groupSpreadAngle, groupSpreadAngle);
-        float distance = spawnDistance + Random.Range(-groupSpreadDistance, groupSpreadDistance);
+        // spawnDistance is authored for the 150 m map; scale with the island
+        float distance = spawnDistance * TerrainGrid.SizeScale + Random.Range(-groupSpreadDistance, groupSpreadDistance);
 
         Vector3 position = new Vector3(
             Mathf.Cos(angle * Mathf.Deg2Rad) * distance,
@@ -137,15 +138,25 @@ public class EnemySpawner : MonoBehaviour
             Mathf.Sin(angle * Mathf.Deg2Rad) * distance
         );
 
-        // Terrain (T1): stand on the island surface, snapped to the NavMesh
-        // so no one spawns hovering over deep water or inside a slope
-        if (TerrainGrid.Instance != null)
+        // Terrain: stand on the island surface, snapped to the NavMesh so no
+        // one spawns hovering over deep water or inside a slope. The island
+        // is a different shape every run, so the ring can land in the sea
+        // or on a cut-off outcrop on the short axis — walk the point inward
+        // toward the campfire site until it is on reachable ground.
+        TerrainGrid terrain = TerrainGrid.Instance;
+        if (terrain != null)
         {
-            position.y = TerrainGrid.Instance.SampleHeight(position) + 0.1f;
-            UnityEngine.AI.NavMeshHit navHit;
-            if (UnityEngine.AI.NavMesh.SamplePosition(position, out navHit, 8f, UnityEngine.AI.NavMesh.AllAreas))
+            Vector3 inward = -new Vector3(position.x, 0f, position.z).normalized * 4f;
+            for (int step = 0; step < 12; step++)
             {
-                position = navHit.position;
+                position.y = terrain.SampleHeight(position) + 0.1f;
+                UnityEngine.AI.NavMeshHit navHit;
+                if (terrain.IsReachable(position) && terrain.SampleHeight(position) > TerrainGrid.DeepWaterY
+                    && UnityEngine.AI.NavMesh.SamplePosition(position, out navHit, 4f, UnityEngine.AI.NavMesh.AllAreas))
+                {
+                    return navHit.position;
+                }
+                position += inward;
             }
         }
 
@@ -194,12 +205,6 @@ public class EnemySpawner : MonoBehaviour
                 }
             }
         }
-    }
-
-    // Public getters
-    public int GetCurrentNight()
-    {
-        return currentNight;
     }
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD

@@ -1,7 +1,6 @@
 using UnityEngine;
 using UnityEngine.AI;
 using System.Collections;
-using System.Collections.Generic;
 
 /// <summary>
 /// The colony's civilian: gathers one assigned resource type, carries it back to the
@@ -67,7 +66,6 @@ public class Worker : UnitBase<Worker>
     // executor runs.
     private Renderer[] garrisonHiddenRenderers;
     private bool isGarrisoned;
-    public bool IsGarrisoned => isGarrisoned;
 
     public void SetGarrisoned(bool hidden)
     {
@@ -403,6 +401,7 @@ public class Worker : UnitBase<Worker>
             case ResourceNode.ResourceType.Food:
                 return AudioManager.Instance.gatherFoodSound;
             case ResourceNode.ResourceType.Stone:
+            case ResourceNode.ResourceType.Metal:   // ore is chipped like rock
                 return AudioManager.Instance.gatherStoneSound;
             default:
                 return null;

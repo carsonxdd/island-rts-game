@@ -3,9 +3,10 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using Unity.AI.Navigation;
 using System.Text;
+using IslandRTS.ArtGen;
 
 /// <summary>
-/// One-shot (idempotent) scene setup for Terrain System T1 — replaces the
+/// One-shot (idempotent) scene setup for the terrain system — replaces the
 /// flat Ground plane with the runtime-generated island.
 ///
 /// What it does to MainIsland:
@@ -13,43 +14,56 @@ using System.Text;
 ///     it) and the baked NavMesh-Ground.asset — leaving either would union a
 ///     ghost of the old flat world into the runtime NavMesh.
 ///  2. Deletes the "_Ocean" quad frame from the opening-sequence setup — the
-///     terrain spawns a real 320×320 water plane at sea level instead.
-///  3. Creates a "Terrain" object with TerrainGrid + a NavMeshSurface
-///     (children-only, physics colliders), wired with the LP band materials
-///     and Mat_Water.
-///  4. Snaps scene props to the generated ground: the _Shipwreck root drops
-///     onto the landing-cove shelf, and every _LowPolyScatter prop lands on
-///     the island surface (props that end up underwater are deleted). This
-///     works in-editor because IslandGenerator is pure/deterministic — the
-///     tool generates the same heightfield the game will.
+///     terrain spawns a real water plane at sea level instead.
+///  3. Deletes the legacy edit-time "_LowPolyScatter" decor — props are
+///     placed at runtime now (PropScatter), because the island is random.
+///  4. Ensures the IslandSettings and ScatterSettings assets exist under
+///     Assets/Settings (created from code defaults, never overwritten once
+///     they exist — they are the tuning surface).
+///  5. Creates a "Terrain" object with TerrainGrid + PropScatter + a
+///     NavMeshSurface (children-only, physics colliders), wired with one LP
+///     material per TerrainGrid.Surface band and Mat_Water.
+///  6. Snaps the _Shipwreck root onto the landing-cove shelf. The cove is an
+///     authored anchor at a fixed height on EVERY seed, so this is
+///     seed-independent.
 ///
-/// Run AFTER the Opening Sequence setup. Re-running is safe: Terrain is
-/// rebuilt, prop snapping is absolute (y = sampled height), and deletion
-/// steps skip when already done.
+/// Run AFTER the Opening Sequence setup. Re-running is safe.
 /// </summary>
 public static class TerrainSetup
 {
     private const string ScenePath = "Assets/MainIsland.unity";
     private const string BakedNavMeshPath = "Assets/MainIsland/NavMesh-Ground.asset";
-
-    private const string SandMaterialPath = "Assets/Art/Materials/LP_Sand.mat";
-    private const string GrassMaterialPath = "Assets/Art/Materials/LP_GrassGreen.mat";
-    private const string RockMaterialPath = "Assets/Art/Materials/LP_RockMid.mat";
     private const string WaterMaterialPath = "Assets/Materials/Mat_Water.mat";
+    private const string MaterialFolder = "Assets/Art/Materials/";
+    public const string IslandSettingsPath = "Assets/Settings/IslandSettings.asset";
 
-    [MenuItem("Tools/Island RTS/Terrain/Setup Terrain Scene (T1)", false, 10)]
+    /// <summary>LP material key per TerrainGrid.Surface, in enum order.</summary>
+    private static readonly string[] SurfaceMaterialKeys =
+    {
+        "SandWet",     // Surface.SandWet
+        "Sand",        // Surface.Sand
+        "GrassGreen",  // Surface.GrassGreen
+        "GrassDark",   // Surface.GrassDark
+        "GrassDry",    // Surface.GrassDry
+        "RockMid",     // Surface.RockMid
+        "RockDark",    // Surface.RockDark
+    };
+
+    [MenuItem("Tools/Island RTS/Terrain/Setup Terrain Scene", false, 10)]
     public static void SetupTerrainScene()
     {
         if (!EnsureSceneOpen()) return;
 
         StringBuilder summary = new StringBuilder();
-        summary.AppendLine("[Terrain] T1 setup pass.");
+        summary.AppendLine("[Terrain] setup pass.");
 
         RemoveFlatWorld(summary);
-        TerrainGrid grid = CreateTerrainObject(summary);
+        IslandSettings island = EnsureIslandSettings(summary);
+        ScatterSettings scatter = LowPolyScatter.EnsureSettingsAsset();
+        TerrainGrid grid = CreateTerrainObject(island, scatter, summary);
         if (grid != null)
         {
-            SnapScenePropsToTerrain(grid.seed, summary);
+            SnapShipwreck(island, summary);
         }
 
         var scene = EditorSceneManager.GetActiveScene();
@@ -57,7 +71,7 @@ public static class TerrainSetup
         EditorSceneManager.SaveScene(scene);
         AssetDatabase.SaveAssets();
 
-        summary.AppendLine("[Terrain] Done. Press Play: the island generates at load (fixed seed) and the NavMesh builds at runtime.");
+        summary.AppendLine("[Terrain] Done. Press Play: a random island generates at load (restart replays the same one) and the NavMesh builds at runtime.");
         Debug.Log(summary.ToString());
     }
 
@@ -99,22 +113,76 @@ public static class TerrainSetup
             Object.DestroyImmediate(ocean);
             summary.AppendLine("    _Ocean quad frame removed (real water plane spawns at runtime)");
         }
+
+        if (LowPolyScatter.HasLegacyScatter())
+        {
+            LowPolyScatter.Clear();
+            summary.AppendLine("    _LowPolyScatter removed (props are scattered at runtime by PropScatter now)");
+        }
     }
 
-    private static TerrainGrid CreateTerrainObject(StringBuilder summary)
+    private static IslandSettings EnsureIslandSettings(StringBuilder summary)
     {
+        IslandSettings asset = AssetDatabase.LoadAssetAtPath<IslandSettings>(IslandSettingsPath);
+        if (asset != null)
+        {
+            if (asset.version >= IslandSettings.CurrentVersion)
+            {
+                summary.AppendLine("    IslandSettings: existing asset kept (v" + asset.version + ", " + IslandSettingsPath + ")");
+                return asset;
+            }
+
+            // The code defaults moved on (a tuning pass): refresh the asset in
+            // place so the GUID and every scene reference survive
+            int old = asset.version;
+            IslandSettings fresh = IslandSettings.CreateDefault();
+            EditorUtility.CopySerialized(fresh, asset);
+            asset.name = "IslandSettings";
+            Object.DestroyImmediate(fresh);
+            EditorUtility.SetDirty(asset);
+            AssetDatabase.SaveAssets();
+            summary.AppendLine("    IslandSettings: asset refreshed from code defaults (v" + old + " → v"
+                + IslandSettings.CurrentVersion + "); any hand tuning on it was replaced");
+            return asset;
+        }
+
+        asset = IslandSettings.CreateDefault();
+        System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(IslandSettingsPath));
+        AssetDatabase.CreateAsset(asset, IslandSettingsPath);
+        AssetDatabase.SaveAssets();
+        summary.AppendLine("    IslandSettings created from code defaults at " + IslandSettingsPath);
+        return asset;
+    }
+
+    private static TerrainGrid CreateTerrainObject(IslandSettings island, ScatterSettings scatter, StringBuilder summary)
+    {
+        // Carry the previous seed across a re-run so a tuned fixed-seed
+        // scene keeps its number
+        int previousSeed = 0;
+        bool previousRandomize = true;
         GameObject existing;
         while ((existing = GameObject.Find("Terrain")) != null)
         {
+            TerrainGrid old = existing.GetComponent<TerrainGrid>();
+            if (old != null) { previousSeed = old.seed; previousRandomize = old.randomizeSeed; }
             Object.DestroyImmediate(existing);
         }
 
-        Material sand = AssetDatabase.LoadAssetAtPath<Material>(SandMaterialPath);
-        Material grass = AssetDatabase.LoadAssetAtPath<Material>(GrassMaterialPath);
-        Material rock = AssetDatabase.LoadAssetAtPath<Material>(RockMaterialPath);
-        if (sand == null || grass == null || rock == null)
+        Material[] mats = new Material[SurfaceMaterialKeys.Length];
+        for (int i = 0; i < mats.Length; i++)
         {
-            Debug.LogError("[Terrain] LP band materials missing (LP_Sand / LP_GrassGreen / LP_RockMid) — run 'Low-Poly Templates > Generate All Assets' first. Terrain object not created.");
+            mats[i] = AssetDatabase.LoadAssetAtPath<Material>(MaterialFolder + "LP_" + SurfaceMaterialKeys[i] + ".mat");
+            if (mats[i] == null)
+            {
+                Debug.LogError("[Terrain] LP band material missing: LP_" + SurfaceMaterialKeys[i]
+                    + ".mat — run 'Low-Poly Templates > Generate All Assets' first. Terrain object not created.");
+                return null;
+            }
+        }
+        if (mats.Length != TerrainGrid.SurfaceCount)
+        {
+            Debug.LogError("[Terrain] SurfaceMaterialKeys has " + mats.Length + " entries but TerrainGrid.Surface has "
+                + TerrainGrid.SurfaceCount + " — add the new band's material key to TerrainSetup.");
             return null;
         }
 
@@ -123,13 +191,21 @@ public static class TerrainSetup
         {
             water = OpeningSequenceSetup.EnsureWaterMaterial(summary);
         }
+        else if (OpeningSequenceSetup.ApplyWaterLook(water))
+        {
+            summary.AppendLine("    Mat_Water switched to " + water.shader.name);
+        }
 
         GameObject go = new GameObject("Terrain");
         TerrainGrid grid = go.AddComponent<TerrainGrid>();
-        grid.sandMaterial = sand;
-        grid.grassMaterial = grass;
-        grid.rockMaterial = rock;
+        grid.settings = island;
+        grid.surfaceMaterials = mats;
         grid.waterMaterial = water;
+        grid.randomizeSeed = previousRandomize;
+        if (previousSeed != 0) grid.seed = previousSeed;
+
+        PropScatter props = go.AddComponent<PropScatter>();
+        props.settings = scatter;
 
         // TerrainGrid re-asserts these at runtime; setting them here keeps
         // the Inspector honest
@@ -137,77 +213,31 @@ public static class TerrainSetup
         surface.collectObjects = CollectObjects.Children;
         surface.useGeometry = UnityEngine.AI.NavMeshCollectGeometry.PhysicsColliders;
 
-        summary.AppendLine("    Terrain object created: TerrainGrid (seed " + grid.seed + ") + NavMeshSurface (children / physics colliders)");
+        summary.AppendLine("    Terrain object created: TerrainGrid (" + mats.Length + " band materials, "
+            + (grid.randomizeSeed ? "random seed per run" : "fixed seed " + grid.seed) + ") + PropScatter ("
+            + (scatter != null ? scatter.rules.Length + " rules" : "NO SETTINGS") + ") + NavMeshSurface");
         return grid;
     }
 
     /// <summary>
-    /// Generate the same heightfield the game will and snap scene props onto
-    /// it. Idempotent: every snap writes an absolute y from the field.
+    /// Move the _Shipwreck ROOT onto the cove shelf. The cove disc is
+    /// flattened to the same height on every seed, so the fixed seed is as
+    /// good as any — authored child offsets (hull tilt, mast, cargo) ride
+    /// along. Idempotent: writes an absolute y.
     /// </summary>
-    private static void SnapScenePropsToTerrain(int seed, StringBuilder summary)
+    private static void SnapShipwreck(IslandSettings island, StringBuilder summary)
     {
-        float[,] heights = IslandGenerator.Generate(TerrainGrid.VertsPerSide, TerrainGrid.Spacing, seed);
-
-        // Shipwreck: move the ROOT onto the cove shelf; authored child
-        // offsets (hull tilt, mast, cargo) ride along
         GameObject wreck = GameObject.Find("_Shipwreck");
-        if (wreck != null)
+        if (wreck == null)
         {
-            Vector3 p = wreck.transform.position;
-            p.y = TerrainGrid.SampleField(heights, p.x, p.z);
-            wreck.transform.position = p;
-            summary.AppendLine("    _Shipwreck root snapped to the landing cove (y=" + p.y.ToString("F2") + ")");
-        }
-
-        // Scatter props: each prop sits exactly on the ground (base-pivot
-        // art); anything that lands underwater is deleted. Props live one
-        // level down — the scatter root's direct children are per-prefab
-        // GROUP transforms (fixed 2026-08-26: the old loop snapped the group
-        // roots, not the props).
-        GameObject scatter = GameObject.Find("_LowPolyScatter");
-        if (scatter != null)
-        {
-            int snapped = 0, drowned = 0;
-            for (int g = scatter.transform.childCount - 1; g >= 0; g--)
-            {
-                Transform child = scatter.transform.GetChild(g);
-                bool isGroup = child.childCount > 0 && child.GetComponent<Renderer>() == null;
-
-                if (isGroup)
-                {
-                    for (int i = child.childCount - 1; i >= 0; i--)
-                    {
-                        SnapOrDrown(child.GetChild(i), heights, ref snapped, ref drowned);
-                    }
-                    // Keep group roots at the origin so prop world-positions stay absolute
-                    child.localPosition = Vector3.zero;
-                }
-                else
-                {
-                    SnapOrDrown(child, heights, ref snapped, ref drowned);
-                }
-            }
-            summary.AppendLine("    _LowPolyScatter: " + snapped + " props snapped to terrain, " + drowned + " underwater props removed");
-        }
-        else
-        {
-            summary.AppendLine("    _LowPolyScatter not found (run 'Scatter Environment Props' first if you want props re-snapped — safe to re-run this tool after)");
-        }
-    }
-
-    private static void SnapOrDrown(Transform prop, float[,] heights, ref int snapped, ref int drowned)
-    {
-        Vector3 p = prop.position;
-        float h = TerrainGrid.SampleField(heights, p.x, p.z);
-        if (h < 0.05f)
-        {
-            Object.DestroyImmediate(prop.gameObject);
-            drowned++;
+            summary.AppendLine("    _Shipwreck not found (run the Opening Sequence setup first)");
             return;
         }
-        p.y = h;
-        prop.position = p;
-        snapped++;
+
+        IslandField field = IslandGenerator.Generate(TerrainGrid.VertsPerSide, TerrainGrid.Spacing, 20260825, island);
+        Vector3 p = wreck.transform.position;
+        p.y = TerrainGrid.SampleField(field.heights, p.x, p.z);
+        wreck.transform.position = p;
+        summary.AppendLine("    _Shipwreck root snapped to the landing cove (y=" + p.y.ToString("F2") + ")");
     }
 }

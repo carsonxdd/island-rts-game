@@ -135,8 +135,8 @@ order matters: later tools consume earlier outputs.
 1. `Tools > Island RTS > Low-Poly Templates > Generate All Assets`
 2. `Tools > Island RTS > Low-Poly Templates > Plumb Everything`
 3. `Tools > Island RTS > Opening Sequence > Setup Opening Scene`
-4. `Tools > Island RTS > Low-Poly Templates > Scatter Environment Props`
-5. `Tools > Island RTS > Terrain > Setup Terrain Scene (T1)`
+4. `Tools > Island RTS > Low-Poly Templates > Build Scatter Settings`
+5. `Tools > Island RTS > Terrain > Setup Terrain Scene`
 6. `Tools > Island RTS > Session Content > Setup Pickups + Workshop`
 7. Save the scene, then Play.
 
@@ -209,6 +209,60 @@ Covers Phase 6.24's rerouting of worker executors through `AINavHelper` and the
 - [ ] Kill All Enemies clears the wave and the stats count the kills
 - [ ] Restart (defeat → restart button) replays the intro cleanly and regenerates the identical island
 - [ ] F4 status shows the run's difficulty, and it matches what was picked on New Game
+
+### Island generator v2 — random islands, terraces, cliffs, ponds (2026-09-01)
+
+Before playing: re-run `Setup Everything (In Order)` (or steps 1, 4 and 5 above — the
+terrain step creates `Assets/Settings/IslandSettings.asset` + `ScatterSettings.asset`,
+deletes the old `_LowPolyScatter` scene decor, and wires seven band materials).
+`Tools > Island RTS > Terrain > Preview Island Seeds` renders twelve seeds to PNG without
+Play mode — use it to tune the asset.
+
+- [ ] Console: one `TerrainGrid: island seed N (attempt 1, 0 ramp(s) carved, …% of land reachable, … buildable cells) + NavMesh built in … ms` line, no errors, load under ~1 s
+- [ ] NEW GAME twice from the menu gives two different islands; defeat → Restart gives the SAME island (F4 shows the seed)
+- [ ] Island fills the map: coast between ~50 and ~65 m out, a bay on the west where the wreck sits, no land clipped at the map edge
+- [ ] Plateaus read as stepped terraces with rock rims; cliff faces are dark rock, gentler slopes mid rock; beach line is ragged (not a contour ring), wet sand under the waterline, grass in three tones
+- [ ] Units cannot walk up a cliff face but CAN reach every plateau via a ramp or slope somewhere along its edge; nothing paths into a pond
+- [ ] Buildings cannot be placed on a cliff face, in a pond, or on an unreachable outcrop (F2 grid leaves those cells blank); plateau tops are the easy build sites
+- [ ] Survivor wades ashore at the cove and the walk to the campfire site never meets a cliff (guaranteed corridor)
+- [ ] Palms hug the beaches, flotsam sits in the wading band, rocks cluster at cliff feet, ferns prefer dark grass; nothing in the campfire clearing or on the wreck; props reappear on Restart
+- [ ] Night wave spawns on reachable land (never in the sea on the island's short axis) and paths in
+- [ ] Balance sim (`run-sim.ps1`) still uses the fixed inspector seed unless `terrainSeed` is set
+
+### World options, metal, HUD, water (2026-09-01 evening)
+
+Before playing: re-run `Setup Everything (In Order)`. Watch the console for shader errors
+from `StylizedWater` (a magenta sea means the shader failed to import; the setup falls
+back to a blue Lit material only if the shader is missing entirely).
+
+**New Game screen**
+- [ ] A "World" section shows Island size (Small / Medium / Large), Terrain (Rolling / Terraced / Rugged) and a Seed field; the blurb under each stepper changes with the choice
+- [ ] Typing a seed (number or word) and pressing BEGIN twice gives the same island both times; clearing it gives a new island each time
+- [ ] Small island: coast noticeably closer, survivor still starts at the cove beside the wreck, night wave still arrives from land; Large: the reverse, load still under ~1 s
+- [ ] Rolling: few cliffs, almost everywhere buildable; Rugged: many levels, long cliff lines, rocky shores — but every plateau still has a way up
+- [ ] Pause menu status line shows the difficulty, island size · style and the seed
+
+**Terrain feel**
+- [ ] Landforms are broad and gradual; plateaus read as a few large stepped levels with rock rims, not scattered bumps
+- [ ] Bands flow: a hillside is one continuous band, no rock/grass checkerboard; valleys and low ground run dark green, plateau tops dry; the beach line is only slightly ragged
+- [ ] Noticeably fewer props than before; palms still on beaches, rocks at cliff feet
+
+**Nodes**
+- [ ] Trees form a handful of large forests in the low, dark ground plus a few loners; berry bushes on the light meadows; rock nodes on high or broken ground; ore nodes (dark rock with bright veins) up on the plateaus and at cliff feet
+- [ ] Nodes have room between them; nothing spawns in the campfire clearing; all four types present on a Rolling island too (the habitat relaxes)
+- [ ] Depleted ore respawns as ore
+
+**Metal**
+- [ ] HUD shows four resource chips (wood, food, stone, metal) each with its worker count, plus a housing chip; clicking any chip opens the campfire panel
+- [ ] Campfire panel: four job rows with −/+ and live counts, a warriors row with its cost, a housing line; + greys out when housing is full, warrior + greys out when unaffordable; Esc and X close it; Esc does NOT open the pause menu while it is open
+- [ ] Assign a miner: they walk to an ore node, chip at it (stone sound), deliver, and the metal chip climbs; F4 shows a Metal row and +1000 all includes metal
+- [ ] Unassigning a miner removes exactly one and the housing count drops by one
+- [ ] Game-over stats line shows metal on hand
+
+**Water**
+- [ ] Sea is turquoise in the shallows fading to deep blue, with a foam line along the shore that drifts; gentle waves visible against the beach; a hard sun glint band; night tints it dark blue
+- [ ] No banding or garbage along the bottom of the screen when zoomed out and tilted low (the ortho negative-near-clip case)
+- [ ] Ponds show the same shallow colour and foam ring
 
 ### Settings, keybinding & difficulty (2026-08-30)
 

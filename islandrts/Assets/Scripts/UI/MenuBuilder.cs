@@ -608,6 +608,49 @@ public static class MenuBuilder
         return go.GetComponent<RectTransform>();
     }
 
+    /// <summary>
+    /// A setting row whose control is a single-line text field. The field's
+    /// background is the click surface, so it is the one raycastable graphic
+    /// here (same rule as the slider background and toggle box).
+    /// </summary>
+    public static TMP_InputField InputRow(Transform parent, string label, string value, string placeholder,
+                                          Action<string> onEndEdit, string description = null)
+    {
+        SettingRow(parent, label, out RectTransform slot);
+
+        RectTransform bg = SimpleImage(slot, "Input", MenuStyle.ButtonFill, raycast: true);
+        Stretch(bg);
+        bg.offsetMin = new Vector2(0f, 6f);
+        bg.offsetMax = new Vector2(0f, -6f);
+        AddBorder(bg, MenuStyle.Divider, 1f);
+
+        GameObject areaGo = new GameObject("TextArea", typeof(RectTransform), typeof(RectMask2D));
+        areaGo.transform.SetParent(bg, false);
+        RectTransform area = Stretch(areaGo.GetComponent<RectTransform>());
+        area.offsetMin = new Vector2(10f, 0f);
+        area.offsetMax = new Vector2(-10f, 0f);
+
+        TextMeshProUGUI text = Label(area, "", MenuStyle.BodySize, MenuStyle.TextAccent, TextAlignmentOptions.MidlineLeft);
+        Stretch(text.rectTransform);
+        text.textWrappingMode = TextWrappingModes.NoWrap;
+
+        TextMeshProUGUI ph = Label(area, placeholder, MenuStyle.BodySize, MenuStyle.TextMuted, TextAlignmentOptions.MidlineLeft);
+        Stretch(ph.rectTransform);
+        ph.fontStyle = FontStyles.Italic;
+
+        TMP_InputField field = bg.gameObject.AddComponent<TMP_InputField>();
+        field.targetGraphic = bg.GetComponent<Image>();
+        field.textViewport = area;
+        field.textComponent = text;
+        field.placeholder = ph;
+        field.characterLimit = 24;
+        field.text = value ?? "";
+        if (onEndEdit != null) field.onEndEdit.AddListener(v => onEndEdit(v));
+
+        if (description != null) RowDescription(parent, description);
+        return field;
+    }
+
     /// <summary>Fills the parent rect exactly. Code-created RectTransforms do not do this by default.</summary>
     public static RectTransform Stretch(RectTransform rt)
     {

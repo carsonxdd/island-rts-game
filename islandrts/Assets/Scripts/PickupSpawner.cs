@@ -90,7 +90,7 @@ public class PickupSpawner : MonoBehaviour
         {
             // sqrt keeps the distribution area-uniform across the band
             float t = Mathf.Sqrt(Random.value);
-            float radius = Mathf.Lerp(minRadius, maxRadius, t);
+            float radius = Mathf.Lerp(minRadius, maxRadius, t) * TerrainGrid.SizeScale;   // band authored for the 150 m map
             float angle = Random.value * Mathf.PI * 2f;
             Vector3 pos = new Vector3(Mathf.Cos(angle) * radius, 0f, Mathf.Sin(angle) * radius);
 
@@ -98,6 +98,7 @@ public class PickupSpawner : MonoBehaviour
             {
                 if (!TerrainGrid.Instance.IsLand(pos)) continue;
                 if (TerrainGrid.Instance.SlopeAt(pos) > maxSlope) continue;
+                if (!TerrainGrid.Instance.IsReachable(pos)) continue;
                 pos.y = TerrainGrid.Instance.SampleHeight(pos);
             }
 

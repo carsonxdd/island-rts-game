@@ -235,17 +235,54 @@ public static class OpeningSequenceSetup
     internal static Material EnsureWaterMaterial(StringBuilder summary)
     {
         Material mat = AssetDatabase.LoadAssetAtPath<Material>(WaterMaterialPath);
-        if (mat != null) return mat;
+        if (mat != null)
+        {
+            if (ApplyWaterLook(mat)) summary.AppendLine("    Mat_Water switched to the stylized water shader");
+            return mat;
+        }
 
-        Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+        Shader shader = Shader.Find(StylizedWaterShader) ?? Shader.Find("Universal Render Pipeline/Lit");
         if (shader == null)
         {
-            Debug.LogError("[Opening] URP Lit shader not found — water material not created.");
+            Debug.LogError("[Opening] Neither the stylized water shader nor URP Lit was found — water material not created.");
             return null;
         }
 
         mat = new Material(shader);
-        // URP Lit transparent surface recipe
+        AssetDatabase.CreateAsset(mat, WaterMaterialPath);
+        ApplyWaterLook(mat);
+        summary.AppendLine("    Mat_Water created (" + mat.shader.name + ")");
+        return mat;
+    }
+
+    internal const string StylizedWaterShader = "Island RTS/Stylized Water";
+
+    /// <summary>
+    /// Make sure the water material uses the stylized shader when it exists
+    /// (Assets/Shaders/StylizedWater.shader), falling back to a saturated
+    /// URP Lit transparent so a project without the shader still gets blue
+    /// water rather than grey. Returns true when the material changed.
+    /// The stylized shader's property defaults are the tuned look, so a
+    /// freshly switched material needs nothing set.
+    /// </summary>
+    internal static bool ApplyWaterLook(Material mat)
+    {
+        Shader stylized = Shader.Find(StylizedWaterShader);
+        if (stylized != null)
+        {
+            if (mat.shader == stylized) return false;
+            mat.shader = stylized;
+            EditorUtility.SetDirty(mat);
+            return true;
+        }
+
+        Shader lit = Shader.Find("Universal Render Pipeline/Lit");
+        if (lit == null) return false;
+        bool changed = mat.shader != lit;
+        mat.shader = lit;
+        // URP Lit transparent surface recipe. Low smoothness on purpose: a
+        // mirror-smooth transparent surface reflects the grey sky and reads
+        // as grey, which is exactly the placeholder's old problem.
         mat.SetFloat("_Surface", 1f);
         mat.SetOverrideTag("RenderType", "Transparent");
         mat.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
@@ -253,13 +290,10 @@ public static class OpeningSequenceSetup
         mat.SetFloat("_ZWrite", 0f);
         mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
         mat.renderQueue = (int)RenderQueue.Transparent;
-
-        mat.SetColor("_BaseColor", new Color(0.16f, 0.42f, 0.62f, 0.75f));
-        mat.SetFloat("_Smoothness", 0.85f);
-
-        AssetDatabase.CreateAsset(mat, WaterMaterialPath);
-        summary.AppendLine("    Mat_Water created (URP Lit transparent — placeholder until the Stage 3 water shader)");
-        return mat;
+        mat.SetColor("_BaseColor", new Color(0.10f, 0.45f, 0.62f, 0.80f));
+        mat.SetFloat("_Smoothness", 0.45f);
+        EditorUtility.SetDirty(mat);
+        return changed;
     }
 
     private static void BuildOcean(Material water, StringBuilder summary)

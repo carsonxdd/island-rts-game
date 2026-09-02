@@ -345,7 +345,6 @@ public class SimRunner : MonoBehaviour
         {
             Campfire = fire,
             Day = dn != null ? dn.GetCurrentDay() : 1,
-            IsNight = dn != null && dn.IsNightTime(),
             Workers = fire != null ? fire.GetTotalWorkers() : 0,
             Warriors = fire != null ? fire.GetWarriorCount() : 0,
             Enemies = Enemy.ActiveList.Count,

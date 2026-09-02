@@ -16,7 +16,9 @@ public class PickupAvailability : Consideration
     {
         bb.bestPickup = null;
 
-        if (bb.assignedResourceType == ResourceNode.ResourceType.Food) return 0f;
+        // Only sticks (wood) and stone chunks exist as pickups
+        if (bb.assignedResourceType != ResourceNode.ResourceType.Wood
+            && bb.assignedResourceType != ResourceNode.ResourceType.Stone) return 0f;
 
         GroundPickup best = null;
         float bestSqr = AttractRange * AttractRange;

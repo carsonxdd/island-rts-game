@@ -24,7 +24,9 @@ public static class LegacyEndScreenCleanup
 {
     private const string GameScenePath = "Assets/MainIsland.unity";
 
-    private static readonly string[] LegacyObjectNames = { "VictoryScreen", "DefeatScreen" };
+    // Victory/defeat panels (2026-08-31) and the hand-built HUD panels the
+    // code-built ResourceUI / WorkerAssignmentUI replaced (2026-09-01)
+    private static readonly string[] LegacyObjectNames = { "VictoryScreen", "DefeatScreen", "ResourcePanel", "WorkerAssignmentPanel" };
 
     [MenuItem("Tools/Island RTS/Menus/Remove Legacy Victory-Defeat Panels", false, 40)]
     public static void Cleanup()
