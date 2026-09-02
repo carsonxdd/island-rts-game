@@ -19,156 +19,156 @@ MonoBehaviour:
   staticBatch: 1
   rules:
   - prefab: {fileID: 6576007086294814300, guid: 17b298b5d9ca23147a33def79237a622, type: 3}
-    count: 44
+    count: 26
     minHeight: 0.2
     maxHeight: 1.6
     minSlope: 0
     maxSlope: 0.5
     minTone: 0
     maxTone: 1
-    spacing: 4
+    spacing: 5
     minScale: 0.85
     maxScale: 1.2
   - prefab: {fileID: 5900950843495548446, guid: 6e9d48e29136c1343bc77367491ac420, type: 3}
-    count: 28
+    count: 16
     minHeight: 0.15
     maxHeight: 1.2
     minSlope: 0
     maxSlope: 0.5
     minTone: 0
     maxTone: 1
-    spacing: 4
+    spacing: 5
     minScale: 0.85
     maxScale: 1.2
   - prefab: {fileID: 6810136100201289785, guid: 552e5ff016da0eb4b9534ff51fd16430, type: 3}
-    count: 34
+    count: 18
     minHeight: 0.3
     maxHeight: 2.5
     minSlope: 0
     maxSlope: 0.55
     minTone: 0
     maxTone: 1
-    spacing: 3
+    spacing: 4
     minScale: 0.9
     maxScale: 1.15
   - prefab: {fileID: 2401319961662467197, guid: 6788414424c6c7d428d023738e4bd656, type: 3}
-    count: 14
+    count: 9
     minHeight: 0.6
-    maxHeight: 7
+    maxHeight: 7.5
     minSlope: 0.3
     maxSlope: 1.5
-    minTone: 0
-    maxTone: 1
-    spacing: 5
-    minScale: 0.9
-    maxScale: 1.3
-  - prefab: {fileID: 2401319961662467197, guid: 6788414424c6c7d428d023738e4bd656, type: 3}
-    count: 8
-    minHeight: 0.6
-    maxHeight: 7
-    minSlope: 0
-    maxSlope: 0.3
     minTone: 0
     maxTone: 1
     spacing: 6
     minScale: 0.9
     maxScale: 1.3
+  - prefab: {fileID: 2401319961662467197, guid: 6788414424c6c7d428d023738e4bd656, type: 3}
+    count: 4
+    minHeight: 0.6
+    maxHeight: 7.5
+    minSlope: 0
+    maxSlope: 0.3
+    minTone: 0
+    maxTone: 1
+    spacing: 8
+    minScale: 0.9
+    maxScale: 1.3
   - prefab: {fileID: 5022715610982986148, guid: f9970f76fce98ec4db28bb6c881fab70, type: 3}
-    count: 30
+    count: 16
     minHeight: 0.5
-    maxHeight: 7
+    maxHeight: 7.5
     minSlope: 0.15
     maxSlope: 1.5
+    minTone: 0
+    maxTone: 1
+    spacing: 4.5
+    minScale: 0.85
+    maxScale: 1.25
+  - prefab: {fileID: 7144256754970579745, guid: 072bf958295c5144b840711607d8a3df, type: 3}
+    count: 26
+    minHeight: 0.5
+    maxHeight: 7.5
+    minSlope: 0
+    maxSlope: 1.5
+    minTone: 0
+    maxTone: 1
+    spacing: 3.5
+    minScale: 0.8
+    maxScale: 1.3
+  - prefab: {fileID: 1982422459450646750, guid: 41f854117801c624eb8218fde9acaa9c, type: 3}
+    count: 24
+    minHeight: 0.7
+    maxHeight: 7
+    minSlope: 0
+    maxSlope: 0.6
     minTone: 0
     maxTone: 1
     spacing: 3.5
     minScale: 0.85
     maxScale: 1.25
-  - prefab: {fileID: 7144256754970579745, guid: 072bf958295c5144b840711607d8a3df, type: 3}
-    count: 50
-    minHeight: 0.5
+  - prefab: {fileID: 3466928677908042219, guid: 809ec7b939c3d3147906778a8eba6644, type: 3}
+    count: 16
+    minHeight: 0.7
     maxHeight: 7
     minSlope: 0
-    maxSlope: 1.5
-    minTone: 0
-    maxTone: 1
-    spacing: 2.5
-    minScale: 0.8
-    maxScale: 1.3
-  - prefab: {fileID: 1982422459450646750, guid: 41f854117801c624eb8218fde9acaa9c, type: 3}
-    count: 50
-    minHeight: 0.7
-    maxHeight: 6.6
-    minSlope: 0
     maxSlope: 0.6
     minTone: 0
     maxTone: 1
-    spacing: 2.5
-    minScale: 0.85
-    maxScale: 1.25
-  - prefab: {fileID: 3466928677908042219, guid: 809ec7b939c3d3147906778a8eba6644, type: 3}
-    count: 34
-    minHeight: 0.7
-    maxHeight: 6.6
-    minSlope: 0
-    maxSlope: 0.6
-    minTone: 0
-    maxTone: 1
-    spacing: 2.5
+    spacing: 3.5
     minScale: 0.85
     maxScale: 1.25
   - prefab: {fileID: 4872230262797004336, guid: dc3deb14e7248c44d9bf4e657e21c854, type: 3}
-    count: 60
+    count: 30
     minHeight: 0.7
-    maxHeight: 6.6
+    maxHeight: 7
     minSlope: 0
     maxSlope: 0.6
     minTone: 0
-    maxTone: 0.45
-    spacing: 2
+    maxTone: 0.4
+    spacing: 3
     minScale: 0.8
     maxScale: 1.2
   - prefab: {fileID: 5718882407210996860, guid: 1273c0ee544416e44b9bc665aebebaf2, type: 3}
-    count: 170
+    count: 90
     minHeight: 0.6
-    maxHeight: 6.8
+    maxHeight: 7.2
     minSlope: 0
     maxSlope: 0.7
     minTone: 0
     maxTone: 1
-    spacing: 1.5
+    spacing: 2
     minScale: 0.8
     maxScale: 1.35
   - prefab: {fileID: 6054526905616011705, guid: 4b8998d488332ea479ff94e5a34941af, type: 3}
-    count: 18
+    count: 12
     minHeight: -0.3
     maxHeight: 0.5
     minSlope: 0
     maxSlope: 0.4
     minTone: 0
     maxTone: 1
-    spacing: 4
+    spacing: 5
     minScale: 0.9
     maxScale: 1.2
   - prefab: {fileID: 5086327856579308933, guid: ed782a2f47be55e4ebbd0517e1571921, type: 3}
-    count: 8
+    count: 5
     minHeight: -0.2
     maxHeight: 0.5
     minSlope: 0
     maxSlope: 0.4
     minTone: 0
     maxTone: 1
-    spacing: 3
+    spacing: 4
     minScale: 0.95
     maxScale: 1.1
   - prefab: {fileID: 117106267267504970, guid: f9b462c8532f9cd4baf2250459b888e6, type: 3}
-    count: 10
+    count: 6
     minHeight: -0.2
     maxHeight: 0.5
     minSlope: 0
     maxSlope: 0.4
     minTone: 0
     maxTone: 1
-    spacing: 3
+    spacing: 4
     minScale: 0.95
     maxScale: 1.1
