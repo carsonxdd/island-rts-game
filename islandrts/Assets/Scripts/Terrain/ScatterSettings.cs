@@ -32,6 +32,14 @@ public class ScatterSettings : ScriptableObject
         public float minTone = 0f;
         public float maxTone = 1f;
 
+        [Header("Gameplay")]
+        [Tooltip("Spawn this prop as a harvestable ResourceNode rather than decor. Trees are gatherable, so every tree on the island is one a worker can chop.")]
+        public bool gatherable = false;
+        [Tooltip("Resource the node yields when gatherable.")]
+        public ResourceNode.ResourceType resourceType = ResourceNode.ResourceType.Wood;
+        [Tooltip("Total resources in the node when full (Tree.prefab carries 50).")]
+        public int resourceAmount = 40;
+
         [Header("Spacing / size")]
         [Tooltip("Minimum distance to any other scattered prop.")]
         public float spacing = 2.5f;

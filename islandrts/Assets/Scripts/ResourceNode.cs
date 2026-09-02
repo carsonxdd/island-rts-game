@@ -69,17 +69,38 @@ public class ResourceNode : MonoBehaviour
         SetupNavMeshObstacle();
         cachedObstacle = GetComponent<NavMeshObstacle>();
 
-        // Get ALL renderers for visual feedback (tree has trunk + leaves), and instance every
-        // material slot - the low-poly art meshes are multi-submesh, so tinting only slot 0
-        // would highlight a fraction of the node.
-        nodeMaterials = RendererTint.Collect(GetComponentsInChildren<Renderer>());
-        originalColors = RendererTint.CaptureColors(nodeMaterials);
+        // Instanced material copies for hover feedback and the occlusion fade.
+        EnsureNodeMaterials();
+
+        // Trees are tall enough to hide a unit from the RTS camera, so they fade while
+        // one is behind them. Added here rather than on the prefab so it also covers
+        // trees built at runtime by PropScatter.
+        if (resourceType == ResourceType.Wood && GetComponent<OcclusionFade>() == null)
+            gameObject.AddComponent<OcclusionFade>();
 
         // Save original scale for depletion visual
         originalScale = transform.localScale;
 
         // Gather shake target: the plumbed art child. Null pre-plumb — shake just no-ops.
         shakeModel = transform.Find("Model");
+    }
+
+    /// <summary>
+    /// The instanced material copies for every renderer slot on this node, created on
+    /// first use. Shared with <see cref="OcclusionFade"/>: reading renderer.materials
+    /// instantiates, so two collectors would end up writing to different copies of the
+    /// same material and the hover highlight and the fade would fight.
+    /// </summary>
+    public Material[] EnsureNodeMaterials()
+    {
+        if (nodeMaterials == null)
+        {
+            // ALL renderers - the low-poly art meshes are multi-submesh, so tinting only
+            // slot 0 would highlight a fraction of the node.
+            nodeMaterials = RendererTint.Collect(GetComponentsInChildren<Renderer>());
+            originalColors = RendererTint.CaptureColors(nodeMaterials);
+        }
+        return nodeMaterials;
     }
 
     void SetupNavMeshObstacle()

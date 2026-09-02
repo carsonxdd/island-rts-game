@@ -38,12 +38,15 @@ namespace IslandRTS.ArtGen
             public float MinTone, MaxTone;
             public float Spacing;
             public float MinScale, MaxScale;
+            /// <summary>Non-zero makes this a harvestable wood node rather than decor, holding this much wood.</summary>
+            public int Wood;
 
             public Def(string prefab, int count, float minH, float maxH, float minSlope, float maxSlope,
-                       float minTone, float maxTone, float spacing, float minScale, float maxScale)
+                       float minTone, float maxTone, float spacing, float minScale, float maxScale, int wood = 0)
             {
                 Prefab = prefab; Count = count; MinH = minH; MaxH = maxH; MinSlope = minSlope; MaxSlope = maxSlope;
                 MinTone = minTone; MaxTone = maxTone; Spacing = spacing; MinScale = minScale; MaxScale = maxScale;
+                Wood = wood;
             }
         }
 
@@ -56,9 +59,12 @@ namespace IslandRTS.ArtGen
             // Deliberately sparse (halved 2026-09-01): decor should frame the
             // gameplay nodes, not compete with them. Counts are for the 150 m
             // map; PropScatter scales them with map area.
-            new Def("Palm_Tall.prefab",         26,   0.20f, 1.60f, 0f,    0.50f, 0f,   1f,   5.0f,  0.85f, 1.20f),
-            new Def("Palm_Bent.prefab",         16,   0.15f, 1.20f, 0f,    0.50f, 0f,   1f,   5.0f,  0.85f, 1.20f),
-            new Def("Palm_Young.prefab",        18,   0.30f, 2.50f, 0f,    0.55f, 0f,   1f,   4.0f,  0.90f, 1.15f),
+            // Palms are GATHERABLE (2026-09-02): every tree on the island is a tree a
+            // worker can chop, so the shore is a wood source and not just scenery. The
+            // trailing number is how much wood each holds (Tree.prefab carries 50).
+            new Def("Palm_Tall.prefab",         26,   0.20f, 1.60f, 0f,    0.50f, 0f,   1f,   5.0f,  0.85f, 1.20f, 40),
+            new Def("Palm_Bent.prefab",         16,   0.15f, 1.20f, 0f,    0.50f, 0f,   1f,   5.0f,  0.85f, 1.20f, 35),
+            new Def("Palm_Young.prefab",        18,   0.30f, 2.50f, 0f,    0.55f, 0f,   1f,   4.0f,  0.90f, 1.15f, 20),
 
             // Rocks: one rule for cliff feet and slopes, one for open ground
             new Def("Rock_Large.prefab",         9,   0.60f, 7.50f, 0.30f, 1.50f, 0f,   1f,   6.0f,  0.90f, 1.30f),
@@ -129,6 +135,9 @@ namespace IslandRTS.ArtGen
                     minTone = d.MinTone, maxTone = d.MaxTone,
                     spacing = d.Spacing,
                     minScale = d.MinScale, maxScale = d.MaxScale,
+                    gatherable = d.Wood > 0,
+                    resourceType = ResourceNode.ResourceType.Wood,
+                    resourceAmount = d.Wood > 0 ? d.Wood : 40,
                 });
             }
 

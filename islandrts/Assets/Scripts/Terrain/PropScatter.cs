@@ -11,11 +11,18 @@ using UnityEngine;
 /// Runs in Start (TerrainGrid builds the world in Awake, so the field and
 /// its NavMesh are complete). Seeded from the island seed with its own
 /// System.Random, so the layout is reproducible per island and never
-/// touches UnityEngine.Random's global state. Props carry no colliders, so
-/// they never block pathing, intercept clicks, or affect the NavMesh; they
+/// touches UnityEngine.Random's global state. Decor props carry no colliders,
+/// so they never block pathing, intercept clicks, or affect the NavMesh; they
 /// are combined into static batches once placed.
 ///
-/// Skipped under the balance sim (pure cosmetics).
+/// A rule may be marked gatherable, which is how palms become choppable trees
+/// rather than scenery - every tree on the island is a resource node. Those
+/// props are built as real nodes (see SpawnNode), live under their own root,
+/// and are never static-batched, because they shrink and are destroyed as
+/// they deplete.
+///
+/// Under the balance sim only the gatherable rules run: decor is skipped, but
+/// wood the simulated colony can actually chop is not.
 /// </summary>
 public class PropScatter : MonoBehaviour
 {
@@ -25,7 +32,6 @@ public class PropScatter : MonoBehaviour
 
     void Start()
     {
-        if (SimHooks.Simulating) return;
         if (settings == null || settings.rules == null)
         {
             Debug.LogError("PropScatter: no ScatterSettings assigned — run Tools > Island RTS > Terrain > Setup Terrain Scene.");
@@ -45,6 +51,9 @@ public class PropScatter : MonoBehaviour
     {
         // Own root, never under the Terrain object (its NavMeshSurface collects children)
         GameObject root = new GameObject(RootName);
+        // Gatherable props are gameplay objects: they shrink as they deplete and are
+        // destroyed when emptied, so they must stay out of the static batch.
+        GameObject nodeRoot = null;
         System.Random rng = new System.Random(terrain.seed ^ 0x5CA77E2);
 
         // Anchors from the FIELD (already scaled to this map's size)
@@ -61,9 +70,14 @@ public class PropScatter : MonoBehaviour
         {
             ScatterSettings.Rule rule = settings.rules[r];
             if (rule == null || rule.prefab == null) continue;
+            // Under the balance sim only the gatherable rules matter - the rest is decor,
+            // and the sim has no camera to see it with.
+            if (SimHooks.Simulating && !rule.gatherable) continue;
+
+            if (rule.gatherable && nodeRoot == null) nodeRoot = new GameObject(RootName + "_Nodes");
 
             Transform group = new GameObject(rule.prefab.name).transform;
-            group.SetParent(root.transform, false);
+            group.SetParent(rule.gatherable ? nodeRoot.transform : root.transform, false);
 
             // Counts are authored for the 150 m map; keep the same DENSITY on other sizes
             int wanted = Mathf.RoundToInt(rule.count * TerrainGrid.SizeScale * TerrainGrid.SizeScale);
@@ -90,12 +104,21 @@ public class PropScatter : MonoBehaviour
                         if (tone < rule.minTone || tone > rule.maxTone) continue;
                     }
 
+                    // A gatherable node on a cut-off outcrop is a node no worker can ever
+                    // reach; decor is welcome there.
+                    if (rule.gatherable && !terrain.IsReachable(p)) continue;
+
                     if (placed.TooClose(p, rule.spacing)) continue;
 
                     p.y = h;
-                    GameObject inst = Instantiate(rule.prefab, p, Quaternion.Euler(0f, (float)(rng.NextDouble() * 360.0), 0f), group);
+                    float yaw = (float)(rng.NextDouble() * 360.0);
                     float scale = Mathf.Lerp(rule.minScale, rule.maxScale, (float)rng.NextDouble());
-                    inst.transform.localScale = new Vector3(scale, scale, scale);
+
+                    if (rule.gatherable)
+                        SpawnNode(rule, group, p, yaw, scale);
+                    else
+                        Instantiate(rule.prefab, p, Quaternion.Euler(0f, yaw, 0f), group)
+                            .transform.localScale = new Vector3(scale, scale, scale);
 
                     placed.Add(p);
                     total++;
@@ -108,6 +131,55 @@ public class PropScatter : MonoBehaviour
         {
             StaticBatchingUtility.Combine(root);
         }
+    }
+
+    /// <summary>
+    /// Build a harvestable node around an art prefab, matching the layout the plumber
+    /// gives Tree.prefab: an empty root carrying the gameplay components, with the art
+    /// mounted on a child called "Model".
+    /// </summary>
+    /// <remarks>
+    /// The name matters. ResourceNode finds "Model" to shrink on depletion and to wobble
+    /// on the gather beat, and both must happen on the child - the root drives the
+    /// carving NavMeshObstacle, so scaling or rotating it would re-carve the NavMesh on
+    /// every gather tick. Yaw and size jitter therefore go on the Model too, which is
+    /// also where TreeVariance puts them.
+    ///
+    /// The click hitbox is measured from the art's own renderer bounds rather than
+    /// hard-coded, because one rule covers palms from 2.2 m to 5 m tall.
+    /// </remarks>
+    void SpawnNode(ScatterSettings.Rule rule, Transform group, Vector3 pos, float yaw, float scale)
+    {
+        GameObject node = new GameObject(rule.prefab.name + "Node");
+        node.transform.SetParent(group, false);
+        node.transform.position = pos;
+
+        GameObject model = Instantiate(rule.prefab, node.transform);
+        model.name = "Model";
+        model.transform.localPosition = Vector3.zero;
+        model.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
+        model.transform.localScale = new Vector3(scale, scale, scale);
+
+        BoxCollider box = node.AddComponent<BoxCollider>();
+        Renderer[] renderers = model.GetComponentsInChildren<Renderer>();
+        if (renderers.Length > 0)
+        {
+            Bounds b = renderers[0].bounds;
+            for (int i = 1; i < renderers.Length; i++) b.Encapsulate(renderers[i].bounds);
+            box.center = node.transform.InverseTransformPoint(b.center);
+            box.size = b.size;
+        }
+        else
+        {
+            box.center = new Vector3(0f, 1.5f, 0f);
+            box.size = new Vector3(2f, 3f, 2f);
+        }
+
+        // Fields are assigned before Start runs, which is where ResourceNode sizes its
+        // NavMeshObstacle from the resource type and fills the node.
+        ResourceNode resource = node.AddComponent<ResourceNode>();
+        resource.resourceType = rule.resourceType;
+        resource.maxResourceAmount = rule.resourceAmount;
     }
 
     /// <summary>Grid-bucketed positions for the spacing check (O(1) per query instead of O(n)).</summary>

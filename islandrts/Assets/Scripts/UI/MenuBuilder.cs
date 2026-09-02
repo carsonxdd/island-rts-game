@@ -503,16 +503,26 @@ public static class MenuBuilder
     public static VerticalLayoutGroup ScrollColumn(Transform parent, float spacing, float height,
                                                    float sidePadding = 4f)
     {
-        GameObject viewportGo = new GameObject("Viewport", typeof(Image), typeof(Mask), typeof(ScrollRect), typeof(LayoutElement));
+        GameObject viewportGo = new GameObject("Viewport", typeof(Image), typeof(RectMask2D), typeof(ScrollRect), typeof(LayoutElement));
         viewportGo.transform.SetParent(parent, false);
         viewportGo.GetComponent<LayoutElement>().preferredHeight = height;
 
-        // Mask needs a graphic to define the visible rect. It must raycast, or
-        // the scroll wheel and drags never reach the ScrollRect underneath.
+        // RectMask2D, never a stencil Mask. A Mask with showMaskGraphic = false
+        // draws its graphic through an alpha-clipped material, and a UI vertex
+        // colour is quantised to a byte on the way into the mesh: an alpha of
+        // 0.001 becomes 0, the clip then discards every mask pixel, the stencil
+        // is never written, and every row inside the viewport is culled. That is
+        // what left the Options tabs and the whole Controls list blank while the
+        // headings and buttons around them drew fine. RectMask2D clips by
+        // rectangle instead, so the graphic exists only for the raycast.
+        //
+        // The Image is still required: the scroll wheel and drags reach the
+        // ScrollRect only through a raycastable graphic. Fully transparent is
+        // fine here — uGUI raycasts ignore alpha unless
+        // alphaHitTestMinimumThreshold is set, which it isn't.
         Image vpImage = viewportGo.GetComponent<Image>();
-        vpImage.color = new Color(0f, 0f, 0f, 0.001f);
+        vpImage.color = Color.clear;
         vpImage.raycastTarget = true;
-        viewportGo.GetComponent<Mask>().showMaskGraphic = false;
 
         RectTransform viewport = viewportGo.GetComponent<RectTransform>();
 

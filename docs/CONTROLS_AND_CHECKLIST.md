@@ -269,6 +269,33 @@ back to a blue Lit material only if the shader is missing entirely).
 - [ ] No banding or garbage along the bottom of the screen when zoomed out and tilted low (the ortho negative-near-clip case)
 - [ ] Ponds show the same shallow colour and foam ring
 
+
+### Trees, occlusion fade & the metal node (2026-09-02)
+
+Run `Setup Everything (In Order)` first: the metal node mesh is regenerated in step 1, remounted in step 2, and step 4 rewrites the scatter table so palms come back gatherable.
+
+**Seeing units behind trees**
+- [ ] Walk a worker behind a tree: the tree fades to roughly 30% and comes back the moment the worker clears it
+- [ ] The fade is smooth both ways, with no pop and no tree left stuck transparent after the unit dies or garrisons
+- [ ] Several units behind one tree, and one unit behind several trees, both behave
+- [ ] Units in FRONT of a tree do not fade it
+- [ ] Hovering a faded tree still highlights the whole tree, and the highlight clears correctly afterwards
+- [ ] Enemies at night fade trees too, so a wave is never invisible in a forest
+- [ ] During the opening, the survivor fades palms on the beach
+- [ ] Frame rate is unchanged in a dense forest at full zoom-out
+
+**Gatherable palms**
+- [ ] Every tree on the island can be chopped, palms included
+- [ ] A palm shrinks as it depletes and disappears when emptied
+- [ ] Workers path around palms rather than through them, and stand in a ring to chop as they do at broadleaf trees
+- [ ] Palms carry less wood than broadleaf trees, and young palms least
+- [ ] No palms inside the campfire clearing or on unreachable outcrops
+- [ ] Clicking a palm highlights it; the shake pulse plays on the chop beat
+
+**Metal node**
+- [ ] Ore nodes are plain boulders with no crystals or bright veins
+- [ ] Stone nodes still have their crystals, so the two are told apart at a glance
+- [ ] Miners still gather metal from them and the HUD metal count rises
 ### Settings, keybinding & difficulty (2026-08-30)
 
 **Options — all four tabs**

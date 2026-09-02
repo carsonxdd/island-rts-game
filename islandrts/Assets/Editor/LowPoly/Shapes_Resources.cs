@@ -41,7 +41,7 @@ namespace IslandRTS.ArtGen
                 () => OreRock(4301, 1.3f), "1.3 x 1.0"));
 
             list.Add(new AssetDef("OreNode", AssetCategory.Resources,
-                () => MetalOreRock(4351, 1.35f), "1.35 x 1.0 — dark host rock, bright metal veins"));
+                () => MetalOreRock(4351, 1.35f), "1.35 x 1.0 — plain boulder, no veins"));
         }
 
         // ==================================================================
@@ -153,38 +153,24 @@ namespace IslandRTS.ArtGen
         }
 
         /// <summary>
-        /// The metal node: a darker, blockier boulder than the stone node, with
-        /// bright metal veins as flat wedges lying ALONG the surface (rather
-        /// than the stone node's spiky crystals) so the two read differently
-        /// from the RTS camera at a glance. Same embedding rule as the ore
-        /// crystals: rooted inside the nominal surface, tips just past it.
+        /// The metal node: a plain boulder in the ordinary rock tone.
         /// </summary>
+        /// <remarks>
+        /// It used to be a dark host rock studded with bright metal wedges. That look was
+        /// reverted on request (2026-09-02) - the two mineral-looking nodes read as
+        /// clutter next to each other. So metal is a plain stone now and the stone node
+        /// keeps its crystals, which is also what tells them apart at a glance: crystals
+        /// mean stone, bare rock means metal.
+        ///
+        /// The OreRock / OreMetal palette entries are left in place but unused; their
+        /// generated materials are simply no longer referenced by any mesh.
+        /// </remarks>
         private static MeshBuilder MetalOreRock(int seed, float size)
         {
             MeshBuilder b = new MeshBuilder(seed);
 
-            b.Use("OreRock");
-            Vector3 bodySize = new Vector3(size * 1.1f, size * 0.85f, size * 1.0f);
-            b.Rock(Vector3.zero, bodySize, 0.12f, 3, 6);
-
-            b.Use("OreMetal");
-            Vector3 half = bodySize * 0.5f;
-            Vector3 center = new Vector3(0f, half.y, 0f);
-            const int veins = 5;
-            for (int i = 0; i < veins; i++)
-            {
-                float a = ((360f / veins) * i + 10f + b.Rand(-20f, 20f)) * Mathf.Deg2Rad;
-                float yUnit = b.Rand(0.15f, 0.65f);
-                float ring = Mathf.Sqrt(1f - yUnit * yUnit);
-                Vector3 unit = new Vector3(Mathf.Cos(a) * ring, yUnit, Mathf.Sin(a) * ring);
-
-                // A short thick wedge straddling the surface, leaning sideways
-                Vector3 tangent = Vector3.Cross(unit, Vector3.up).normalized;
-                Vector3 mid = center + Vector3.Scale(unit * 0.95f, half);
-                Vector3 from = mid - tangent * size * b.Rand(0.14f, 0.22f) - unit * size * 0.12f;
-                Vector3 to = mid + tangent * size * b.Rand(0.14f, 0.22f) + unit * size * 0.10f;
-                b.TaperedSegment(from, to, size * b.Rand(0.09f, 0.12f), size * 0.05f, 4, b.Rand(0f, 90f));
-            }
+            b.Use("RockMid");
+            b.Rock(Vector3.zero, new Vector3(size * 1.1f, size * 0.85f, size * 1.0f), 0.12f, 3, 6);
 
             return b;
         }
