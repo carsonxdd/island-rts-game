@@ -524,18 +524,42 @@ public class TerrainGrid : MonoBehaviour
         GameObject water = new GameObject("_WaterPlane");
         water.transform.position = Vector3.zero;   // sea level y = 0
         MeshFilter mf = water.AddComponent<MeshFilter>();
-        mf.sharedMesh = BuildWaterMesh(Mathf.Max(480f, Half * 6f), 3f);
+        mf.sharedMesh = BuildWaterMesh(Mathf.Max(480f, Half * 6f), WaterGridStep);
         MeshRenderer mr = water.AddComponent<MeshRenderer>();
         mr.sharedMaterial = waterMaterial;
         mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         mr.receiveShadows = false;
+
+        // The shader identifies grid triangles from world XZ (per-facet tone
+        // and glints), so it has to know the step. A property block, never
+        // the shared material — writing the asset in Play mode dirties it on
+        // disk in the editor.
+        var block = new MaterialPropertyBlock();
+        block.SetFloat(WaterGridStepId, WaterGridStep);
+        mr.SetPropertyBlock(block);
     }
 
-    /// <summary>A flat XZ grid centred on the origin, <paramref name="size"/> m across at <paramref name="step"/> m spacing.</summary>
+    /// <summary>
+    /// Water grid spacing in metres. The shader's wavelengths must stay ≥ ~6× this
+    /// or the waves alias against the grid into slow diagonal stripes (the 3 m grid
+    /// with a 4 m wave did exactly that, 2026-09-01). 1.5 m on the 480 m plane is
+    /// ~103k verts / ~205k tris — cheap, and the facets read at gameplay zoom.
+    /// </summary>
+    const float WaterGridStep = 1.5f;
+    static readonly int WaterGridStepId = Shader.PropertyToID("_GridStep");
+
+    /// <summary>
+    /// A flat XZ grid centred on the origin, <paramref name="size"/> m across at
+    /// <paramref name="step"/> m spacing. The quad count is forced even so the
+    /// centred vertices land on whole multiples of <paramref name="step"/> — the
+    /// water shader relies on that to find each pixel's triangle from world XZ.
+    /// </summary>
     static Mesh BuildWaterMesh(float size, float step)
     {
-        int n = Mathf.CeilToInt(size / step) + 1;
-        float half = (n - 1) * step * 0.5f;
+        int quads = Mathf.CeilToInt(size / step);
+        if ((quads & 1) == 1) quads++;
+        int n = quads + 1;
+        float half = quads * step * 0.5f;
         Vector3[] verts = new Vector3[n * n];
         Vector2[] uvs = new Vector2[n * n];
         for (int z = 0; z < n; z++)

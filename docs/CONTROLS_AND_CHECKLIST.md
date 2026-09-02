@@ -253,14 +253,19 @@ back to a blue Lit material only if the shader is missing entirely).
 - [ ] Depleted ore respawns as ore
 
 **Metal**
-- [ ] HUD shows four resource chips (wood, food, stone, metal) each with its worker count, plus a housing chip; clicking any chip opens the campfire panel
+- [ ] HUD is ONE continuous bar top-left with five equal-width entries (wood, food, stone, metal, housing) separated by thin vertical rules — no boxes around individual entries
+- [ ] Every entry is exactly two lines: big bold amount on top, `Wood · N workers` on one unbroken line under it (check at 12 workers and at UI Scale max — it must never wrap to a third line); both lines start at the same left edge and the tops/bottoms line up across all five
+- [ ] The worker count reads smaller and dimmer than the amount; hovering an entry lights it faintly; clicking any entry opens the campfire panel
+- [ ] Campfire panel opens at the bottom-left; dragging its CAMPFIRE title bar moves it, it cannot be pushed off any screen edge, the X still closes it, and the position survives a restart and a scene reload
 - [ ] Campfire panel: four job rows with −/+ and live counts, a warriors row with its cost, a housing line; + greys out when housing is full, warrior + greys out when unaffordable; Esc and X close it; Esc does NOT open the pause menu while it is open
 - [ ] Assign a miner: they walk to an ore node, chip at it (stone sound), deliver, and the metal chip climbs; F4 shows a Metal row and +1000 all includes metal
 - [ ] Unassigning a miner removes exactly one and the housing count drops by one
 - [ ] Game-over stats line shows metal on hand
 
 **Water**
-- [ ] Sea is turquoise in the shallows fading to deep blue, with a foam line along the shore that drifts; gentle waves visible against the beach; a hard sun glint band; night tints it dark blue
+- [ ] Sea is turquoise in the shallows fading to deep blue, with a foam line along the shore that drifts; gentle waves visible against the beach; night tints it dark blue
+- [ ] Facets: the sea has a faint per-triangle tone jitter that drifts slowly, and single facets flash as small sun glints (a few percent of them at a time, none at night)
+- [ ] Rotate (Q/E) and tilt (middle-drag) through every angle at several zooms: the sea never flips light all at once, never shows scattered dark tiles, and never shows big diagonal stripes (the 2026-09-01 ortho-specular / wave-aliasing bug)
 - [ ] No banding or garbage along the bottom of the screen when zoomed out and tilted low (the ortho negative-near-clip case)
 - [ ] Ponds show the same shallow colour and foam ring
 

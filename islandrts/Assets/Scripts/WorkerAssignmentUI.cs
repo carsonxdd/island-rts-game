@@ -29,6 +29,11 @@ public class WorkerAssignmentUI : MonoBehaviour
 
     private BaseBuilding baseBuilding;
     private RectTransform panel;
+    private DraggablePanel drag;
+
+    /// <summary>Bottom-left corner, in reference pixels, when the player has never moved it.</summary>
+    static readonly Vector2 DefaultPanelPos = new Vector2(16f, 16f);
+    const string PanelPosKey = "ui.campfirePanel";
 
     private class JobRow
     {
@@ -77,6 +82,7 @@ public class WorkerAssignmentUI : MonoBehaviour
         warriorCost.text = building.warriorCost_Wood + " wood  ·  " + building.warriorCost_Food + " food";
 
         panel.gameObject.SetActive(true);
+        drag.Clamp();   // window may have been resized since the last open
         UpdateDisplay();
     }
 
@@ -120,15 +126,18 @@ public class WorkerAssignmentUI : MonoBehaviour
         Canvas canvas = MenuBuilder.CreateCanvas("CampfireCanvas", 60);
 
         panel = MenuBuilder.Panel(canvas.transform, "CampfirePanel", 520f, 100f);
-        // Bottom-centre, above the build bar area, so it never hides the base
-        panel.anchorMin = panel.anchorMax = new Vector2(0.5f, 0f);
-        panel.pivot = new Vector2(0.5f, 0f);
-        panel.anchoredPosition = new Vector2(0f, 36f);
+        // Bottom-left by default (2026-09-01), and draggable by its title bar:
+        // DraggablePanel needs the panel anchored + pivoted bottom-left so the
+        // anchored position is the corner it clamps and saves
+        panel.anchorMin = panel.anchorMax = Vector2.zero;
+        panel.pivot = Vector2.zero;
+        panel.anchoredPosition = DefaultPanelPos;
 
         VerticalLayoutGroup col = MenuBuilder.Column(panel, 4f);
 
-        // Title row with an X
+        // Title row with an X — also the drag handle
         RectTransform title = MenuBuilder.SettingRow(col.transform, "CAMPFIRE", out RectTransform titleSlot, 40f);
+        drag = DraggablePanel.Attach(title, panel, PanelPosKey, DefaultPanelPos);
         TextMeshProUGUI titleText = title.GetComponentInChildren<TextMeshProUGUI>();
         titleText.color = MenuStyle.TextAccent;
         titleText.fontSize = MenuStyle.HeadingSize - 4f;
@@ -151,6 +160,7 @@ public class WorkerAssignmentUI : MonoBehaviour
 
         MenuBuilder.Spacer(col.transform, 4f);
         MenuBuilder.FitPanelHeight(panel, col);
+        drag.Clamp();   // a saved position from a larger window must not leave it off-screen
     }
 
     JobRow MakeJobRow(Transform parent, ResourceNode.ResourceType type, string label)

@@ -7,13 +7,28 @@
 //    grid, built by TerrainGrid, so there are vertices to move)
 //  - flat-shaded facets: the normal is rebuilt per pixel from screen-space
 //    derivatives, which gives the low-poly look without duplicating verts
-//  - lit by the main light (so the day/night cycle tints it) with a hard,
-//    stepped specular highlight
+//  - per-facet tone: every grid triangle gets its own slowly drifting
+//    lightness jitter, and the brightest few become sun glints. This is what
+//    makes the water read as low-poly — it does NOT depend on the lighting
+//    geometry, which matters because of the camera (below)
+//  - lit by the main light (so the day/night cycle tints it) with a SOFT
+//    specular sheen
 //
-// Orthographic camera note: the gameplay camera is ortho with a NEGATIVE near
-// clip. Eye depth is reconstructed linearly from the raw depth for ortho, and
-// only the DIFFERENCE between scene depth and water depth is used, so the
-// negative-near quirk that breaks SSAO does not affect this shader.
+// Orthographic camera notes:
+//  1. Eye depth is reconstructed linearly from the raw depth for ortho, and
+//     only the DIFFERENCE between scene depth and water depth is used, so the
+//     negative-near quirk that breaks SSAO does not affect this shader.
+//  2. The view direction is the same for every pixel, so a specular highlight
+//     has no spot to form: on a flat plane it is either on EVERYWHERE or off
+//     everywhere, depending only on camera tilt and heading. A hard-stepped
+//     highlight therefore flips the whole ocean light at some angles, and any
+//     facet the wave tilts out of the step renders as a dark tile (2026-09-01).
+//     The sheen here is a low-power, low-strength pow() with no cutoff, so the
+//     worst case is a mild, smooth brightening — sparkle comes from the
+//     per-facet glints instead, which are angle-independent.
+//  3. Wavelengths must stay ≥ ~6× the water grid step (TerrainGrid builds the
+//     grid at _GridStep). Shorter waves alias against the grid into slow
+//     diagonal beat stripes across the whole sea.
 Shader "Island RTS/Stylized Water"
 {
     Properties
@@ -25,12 +40,16 @@ Shader "Island RTS/Stylized Water"
         _FoamDistance ("Foam distance", Float) = 0.75
         _FoamScale ("Foam noise scale", Float) = 0.45
         _FoamSpeed ("Foam speed", Float) = 0.35
-        _WaveAmplitude ("Wave amplitude", Float) = 0.07
-        _WaveLength ("Wave length", Float) = 7.0
-        _WaveSpeed ("Wave speed", Float) = 0.8
-        _SpecStrength ("Specular strength", Range(0, 2)) = 0.9
-        _SpecPower ("Specular power", Float) = 64
-        _SpecCutoff ("Specular cutoff", Range(0, 1)) = 0.45
+        _WaveAmplitude ("Wave amplitude", Float) = 0.09
+        _WaveLength ("Wave length (m, longest ~1.25x)", Float) = 16.0
+        _WaveSpeed ("Wave speed", Float) = 0.6
+        _GridStep ("Water grid step (m, set by TerrainGrid)", Float) = 1.5
+        _FacetTint ("Facet tone jitter", Range(0, 0.3)) = 0.06
+        _FacetSpeed ("Facet drift speed", Float) = 0.25
+        _GlintStrength ("Glint strength", Range(0, 2)) = 0.45
+        _GlintThreshold ("Glint threshold", Range(0.8, 1)) = 0.96
+        _SpecStrength ("Sheen strength", Range(0, 1)) = 0.22
+        _SpecPower ("Sheen power", Float) = 48
     }
 
     SubShader
@@ -72,9 +91,13 @@ Shader "Island RTS/Stylized Water"
                 float _WaveAmplitude;
                 float _WaveLength;
                 float _WaveSpeed;
+                float _GridStep;
+                float _FacetTint;
+                float _FacetSpeed;
+                float _GlintStrength;
+                float _GlintThreshold;
                 float _SpecStrength;
                 float _SpecPower;
-                float _SpecCutoff;
             CBUFFER_END
 
             struct Attributes
@@ -90,12 +113,15 @@ Shader "Island RTS/Stylized Water"
                 float4 screenPos : TEXCOORD1;
             };
 
+            // Three sine trains at 1.0x / 0.69x / 1.25x the base wavelength,
+            // in three directions. All of them are ≥ 7 grid steps long at the
+            // defaults (16 m base, 1.5 m grid).
             float WaveHeight(float2 p, float t)
             {
                 float k = 6.28318 / max(_WaveLength, 0.01);
-                float h = sin(p.x * k + t) * 0.55
-                        + sin((p.x * 0.6 + p.y * 0.8) * k * 1.7 - t * 1.3) * 0.30
-                        + sin(p.y * k * 0.8 + t * 0.7) * 0.15;
+                float h = sin(p.x * k + t) * 0.50
+                        + sin((p.x * 0.6 + p.y * 0.8) * k * 1.45 - t * 1.3) * 0.30
+                        + sin((p.y - p.x) * 0.707 * k * 0.8 + t * 0.7) * 0.20;
                 return h * _WaveAmplitude;
             }
 
@@ -145,6 +171,32 @@ Shader "Island RTS/Stylized Water"
                 return LinearEyeDepth(raw, _ZBufferParams);
             }
 
+            // Which grid triangle this pixel is on. The grid's vertices sit on
+            // whole multiples of _GridStep (TerrainGrid guarantees an even
+            // quad count so the centred mesh lands on the step), the wave
+            // only moves vertices vertically, and every quad is split along
+            // the same diagonal (i, i+n, i+1 is the lower-left triangle), so
+            // the triangle is fully determined by the XZ position. Returns a
+            // slowly drifting 0..1 value per triangle: neighbours are
+            // uncorrelated (crisp facets) and each eases between two random
+            // values, so glints fade in and out instead of popping.
+            float FacetValue(float2 xz)
+            {
+                float2 g = xz / max(_GridStep, 0.01);
+                float2 cell = floor(g);
+                float2 f = g - cell;
+                float upper = step(1.0, f.x + f.y);
+                float2 id = cell + float2(upper * 0.5, upper * 0.25);
+
+                float tt = _Time.y * _FacetSpeed + Hash(id) * 4.0;   // desync the phase per facet
+                float t0 = floor(tt);
+                float tf = tt - t0;
+                tf = tf * tf * (3.0 - 2.0 * tf);
+                float a = Hash(id + t0 * 17.3);
+                float b = Hash(id + (t0 + 1.0) * 17.3);
+                return lerp(a, b, tf);
+            }
+
             half4 frag(Varyings i) : SV_Target
             {
                 float2 screenUV = i.screenPos.xy / i.screenPos.w;
@@ -168,18 +220,28 @@ Shader "Island RTS/Stylized Water"
                 float3 nrm = normalize(cross(ddy(i.positionWS), ddx(i.positionWS)));
                 if (nrm.y < 0.0) nrm = -nrm;
 
+                // Per-facet tone, and the brightest few facets become sun glints
+                float facet = FacetValue(i.positionWS.xz);
+                float tint = 1.0 + (facet - 0.5) * 2.0 * _FacetTint;
+                float glint = smoothstep(_GlintThreshold, 1.0, facet);
+
                 Light light = GetMainLight();
                 float3 viewDir = normalize(GetWorldSpaceViewDir(i.positionWS));
                 float ndl = saturate(dot(nrm, light.direction)) * 0.5 + 0.5;
                 float3 halfDir = normalize(light.direction + viewDir);
-                float spec = pow(saturate(dot(nrm, halfDir)), _SpecPower);
-                spec = smoothstep(_SpecCutoff, _SpecCutoff + 0.12, spec) * _SpecStrength;
+                // Soft sheen — no cutoff, so it can never flip the whole sea (see header)
+                float sheen = pow(saturate(dot(nrm, halfDir)), _SpecPower) * _SpecStrength;
+                // Glints are angle-independent; they fade as the sun drops below the horizon
+                float sunUp = saturate(light.direction.y * 2.0);
+                float glintAmount = glint * _GlintStrength * sunUp;
 
                 float3 ambient = SampleSH(nrm);
-                float3 rgb = water.rgb * (light.color * ndl + ambient) + light.color * spec;
+                float3 rgb = water.rgb * tint * (light.color * ndl + ambient)
+                           + light.color * (sheen + glintAmount);
                 rgb = lerp(rgb, _FoamColor.rgb * (light.color * 0.6 + ambient), foamMask);
 
                 float alpha = lerp(water.a, 1.0, foamMask);
+                alpha = saturate(alpha + glintAmount * 0.5);
                 return half4(rgb, alpha);
             }
             ENDHLSL
