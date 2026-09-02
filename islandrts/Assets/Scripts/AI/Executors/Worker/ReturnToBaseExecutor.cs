@@ -134,7 +134,9 @@ public class ReturnToBaseExecutor : ActionExecutor
 
         int amountToDeliver = Mathf.RoundToInt(bb.carryAmount);
 
-        ResourceManager.Instance.Add(bb.assignedResourceType, amountToDeliver);
+        // carryType, not assignedResourceType: a job change mid-trip still delivers
+        // what was actually gathered under the old job
+        ResourceManager.Instance.Add(bb.carryType, amountToDeliver);
 
         bb.carryAmount = 0f;
         bb.worker.carryAmount = 0f;

@@ -18,6 +18,10 @@ using System.Collections;
 public class Worker : UnitBase<Worker>
 {
     [Header("Assignment")]
+    // A colonist arrives jobless and becomes a worker when the campfire panel hands
+    // them a job (2026-09-02). assignedResourceType only means anything while hasJob;
+    // an idle colonist builds and repairs instead. Only SetJob / ClearJob change these.
+    public bool hasJob = false;
     public ResourceNode.ResourceType assignedResourceType = ResourceNode.ResourceType.Wood;
     public BaseBuilding baseBuilding;  // Reference to campfire
 
@@ -56,6 +60,53 @@ public class Worker : UnitBase<Worker>
     public static void RollMovingAvoidance(NavMeshAgent agent)
     {
         if (agent != null) agent.avoidancePriority = Random.Range(30, 70);
+    }
+
+    // --- Jobs (2026-09-02) ---
+    // The campfire panel moves people between jobs; it never spawns or destroys
+    // them. A job change releases any node claim and forces a re-evaluation, so the
+    // brain re-picks with the new type. Whatever is in the worker's hands stays
+    // there under bb.carryType and is delivered as that type — Gather/Pickup refuse
+    // to mix a second type on top, so the worker heads home first.
+
+    /// <summary>Give this colonist a gathering job (or change the one they have).</summary>
+    public void SetJob(ResourceNode.ResourceType type)
+    {
+        bool changed = !hasJob || assignedResourceType != type;
+        hasJob = true;
+        assignedResourceType = type;
+        if (changed) OnJobChanged();
+    }
+
+    /// <summary>Back to the idle pool: builder, repairer, and the next candidate for a job or the militia.</summary>
+    public void ClearJob()
+    {
+        if (!hasJob) return;
+        hasJob = false;
+        OnJobChanged();
+    }
+
+    void OnJobChanged()
+    {
+        if (aiBrain == null || aiBrain.blackboard == null) return;   // brain not built yet — Initialize copies the fields
+        AIBlackboard bb = aiBrain.blackboard;
+        bb.hasJob = hasJob;
+        bb.assignedResourceType = assignedResourceType;
+        if (bb.carryAmount <= 0.01f) bb.carryType = assignedResourceType;
+
+        if (bb.targetResource != null)
+        {
+            bb.targetResource.UnclaimNode(this);
+            if (bb.isRegisteredAtNode)
+            {
+                bb.targetResource.UnregisterWorker(this);
+                bb.isRegisteredAtNode = false;
+            }
+            bb.targetResource = null;
+        }
+        bb.bestResource = null;
+        StopGatheringSound();
+        aiBrain.ForceReeval();
     }
 
     // --- Garrison (flee shelter, 2026-08-26): visually hide inside a hut ---
@@ -148,6 +199,8 @@ public class Worker : UnitBase<Worker>
         bb.baseBuilding = baseBuilding;
         bb.worker = this;
         bb.assignedResourceType = assignedResourceType;
+        bb.hasJob = hasJob;
+        bb.carryType = assignedResourceType;
         bb.carryCapacity = carryCapacity;
         bb.gatherDistance = gatherDistance;
         bb.deliveryDistance = deliveryDistance;
@@ -233,7 +286,28 @@ public class Worker : UnitBase<Worker>
                 new ThreatNearby(1f, ResponseCurve.InverseLinear(1f, 0f))      // 1 enemy nearby → 0, hard suppression
             }, new CollectPickupExecutor(), basePriority: 1.1f, momentumBonus: 0.15f),
 
-            // Idle at Base
+            // Build — idle colonists are the builders (2026-09-02). IsJobless is a
+            // zero-cost gate so job holders early-out before the site scan; the site
+            // scan is 0 with nothing to build (no yShift anywhere, so momentum cannot
+            // keep a finished site alive); ThreatNearby hard-suppresses like Gather.
+            new ActionOption("Build", new Consideration[]
+            {
+                new IsJobless(ResponseCurve.Linear(1f, 0f)),
+                new ConstructionAvailable(ResponseCurve.Linear(1f, 0f)),   // Caches bb.bestSite; 0 when none
+                new ThreatNearby(1f, ResponseCurve.InverseLinear(1f, 0f))
+            }, new BuildExecutor(), basePriority: 1.0f, momentumBonus: 0.15f),
+
+            // Repair — below Build so a colonist finishes new construction before
+            // patching. RepairAvailable is 0 when nothing is damaged OR the pool
+            // cannot cover the next unit of the repair.
+            new ActionOption("Repair", new Consideration[]
+            {
+                new IsJobless(ResponseCurve.Linear(1f, 0f)),
+                new RepairAvailable(ResponseCurve.Linear(1f, 0f)),         // Caches bb.bestRepair; 0 when none
+                new ThreatNearby(1f, ResponseCurve.InverseLinear(1f, 0f))
+            }, new RepairExecutor(), basePriority: 0.9f, momentumBonus: 0.15f),
+
+            // Idle at home (walks to the hut or campfire it is homed to, then waits)
             new ActionOption("Idle", new Consideration[]
             {
                 new ConstantScore(ResponseCurve.Constant(0.1f))  // Always-low constant floor
@@ -437,6 +511,10 @@ public class Worker : UnitBase<Worker>
             color = Color.cyan;
         else if (displayName.Contains("Fleeing"))
             color = Color.red;
+        else if (displayName.Contains("Building") || displayName.Contains("Repairing"))
+            color = new Color(1f, 0.65f, 0.2f);   // orange: labour
+        else if (displayName.Contains("Heading"))
+            color = Color.yellow;
         else
             color = Color.gray;
 

@@ -18,6 +18,12 @@ public class AIBlackboard
     // Worker fields
     public Worker worker;
     public ResourceNode.ResourceType assignedResourceType;
+    // False for an idle colonist (the builders). Gather/Pickup score 0 without a job;
+    // Build/Repair score 0 with one. Kept in sync by Worker.SetJob / ClearJob.
+    public bool hasJob;
+    // What is actually in the worker's hands. Normally the assigned type, but a job
+    // change mid-trip must still deliver what was picked up under the old job.
+    public ResourceNode.ResourceType carryType;
     public float carryCapacity;
     public float gatherDistance;
     public float deliveryDistance;
@@ -77,6 +83,14 @@ public class AIBlackboard
 
     // Nearest matching ground pickup (refreshed by PickupAvailability)
     public GroundPickup bestPickup;
+
+    // Nearest construction site with a free builder slot (refreshed by ConstructionAvailable)
+    public ConstructionSite bestSite;
+
+    // Nearest damaged, affordable building (refreshed by RepairAvailable)
+    public Transform bestRepair;
+    public Health bestRepairHealth;
+    public BuildingType bestRepairType;
 
     // Wall-under-attack cache
     public Transform wallUnderAttack;

@@ -369,3 +369,47 @@ Run `Setup Everything (In Order)` first: the metal node mesh is regenerated in s
 - [ ] A collected crate does not come back; sticks and stones still trickle in at the usual rate
 - [ ] No crate or barrel is stranded in water or on ground no worker can reach
 - [ ] Driftwood logs are still scenery
+
+### Colonist pool, arrivals, builders (2026-09-02)
+
+**Arrivals and housing**
+
+- [ ] After placing the campfire, the survivor becomes an idle colonist standing by the fire (no job) and the hint says to give them a job
+- [ ] The campfire panel opens with a "Colonists" line (`1 colonist · 1 idle · next survivor in Ns`) and a countdown that ticks down
+- [ ] Every ~20s by day a survivor lands at the cove by the wreck and walks to the campfire, until the campfire's 3 slots are full
+- [ ] Nobody lands at night; the countdown reads "survivors land by day" and resumes at dawn
+- [ ] Finishing a hut restarts arrivals; the new arrivals walk to **that hut** and wait beside it
+- [ ] Losing a hut makes its residents homeless (HUD housing chip goes red) and they move into the next free slot when one appears
+- [ ] F4 "Land a Survivor" drops one at the cove immediately; it is greyed out when housing is full
+
+**Jobs (assignment moves people, never creates them)**
+
+- [ ] `+` on a job row turns the nearest idle colonist into that worker — nobody spawns, the idle count drops by one
+- [ ] `+` is greyed out when nobody is idle; `−` sends a worker back to idle without destroying them
+- [ ] Changing a worker's job while they carry something: they deliver what they hold first, then gather the new type (HUD credits the right resource)
+- [ ] Warrior `+` converts an idle colonist where they stand (needs 10W 15F **and** an idle colonist); `−` dismisses one back to idle, no refund
+- [ ] A killed warrior frees a housing slot and a new survivor lands to replace them
+- [ ] Peak-colony stat and the HUD housing chip count everyone: workers, idle colonists and warriors
+
+**Builders (construction needs labour now)**
+
+- [ ] A placed site shows "Awaiting builder" until an idle colonist reaches it, then "Building…" and the HP climbs
+- [ ] With zero idle colonists a site waits forever; unassigning a worker gets it built
+- [ ] One builder finishes a hut in ~10s; three on one site is roughly 3x faster, a fourth goes to a different site
+- [ ] Builders stand at the site edge as "furniture" and walk back if shoved off
+- [ ] Enemies nearby make builders flee like workers; they return when the threat clears
+- [ ] Sturdy Scaffolds still speeds construction
+- [ ] F4 "Finish All Construction" still completes sites instantly
+- [ ] Wall lines get built segment by segment as colonists reach them (walls carve — check no builder wedges inside a ring)
+
+**Repair**
+
+- [ ] A damaged wall/hut/tower/workshop/campfire is repaired by an idle colonist at ~5 HP/s once nothing is left to build
+- [ ] Repair charges about a quarter of the build cost spread over the repair (a 15W wall repaired from near-zero costs ~4W); the HUD ticks down a unit at a time
+- [ ] With no resources the colonist stands at the building reading "Repairing (no materials)" and resumes when resources arrive
+- [ ] Repair stops when enemies are near and resumes after
+
+**Quick-start and sim**
+
+- [ ] F4 quick-start lands the colonists beside the fire, arms the warriors, then hands out jobs — no one walks in from the cove
+- [ ] A sweep still runs: policies keep one idle colonist as a builder whenever sites exist (sweeps from before this change are not comparable)

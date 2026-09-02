@@ -20,10 +20,10 @@ A Unity-based real-time strategy survival game. Manage autonomous workers, gathe
 ### First Game
 
 1. From the title screen, **NEW GAME** → pick a difficulty (Normal is the intended balance) → **BEGIN**
-2. Opening: **right-click** to walk your survivor ashore, then press **B** and click to place the campfire (free, must be near him — he becomes your first worker)
-3. Click the campfire to assign 5-6 workers (wood + food)
-4. Press **B** to build — place 1-2 Huts for housing
-5. Recruit 2-3 warriors before nightfall
+2. Opening: **right-click** to walk your survivor ashore, then press **B** and click to place the campfire (free, must be near him — he becomes your first colonist)
+3. Click the campfire to give idle colonists jobs (wood + food). More survivors come ashore by day while there is free housing — the campfire houses 3
+4. Press **B** to build — place 1-2 Huts for housing. Buildings only go up while an idle colonist is working the site, so keep one or two unassigned
+5. Recruit 2-3 warriors before nightfall (each one is an idle colonist taking up arms)
 6. Survive 5 nights to win
 
 > **First time in a fresh clone, run `Tools > Island RTS > Setup Everything (In Order)` once.** The art library, opening sequence, prop-scatter settings, island terrain, pickups/workshop and menu scene are all applied by editor tools, and the order they run in matters — the master item does all eight in dependency order and leaves `MainMenu` open, which is what a build starts on. `Tools > Island RTS > Open Game Scene (MainIsland)` skips the title screen. Every step is idempotent, so re-run it after pulling art or a generator defaults pass. A `skipIntro` toggle on the `GameStart` object restores the classic instant start.
@@ -89,7 +89,7 @@ islandrts/Assets/
 │   │   ├── WorldState/          # Enemy density grid, global state
 │   │   ├── Considerations/      # 13 scoring inputs (health, threat, distance, etc.)
 │   │   ├── Executors/
-│   │   │   ├── Worker/          # Gather, Return, Flee, Idle
+│   │   │   ├── Worker/          # Gather, Return, Pickup, Build, Repair, Flee, Idle
 │   │   │   ├── Warrior/         # Engage, Intercept, Defend, Patrol, Retreat, Heal
 │   │   │   └── Enemy/           # EnemyAttack (single action + priority-based targeting)
 │   │   ├── Shared/              # NavMesh throttling, stuck detection
@@ -164,7 +164,8 @@ All units (Workers, Warriors, Enemies) use a **scoring-based Utility AI** — no
 | **Economy** | Wood, food, stone, metal. Workers gather autonomously (cutters, foragers, quarriers, miners). Carry capacity 5, 1/sec rate. Every tree on the island is choppable, shoreline palms included. Metal has no cost sink yet. |
 | **World** | A new island every game: size (110 / 150 / 190 m), terrain style (Rolling / Terraced / Rugged) and an optional seed are picked on the New Game screen and locked for the run. Plateaus, cliffs, ramps, ponds, rocky and sandy shores; every plateau is guaranteed reachable. |
 | **Pickups** | Sticks and stones scattered on the island (+3 wood / +3 stone), which trickle-respawn, plus one-time salvage: the wreck's cargo and the crates and barrels along the shore (+6 food / +5 wood). Workers of the matching job detour to collect nearby ones. |
-| **Building** | Hut (housing), Wooden/Stone Wall, Gate, Watchtower, Workshop. Placement flattens a pad in the terrain. Construction sites auto-complete. |
+| **Colonists** | People are a pool, not a purchase. While there is free housing (campfire 3, hut 2), a survivor lands at the cove every ~20 s by day and walks to the home with room. The campfire panel hands idle colonists jobs and takes them back; it never spawns anyone. Idle colonists are the builders and repairers. Warriors are idle colonists taking up arms (10W 15F) and occupy housing. |
+| **Building** | Hut (housing), Wooden/Stone Wall, Gate, Watchtower, Workshop. Placement flattens a pad in the terrain. A site only goes up while an idle colonist is working it (one builder ≈ 10 s, up to three stack); with nobody idle it reads "Awaiting builder". Repair costs a quarter of the build price, paid as HP comes back. |
 | **Crafting** | Click the Workshop for one-time upgrades: Sharpened Tools (+30% gather), Sturdy Scaffolds (+50% build speed), Forged Blades (+30% warrior damage). |
 | **Combat** | Warriors auto-engage enemies. Watchtowers buff nearby warrior damage 1.25x. |
 | **Day/Night** | 120s day / 60s night. Enemies spawn at night — `5 + (night-1) x 2.25`, rounded (5 / 7 / 10 / 12 / 14), 0.4s apart so a wave lands as one body. |
@@ -194,7 +195,9 @@ Everything else (per-unit spawn/death, per-damage, per-resource tick, per-button
 
 For detailed technical documentation, AI system internals, balancing data, phase history, and gotchas, see [`.claude/CLAUDE.md`](.claude/CLAUDE.md).
 
-Latest: **The wreck's cargo is worth something.** The crates and barrels at the landing site, and the ones washed up along the shore, were scenery. They are supplies now: a worker of the matching job walks over, hauls one back to the fire, and it lands in the pool like any other delivery. Contents follow the silhouette — a crate holds food, which is what the opening is thinnest on, and a barrel breaks down into wood, so beachcombing is worth a wood worker's time too. Salvage is finite and deliberately different from the sticks and stones: nothing respawns it, and a crate grants its full contents even though that is more than a worker can normally carry, because a crate that quietly evaporated most of itself would read as a bug. Driftwood stays scenery. Re-run `Setup Everything (In Order)` to apply.
+Latest: **People are a pool, and buildings need hands.** Workers used to be conjured by the campfire panel — click plus and a fully-formed wood cutter appeared, capped only by housing. Now housing brings *people*: while the colony has a free slot, a survivor comes ashore at the cove every twenty seconds or so by day and walks to the hut that has room, and the panel simply hands idle colonists jobs and takes them back. Idle colonists are not idle for long — they are the builders. Construction no longer finishes on a timer; a site waits, reading "Awaiting builder", until a colonist reaches it, and three on one site work three times as fast. They repair too, paying a quarter of the build price as the HP comes back and downing tools when the pool runs dry. Warriors come out of the same pool: recruiting arms an idle colonist where they stand, so soldiers take up housing and a fallen one frees a slot for the next survivor. The opening's castaway is now the first colonist rather than the first wood cutter. No editor setup step needed. Balance sweeps from before this change are not comparable to sweeps after it — construction used to be free.
+
+Before that: **The wreck's cargo is worth something.** The crates and barrels at the landing site, and the ones washed up along the shore, were scenery. They are supplies now: a worker of the matching job walks over, hauls one back to the fire, and it lands in the pool like any other delivery. Contents follow the silhouette — a crate holds food, which is what the opening is thinnest on, and a barrel breaks down into wood, so beachcombing is worth a wood worker's time too. Salvage is finite and deliberately different from the sticks and stones: nothing respawns it, and a crate grants its full contents even though that is more than a worker can normally carry, because a crate that quietly evaporated most of itself would read as a bug. Driftwood stays scenery. Re-run `Setup Everything (In Order)` to apply.
 
 Before that: **Trees you can see through, and trees you can all chop.** Workers disappeared behind canopies, so a tree now fades out while anything is standing behind it and fades back the moment it clears — decided in screen space rather than with raycasts, so one pass over the tree list answers it for every unit at once and the cost does not grow with the crowd. Every tree on the island is harvestable too: the palms along the shore used to be scenery, and are now real resource nodes that shrink as they deplete, carry a little less wood than the inland trees, and are kept off ground no worker could reach. The metal node lost its bright veins and is a plain boulder again — the stone node keeps its crystals, which is what tells the two apart at a glance. Re-run `Setup Everything (In Order)` to apply.
 
@@ -261,7 +264,7 @@ In progress: **Phase 6.24** (queued refactors — *committed, still pending play
 Recent: **Phase 6.23** (code health pass) — fixed four population/housing bookkeeping bugs and a warrior-heal stuck state, eliminated all `FindObjectsByType` scene scans, added UI dirty-checking, deduplicated the warrior enemy scan (~4x fewer list scans per AI tick), and removed ~20 dead members plus two leftover test scripts. The project compiles with zero warnings.
 
 Future roadmap:
-- **Phase 7 (revised):** Jobless generalist colonists — unassigned colonists wander, collect ground pickups (sticks/rocks carried to the campfire), and construct/repair buildings (construction will require their labor, repair costs a fraction of build cost); assigning a gathering job specializes them. Plus building upgrades (hut → house, campfire → fortress), workshop, storage
+- **Phase 7 (revised, colonist pool shipped 2026-09-02):** jobless colonists, labour-gated construction and paid repair are in. Remaining: building upgrades (hut → house, campfire → fortress), storage
 - **Phase 8:** Worker night hide behavior, archer units
 - **Phase 9:** Player character (Admiral), crafting, tech tree
 - **Phase 10: Visual Overhaul** — stylized low-poly tropical aesthetic in the Bad North / Townscaper / Islanders family. Five stages:

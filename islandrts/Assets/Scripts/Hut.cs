@@ -10,8 +10,14 @@ using System.Collections.Generic;
 /// through ReleaseHousing, which is flag-guarded and called from BOTH death and OnDestroy
 /// so demolishing counts too. Nothing else may add or remove housing on a hut's behalf.
 /// </remarks>
-public class Hut : MonoBehaviour, ITargetable
+public class Hut : MonoBehaviour, ITargetable, IHousing
 {
+    // IHousing — PopulationManager derives the colony's capacity from registered providers
+    public int HousingCapacity => workerCapacity;
+    public bool HousingAlive => !housingReleased && (healthComponent == null || healthComponent.IsAlive);
+    public Collider HousingCollider => housingCollider;
+    private Collider housingCollider;
+
     public static IReadOnlyList<Hut> ActiveList => ActiveRegistry<Hut>.List;
 
     // Static event: fires when any hut dies. Enemies subscribe to ForceReeval
@@ -21,7 +27,11 @@ public class Hut : MonoBehaviour, ITargetable
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void ResetStatics() { OnAnyHutDestroyed = null; }
 
-    void Awake() { ActiveRegistry<Hut>.Register(this); }
+    void Awake()
+    {
+        ActiveRegistry<Hut>.Register(this);
+        PopulationManager.EnsureExists();   // the roster must exist before Start registers housing
+    }
 
     [Header("Health")]
     public float maxHealth = 100f;  // Hut health (less than campfire)
@@ -64,10 +74,11 @@ public class Hut : MonoBehaviour, ITargetable
             obstacle.carveOnlyStationary = true;  // Only carve when not moving (performance)
         }
 
-        // Register housing capacity with PopulationManager
+        // Register this hut as housing with PopulationManager (homeless colonists move in at once)
+        housingCollider = GetComponent<Collider>();
         if (PopulationManager.Instance != null)
         {
-            PopulationManager.Instance.AddHousing(workerCapacity);
+            PopulationManager.Instance.RegisterHousing(this);
         }
     }
 
@@ -113,7 +124,7 @@ public class Hut : MonoBehaviour, ITargetable
 
         if (PopulationManager.Instance != null)
         {
-            PopulationManager.Instance.RemoveHousing(workerCapacity);
+            PopulationManager.Instance.UnregisterHousing(this);
         }
     }
 

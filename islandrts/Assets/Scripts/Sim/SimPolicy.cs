@@ -36,7 +36,15 @@ public abstract class SimPolicy
     {
         BaseBuilding fire = s.Campfire;
         if (fire == null) return false;
-        if (PopulationManager.Instance != null && !PopulationManager.Instance.HasAvailableHousing()) return false;
+
+        // Colonists are a pool (2026-09-02): a job needs an idle colonist, and one is
+        // held back as a builder while anything is under construction — sites no
+        // longer finish on their own, so a policy that assigns everyone stalls.
+        PopulationManager pm = PopulationManager.Instance;
+        if (pm == null) return false;
+        int idle = pm.GetIdleCount();
+        if (idle <= 0) return false;
+        if (ConstructionSite.ActiveList.Count > 0 && idle <= 1) return false;
 
         int total = fire.GetTotalWorkers();
         if (total >= fire.maxWorkers) return false;

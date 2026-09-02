@@ -19,11 +19,22 @@ using TMPro;
 /// player places it, so anything that needs the campfire must poll BaseBuilding.ActiveList
 /// or listen for GameStartController.OnColonyStarted rather than caching it in Start.
 /// </remarks>
-public class BaseBuilding : MonoBehaviour, ITargetable
+public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
 {
     public static IReadOnlyList<BaseBuilding> ActiveList => ActiveRegistry<BaseBuilding>.List;
 
-    void Awake() { ActiveRegistry<BaseBuilding>.Register(this); }
+    // IHousing — the campfire is the colony's first housing (the starting crew's slots)
+    public int HousingCapacity => workerCapacity;
+    public bool HousingAlive => !housingReleased && (healthComponent == null || healthComponent.IsAlive);
+    public Collider HousingCollider => housingCollider;
+    private Collider housingCollider;
+    private bool housingReleased;
+
+    void Awake()
+    {
+        ActiveRegistry<BaseBuilding>.Register(this);
+        PopulationManager.EnsureExists();   // the roster must exist before Start registers housing
+    }
 
     [Header("Health")]
     public float maxHealth = 200f;  // Campfire health
@@ -40,11 +51,24 @@ public class BaseBuilding : MonoBehaviour, ITargetable
     [Header("Population & Housing")]
     public int workerCapacity = 3;  // Campfire provides 3 worker slots (starting crew)
 
-    [Header("Worker Assignments")]
-    public int woodWorkers = 0;
-    public int foodWorkers = 0;
-    public int stoneWorkers = 0;
-    public int metalWorkers = 0;
+    // Job counts are derived from the roster, never counted — a counter that is
+    // incremented in one place and decremented in another drifts the first time a
+    // path is missed (Phase 6.23 found exactly that). ~20 workers, so the scan is free.
+    public int woodWorkers => CountJob(ResourceNode.ResourceType.Wood);
+    public int foodWorkers => CountJob(ResourceNode.ResourceType.Food);
+    public int stoneWorkers => CountJob(ResourceNode.ResourceType.Stone);
+    public int metalWorkers => CountJob(ResourceNode.ResourceType.Metal);
+
+    int CountJob(ResourceNode.ResourceType type)
+    {
+        int n = 0;
+        for (int i = 0; i < activeWorkers.Count; i++)
+        {
+            Worker w = activeWorkers[i];
+            if (w != null && w.hasJob && w.assignedResourceType == type) n++;
+        }
+        return n;
+    }
 
     [Header("Warrior Management")]
     public GameObject warriorPrefab;
@@ -88,10 +112,11 @@ public class BaseBuilding : MonoBehaviour, ITargetable
         healthComponent.hideWhenFull = true;
         healthComponent.onDeath.AddListener(OnCampfireDestroyed);
 
-        // Register housing capacity with PopulationManager
+        // Register the campfire as housing (the starting crew's slots)
+        housingCollider = GetComponent<Collider>();
         if (PopulationManager.Instance != null)
         {
-            PopulationManager.Instance.AddHousing(workerCapacity);
+            PopulationManager.Instance.RegisterHousing(this);
         }
 
         // Get ALL renderers BEFORE creating health text (checks this object AND all children).
@@ -156,130 +181,105 @@ public class BaseBuilding : MonoBehaviour, ITargetable
         }
     }
 
-    // Assign a worker to a resource type
-    public void AssignWorker(ResourceNode.ResourceType resourceType)
+    // ------------------------------------------------------------------
+    // Jobs — assignment moves people, it never creates them (2026-09-02)
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Give the idle colonist nearest the fire this job. False when nobody is idle —
+    /// the panel disables its + buttons on the same condition.
+    /// </summary>
+    public bool AssignWorker(ResourceNode.ResourceType resourceType)
     {
-        // Check housing capacity via PopulationManager (this is now the only limit)
-        if (PopulationManager.Instance != null && !PopulationManager.Instance.HasAvailableHousing())
-        {
-            return;
-        }
+        if (PopulationManager.Instance == null) return false;
+        Worker idle = PopulationManager.Instance.FindIdleColonist(transform.position);
+        if (idle == null) return false;
 
-        // Increment the appropriate counter
-        switch (resourceType)
-        {
-            case ResourceNode.ResourceType.Wood:
-                woodWorkers++;
-                break;
-            case ResourceNode.ResourceType.Food:
-                foodWorkers++;
-                break;
-            case ResourceNode.ResourceType.Stone:
-                stoneWorkers++;
-                break;
-            case ResourceNode.ResourceType.Metal:
-                metalWorkers++;
-                break;
-        }
-
-        // Spawn the worker
-        SpawnWorker(resourceType);
+        idle.SetJob(resourceType);
+        return true;
     }
 
-    // Remove a worker from a resource type
-    public void UnassignWorker(ResourceNode.ResourceType resourceType)
+    /// <summary>Send one worker of this job back to the idle pool (they keep their body and their home).</summary>
+    public bool UnassignWorker(ResourceNode.ResourceType resourceType)
     {
-        // Find a worker of this type
-        Worker workerToRemove = null;
-        foreach (Worker worker in activeWorkers)
+        for (int i = 0; i < activeWorkers.Count; i++)
         {
-            if (worker != null && worker.assignedResourceType == resourceType)
+            Worker worker = activeWorkers[i];
+            if (worker != null && worker.hasJob && worker.assignedResourceType == resourceType)
             {
-                workerToRemove = worker;
-                break;  // Found one, stop looking
+                worker.ClearJob();
+                return true;
             }
         }
-
-        if (workerToRemove != null)
-        {
-            // All bookkeeping (roster, counters, population) happens in
-            // NotifyWorkerRemoved via Worker.OnDestroy — destroying is enough.
-            Destroy(workerToRemove.gameObject);
-        }
+        return false;
     }
 
     /// <summary>
     /// Called from Worker.OnDestroy so every destruction path (killed by enemy,
-    /// unassigned via UI, scene teardown) updates the roster, assignment counters,
-    /// and population count exactly once. Roster membership is the guard.
+    /// converted to a warrior, scene teardown) updates the roster and the population
+    /// exactly once. Roster membership is the guard; a converted worker's old body
+    /// was already dropped from the roster, so its destroy is a no-op here.
     /// </summary>
     public void NotifyWorkerRemoved(Worker worker)
     {
         if (!activeWorkers.Remove(worker))
             return;  // Already processed (or never tracked by this building)
 
-        switch (worker.assignedResourceType)
-        {
-            case ResourceNode.ResourceType.Wood:
-                if (woodWorkers > 0) woodWorkers--;
-                break;
-            case ResourceNode.ResourceType.Food:
-                if (foodWorkers > 0) foodWorkers--;
-                break;
-            case ResourceNode.ResourceType.Stone:
-                if (stoneWorkers > 0) stoneWorkers--;
-                break;
-            case ResourceNode.ResourceType.Metal:
-                if (metalWorkers > 0) metalWorkers--;
-                break;
-        }
-
         if (PopulationManager.Instance != null)
         {
-            PopulationManager.Instance.RemoveWorker();
+            PopulationManager.Instance.RemoveColonist(worker);
         }
     }
 
-    void SpawnWorker(ResourceNode.ResourceType resourceType)
+    /// <summary>
+    /// A new person joins the colony: jobless, homed to <paramref name="home"/>.
+    /// PopulationManager calls this for every survivor that comes ashore, and the
+    /// opening sequence for the castaway who settles in. Returns null if the prefab
+    /// is missing.
+    /// </summary>
+    public Worker SpawnColonist(Vector3 position, IHousing home)
+    {
+        Worker worker = InstantiateColonist(position);
+        if (worker == null) return null;
+
+        if (PopulationManager.Instance != null)
+        {
+            PopulationManager.Instance.AddColonist(worker, home);
+        }
+        return worker;
+    }
+
+    /// <summary>The body only — roster bookkeeping is the caller's job (AddColonist or ReplaceUnit).</summary>
+    Worker InstantiateColonist(Vector3 position)
     {
         if (workerPrefab == null)
         {
             Debug.LogError("BaseBuilding: Worker prefab not assigned!");
-            return;
+            return null;
         }
 
-        // Find a valid NavMesh position around the campfire
-        Vector3 spawnPos = GetValidSpawnPosition();
+        GameObject workerObj = Instantiate(workerPrefab, position, Quaternion.identity);
+        workerObj.name = $"Colonist_{activeWorkers.Count + 1}";
 
-        // Spawn worker
-        GameObject workerObj = Instantiate(workerPrefab, spawnPos, Quaternion.identity);
-        workerObj.name = $"Worker_{resourceType}_{activeWorkers.Count + 1}";
-
-        // Get Worker component and assign it
         Worker worker = workerObj.GetComponent<Worker>();
-        if (worker != null)
-        {
-            worker.assignedResourceType = resourceType;
-            worker.baseBuilding = this;
-            activeWorkers.Add(worker);
-
-            // Register worker with PopulationManager
-            if (PopulationManager.Instance != null)
-            {
-                PopulationManager.Instance.AddWorker();
-            }
-        }
-        else
+        if (worker == null)
         {
             Debug.LogError("BaseBuilding: Worker prefab doesn't have Worker component!");
+            Destroy(workerObj);
+            return null;
         }
+
+        worker.hasJob = false;
+        worker.baseBuilding = this;
+        activeWorkers.Add(worker);
+        return worker;
     }
 
     /// <summary>
     /// Find a valid spawn position on the NavMesh around the campfire.
     /// Tries random positions, then evenly-spaced directions, then falls back with warning.
     /// </summary>
-    Vector3 GetValidSpawnPosition()
+    public Vector3 GetValidSpawnPosition()
     {
         NavMeshHit hit;
 
@@ -342,19 +342,28 @@ public class BaseBuilding : MonoBehaviour, ITargetable
         return woodWorkers + foodWorkers + stoneWorkers + metalWorkers;
     }
 
-    // Spawn a warrior
+    // ------------------------------------------------------------------
+    // Warriors — recruited FROM the idle pool, not spawned (2026-09-02)
+    // ------------------------------------------------------------------
+
+    /// <summary>True when a recruit could happen right now: under the cap, affordable, and someone is idle.</summary>
+    public bool CanRecruitWarrior()
+    {
+        if (currentWarriors >= maxWarriors) return false;
+        if (ResourceManager.Instance == null
+            || ResourceManager.Instance.wood < warriorCost_Wood
+            || ResourceManager.Instance.food < warriorCost_Food) return false;
+        return PopulationManager.Instance != null && PopulationManager.Instance.GetIdleCount() > 0;
+    }
+
+    /// <summary>
+    /// Arm the idle colonist nearest the fire: they keep their roster slot and their home,
+    /// the worker body is destroyed and a warrior stands in its place. Costs the usual
+    /// wood and food. No-op when nobody is idle, the cap is reached, or it is unaffordable.
+    /// </summary>
     public void SpawnWarrior()
     {
-        if (currentWarriors >= maxWarriors)
-        {
-            return;
-        }
-
-        // Check if we have enough resources
-        if (ResourceManager.Instance.wood < warriorCost_Wood || ResourceManager.Instance.food < warriorCost_Food)
-        {
-            return;
-        }
+        if (!CanRecruitWarrior()) return;
 
         if (warriorPrefab == null)
         {
@@ -362,32 +371,41 @@ public class BaseBuilding : MonoBehaviour, ITargetable
             return;
         }
 
-        // Deduct resources
+        Worker recruit = PopulationManager.Instance.FindIdleColonist(transform.position);
+        if (recruit == null) return;
+
         ResourceManager.Instance.SpendWood(warriorCost_Wood);
         ResourceManager.Instance.SpendFood(warriorCost_Food);
 
-        // Find a valid NavMesh position around the campfire
-        Vector3 spawnPos = GetValidSpawnPosition();
+        // Stand the warrior where the colonist stood (a garrisoned colonist is at a
+        // hut edge, which is on the NavMesh too)
+        Vector3 spawnPos = recruit.transform.position;
+        NavMeshHit hit;
+        if (NavMesh.SamplePosition(spawnPos, out hit, 2f, NavMesh.AllAreas)) spawnPos = hit.position;
 
-        // Spawn warrior
-        GameObject warriorObj = Instantiate(warriorPrefab, spawnPos, Quaternion.identity);
+        GameObject warriorObj = Instantiate(warriorPrefab, spawnPos, recruit.transform.rotation);
         warriorObj.name = $"Warrior_{currentWarriors + 1}";
 
-        // Get Warrior component and assign it
         Warrior warrior = warriorObj.GetComponent<Warrior>();
-        if (warrior != null)
-        {
-            warrior.baseBuilding = this;
-            activeWarriors.Add(warrior);
-            currentWarriors++;
-        }
-        else
+        if (warrior == null)
         {
             Debug.LogError("BaseBuilding: Warrior prefab doesn't have Warrior component!");
+            Destroy(warriorObj);
+            return;
         }
+
+        warrior.baseBuilding = this;
+        activeWarriors.Add(warrior);
+        currentWarriors++;
+
+        // Same person, new body: swap the roster entry BEFORE destroying the old body,
+        // so the worker's OnDestroy → NotifyWorkerRemoved finds nothing to remove.
+        PopulationManager.Instance.ReplaceUnit(recruit, warrior);
+        activeWorkers.Remove(recruit);
+        Destroy(recruit.gameObject);
     }
 
-    // Remove a warrior
+    /// <summary>Dismiss a warrior: they lay down arms and rejoin the idle pool where they stand. No refund.</summary>
     public void RemoveWarrior()
     {
         if (currentWarriors <= 0 || activeWarriors.Count == 0)
@@ -405,23 +423,30 @@ public class BaseBuilding : MonoBehaviour, ITargetable
                 break;
             }
         }
+        if (warriorToRemove == null) return;
 
-        if (warriorToRemove != null)
+        activeWarriors.Remove(warriorToRemove);
+        currentWarriors--;
+
+        Worker colonist = InstantiateColonist(warriorToRemove.transform.position);
+        if (colonist != null && PopulationManager.Instance != null)
         {
-            activeWarriors.Remove(warriorToRemove);
-            currentWarriors--;
-            Destroy(warriorToRemove.gameObject);
+            PopulationManager.Instance.ReplaceUnit(warriorToRemove, colonist);
         }
+        Destroy(warriorToRemove.gameObject);
     }
 
-    // Called when a warrior is killed
+    // Called when a warrior is killed — the one path a warrior leaves the roster by
     public void NotifyWarriorKilled(GameObject warrior)
     {
         Warrior warriorComponent = warrior.GetComponent<Warrior>();
         if (warriorComponent != null)
         {
-            activeWarriors.Remove(warriorComponent);
-            currentWarriors--;
+            if (activeWarriors.Remove(warriorComponent)) currentWarriors--;
+            if (PopulationManager.Instance != null)
+            {
+                PopulationManager.Instance.RemoveColonist(warriorComponent);
+            }
         }
     }
 
@@ -438,11 +463,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable
         Debug.Log("BaseBuilding: CAMPFIRE DESTROYED! GAME OVER!");
         Debug.Log("========================================");
 
-        // Remove housing capacity from PopulationManager
-        if (PopulationManager.Instance != null)
-        {
-            PopulationManager.Instance.RemoveHousing(workerCapacity);
-        }
+        ReleaseHousing();
 
         // Health component will handle the "DESTROYED!" text display
 
@@ -488,9 +509,21 @@ public class BaseBuilding : MonoBehaviour, ITargetable
         return healthComponent != null ? healthComponent.GetHealthPercentage() : 1f;
     }
 
+    /// <summary>Housing leaves the roster exactly once, whether the fire died or the scene is tearing down.</summary>
+    void ReleaseHousing()
+    {
+        if (housingReleased) return;
+        housingReleased = true;
+        if (PopulationManager.Instance != null)
+        {
+            PopulationManager.Instance.UnregisterHousing(this);
+        }
+    }
+
     void OnDestroy()
     {
         ActiveRegistry<BaseBuilding>.Unregister(this);
+        ReleaseHousing();
     }
 
     // Visual helper in Scene view

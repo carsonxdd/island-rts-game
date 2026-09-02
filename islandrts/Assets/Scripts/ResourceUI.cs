@@ -272,7 +272,7 @@ public class ResourceUI : MonoBehaviour
 
         if (PopulationManager.Instance != null)
         {
-            int currentWorkers = PopulationManager.Instance.GetCurrentWorkers();
+            int currentWorkers = PopulationManager.Instance.GetColonistCount();
             int housingCapacity = PopulationManager.Instance.GetHousingCapacity();
 
             if (currentWorkers != lastPopWorkers || housingCapacity != lastPopCapacity)

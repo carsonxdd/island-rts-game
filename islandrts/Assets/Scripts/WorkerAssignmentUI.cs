@@ -44,9 +44,10 @@ public class WorkerAssignmentUI : MonoBehaviour
     }
 
     private readonly List<JobRow> jobs = new List<JobRow>();
-    private TextMeshProUGUI warriorCount, warriorCost, housingText;
+    private TextMeshProUGUI warriorCount, warriorCost, housingText, colonistText;
     private Button warriorMinus, warriorPlus;
     private int lastWarriors = -1, lastHousingUsed = -1, lastHousingCap = -1;
+    private int lastColonists = -1, lastIdle = -1, lastArrival = -1;
     private bool lastCanRecruit;
 
     void Awake()
@@ -79,7 +80,7 @@ public class WorkerAssignmentUI : MonoBehaviour
         for (int i = 0; i < jobs.Count; i++) jobs[i].last = -1;
         lastWarriors = lastHousingUsed = lastHousingCap = -1;
 
-        warriorCost.text = building.warriorCost_Wood + " wood  ·  " + building.warriorCost_Food + " food";
+        warriorCost.text = building.warriorCost_Wood + " wood  ·  " + building.warriorCost_Food + " food  ·  one idle colonist";
 
         panel.gameObject.SetActive(true);
         drag.Clamp();   // window may have been resized since the last open
@@ -145,13 +146,16 @@ public class WorkerAssignmentUI : MonoBehaviour
         SmallButton(titleSlot, "X", ClosePanel, new Vector2(0.84f, 0.1f), new Vector2(1f, 0.9f));
         MenuBuilder.Divider(col.transform);
 
-        MenuBuilder.SectionHeader(col.transform, "Workers");
+        MenuBuilder.SectionHeader(col.transform, "Colonists");
+        colonistText = MenuBuilder.RowDescription(col.transform, "");
+        housingText = MenuBuilder.RowDescription(col.transform, "Housing 0 / 0");
+
+        MenuBuilder.SectionHeader(col.transform, "Jobs");
         jobs.Add(MakeJobRow(col.transform, ResourceNode.ResourceType.Wood, "Wood cutters"));
         jobs.Add(MakeJobRow(col.transform, ResourceNode.ResourceType.Food, "Foragers"));
         jobs.Add(MakeJobRow(col.transform, ResourceNode.ResourceType.Stone, "Quarriers"));
         jobs.Add(MakeJobRow(col.transform, ResourceNode.ResourceType.Metal, "Miners"));
-
-        housingText = MenuBuilder.RowDescription(col.transform, "Housing 0 / 0");
+        MenuBuilder.RowDescription(col.transform, "Idle colonists build and repair. + gives one a job, − sends them back.");
 
         MenuBuilder.SectionHeader(col.transform, "Defence");
         MenuBuilder.SettingRow(col.transform, "Warriors", out RectTransform wslot);
@@ -215,9 +219,11 @@ public class WorkerAssignmentUI : MonoBehaviour
     {
         if (baseBuilding == null) return;
 
-        int housingCap = PopulationManager.Instance != null ? PopulationManager.Instance.GetHousingCapacity() : 10;
-        int housingUsed = PopulationManager.Instance != null ? PopulationManager.Instance.GetCurrentWorkers() : baseBuilding.GetTotalWorkers();
-        bool canAssign = PopulationManager.Instance == null || PopulationManager.Instance.HasAvailableHousing();
+        PopulationManager pm = PopulationManager.Instance;
+        int housingCap = pm != null ? pm.GetHousingCapacity() : 0;
+        int colonists = pm != null ? pm.GetColonistCount() : baseBuilding.GetTotalWorkers();
+        int idle = pm != null ? pm.GetIdleCount() : 0;
+        bool canAssign = idle > 0;   // a job needs an idle colonist — assignment never creates people
 
         for (int i = 0; i < jobs.Count; i++)
         {
@@ -232,13 +238,27 @@ public class WorkerAssignmentUI : MonoBehaviour
             row.plus.interactable = canAssign;
         }
 
-        if (housingUsed != lastHousingUsed || housingCap != lastHousingCap)
+        // "5 colonists · 2 idle · next survivor in 12s"
+        int arrival = pm != null ? Mathf.CeilToInt(pm.SecondsToNextArrival) : -1;
+        if (colonists != lastColonists || idle != lastIdle || arrival != lastArrival)
         {
-            lastHousingUsed = housingUsed;
+            lastColonists = colonists;
+            lastIdle = idle;
+            lastArrival = arrival;
+            string line = colonists + (colonists == 1 ? " colonist" : " colonists") + "  ·  " + idle + " idle";
+            if (arrival >= 0) line += "  ·  next survivor in " + arrival + "s";
+            else if (colonists < housingCap) line += "  ·  survivors land by day";
+            colonistText.text = line;
+            colonistText.color = idle > 0 ? MenuStyle.TextPrimary : MenuStyle.TextMuted;
+        }
+
+        if (colonists != lastHousingUsed || housingCap != lastHousingCap)
+        {
+            lastHousingUsed = colonists;
             lastHousingCap = housingCap;
-            housingText.text = "Housing " + housingUsed + " / " + housingCap
-                + (housingUsed >= housingCap ? "  —  build a hut for more workers" : "");
-            housingText.color = housingUsed >= housingCap ? MenuStyle.TextAccent : MenuStyle.TextMuted;
+            housingText.text = "Housing " + colonists + " / " + housingCap
+                + (colonists >= housingCap ? "  —  build a hut and more survivors will come ashore" : "");
+            housingText.color = colonists >= housingCap ? MenuStyle.TextAccent : MenuStyle.TextMuted;
         }
 
         int warriors = baseBuilding.GetWarriorCount();
@@ -248,10 +268,7 @@ public class WorkerAssignmentUI : MonoBehaviour
             warriorCount.text = warriors + " / " + baseBuilding.maxWarriors;
         }
 
-        bool canRecruit = warriors < baseBuilding.maxWarriors
-            && ResourceManager.Instance != null
-            && ResourceManager.Instance.wood >= baseBuilding.warriorCost_Wood
-            && ResourceManager.Instance.food >= baseBuilding.warriorCost_Food;
+        bool canRecruit = baseBuilding.CanRecruitWarrior();
         if (canRecruit != lastCanRecruit || warriorPlus.interactable != canRecruit)
         {
             lastCanRecruit = canRecruit;
@@ -308,9 +325,7 @@ public class WorkerAssignmentUI : MonoBehaviour
     {
         if (baseBuilding == null) return;
 
-        if (baseBuilding.GetWarriorCount() >= baseBuilding.maxWarriors) return;
-        if (ResourceManager.Instance.wood < baseBuilding.warriorCost_Wood ||
-            ResourceManager.Instance.food < baseBuilding.warriorCost_Food) return;
+        if (!baseBuilding.CanRecruitWarrior()) return;
 
         baseBuilding.SpawnWarrior();
 

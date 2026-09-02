@@ -142,6 +142,7 @@ public class GatherExecutor : ActionExecutor
             if (bb.targetResource.RegisterWorker(bb.worker))
             {
                 bb.isRegisteredAtNode = true;
+                bb.carryType = bb.targetResource.resourceType;   // what the hands will hold (delivered as this type)
                 phase = GatherPhase.Gathering;
 
                 // Stationary now: max-importance so passers-by route around us instead of

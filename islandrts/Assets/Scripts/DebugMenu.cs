@@ -166,7 +166,8 @@ public class DebugMenu : MonoBehaviour
         // keeps it, NEW GAME rolls a fresh one
         if (TerrainGrid.Instance != null)
             GUILayout.Label("Island seed: " + TerrainGrid.Instance.seed);
-        GUILayout.Label("Pop " + (pm != null ? pm.GetCurrentWorkers() + "/" + pm.GetHousingCapacity() : "?/?")
+        GUILayout.Label("Pop " + (pm != null ? pm.GetColonistCount() + "/" + pm.GetHousingCapacity() : "?/?")
+            + "   Idle " + (pm != null ? pm.GetIdleCount() : 0)
             + "   Warriors " + (fire != null ? fire.GetWarriorCount() : 0)
             + "   Enemies " + Enemy.ActiveList.Count);
     }
@@ -295,6 +296,14 @@ public class DebugMenu : MonoBehaviour
         }
         GUI.enabled = true;
 
+        // Skip the arrival timer: one survivor lands at the cove now (needs free housing)
+        GUI.enabled = Campfire != null && PopulationManager.Instance != null && PopulationManager.Instance.HasAvailableHousing();
+        if (GUILayout.Button("Land a Survivor (at the cove)"))
+        {
+            PopulationManager.Instance.SpawnArrival(false);
+        }
+        GUI.enabled = true;
+
         if (GUILayout.Button("Kill All Enemies"))
         {
             // TakeDamage (not Destroy) so the normal death path runs: kill
@@ -410,12 +419,20 @@ public class DebugMenu : MonoBehaviour
         }
         if (placed > 0) yield return null;  // let Hut.Start() register housing
 
-        // 3. Workers (capped by housing inside AssignWorker), then warriors
-        //    (cost resources — granted above; capped at maxWarriors inside)
+        // 3. People. Colonists are a pool now: land as many survivors as housing
+        //    allows (beside the fire, not at the cove), then arm warriors from the
+        //    idle pool and hand out jobs. Each step is capped by supply inside.
+        var pm = PopulationManager.Instance;
+        if (pm != null)
+        {
+            int wanted = woodWorkerCount + foodWorkerCount + stoneWorkerCount + warriorCount;
+            for (int i = 0; i < wanted && pm.SpawnArrival(true) != null; i++) { }
+            yield return null;   // let the colonists' Start() run before they are converted/assigned
+        }
+        for (int i = 0; i < warriorCount; i++) fire.SpawnWarrior();
         for (int i = 0; i < woodWorkerCount; i++) fire.AssignWorker(ResourceNode.ResourceType.Wood);
         for (int i = 0; i < foodWorkerCount; i++) fire.AssignWorker(ResourceNode.ResourceType.Food);
         for (int i = 0; i < stoneWorkerCount; i++) fire.AssignWorker(ResourceNode.ResourceType.Stone);
-        for (int i = 0; i < warriorCount; i++) fire.SpawnWarrior();
 
         spawningColony = false;
     }

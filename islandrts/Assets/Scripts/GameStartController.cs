@@ -355,20 +355,21 @@ public class GameStartController : MonoBehaviour
         if (dayNight != null) dayNight.clockPaused = false;
         if (buildPlacement != null) buildPlacement.enabled = true;
 
-        // The survivor settles in as the colony's first worker (wood).
-        // AssignWorker runs the normal single-owner bookkeeping path
-        // (population, roster, counters) — never hand-roll that.
+        // The survivor settles in as the colony's first colonist — jobless, homed
+        // to the campfire, standing where he stopped. SpawnColonist runs the normal
+        // single-owner bookkeeping path (roster, population) — never hand-roll that.
+        // More survivors come ashore on their own while the campfire has room.
         if (survivor != null)
         {
             if (placedCampfire != null)
             {
-                placedCampfire.AssignWorker(ResourceNode.ResourceType.Wood);
+                placedCampfire.SpawnColonist(survivor.transform.position, placedCampfire);
             }
             Destroy(survivor.gameObject);
             survivor = null;
         }
 
-        SetHint("The colony begins. Click the campfire to assign workers.    B: build    Survive the nights.");
+        SetHint("The colony begins. Click the campfire to give your colonist a job.    B: build    Survive the nights.");
         hintFadeStart = Time.time + 10f;
 
         OnColonyStarted?.Invoke();

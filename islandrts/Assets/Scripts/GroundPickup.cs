@@ -59,6 +59,7 @@ public class GroundPickup : MonoBehaviour
     {
         float space = bb.carryCapacity - bb.carryAmount;
         float granted = allowOverfill ? amount : Mathf.Min(amount, Mathf.Max(0f, space));
+        bb.carryType = resourceType;   // delivered as this type (PickupAvailability never mixes types)
         bb.carryAmount += granted;
         bb.worker.carryAmount = bb.carryAmount;
 

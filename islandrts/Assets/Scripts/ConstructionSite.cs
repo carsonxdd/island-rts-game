@@ -38,8 +38,22 @@ public class ConstructionSite : MonoBehaviour
     public bool showProgressText = true;
     public float progressTextHeight = 2.5f;
 
+    // --- Labour (2026-09-02) ---
+    // A site advances only while a colonist works it. One builder finishes in
+    // buildTime * LaborFactor seconds; extra builders stack linearly up to
+    // MaxBuilders. LaborFactor is a constant rather than a field because the
+    // prefab's serialized buildTime is what actually gets read (dead-data rule).
+    public const float LaborFactor = 2f;
+    public const int MaxBuilders = 3;
+
+    private readonly List<Worker> builders = new List<Worker>();
+    private float lastLaborTime = float.NegativeInfinity;
+    private bool lastShownAwaiting;
+    private const float AwaitingAfter = 0.5f;   // no labour for this long → "Awaiting builder"
+
     private float timeElapsed = 0f;
     private bool isComplete = false;
+    public bool IsComplete => isComplete;
     private TextMeshPro progressText;
     private GameObject progressTextObject;
     private Camera cachedCamera;
@@ -90,21 +104,71 @@ public class ConstructionSite : MonoBehaviour
     {
         if (isComplete) return;
 
-        // Auto-build over time (Workshop "Sturdy Scaffolds" upgrade speeds this up)
-        timeElapsed += Time.deltaTime * CraftedUpgrades.BuildSpeedMult;
-        progress = Mathf.Clamp01(timeElapsed / buildTime);
-
-        // Update progress text
+        // No auto-build any more: progress arrives through AddLabor from the
+        // colonists working the site. Update only keeps the sign current.
         if (showProgressText && progressText != null)
         {
             UpdateProgressText();
         }
+    }
 
-        // Check if construction is complete
+    // ------------------------------------------------------------------
+    // Labour
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// One builder's frame of work. The Workshop's "Sturdy Scaffolds" upgrade
+    /// multiplies it. Completes the site when the labour adds up.
+    /// </summary>
+    public void AddLabor(float seconds)
+    {
+        if (isComplete || seconds <= 0f) return;
+
+        lastLaborTime = Time.time;
+        timeElapsed += seconds * CraftedUpgrades.BuildSpeedMult;
+        progress = Mathf.Clamp01(timeElapsed / (Mathf.Max(0.01f, buildTime) * LaborFactor));
+
         if (progress >= 1f)
         {
             Complete();
         }
+    }
+
+    /// <summary>True while nobody has worked this site for a moment.</summary>
+    public bool AwaitingBuilder => !isComplete && Time.time - lastLaborTime > AwaitingAfter;
+
+    /// <summary>Builders registered on this site (dead entries dropped).</summary>
+    public int BuilderCount
+    {
+        get
+        {
+            for (int i = builders.Count - 1; i >= 0; i--)
+            {
+                if (builders[i] == null) builders.RemoveAt(i);
+            }
+            return builders.Count;
+        }
+    }
+
+    /// <summary>Room for this colonist: a free slot, or already registered here.</summary>
+    public bool HasBuilderRoom(Worker worker)
+    {
+        if (isComplete) return false;
+        if (worker != null && builders.Contains(worker)) return true;
+        return BuilderCount < MaxBuilders;
+    }
+
+    /// <summary>Claim a builder slot. False when the site is full or finished.</summary>
+    public bool RegisterBuilder(Worker worker)
+    {
+        if (worker == null || !HasBuilderRoom(worker)) return false;
+        if (!builders.Contains(worker)) builders.Add(worker);
+        return true;
+    }
+
+    public void UnregisterBuilder(Worker worker)
+    {
+        if (worker != null) builders.Remove(worker);
     }
 
     void Complete()
@@ -242,16 +306,24 @@ public class ConstructionSite : MonoBehaviour
             progressTextObject.transform.Rotate(0, 180, 0);
         }
 
-        // Only rebuild text when the displayed HP integer changes
+        // Only rebuild text when the displayed HP integer or the awaiting state changes
         int currentHP = Mathf.RoundToInt(progress * targetHealth);
-        if (currentHP == lastDisplayedProgressHP) return;
+        bool awaiting = AwaitingBuilder;
+        if (currentHP == lastDisplayedProgressHP && awaiting == lastShownAwaiting) return;
         lastDisplayedProgressHP = currentHP;
+        lastShownAwaiting = awaiting;
 
         // Update text content
         if (progress >= 1f)
         {
             progressText.text = "Complete!";
             progressText.color = Color.green;
+        }
+        else if (awaiting)
+        {
+            // Nobody on it: an idle colonist is what builds things now
+            progressText.text = $"Awaiting builder\n{currentHP} / {targetHealth:F0} HP";
+            progressText.color = new Color(1f, 0.6f, 0.2f);
         }
         else
         {
