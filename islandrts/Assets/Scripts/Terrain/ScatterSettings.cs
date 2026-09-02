@@ -35,9 +35,11 @@ public class ScatterSettings : ScriptableObject
         [Header("Gameplay")]
         [Tooltip("Spawn this prop as a harvestable ResourceNode rather than decor. Trees are gatherable, so every tree on the island is one a worker can chop.")]
         public bool gatherable = false;
-        [Tooltip("Resource the node yields when gatherable.")]
+        [Tooltip("Spawn this prop as a one-shot GroundPickup a worker carries home — washed-up crates and barrels are salvage, not scenery. Mutually exclusive with gatherable.")]
+        public bool salvage = false;
+        [Tooltip("Resource the node or pickup yields.")]
         public ResourceNode.ResourceType resourceType = ResourceNode.ResourceType.Wood;
-        [Tooltip("Total resources in the node when full (Tree.prefab carries 50).")]
+        [Tooltip("Total resources in the node when full (Tree.prefab carries 50), or the amount a salvage pickup grants.")]
         public int resourceAmount = 40;
 
         [Header("Spacing / size")]

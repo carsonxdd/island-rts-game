@@ -120,7 +120,11 @@ public class PickupSpawner : MonoBehaviour
             }
             if (tooClose) continue;
 
-            Instantiate(prefab, pos, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f), transform);
+            GameObject spawned = Instantiate(prefab, pos, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f), transform);
+            // Only what this spawner placed counts against its respawn budget —
+            // salvage crates are finite and must not feed the trickle.
+            GroundPickup pickup = spawned.GetComponent<GroundPickup>();
+            if (pickup != null) pickup.spawnerOwned = true;
             return true;
         }
         return false;

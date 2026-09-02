@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.AI;
 
 /// <summary>
 /// Runtime environment set dressing: palms, rocks, bushes, ferns, grass
@@ -21,8 +22,13 @@ using UnityEngine;
 /// and are never static-batched, because they shrink and are destroyed as
 /// they deplete.
 ///
-/// Under the balance sim only the gatherable rules run: decor is skipped, but
-/// wood the simulated colony can actually chop is not.
+/// A rule may instead be marked salvage, which is how washed-up crates and
+/// barrels become supplies: each is a one-shot GroundPickup a worker carries
+/// home (see SpawnSalvage). Salvage is finite - it is placed once per island
+/// and PickupSpawner never replaces it.
+///
+/// Under the balance sim only the gameplay rules run: decor is skipped, but
+/// wood the simulated colony can chop and salvage it can carry are not.
 /// </summary>
 public class PropScatter : MonoBehaviour
 {
@@ -51,8 +57,8 @@ public class PropScatter : MonoBehaviour
     {
         // Own root, never under the Terrain object (its NavMeshSurface collects children)
         GameObject root = new GameObject(RootName);
-        // Gatherable props are gameplay objects: they shrink as they deplete and are
-        // destroyed when emptied, so they must stay out of the static batch.
+        // Gameplay props are not decor: nodes shrink as they deplete and salvage is
+        // destroyed when collected, so both stay out of the static batch.
         GameObject nodeRoot = null;
         System.Random rng = new System.Random(terrain.seed ^ 0x5CA77E2);
 
@@ -70,14 +76,15 @@ public class PropScatter : MonoBehaviour
         {
             ScatterSettings.Rule rule = settings.rules[r];
             if (rule == null || rule.prefab == null) continue;
-            // Under the balance sim only the gatherable rules matter - the rest is decor,
+            bool gameplay = rule.gatherable || rule.salvage;
+            // Under the balance sim only the gameplay rules matter - the rest is decor,
             // and the sim has no camera to see it with.
-            if (SimHooks.Simulating && !rule.gatherable) continue;
+            if (SimHooks.Simulating && !gameplay) continue;
 
-            if (rule.gatherable && nodeRoot == null) nodeRoot = new GameObject(RootName + "_Nodes");
+            if (gameplay && nodeRoot == null) nodeRoot = new GameObject(RootName + "_Nodes");
 
             Transform group = new GameObject(rule.prefab.name).transform;
-            group.SetParent(rule.gatherable ? nodeRoot.transform : root.transform, false);
+            group.SetParent(gameplay ? nodeRoot.transform : root.transform, false);
 
             // Counts are authored for the 150 m map; keep the same DENSITY on other sizes
             int wanted = Mathf.RoundToInt(rule.count * TerrainGrid.SizeScale * TerrainGrid.SizeScale);
@@ -104,9 +111,9 @@ public class PropScatter : MonoBehaviour
                         if (tone < rule.minTone || tone > rule.maxTone) continue;
                     }
 
-                    // A gatherable node on a cut-off outcrop is a node no worker can ever
+                    // A node or a crate on a cut-off outcrop is one no worker can ever
                     // reach; decor is welcome there.
-                    if (rule.gatherable && !terrain.IsReachable(p)) continue;
+                    if (gameplay && !terrain.IsReachable(p)) continue;
 
                     if (placed.TooClose(p, rule.spacing)) continue;
 
@@ -116,6 +123,10 @@ public class PropScatter : MonoBehaviour
 
                     if (rule.gatherable)
                         SpawnNode(rule, group, p, yaw, scale);
+                    else if (rule.salvage)
+                    {
+                        if (!SpawnSalvage(rule, group, p, yaw, scale)) continue;
+                    }
                     else
                         Instantiate(rule.prefab, p, Quaternion.Euler(0f, yaw, 0f), group)
                             .transform.localScale = new Vector3(scale, scale, scale);
@@ -180,6 +191,44 @@ public class PropScatter : MonoBehaviour
         ResourceNode resource = node.AddComponent<ResourceNode>();
         resource.resourceType = rule.resourceType;
         resource.maxResourceAmount = rule.resourceAmount;
+    }
+
+    /// <summary>
+    /// Build a one-shot salvage pickup around an art prefab: a crate of supplies or a
+    /// barrel washed up on the shore, which a worker of the matching job carries home.
+    /// Returns false when the spot has no NavMesh under it, so the caller can try
+    /// elsewhere rather than leave an unreachable crate on the sand.
+    /// </summary>
+    /// <remarks>
+    /// Layout mirrors the pickup prefabs the session-content tool builds (Stick,
+    /// StonePickup): gameplay component on an empty root, art on a "Model" child, and
+    /// NO collider — a pickup is an AI target, never a click target, and must not
+    /// intercept building-placement raycasts or block pathing.
+    ///
+    /// The flotsam bands reach into the wading band, where the ground is walkable but
+    /// the NavMesh edge is ragged, hence the sample-and-snap.
+    /// </remarks>
+    bool SpawnSalvage(ScatterSettings.Rule rule, Transform group, Vector3 pos, float yaw, float scale)
+    {
+        NavMeshHit hit;
+        if (!NavMesh.SamplePosition(pos, out hit, 2f, NavMesh.AllAreas)) return false;
+        pos = hit.position;
+
+        GameObject salvage = new GameObject(rule.prefab.name + "Salvage");
+        salvage.transform.SetParent(group, false);
+        salvage.transform.position = pos;
+
+        GameObject model = Instantiate(rule.prefab, salvage.transform);
+        model.name = "Model";
+        model.transform.localPosition = Vector3.zero;
+        model.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
+        model.transform.localScale = new Vector3(scale, scale, scale);
+
+        GroundPickup pickup = salvage.AddComponent<GroundPickup>();
+        pickup.resourceType = rule.resourceType;
+        pickup.amount = rule.resourceAmount;
+        pickup.allowOverfill = true;
+        return true;
     }
 
     /// <summary>Grid-bucketed positions for the spacing check (O(1) per query instead of O(n)).</summary>

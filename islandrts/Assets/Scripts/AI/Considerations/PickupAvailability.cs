@@ -4,7 +4,10 @@ using UnityEngine;
 /// Scores the nearest unclaimed ground pickup matching the worker's assigned
 /// resource, and caches it in bb.bestPickup. 1.0 right on top of it, fading to
 /// 0 at AttractRange — so pickups only outbid Gather when genuinely close.
-/// Food workers always score 0 (no food pickups exist).
+///
+/// Any worker job qualifies: sticks and stones cover wood and stone, and
+/// salvage crates put food on the shore. A job with no matching pickup on the
+/// island (metal) simply finds nothing and scores 0.
 /// </summary>
 public class PickupAvailability : Consideration
 {
@@ -15,10 +18,6 @@ public class PickupAvailability : Consideration
     public override float ScoreRaw(AIBlackboard bb)
     {
         bb.bestPickup = null;
-
-        // Only sticks (wood) and stone chunks exist as pickups
-        if (bb.assignedResourceType != ResourceNode.ResourceType.Wood
-            && bb.assignedResourceType != ResourceNode.ResourceType.Stone) return 0f;
 
         GroundPickup best = null;
         float bestSqr = AttractRange * AttractRange;

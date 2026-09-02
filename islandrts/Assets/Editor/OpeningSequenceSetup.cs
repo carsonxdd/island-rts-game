@@ -25,6 +25,8 @@ using System.Text;
 ///  5. Builds a "_Shipwreck" set piece on the west shore from primitives with
 ///     LP materials + Crate/Barrel/DriftwoodLog art prefabs. No colliders, so
 ///     it never blocks pathing, clicks, or the NavMesh bake (like scatter props).
+///     The crates and the barrel are salvage: GroundPickups a worker hauls to
+///     the fire, a one-time landing bonus that nothing respawns.
 ///  6. Creates the "GameStart" object wired with everything, clears the (now
 ///     dangling) GameManager.campfire reference, saves the scene.
 ///
@@ -372,10 +374,12 @@ public static class OpeningSequenceSetup
         AddCylinder(wreck, "Mast", new Vector3(-1.2f, 0.5f, -1.6f), new Vector3(75f, 25f, 0f), new Vector3(0.22f, 1.9f, 0.22f), bark);
         AddBlock(wreck, "SailScrap", new Vector3(-1.6f, 0.28f, -2.4f), new Vector3(6f, 40f, 3f), new Vector3(1.8f, 0.06f, 1.3f), cloth);
 
-        // Washed-up cargo (nested art prefab instances, collider-free by design)
-        AddProp(wreck, CratePrefabPath, new Vector3(2.0f, 0f, 2.2f), 30f);
-        AddProp(wreck, CratePrefabPath, new Vector3(4.6f, 0f, -0.8f), 70f);
-        AddProp(wreck, BarrelPrefabPath, new Vector3(1.1f, 0f, -2.6f), 0f);
+        // Washed-up cargo (nested art prefab instances, collider-free by design).
+        // The crates and the barrel are SALVAGE (2026-09-02): the ship's stores survived
+        // the wreck, so a worker hauls each one back to the fire. Driftwood stays scenery.
+        AddSalvage(wreck, CratePrefabPath, new Vector3(2.0f, 0f, 2.2f), 30f, ResourceNode.ResourceType.Food, 6);
+        AddSalvage(wreck, CratePrefabPath, new Vector3(4.6f, 0f, -0.8f), 70f, ResourceNode.ResourceType.Food, 6);
+        AddSalvage(wreck, BarrelPrefabPath, new Vector3(1.1f, 0f, -2.6f), 0f, ResourceNode.ResourceType.Wood, 5);
         AddProp(wreck, DriftwoodPrefabPath, new Vector3(5.5f, 0f, 1.8f), 100f);
         AddProp(wreck, DriftwoodPrefabPath, new Vector3(-2.8f, 0f, 3.4f), 200f);
 
@@ -407,6 +411,44 @@ public static class OpeningSequenceSetup
         piece.GetComponent<MeshRenderer>().sharedMaterial = mat;
 
         GameObjectUtility.SetStaticEditorFlags(piece, PropStaticFlags);
+    }
+
+    /// <summary>
+    /// Wreck cargo that is worth something: the art on a "Model" child under an empty
+    /// root carrying a GroundPickup, matching the layout of Stick/StonePickup.
+    /// </summary>
+    /// <remarks>
+    /// Never static — a collected crate is destroyed, and a static-batched object cannot
+    /// leave the batch. No collider either, for the same reason the rest of the wreck has
+    /// none: a pickup is an AI target, not a click target, and must not intercept
+    /// building-placement raycasts.
+    ///
+    /// PickupSpawner does not own these, so nothing respawns them. That is the point —
+    /// the ship's stores are a one-time landing bonus.
+    /// </remarks>
+    private static void AddSalvage(GameObject parent, string prefabPath, Vector3 localPos, float yaw,
+                                   ResourceNode.ResourceType type, int amount)
+    {
+        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+        if (prefab == null)
+        {
+            Debug.LogWarning("[Opening] Salvage prefab missing, skipped: " + prefabPath);
+            return;
+        }
+
+        GameObject root = new GameObject(System.IO.Path.GetFileNameWithoutExtension(prefabPath) + "Salvage");
+        root.transform.SetParent(parent.transform, false);
+        root.transform.localPosition = localPos;
+
+        GameObject model = (GameObject)PrefabUtility.InstantiatePrefab(prefab, root.transform);
+        model.name = "Model";
+        model.transform.localPosition = Vector3.zero;
+        model.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
+
+        GroundPickup pickup = root.AddComponent<GroundPickup>();
+        pickup.resourceType = type;
+        pickup.amount = amount;
+        pickup.allowOverfill = true;
     }
 
     private static void AddProp(GameObject parent, string prefabPath, Vector3 localPos, float yaw)

@@ -358,3 +358,14 @@ Run `Setup Everything (In Order)` first: the metal node mesh is regenerated in s
 - [ ] A sweep run reports the same numbers with the developer's difficulty set to Brutal as to Normal
 - [ ] `nightsToSurvive` in `runs.csv` matches the sweep config, not the difficulty preset
 - [ ] The `startingWood` / `startingFood` / `startingStone` knobs now actually take effect (they were silently ignored before — `ResourceManager` reads them in `Awake`)
+
+**Salvage crates and barrels (2026-09-02)**
+
+- [ ] The shipwreck at the landing site has two crates and a barrel, and the shore has more of both
+- [ ] A food worker walks to a nearby crate and delivers 6 food to the campfire, even though a worker carries 5
+- [ ] A wood worker does the same with a barrel (5 wood)
+- [ ] Workers ignore salvage while enemies are near, the same way they stop gathering
+- [ ] Two workers never chase the same crate
+- [ ] A collected crate does not come back; sticks and stones still trickle in at the usual rate
+- [ ] No crate or barrel is stranded in water or on ground no worker can reach
+- [ ] Driftwood logs are still scenery

@@ -29,6 +29,9 @@ namespace IslandRTS.ArtGen
         private const string ArtPrefabRoot = "Assets/Art/Prefabs/Environment/";
         public const string SettingsAssetPath = "Assets/Settings/ScatterSettings.asset";
 
+        /// <summary>What a rule places: scenery, a harvestable node, or a one-shot pickup.</summary>
+        private enum Kind { Decor, Node, Salvage }
+
         private struct Def
         {
             public string Prefab;
@@ -38,15 +41,19 @@ namespace IslandRTS.ArtGen
             public float MinTone, MaxTone;
             public float Spacing;
             public float MinScale, MaxScale;
-            /// <summary>Non-zero makes this a harvestable wood node rather than decor, holding this much wood.</summary>
-            public int Wood;
+            /// <summary>Resources held (node) or granted (salvage). Zero leaves the prop as decor.</summary>
+            public int Amount;
+            public Kind Mode;
+            public ResourceNode.ResourceType Yield;
 
             public Def(string prefab, int count, float minH, float maxH, float minSlope, float maxSlope,
-                       float minTone, float maxTone, float spacing, float minScale, float maxScale, int wood = 0)
+                       float minTone, float maxTone, float spacing, float minScale, float maxScale,
+                       int amount = 0, Kind mode = Kind.Node,
+                       ResourceNode.ResourceType yield = ResourceNode.ResourceType.Wood)
             {
                 Prefab = prefab; Count = count; MinH = minH; MaxH = maxH; MinSlope = minSlope; MaxSlope = maxSlope;
                 MinTone = minTone; MaxTone = maxTone; Spacing = spacing; MinScale = minScale; MaxScale = maxScale;
-                Wood = wood;
+                Amount = amount; Mode = mode; Yield = yield;
             }
         }
 
@@ -77,10 +84,15 @@ namespace IslandRTS.ArtGen
             new Def("Fern.prefab",              30,   0.70f, 7.00f, 0f,    0.60f, 0f,   0.40f, 3.0f, 0.80f, 1.20f),
             new Def("GrassTuft.prefab",         90,   0.60f, 7.20f, 0f,    0.70f, 0f,   1f,   2.0f,  0.80f, 1.35f),
 
-            // Flotsam: wading band + wet sand
+            // Flotsam: wading band + wet sand. Crates and barrels are SALVAGE (2026-09-02) —
+            // a one-shot pickup a worker of the matching job carries to the campfire, so the
+            // shore is worth walking. Crates hold supplies (food, which the opening is
+            // thinnest on), barrels break down into staves (wood). Driftwood stays decor.
             new Def("DriftwoodLog.prefab",      12,  -0.30f, 0.50f, 0f,    0.40f, 0f,   1f,   5.0f,  0.90f, 1.20f),
-            new Def("Barrel.prefab",             5,  -0.20f, 0.50f, 0f,    0.40f, 0f,   1f,   4.0f,  0.95f, 1.10f),
-            new Def("Crate.prefab",              6,  -0.20f, 0.50f, 0f,    0.40f, 0f,   1f,   4.0f,  0.95f, 1.10f),
+            new Def("Barrel.prefab",             5,  -0.20f, 0.50f, 0f,    0.40f, 0f,   1f,   4.0f,  0.95f, 1.10f,
+                    5, Kind.Salvage, ResourceNode.ResourceType.Wood),
+            new Def("Crate.prefab",              6,  -0.20f, 0.50f, 0f,    0.40f, 0f,   1f,   4.0f,  0.95f, 1.10f,
+                    6, Kind.Salvage, ResourceNode.ResourceType.Food),
         };
 
         // ==================================================================
@@ -135,9 +147,10 @@ namespace IslandRTS.ArtGen
                     minTone = d.MinTone, maxTone = d.MaxTone,
                     spacing = d.Spacing,
                     minScale = d.MinScale, maxScale = d.MaxScale,
-                    gatherable = d.Wood > 0,
-                    resourceType = ResourceNode.ResourceType.Wood,
-                    resourceAmount = d.Wood > 0 ? d.Wood : 40,
+                    gatherable = d.Amount > 0 && d.Mode == Kind.Node,
+                    salvage = d.Amount > 0 && d.Mode == Kind.Salvage,
+                    resourceType = d.Yield,
+                    resourceAmount = d.Amount > 0 ? d.Amount : 40,
                 });
             }
 

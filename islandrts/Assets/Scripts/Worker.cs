@@ -220,7 +220,8 @@ public class Worker : UnitBase<Worker>
                 new ReturnUrgency(15f, 3f, ResponseCurve.Linear(1f, 0f))
             }, new ReturnToBaseExecutor(), basePriority: 1.0f, momentumBonus: 0.15f),
 
-            // Collect Pickup — a stick/stone lying nearby is a quick top-up (2026-08-26).
+            // Collect Pickup — a stick, stone chunk or salvage crate lying nearby is a
+            // quick top-up (2026-08-26; salvage 2026-09-02).
             // PickupAvailability fades with distance (0 beyond ~22u), so this only outbids
             // Gather when the pickup is genuinely close; ThreatNearby hard-suppresses like
             // Gather; ResourceCarry keeps full workers heading home instead. Zero yShift
