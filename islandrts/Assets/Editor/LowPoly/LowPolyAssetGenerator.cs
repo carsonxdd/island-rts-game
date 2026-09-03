@@ -55,6 +55,9 @@ namespace IslandRTS.ArtGen
         [MenuItem(MenuRoot + "Generate Resource Nodes Only", false, 23)]
         public static void GenerateResources() { Generate(AssetCategory.Resources); }
 
+        [MenuItem(MenuRoot + "Generate Tools Only", false, 24)]
+        public static void GenerateTools() { Generate(AssetCategory.Tools); }
+
         [MenuItem(MenuRoot + "Regenerate Materials Only", false, 40)]
         public static void RegenerateMaterials()
         {
@@ -244,7 +247,7 @@ namespace IslandRTS.ArtGen
             const float rowGap = 4.6f;
 
             // Group by category, one row each.
-            AssetCategory[] categories = { AssetCategory.Environment, AssetCategory.Buildings, AssetCategory.Units, AssetCategory.Resources };
+            AssetCategory[] categories = { AssetCategory.Environment, AssetCategory.Buildings, AssetCategory.Units, AssetCategory.Resources, AssetCategory.Tools };
             int maxCols = 1;
             for (int c = 0; c < categories.Length; c++)
             {

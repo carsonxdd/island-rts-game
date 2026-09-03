@@ -11,6 +11,11 @@ public class FloatingText : MonoBehaviour
     public float fontSize = 2f;
     public Color initialColor = Color.white;
     public string initialText = "";
+    /// <summary>
+    /// Ignore the "Unit state labels" setting. The player's own name label must
+    /// never disappear — it is how the player finds their character.
+    /// </summary>
+    public bool alwaysShow = false;
 
     private GameObject textObject;
     private TextMeshPro tmp;
@@ -45,7 +50,7 @@ public class FloatingText : MonoBehaviour
         // The player's "Unit state labels" setting, read live rather than at
         // spawn so it applies to units already on the field. Hidden labels also
         // skip the billboard work below, which is the per-frame cost here.
-        bool show = GameSettings.UnitStateText;
+        bool show = alwaysShow || GameSettings.UnitStateText;
         if (show != textObject.activeSelf) textObject.SetActive(show);
         if (!show) return;
 

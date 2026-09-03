@@ -12,6 +12,9 @@ using UnityEngine.Rendering.Universal;
 /// </summary>
 public class CameraController : MonoBehaviour
 {
+    /// <summary>The scene's camera controller (one per scene; no DontDestroyOnLoad).</summary>
+    public static CameraController Instance { get; private set; }
+
     [Header("WASD Movement (Screen-Relative)")]
     public float panSpeed = 25f;              // world units/sec at startOrthoSize zoom
     [Tooltip("Seconds to reach/leave full pan speed. Lower = snappier.")]
@@ -95,6 +98,7 @@ public class CameraController : MonoBehaviour
 
     void Awake()
     {
+        Instance = this;
         cam = Camera.main;
         if (cam == null)
         {
@@ -120,6 +124,13 @@ public class CameraController : MonoBehaviour
         UpdateRotation(dt);
         UpdateShadowDistance();
 
+        // Snap the view onto the player's character (Space by default). No
+        // auto-follow — it is an RTS — just a way to find yourself again.
+        if (KeyBindings.Down(KeyBindings.Action.CenterOnCharacter) && PlayerCharacter.Instance != null)
+        {
+            CenterOn(PlayerCharacter.Instance.transform.position);
+        }
+
         if (useBounds)
         {
             Vector3 p = transform.position;
@@ -127,6 +138,32 @@ public class CameraController : MonoBehaviour
             p.z = Mathf.Clamp(p.z, minBounds.y, maxBounds.y);
             transform.position = p;
         }
+    }
+
+    /// <summary>
+    /// Shift the camera (XZ only, rotation and zoom untouched) so the current
+    /// view centre lands on <paramref name="worldPos"/>. Rotation-agnostic, and
+    /// compatible with CameraShake's pure-offset approach. The intersection is
+    /// taken at the target's own height so a character on a hill lands in the
+    /// middle of the screen, not a few metres downhill of it.
+    /// </summary>
+    public void CenterOn(Vector3 worldPos)
+    {
+        if (cam == null) return;
+
+        Ray centerRay = cam.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
+        Plane ground = new Plane(Vector3.up, new Vector3(0f, worldPos.y, 0f));
+        float dist;
+        if (!ground.Raycast(centerRay, out dist)) return;
+
+        Vector3 viewCenter = centerRay.GetPoint(dist);
+        Vector3 delta = worldPos - viewCenter;
+        delta.y = 0f;
+        transform.position += delta;
+
+        // Kill any pan momentum so the smoothing doesn't drift the view off again
+        panVelocity = Vector3.zero;
+        panVelocityRef = Vector3.zero;
     }
 
     void UpdateKeyboardPan(float dt)
@@ -330,6 +367,11 @@ public class CameraController : MonoBehaviour
     void OnDisable()
     {
         RestoreShadowDistance();
+    }
+
+    void OnDestroy()
+    {
+        if (Instance == this) Instance = null;
     }
 
     void RestoreShadowDistance()

@@ -27,6 +27,9 @@ public class RepairAvailable : Consideration
 
     public override float ScoreRaw(AIBlackboard bb)
     {
+        // Repair is construction knowledge too: locked until the Mallet is crafted
+        if (!Unlocks.Has(Unlocks.Kind.Construction)) return 0f;
+
         bb.bestRepair = null;
         bb.bestRepairHealth = null;
 

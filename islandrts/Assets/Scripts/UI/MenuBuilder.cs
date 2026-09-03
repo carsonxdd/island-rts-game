@@ -661,6 +661,46 @@ public static class MenuBuilder
         return field;
     }
 
+    /// <summary>
+    /// A row of equal-width tab buttons; the active one is drawn pressed.
+    /// Returns the buttons so a caller that keeps the row alive (the campfire
+    /// panel) can re-tint them on a switch instead of rebuilding.
+    /// </summary>
+    public static Button[] TabRow(Transform parent, string[] names, int active, Action<int> onPick)
+    {
+        GameObject row = new GameObject("Tabs", typeof(RectTransform), typeof(HorizontalLayoutGroup), typeof(LayoutElement));
+        row.transform.SetParent(parent, false);
+        row.GetComponent<LayoutElement>().preferredHeight = 44f;
+
+        HorizontalLayoutGroup h = row.GetComponent<HorizontalLayoutGroup>();
+        h.spacing = 6f;
+        h.childControlWidth = true;
+        h.childForceExpandWidth = true;
+        h.childControlHeight = true;
+        h.childForceExpandHeight = true;
+
+        Button[] buttons = new Button[names.Length];
+        for (int i = 0; i < names.Length; i++)
+        {
+            int idx = i;
+            Button b = MenuButton(row.transform, names[i], () => onPick(idx));
+            b.GetComponent<LayoutElement>().preferredHeight = 40f;
+            buttons[i] = b;
+        }
+        TintTabs(buttons, active);
+        return buttons;
+    }
+
+    /// <summary>Re-tint a <see cref="TabRow"/> for a new active index.</summary>
+    public static void TintTabs(Button[] tabs, int active)
+    {
+        for (int i = 0; i < tabs.Length; i++)
+        {
+            if (tabs[i] == null) continue;
+            tabs[i].targetGraphic.color = i == active ? MenuStyle.ButtonPressed : MenuStyle.ButtonFill;
+        }
+    }
+
     /// <summary>Fills the parent rect exactly. Code-created RectTransforms do not do this by default.</summary>
     public static RectTransform Stretch(RectTransform rt)
     {

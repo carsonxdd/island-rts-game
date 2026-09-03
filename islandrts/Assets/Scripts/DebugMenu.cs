@@ -328,6 +328,27 @@ public class DebugMenu : MonoBehaviour
             HealList(Gate.ActiveList);
         }
 
+        // Crafting / player character (2026-09-02)
+        GUI.enabled = !Unlocks.AllGranted;
+        if (GUILayout.Button("Unlock All Crafting"))
+        {
+            Unlocks.GrantAll();
+            for (int i = 0; i < CraftingCatalog.CampfireRecipes.Length; i++) CraftingCatalog.CampfireRecipes[i].crafted = true;
+        }
+        GUI.enabled = Campfire != null;
+        if (GUILayout.Button("+10 Sticks & Stones (stockpile)"))
+        {
+            Campfire.Stockpile.Add(ItemCatalog.Stick, 10);
+            Campfire.Stockpile.Add(ItemCatalog.StoneChunk, 10);
+        }
+        GUI.enabled = PlayerCharacter.Instance != null && !PlayerCharacter.Instance.IsKnockedOut;
+        if (GUILayout.Button("Knock Out Player"))
+        {
+            Health h = PlayerCharacter.Instance.CachedHealth;
+            if (h != null) h.TakeDamage(999999f);
+        }
+        GUI.enabled = true;
+
         GUI.enabled = ConstructionSite.ActiveList.Count > 0;
         if (GUILayout.Button("Finish All Construction (" + ConstructionSite.ActiveList.Count + ")"))
         {

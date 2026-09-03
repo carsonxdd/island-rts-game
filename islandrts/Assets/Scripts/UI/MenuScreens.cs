@@ -15,13 +15,19 @@ using UnityEngine.UI;
 /// </summary>
 public class MenuScreens : MonoBehaviour
 {
-    public enum Screen { None, Main, NewGame, Pause, Options, Controls, Credits, Confirm, GameOver }
+    public enum Screen { None, Main, NewGame, Pause, Options, Controls, Credits, Confirm, GameOver, NameEntry }
 
     private static MenuScreens instance;
     public static MenuScreens Instance => instance;
 
     /// <summary>True whenever any menu screen is showing.</summary>
     public static bool AnyOpen => instance != null && instance.current != Screen.None;
+
+    /// <summary>The screen showing right now (None when the menu is closed).</summary>
+    public Screen Current => current;
+
+    // What to run once the name popup is confirmed (the opening sequence's next hint).
+    private Action nameEntryCallback;
 
     private Canvas canvas;
     private RectTransform backdrop;
@@ -126,6 +132,18 @@ public class MenuScreens : MonoBehaviour
         Show(Screen.GameOver, pushHistory: false);
     }
 
+    /// <summary>
+    /// The "what's your name?" popup at the start of a run. Modal: no Back, no
+    /// Esc — the only way out is Begin, which freezes the name for the run
+    /// (<see cref="PlayerProfile.BeginRun"/>) and then runs <paramref name="onConfirmed"/>.
+    /// </summary>
+    public void ShowNameEntry(Action onConfirmed)
+    {
+        nameEntryCallback = onConfirmed;
+        backStack.Clear();
+        Show(Screen.NameEntry, pushHistory: false);
+    }
+
     /// <summary>Back one level; closes the menu entirely when the stack is empty.</summary>
     public void Back()
     {
@@ -134,6 +152,10 @@ public class MenuScreens : MonoBehaviour
         // game is paused at timeScale 0 and PauseController refuses to unpause
         // while isGameOver is set.
         if (current == Screen.GameOver) return;
+
+        // The name popup has no back either: the run cannot start unnamed, and
+        // there is nothing behind it but the frozen opening.
+        if (current == Screen.NameEntry) return;
 
         // Leaving Options or Controls is the natural commit point — a player who
         // backs out expects their changes kept, not discarded.
@@ -186,6 +208,7 @@ public class MenuScreens : MonoBehaviour
             case Screen.Credits: BuildCredits(); break;
             case Screen.Confirm: BuildConfirm(); break;
             case Screen.GameOver: BuildGameOver(); break;
+            case Screen.NameEntry: BuildNameEntry(); break;
         }
 
         // The height passed to Panel() is only a starting value — the panel is
@@ -548,24 +571,7 @@ public class MenuScreens : MonoBehaviour
 
     private void BuildTabs(Transform parent, string[] names, int active, Action<int> onPick)
     {
-        GameObject row = new GameObject("Tabs", typeof(RectTransform), typeof(HorizontalLayoutGroup), typeof(LayoutElement));
-        row.transform.SetParent(parent, false);
-        row.GetComponent<LayoutElement>().preferredHeight = 44f;
-
-        HorizontalLayoutGroup h = row.GetComponent<HorizontalLayoutGroup>();
-        h.spacing = 6f;
-        h.childControlWidth = true;
-        h.childForceExpandWidth = true;
-        h.childControlHeight = true;
-        h.childForceExpandHeight = true;
-
-        for (int i = 0; i < names.Length; i++)
-        {
-            int idx = i;
-            Button b = MenuBuilder.MenuButton(row.transform, names[i], () => onPick(idx));
-            b.GetComponent<LayoutElement>().preferredHeight = 40f;
-            if (i == active) b.targetGraphic.color = MenuStyle.ButtonPressed;
-        }
+        MenuBuilder.TabRow(parent, names, active, onPick);
     }
 
     /// <summary>
@@ -739,6 +745,50 @@ public class MenuScreens : MonoBehaviour
         }
 
         MenuBuilder.ValueRow(parent, "Difficulty", Difficulty.ActiveName, MenuStyle.TextMuted);
+    }
+
+    /// <summary>
+    /// Name your castaway. Pre-filled with the last name used so a returning
+    /// player just presses Enter. Enter in the field and the BEGIN button do
+    /// the same thing.
+    /// </summary>
+    private void BuildNameEntry()
+    {
+        panel = MenuBuilder.Panel(canvas.transform, "NameEntry", MenuStyle.MenuWidth + 60f, 300f);
+        VerticalLayoutGroup col = activeColumn = MenuBuilder.Column(panel, 8f);
+
+        MenuBuilder.Label(col.transform, "WASHED ASHORE", MenuStyle.HeadingSize, MenuStyle.TextAccent)
+            .gameObject.AddComponent<LayoutElement>().preferredHeight = 38f;
+        MenuBuilder.Divider(col.transform);
+        MenuBuilder.Spacer(col.transform, 6f);
+
+        MenuBuilder.Label(col.transform, "You alone survived the wreck. What is your name?",
+            MenuStyle.BodySize, MenuStyle.TextMuted)
+            .gameObject.AddComponent<LayoutElement>().preferredHeight = 30f;
+
+        MenuBuilder.Spacer(col.transform, 4f);
+
+        TMP_InputField field = MenuBuilder.InputRow(col.transform, "Name", PlayerProfile.LastName,
+            PlayerProfile.DefaultName, null);
+        field.characterLimit = PlayerProfile.MaxNameLength;
+
+        MenuBuilder.Spacer(col.transform, 10f);
+
+        Action confirm = () =>
+        {
+            PlayerProfile.BeginRun(field.text);
+            Action cb = nameEntryCallback;
+            nameEntryCallback = null;
+            Close();
+            cb?.Invoke();
+        };
+
+        field.onSubmit.AddListener(_ => confirm());
+        MenuBuilder.MenuButton(col.transform, "BEGIN", confirm, textColor: MenuStyle.TextAccent);
+
+        // Put the caret in the field so the player can just type
+        field.Select();
+        field.ActivateInputField();
     }
 
     private void AskConfirm(string message, Action action)

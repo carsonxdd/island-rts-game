@@ -139,6 +139,16 @@ public class BuildPlacement : MonoBehaviour
 
     void StartPlacement()
     {
+        // Construction is knowledge the colony has to acquire first (2026-09-02):
+        // no build mode until a Mallet has been crafted at the fire. The lock
+        // names its recipe on the character's HUD line instead of failing silently.
+        if (!Unlocks.Has(Unlocks.Kind.Construction))
+        {
+            if (PlayerCharacter.Instance != null)
+                PlayerCharacter.Instance.SetActivity("Craft a Mallet at the fire to build", 3f);
+            return;
+        }
+
         // Check if BuildingDatabase exists
         if (BuildingDatabase.Instance == null)
         {

@@ -37,7 +37,6 @@ public class OcclusionFadeManager : MonoBehaviour
     private readonly List<Vector3> unitPoints = new List<Vector3>();  // screen x, screen y, view depth
     private Camera cam;
     private float tickTimer;
-    private Survivor survivor;
 
     /// <summary>Create the manager if this scene does not have one yet.</summary>
     public static void Ensure()
@@ -139,13 +138,10 @@ public class OcclusionFadeManager : MonoBehaviour
         AddUnits(Warrior.ActiveList);
         AddUnits(Enemy.ActiveList);
 
-        // The survivor exists only during the opening and has no registry of its own;
-        // the lookup is skipped entirely once the colony starts.
-        if (GameStartController.IntroInProgress)
-        {
-            if (survivor == null) survivor = Object.FindAnyObjectByType<Survivor>();
-            if (survivor != null) AddPoint(survivor.transform.position);
-        }
+        // The player's own character is there for the whole run (2026-09-02); a
+        // knocked-out body is hidden and must not keep its tree faded.
+        PlayerCharacter player = PlayerCharacter.Instance;
+        if (player != null && !player.IsKnockedOut) AddPoint(player.transform.position);
     }
 
     void AddUnits<T>(IReadOnlyList<T> units) where T : MonoBehaviour

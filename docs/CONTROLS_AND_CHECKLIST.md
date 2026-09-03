@@ -71,8 +71,10 @@ and the debug keys F3 / F4 / F6 / F7.
 
 | Input | Action |
 |---|---|
-| Right click | Move the survivor |
-| B | Show the campfire ghost (free, one-time; must be ≤6u from the survivor, on buildable ground) |
+| Name popup | Names your character (Enter or BEGIN confirms; no Esc — the run cannot start unnamed) |
+| Right click | Smart command for your character, for the whole run: on a stick / stone / crate → fetch it; on the campfire → deposit everything and open the panel; anywhere else → walk there |
+| Space | Centre the camera on your character |
+| B | Show the campfire ghost (free, one-time; must be ≤6u from your character, on buildable ground) |
 | Left click | Place the campfire |
 | Esc / Right click | Cancel placement |
 
@@ -80,8 +82,9 @@ and the debug keys F3 / F4 / F6 / F7.
 
 | Input | Action |
 |---|---|
-| Click campfire | Worker assignment panel |
+| Click campfire | Campfire panel: Colonists · Stockpile · Craft tabs |
 | Click workshop | Crafting panel (Esc closes) |
+| Space | Centre the camera on your character (rebindable, "Character" group) |
 | Esc | Cancels the active mode; pauses when nothing is active (not rebindable) |
 | F2 | Build grid overlay — also auto-shows while build mode is active |
 | F3 | AI debug overlay (editor only) |
@@ -374,7 +377,7 @@ Run `Setup Everything (In Order)` first: the metal node mesh is regenerated in s
 
 **Arrivals and housing**
 
-- [ ] After placing the campfire, the survivor becomes an idle colonist standing by the fire (no job) and the hint says to give them a job
+- [ ] After placing the campfire your character stays under your control (they are **not** a colonist); the first colonist lands at the cove ~20s later
 - [ ] The campfire panel opens with a "Colonists" line (`1 colonist · 1 idle · next survivor in Ns`) and a countdown that ticks down
 - [ ] Every ~20s by day a survivor lands at the cove by the wreck and walks to the campfire, until the campfire's 3 slots are full
 - [ ] Nobody lands at night; the countdown reads "survivors land by day" and resumes at dawn
@@ -413,3 +416,70 @@ Run `Setup Everything (In Order)` first: the metal node mesh is regenerated in s
 
 - [ ] F4 quick-start lands the colonists beside the fire, arms the warriors, then hands out jobs — no one walks in from the cove
 - [ ] A sweep still runs: policies keep one idle colonist as a builder whenever sites exist (sweeps from before this change are not comparable)
+
+### Player character & name popup (2026-09-02 — Slice A of the crafting plan)
+
+**Name popup**
+
+- [ ] A new game opens on a "WASHED ASHORE" popup over the frozen cove; the field is pre-filled with the last name used (first run: "Castaway")
+- [ ] Enter and BEGIN both confirm; Esc does nothing on it; the clock stays frozen and right-click does not move the character while it is open
+- [ ] Whitespace-only or empty confirms as "Castaway"; the name is capped at 16 characters
+- [ ] Restart (pause menu / game over) does NOT ask again; NEW GAME from the main menu does, pre-filled with the last name
+- [ ] The intro hint greets you by name, and so does the "fire is lit" hint
+
+**Your character**
+
+- [ ] The character has a red bandana and blue sash (not a straw hat) and a gold name label that stays visible with "Unit state labels" off
+- [ ] Right-click moves them during the opening and for the whole run afterwards; clicks in the shallows land on the nearest walkable spot
+- [ ] Space centres the camera on them, including on a hill (they land mid-screen, not downhill of it); the key shows on the Controls screen under "Character" and can be rebound
+- [ ] Placing the campfire sends them to the fire; they stay yours — the campfire panel reads 0 colonists until the first survivor lands
+- [ ] They are never given a job, never counted in housing, and enemies walk past them
+- [ ] F4 "Kill all enemies" / "Spawn wave" behave as before; the character is not in any target list
+- [ ] Health bar sits just above the head; standing within ~3u of the fire regenerates ~2 HP/s
+- [ ] Knock-out (F4 or a stray hit): body vanishes, label reads "Knocked out", 10s later they stand beside the fire at full HP with the label back to the name; no defeat
+- [ ] A tree between the camera and the character fades exactly as it does for a worker, and un-fades while they are knocked out
+
+**Classic start, quick-start, sim**
+
+- [ ] `skipIntro` ticked: no popup, campfire at the origin, the character standing beside it under the last-used name
+- [ ] F4 quick-start from inside the popup dismisses it, uses the last name, and lands the colony as before
+- [ ] A sweep completes with no popup and no PlayerPrefs write (last-used name unchanged afterwards); note it now starts with 0 colonists, not 1
+
+### Hands, stockpile & campfire crafting (2026-09-02 — Slices B and C of the crafting plan)
+
+**Collecting by hand**
+
+- [ ] The landing beach around the wreck has ~8 sticks and ~5 stone chunks on top of the island-wide scatter
+- [ ] Right-click a stick: the character walks over, it vanishes, the HUD strip at the bottom shows `St 1`; the label flashes "+1 Stick"
+- [ ] Sticks stack to 10 per slot, stone chunks likewise; the six slots fill left to right
+- [ ] Right-click a crate: `F 6` in hand (six food), a barrel gives `W 5`; right-click the fire → the HUD resource bar rises by exactly that
+- [ ] With every slot full the label reads "Hands full — deposit at the fire" and the pickup stays on the ground
+- [ ] A worker never steals a pickup the character is walking to, and the character never takes one a worker is heading for ("Someone is fetching that")
+- [ ] Placement ghosts never sit on top of a stick (pickup colliders are on the Pickups layer); hovering a stick does not highlight anything
+- [ ] Right-click a pickup on the ragged shore edge the NavMesh cannot quite reach: the character stops nearby and still takes it, or reads "Can't reach that" instead of standing forever
+
+**Campfire stockpile**
+
+- [ ] Right-click the fire with sticks and stones in hand: the label flashes "Deposited", the HUD slots empty, the panel opens on its current tab
+- [ ] The Stockpile tab lists Stick and Stone chunk with the deposited counts; resources never appear there (they went to the top bar)
+- [ ] Tools are never deposited — a crafted axe stays in the character's hands
+- [ ] The tab row switches Colonists · Stockpile · Craft without the panel jumping off-screen (it refits its height)
+
+**Crafting**
+
+- [ ] Craft tab: six recipes with effect and cost lines; a cost line is red until it is affordable from hands + stockpile + the resource pool together
+- [ ] Craft with the character far away: they walk to the fire ("Walking to the fire to craft…"), then the label counts up "Crafting Stone Axe 45%"
+- [ ] Craft while standing at the fire: starts at once; nothing is charged until the bar completes; walking away mid-craft cancels and costs nothing
+- [ ] On completion: "Crafted Stone Axe" flash, one console line, the axe appears in the character's right hand, the recipe reads Done
+- [ ] Materials are drawn from the hands first, then the stockpile (check the Stockpile tab and the HUD slots after a craft)
+- [ ] Spending the pool's wood elsewhere while the Wooden Spear is crafting makes it fail at the end with "Missing materials" and nothing lost
+
+**Unlocks — every lock names its recipe**
+
+- [ ] Fresh run: every job row on the Colonists tab reads "needs Stone Axe / Fishing Spear / Stone Pick / Metal Pick" with `+` greyed even when a colonist is idle
+- [ ] Crafting the Stone Axe un-greys Wood at once, with no restart and no panel reopen
+- [ ] The warriors row reads "Craft a Wooden Spear at the fire to arm warriors" until it is crafted, then shows the usual cost
+- [ ] Pressing B before the Mallet: no ghost, the character's label flashes "Craft a Mallet at the fire to build"; after the Mallet, build mode works as before
+- [ ] Idle colonists ignore a construction site and damaged buildings until the Mallet exists (place one with F4 "Unlock all" toggled off… i.e. craft the Mallet mid-site and watch them start)
+- [ ] F4 "Unlock All Crafting" opens everything and marks every recipe Done; "+10 Sticks & Stones (stockpile)" fills the stockpile; "Knock Out Player" runs the knock-out
+- [ ] A sweep still hires workers and recruits warriors (every unlock is granted under the sim)

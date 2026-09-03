@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.AI;
+using UnityEngine.Serialization;
 using UnityEngine.UI;
 using TMPro;
 using System.Collections;
@@ -10,18 +11,23 @@ using System.Collections;
 /// </summary>
 public enum GamePhase
 {
-    Landing,          // survivor in the shallows, player right-clicks him ashore
+    Landing,          // player's character in the shallows, right-click walks them ashore
     PlacingCampfire,  // B pressed: campfire ghost follows the mouse
-    Settling,         // campfire placed, survivor walking to it
+    Settling,         // campfire placed, character walking to it
     Colony            // normal gameplay
 }
 
 /// <summary>
-/// Owns the opening sequence: the game now starts with a lone survivor
-/// wading ashore from the shipwreck. The player walks him onto dry land
-/// (right-click), places the campfire near him (B, free, one-time), and the
-/// survivor settles in as the colony's first worker — then normal gameplay
+/// Owns the opening sequence: the game starts with the player's own character
+/// wading ashore from the shipwreck. A name popup asks who they are, the player
+/// walks them onto dry land (right-click), places the campfire near them (B,
+/// free, one-time), and the character walks to the fire — then normal gameplay
 /// begins (build mode enabled, day/night clock running).
+///
+/// The character stays under the player's control for the whole run
+/// (2026-09-02); they are never converted into a colonist. The colony's first
+/// colonist comes ashore on its own through PopulationManager's arrival timer
+/// once the fire is lit.
 ///
 /// Startup contract with the rest of the game:
 ///  - DayNightCycle.clockPaused is held true until the campfire is placed,
@@ -32,8 +38,9 @@ public enum GamePhase
 ///    ResourceSpawner, AIWorldState) tolerate its absence; this controller
 ///    wires GameManager.campfire and BaseBuilding.workerUI at placement.
 ///
-/// skipIntro replicates the classic start exactly: campfire spawned at
-/// skipIntroCampfirePosition in Awake, no survivor, clock running.
+/// skipIntro replicates the classic start: campfire spawned at
+/// skipIntroCampfirePosition in Awake, no popup, clock running — and the
+/// player's character standing beside the fire.
 /// </summary>
 public class GameStartController : MonoBehaviour
 {
@@ -49,21 +56,22 @@ public class GameStartController : MonoBehaviour
     public static event System.Action OnColonyStarted;
 
     [Header("Skip (classic start, for playtesting)")]
-    [Tooltip("Skip the intro entirely: spawn the campfire immediately at the position below, no survivor. Replicates the pre-opening-sequence game start.")]
+    [Tooltip("Skip the intro entirely: spawn the campfire immediately at the position below, no name popup. Replicates the pre-opening-sequence game start (the player's character spawns beside the fire).")]
     public bool skipIntro = false;
     public Vector3 skipIntroCampfirePosition = Vector3.zero;
 
     [Header("Prefabs (wired by the Opening Sequence setup tool)")]
     public GameObject campfirePrefab;
     public GameObject campfireGhostPrefab;
-    public GameObject survivorPrefab;
+    [FormerlySerializedAs("survivorPrefab")]
+    public GameObject playerPrefab;
 
     [Header("Scene References")]
     public WorkerAssignmentUI workerUI;
     public Transform survivorSpawnPoint;
 
     [Header("Campfire Placement Rules")]
-    [Tooltip("The campfire must be built within this XZ distance of the survivor — he builds it where he stands.")]
+    [Tooltip("The campfire must be built within this XZ distance of the player's character — they build it where they stand.")]
     public float maxPlaceDistance = 6f;
     [Tooltip("Minimum XZ clearance from resource nodes (replaces ResourceSpawner's keep-away-from-campfire rule, which can't run before the campfire exists).")]
     public float minResourceClearance = 3f;
@@ -74,14 +82,14 @@ public class GameStartController : MonoBehaviour
     public Color invalidColor = new Color(1f, 0.3f, 0.3f, 0.5f);
 
     [Header("Settling")]
-    [Tooltip("Survivor counts as arrived at the campfire at this collider-edge distance.")]
+    [Tooltip("The character counts as arrived at the campfire at this collider-edge distance.")]
     public float settleEdgeDistance = 2f;
-    [Tooltip("Failsafe: start the colony after this many seconds even if the survivor never arrives.")]
+    [Tooltip("Failsafe: start the colony after this many seconds even if the character never arrives.")]
     public float settleTimeoutSeconds = 8f;
 
     // --- Runtime state ---
     private GamePhase phase = GamePhase.Landing;
-    private Survivor survivor;
+    private PlayerCharacter player;
     private BaseBuilding placedCampfire;
     private Collider placedCampfireCollider;
     private GameObject ghost;
@@ -130,16 +138,36 @@ public class GameStartController : MonoBehaviour
         dayNight = FindAnyObjectByType<DayNightCycle>();
         mainCam = Camera.main;
 
-        if (phase == GamePhase.Colony) return;  // skipIntro path — nothing to run
+        if (phase == GamePhase.Colony)
+        {
+            // skipIntro path: no opening to run, but the player still needs a body
+            SpawnPlayerAtCampfire();
+            return;
+        }
 
         // Hold the world still until the campfire is lit
         if (buildPlacement != null) buildPlacement.enabled = false;
         if (dayNight != null) dayNight.clockPaused = true;
 
-        SpawnSurvivor();
-        FrameCameraOnSurvivor();
+        SpawnPlayer();
+        FrameCameraOnPlayer();
         CreateHintUI();
-        SetHint("You alone survived the wreck.\nRight-click: move ashore    B: build a campfire (near your survivor)");
+
+        // Who are you? Modal until answered; a Restart already has a name and
+        // skips straight to the landing. Never under the sim (no player, no UI).
+        if (!SimHooks.Simulating && !PlayerProfile.HasActive)
+        {
+            MenuScreens.Ensure().ShowNameEntry(OnNamed);
+        }
+        else
+        {
+            OnNamed();
+        }
+    }
+
+    void OnNamed()
+    {
+        SetHint("Welcome ashore, " + PlayerProfile.Name + ".\nRight-click: move · right-click sticks and stones to gather them    B: build a campfire (near you)");
     }
 
     void OnDestroy()
@@ -172,18 +200,18 @@ public class GameStartController : MonoBehaviour
 
     void UpdateLanding()
     {
-        if (survivor == null) return;
+        if (player == null) return;
+        // The name popup (and the pause menu) own input while open
+        if (PauseController.BlockGameplayInput) return;
 
+        // Same smart command as in the colony phase, so sticks and stones on the
+        // landing beach can be gathered before the fire exists
         if (Input.GetMouseButtonDown(1))
         {
-            Vector3 point;
-            if (RaycastGround(out point))
-            {
-                survivor.MoveTo(point);
-            }
+            player.HandleCommandClick();
         }
 
-        if (Input.GetKeyDown(KeyCode.B))
+        if (KeyBindings.Down(KeyBindings.Action.BuildMode))
         {
             EnterPlacement();
         }
@@ -206,16 +234,18 @@ public class GameStartController : MonoBehaviour
         // anyway: RaycastGround queries the Default layer, so a collider added here later
         // would make the ghost occlude its own placement ray (see BuildPlacement.SetupGhost).
         ghost.layer = 2;
-        ghostTarget = survivor != null ? survivor.transform.position : Vector3.zero;
+        ghostTarget = player != null ? player.transform.position : Vector3.zero;
         ghost.transform.position = ghostTarget;
         ghostMaterials = RendererTint.Collect(ghost.GetComponent<Renderer>());
 
         phase = GamePhase.PlacingCampfire;
-        SetHint("Choose a spot for the campfire — it must be near your survivor.\nClick: place    Esc / right-click: cancel");
+        SetHint("Choose a spot for the campfire — it must be near you.\nClick: place    Esc / right-click: cancel");
     }
 
     void UpdatePlacing()
     {
+        if (PauseController.BlockGameplayInput) return;
+
         if (Input.GetKeyDown(KeyCode.Escape) || Input.GetMouseButtonDown(1))
         {
             CancelPlacement();
@@ -248,7 +278,7 @@ public class GameStartController : MonoBehaviour
         ghost = null;
         ghostMaterials = null;
         phase = GamePhase.Landing;
-        SetHint("Right-click: move ashore    B: build a campfire (near your survivor)");
+        SetHint("Right-click: move    B: build a campfire (near you)");
     }
 
     bool IsValidCampfireSpot(Vector3 pos)
@@ -264,11 +294,11 @@ public class GameStartController : MonoBehaviour
             return false;
         }
 
-        // Must be near the survivor — he builds it where he stands
-        if (survivor != null)
+        // Must be near the character — they build it where they stand
+        if (player != null)
         {
-            float dx = pos.x - survivor.transform.position.x;
-            float dz = pos.z - survivor.transform.position.z;
+            float dx = pos.x - player.transform.position.x;
+            float dz = pos.z - player.transform.position.z;
             if (dx * dx + dz * dz > maxPlaceDistance * maxPlaceDistance)
                 return false;
         }
@@ -308,13 +338,13 @@ public class GameStartController : MonoBehaviour
             AudioManager.Instance.PlayBuildingPlaced();
         }
 
-        // Send the survivor to the fire. The campfire is a carving obstacle, so
+        // Send the character to the fire. The campfire is a carving obstacle, so
         // the destination must be the carve-safe approach point, not the center.
-        if (survivor != null && placedCampfire != null)
+        if (player != null && placedCampfire != null)
         {
             Vector3 approach = TargetingUtil.GetApproachPoint(
-                survivor.transform.position, placedCampfire.transform, placedCampfireCollider);
-            survivor.MoveTo(approach);
+                player.transform.position, placedCampfire.transform, placedCampfireCollider);
+            player.MoveTo(approach);
         }
 
         settleDeadline = Time.time + settleTimeoutSeconds;
@@ -330,7 +360,7 @@ public class GameStartController : MonoBehaviour
     {
         bool arrived = false;
 
-        if (survivor == null || placedCampfire == null)
+        if (player == null || placedCampfire == null)
         {
             arrived = true;  // nothing to wait for
         }
@@ -338,7 +368,7 @@ public class GameStartController : MonoBehaviour
         {
             // Edge distance, never center distance, against a carving obstacle
             float edge = TargetingUtil.EdgeDistance(
-                survivor.transform.position, placedCampfire.transform, placedCampfireCollider);
+                player.transform.position, placedCampfire.transform, placedCampfireCollider);
             if (edge <= settleEdgeDistance) arrived = true;
         }
 
@@ -355,22 +385,12 @@ public class GameStartController : MonoBehaviour
         if (dayNight != null) dayNight.clockPaused = false;
         if (buildPlacement != null) buildPlacement.enabled = true;
 
-        // The survivor settles in as the colony's first colonist — jobless, homed
-        // to the campfire, standing where he stopped. SpawnColonist runs the normal
-        // single-owner bookkeeping path (roster, population) — never hand-roll that.
-        // More survivors come ashore on their own while the campfire has room.
-        if (survivor != null)
-        {
-            if (placedCampfire != null)
-            {
-                placedCampfire.SpawnColonist(survivor.transform.position, placedCampfire);
-            }
-            Destroy(survivor.gameObject);
-            survivor = null;
-        }
-
-        SetHint("The colony begins. Click the campfire to give your colonist a job.    B: build    Survive the nights.");
-        hintFadeStart = Time.time + 10f;
+        // The character stays yours. Colonists come ashore on their own while
+        // the campfire has room (PopulationManager's arrival timer opens the
+        // moment IntroInProgress drops).
+        SetHint("The fire is lit, " + PlayerProfile.Name + ". Survivors will come ashore while it has room.\n"
+            + "Right-click the fire to deposit what you carry · click it to give jobs    B: build    Space: find yourself");
+        hintFadeStart = Time.time + 12f;
 
         OnColonyStarted?.Invoke();
         Debug.Log("GameStartController: Campfire lit — the colony begins.");
@@ -379,7 +399,7 @@ public class GameStartController : MonoBehaviour
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
     /// <summary>
     /// Debug-menu hook: instantly finish the opening — campfire placed (at
-    /// the survivor if he's on dry land, else the skipIntro position) and
+    /// the character if they're on dry land, else the skipIntro position) and
     /// the colony started. No-op once the colony is running.
     /// </summary>
     public void DebugForceColonyStart()
@@ -390,6 +410,17 @@ public class GameStartController : MonoBehaviour
 
     IEnumerator DebugForceColonyRoutine()
     {
+        // Still on the name popup? Take the last name and dismiss it. The sim
+        // never shows the popup and must never write PlayerPrefs.
+        if (!SimHooks.Simulating && !PlayerProfile.HasActive)
+        {
+            PlayerProfile.BeginRun(PlayerProfile.LastName);
+        }
+        if (MenuScreens.Instance != null && MenuScreens.Instance.Current == MenuScreens.Screen.NameEntry)
+        {
+            MenuScreens.Instance.Close();
+        }
+
         // Drop any in-progress placement ghost
         if (ghost != null)
         {
@@ -401,9 +432,9 @@ public class GameStartController : MonoBehaviour
         if (placedCampfire == null)  // Settling phase already has one
         {
             Vector3 pos = skipIntroCampfirePosition;
-            if (survivor != null)
+            if (player != null)
             {
-                Vector3 sp = survivor.transform.position;
+                Vector3 sp = player.transform.position;
                 bool onGoodGround = TerrainGrid.Instance != null
                     ? TerrainGrid.Instance.IsBuildable(sp)
                     : (Mathf.Abs(sp.x) <= dryLandExtent && Mathf.Abs(sp.z) <= dryLandExtent);
@@ -416,13 +447,13 @@ public class GameStartController : MonoBehaviour
 
             // Park in Settling (stops Landing/Placing input); the deadline is
             // pushed out so this routine — not UpdateSettling's timeout —
-            // finishes the job. If the survivor happens to already be at the
+            // finishes the job. If the character happens to already be at the
             // fire, UpdateSettling starting the colony first is fine too.
             phase = GamePhase.Settling;
             settleDeadline = float.MaxValue;
 
             // BaseBuilding.Start (housing registration) must run before
-            // StartColony's AssignWorker, or the first worker silently fails
+            // anything assigns jobs, or the first assignment silently fails
             yield return null;
         }
 
@@ -476,49 +507,71 @@ public class GameStartController : MonoBehaviour
     }
 
     // ------------------------------------------------------------------
-    // Survivor + camera
+    // Player character + camera
     // ------------------------------------------------------------------
 
-    void SpawnSurvivor()
+    void SpawnPlayer()
     {
-        if (survivorPrefab == null)
-        {
-            Debug.LogError("GameStartController: survivorPrefab not assigned! Run Tools > Island RTS > Opening Sequence > Setup Opening Scene.");
-            return;
-        }
-
         // The cove moves with the island size; the authored spawn point is
         // one metre east of the cove centre on the standard map
         Vector3 spawnPos = TerrainGrid.Instance != null
             ? TerrainGrid.Instance.CoveCenter + new Vector3(1f, 0f, 0f)
             : (survivorSpawnPoint != null ? survivorSpawnPoint.position : new Vector3(-69f, 0f, 3f));
+        SpawnPlayerAt(spawnPos, Quaternion.Euler(0f, 90f, 0f));
+    }
+
+    /// <summary>skipIntro: the character starts beside the fire, facing it.</summary>
+    void SpawnPlayerAtCampfire()
+    {
+        Vector3 pos = placedCampfire != null
+            ? placedCampfire.GetValidSpawnPosition()
+            : skipIntroCampfirePosition + new Vector3(2f, 0f, 0f);
+        SpawnPlayerAt(pos, Quaternion.identity);
+    }
+
+    void SpawnPlayerAt(Vector3 spawnPos, Quaternion rotation)
+    {
+        if (playerPrefab == null)
+        {
+            Debug.LogError("GameStartController: playerPrefab not assigned! Run Tools > Island RTS > Opening Sequence > Setup Opening Scene.");
+            return;
+        }
+
         NavMeshHit hit;
         if (NavMesh.SamplePosition(spawnPos, out hit, 6f, NavMesh.AllAreas))
         {
             spawnPos = hit.position;
         }
 
-        GameObject obj = Instantiate(survivorPrefab, spawnPos, Quaternion.Euler(0f, 90f, 0f));
-        obj.name = "Survivor";
-        survivor = obj.GetComponent<Survivor>();
+        GameObject obj = Instantiate(playerPrefab, spawnPos, rotation);
+        obj.name = "Player";
+        player = obj.GetComponent<PlayerCharacter>();
+        if (player == null)
+        {
+            Debug.LogError("GameStartController: player prefab has no PlayerCharacter component — re-run the Opening Sequence setup tool.");
+        }
     }
 
-    /// <summary>
-    /// Shift the camera (XZ only, rotation untouched) so the current view
-    /// center lands on the survivor. Rotation-agnostic, and compatible with
-    /// CameraShake's pure-offset approach.
-    /// </summary>
-    void FrameCameraOnSurvivor()
+    /// <summary>Open on the character. CameraController.CenterOn is rotation-agnostic and CameraShake-safe.</summary>
+    void FrameCameraOnPlayer()
     {
-        if (mainCam == null || survivor == null) return;
+        if (player == null) return;
 
+        if (CameraController.Instance != null)
+        {
+            CameraController.Instance.CenterOn(player.transform.position);
+            return;
+        }
+
+        // No controller in this scene: shift the raw camera the same way
+        if (mainCam == null) return;
         Ray centerRay = mainCam.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
         Plane ground = new Plane(Vector3.up, Vector3.zero);
         float dist;
         if (ground.Raycast(centerRay, out dist))
         {
             Vector3 viewCenter = centerRay.GetPoint(dist);
-            Vector3 delta = survivor.transform.position - viewCenter;
+            Vector3 delta = player.transform.position - viewCenter;
             delta.y = 0f;
             mainCam.transform.position += delta;
         }
@@ -557,6 +610,8 @@ public class GameStartController : MonoBehaviour
 
     void CreateHintUI()
     {
+        if (SimHooks.Simulating) return;
+
         hintCanvasObj = new GameObject("IntroHintCanvas");
         Canvas canvas = hintCanvasObj.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;

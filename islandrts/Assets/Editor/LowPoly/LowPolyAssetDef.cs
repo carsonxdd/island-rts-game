@@ -8,7 +8,8 @@ namespace IslandRTS.ArtGen
         Environment,
         Buildings,
         Units,
-        Resources
+        Resources,
+        Tools
     }
 
     /// <summary>
@@ -51,6 +52,7 @@ namespace IslandRTS.ArtGen
             AddBuildings(list);
             AddUnits(list);
             AddResources(list);
+            AddTools(list);
             return list;
         }
 
@@ -58,10 +60,12 @@ namespace IslandRTS.ArtGen
         static partial void AddBuildingsImpl(List<AssetDef> list);
         static partial void AddUnitsImpl(List<AssetDef> list);
         static partial void AddResourcesImpl(List<AssetDef> list);
+        static partial void AddToolsImpl(List<AssetDef> list);
 
         private static void AddEnvironment(List<AssetDef> list) { AddEnvironmentImpl(list); }
         private static void AddBuildings(List<AssetDef> list) { AddBuildingsImpl(list); }
         private static void AddUnits(List<AssetDef> list) { AddUnitsImpl(list); }
         private static void AddResources(List<AssetDef> list) { AddResourcesImpl(list); }
+        private static void AddTools(List<AssetDef> list) { AddToolsImpl(list); }
     }
 }

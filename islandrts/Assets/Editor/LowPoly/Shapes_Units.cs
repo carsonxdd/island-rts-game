@@ -21,6 +21,7 @@ namespace IslandRTS.ArtGen
             list.Add(new AssetDef("Worker", AssetCategory.Units, Worker, "0.40 wide, 1.2 tall"));
             list.Add(new AssetDef("Warrior", AssetCategory.Units, Warrior, "0.50 wide, 1.4 tall"));
             list.Add(new AssetDef("Enemy", AssetCategory.Units, Enemy, "0.45 wide, 1.4 tall"));
+            list.Add(new AssetDef("Castaway", AssetCategory.Units, Castaway, "0.40 wide, 1.2 tall"));
         }
 
         // ==================================================================
@@ -42,6 +43,37 @@ namespace IslandRTS.ArtGen
             // Conical straw hat: the worker silhouette from directly above.
             b.Use("ThatchLight");
             b.Prism(new Vector3(0f, 0.96f, 0f), 0.20f, 0f, 0.20f, 6);
+
+            return b;
+        }
+
+        // ==================================================================
+        // Castaway — the player's own character (2026-09-02)
+        // ==================================================================
+
+        /// <summary>
+        /// Worker body and head, but a red bandana instead of the straw hat and a
+        /// blue sash at the waist: from directly above the player reads as a red
+        /// dot among cream cones, never as one more colonist.
+        /// </summary>
+        private static MeshBuilder Castaway()
+        {
+            MeshBuilder b = new MeshBuilder(3104);
+
+            b.Use("ClothCream");
+            b.Frustum(Vector3.zero, new Vector2(0.30f, 0.24f), new Vector2(0.22f, 0.18f), 0.78f);
+
+            // Sash — a second colour read at the body's mid-height
+            b.Use("ClothBlue");
+            b.Box(new Vector3(0f, 0.48f, 0f), new Vector3(0.28f, 0.06f, 0.23f));
+
+            b.Use("SkinTan");
+            b.Frustum(new Vector3(0f, 0.78f, 0f), new Vector2(0.17f, 0.17f), new Vector2(0.15f, 0.15f), 0.20f);
+
+            // Bandana: wraps the top of the head, knotted at the back
+            b.Use("ClothRed");
+            b.Frustum(new Vector3(0f, 0.90f, 0f), new Vector2(0.19f, 0.19f), new Vector2(0.15f, 0.15f), 0.09f);
+            b.Box(new Vector3(0f, 0.92f, -0.11f), new Vector3(0.07f, 0.05f, 0.08f));
 
             return b;
         }

@@ -19,6 +19,10 @@ public class ConstructionAvailable : Consideration
     {
         bb.bestSite = null;
 
+        // No Mallet crafted yet: nobody knows how to build (Unlocks, 2026-09-02).
+        // Cheap flag check before the site scan; no yShift, so the action early-outs.
+        if (!Unlocks.Has(Unlocks.Kind.Construction)) return 0f;
+
         ConstructionSite best = null;
         float bestSqr = float.MaxValue;
         Vector3 myPos = bb.transform.position;

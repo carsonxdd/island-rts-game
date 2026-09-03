@@ -22,6 +22,7 @@ public static class MenuFlow
     {
         Difficulty.BeginRun();
         IslandOptions.BeginRun();
+        PlayerProfile.ClearRun();  // a new game asks for a name again; Restart keeps it
         TerrainGrid.RunSeed = 0;   // fresh island; TerrainGrid.Awake picks the seed
         LoadScene(GameSceneName);
     }

@@ -23,6 +23,16 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
 {
     public static IReadOnlyList<BaseBuilding> ActiveList => ActiveRegistry<BaseBuilding>.List;
 
+    /// <summary>Slots in the campfire's stockpile (materials and tools; resources go to ResourceManager).</summary>
+    public const int StockpileSlots = 12;
+
+    /// <summary>
+    /// The campfire inventory (2026-09-02): sticks, stone chunks and crafted
+    /// tools the player's character deposits here. Not the four pooled
+    /// resources — those stay in ResourceManager. Runtime-only, never serialized.
+    /// </summary>
+    public Inventory Stockpile { get; } = new Inventory(StockpileSlots);
+
     // IHousing — the campfire is the colony's first housing (the starting crew's slots)
     public int HousingCapacity => workerCapacity;
     public bool HousingAlive => !housingReleased && (healthComponent == null || healthComponent.IsAlive);
@@ -191,6 +201,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
     /// </summary>
     public bool AssignWorker(ResourceNode.ResourceType resourceType)
     {
+        if (!Unlocks.HasJob(resourceType)) return false;   // the matching tool has not been crafted yet
         if (PopulationManager.Instance == null) return false;
         Worker idle = PopulationManager.Instance.FindIdleColonist(transform.position);
         if (idle == null) return false;
@@ -349,6 +360,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
     /// <summary>True when a recruit could happen right now: under the cap, affordable, and someone is idle.</summary>
     public bool CanRecruitWarrior()
     {
+        if (!Unlocks.Has(Unlocks.Kind.Militia)) return false;   // no spear crafted yet
         if (currentWarriors >= maxWarriors) return false;
         if (ResourceManager.Instance == null
             || ResourceManager.Instance.wood < warriorCost_Wood

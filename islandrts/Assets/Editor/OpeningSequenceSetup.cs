@@ -17,8 +17,9 @@ using System.Text;
 ///     and handed to GameStartController instead (a prefab can't hold it).
 ///  2. Builds CampfireGhost.prefab (art mesh + one Mat_Ghostbuilding per
 ///     submesh on the ROOT renderer — same pattern as the other ghosts).
-///  3. Builds Survivor.prefab (NavMeshAgent + Survivor script + nested art
-///     Worker prefab as a "Model" child, base pivot, scale 1).
+///  3. Builds PlayerCharacter.prefab (NavMeshAgent + PlayerCharacter script +
+///     HealthBar + nested art Castaway prefab as a "Model" child, base pivot,
+///     scale 1). The legacy Survivor.prefab is deleted if it still exists.
 ///  4. Creates Mat_Water (URP Lit, transparent blue) and an "_Ocean" frame of
 ///     four water quads overlapping the ground rim — the outer ~6 units of the
 ///     island read as a shallow wading band. NOT static (water stays real-time).
@@ -40,10 +41,12 @@ public static class OpeningSequenceSetup
     private const string ScenePath = "Assets/MainIsland.unity";
     private const string CampfirePrefabPath = "Assets/Prefabs/Campfire.prefab";
     private const string CampfireGhostPath = "Assets/Prefabs/CampfireGhost.prefab";
-    private const string SurvivorPrefabPath = "Assets/Prefabs/Survivor.prefab";
+    private const string LegacySurvivorPrefabPath = "Assets/Prefabs/Survivor.prefab";
+    private const string PlayerPrefabPath = "Assets/Prefabs/PlayerCharacter.prefab";
 
     private const string CampfireArtMeshPath = "Assets/Art/Meshes/Campfire.asset";
     private const string WorkerArtPrefabPath = "Assets/Art/Prefabs/Units/Worker.prefab";
+    private const string CastawayArtPrefabPath = "Assets/Art/Prefabs/Units/Castaway.prefab";
     private const string GhostMaterialPath = "Assets/Materials/Mat_Ghostbuilding.mat";
     private const string WaterMaterialPath = "Assets/Materials/Mat_Water.mat";
 
@@ -80,7 +83,7 @@ public static class OpeningSequenceSetup
 
         WorkerAssignmentUI workerUI = ConvertCampfireToRuntimePrefab(summary);
         BuildCampfireGhostPrefab(summary);
-        BuildSurvivorPrefab(summary);
+        BuildPlayerPrefab(summary);
         Material water = EnsureWaterMaterial(summary);
         BuildOcean(water, summary);
         BuildShipwreck(summary);
@@ -92,7 +95,7 @@ public static class OpeningSequenceSetup
         EditorSceneManager.SaveScene(scene);
         AssetDatabase.SaveAssets();
 
-        summary.AppendLine("[Opening] Done. Press Play: right-click moves the survivor ashore, B places the campfire.");
+        summary.AppendLine("[Opening] Done. Press Play: name your castaway, right-click moves them ashore, B places the campfire.");
         summary.AppendLine("[Opening] To playtest the classic start instead, tick 'skipIntro' on the GameStart object.");
         Debug.Log(summary.ToString());
     }
@@ -193,29 +196,49 @@ public static class OpeningSequenceSetup
         }
     }
 
-    private static void BuildSurvivorPrefab(StringBuilder summary)
+    /// <summary>
+    /// The player's own character (2026-09-02): agent + PlayerCharacter + HealthBar,
+    /// Castaway art on a "Model" child. Falls back to the Worker art (with a
+    /// warning) if the Castaway asset has not been generated yet, so the scene
+    /// still plays. No click collider on purpose: every ground raycast in the
+    /// game is Default-layer, and a capsule here would park placement ghosts on
+    /// top of the player.
+    /// </summary>
+    private static void BuildPlayerPrefab(StringBuilder summary)
     {
-        GameObject art = AssetDatabase.LoadAssetAtPath<GameObject>(WorkerArtPrefabPath);
+        GameObject art = AssetDatabase.LoadAssetAtPath<GameObject>(CastawayArtPrefabPath);
         if (art == null)
         {
-            Debug.LogError("[Opening] Art prefab not found: " + WorkerArtPrefabPath + " — run 'Generate All Assets' first. Survivor prefab not built.");
+            art = AssetDatabase.LoadAssetAtPath<GameObject>(WorkerArtPrefabPath);
+            if (art != null)
+                Debug.LogWarning("[Opening] Castaway art not found at " + CastawayArtPrefabPath + " — using Worker art for the player. Run 'Generate All Assets' and re-run this tool.");
+        }
+        if (art == null)
+        {
+            Debug.LogError("[Opening] Art prefab not found: " + WorkerArtPrefabPath + " — run 'Generate All Assets' first. Player prefab not built.");
             return;
         }
 
-        GameObject root = new GameObject("Survivor");
+        GameObject root = new GameObject("PlayerCharacter");
         try
         {
-            // Agent values mirror Worker.prefab / Worker.Start (Survivor.Start
+            // Agent values mirror Worker.prefab / Worker.Start (PlayerCharacter.Start
             // re-asserts the runtime-tunable ones)
             NavMeshAgent agent = root.AddComponent<NavMeshAgent>();
             agent.radius = 0.3f;
             agent.height = 2f;
             agent.baseOffset = 0f;
             agent.speed = 3.5f;
-            agent.acceleration = 5f;
+            agent.acceleration = 18f;
             agent.angularSpeed = 360f;
 
-            root.AddComponent<Survivor>();
+            PlayerCharacter pc = root.AddComponent<PlayerCharacter>();
+            pc.textHeightOffset = 1.9f;   // name label just above the bandana (art is 1.2 tall)
+
+            HealthBar bar = root.AddComponent<HealthBar>();
+            bar.heightOffset = 1.5f;
+            bar.barWidth = 0.8f;
+            bar.barHeight = 0.12f;
 
             // Art mounts on a "Model" child as a nested prefab instance (house
             // style: regenerating art propagates automatically)
@@ -225,12 +248,30 @@ public static class OpeningSequenceSetup
             model.transform.localRotation = Quaternion.identity;
             model.transform.localScale = Vector3.one;
 
-            PrefabUtility.SaveAsPrefabAsset(root, SurvivorPrefabPath);
-            summary.AppendLine("    Survivor.prefab rebuilt (agent + Model child <- art Worker)");
+            // Held tool: a socket at the right hand, tilted so a grip-down tool
+            // reads as carried, plus the id -> art table (tools generated by step 1)
+            GameObject socket = new GameObject("HandSocket");
+            socket.transform.SetParent(root.transform, false);
+            socket.transform.localPosition = new Vector3(0.20f, 0.40f, 0.08f);
+            socket.transform.localRotation = Quaternion.Euler(-25f, 0f, -14f);
+
+            HeldItem held = root.AddComponent<HeldItem>();
+            held.socket = socket.transform;
+            held.art = BuildToolArtTable(summary);
+
+            PrefabUtility.SaveAsPrefabAsset(root, PlayerPrefabPath);
+            summary.AppendLine("    PlayerCharacter.prefab rebuilt (agent + HealthBar + HeldItem + Model child <- art " + art.name + ")");
         }
         finally
         {
             Object.DestroyImmediate(root);
+        }
+
+        // The survivor prefab is superseded; its script no longer exists
+        if (AssetDatabase.LoadAssetAtPath<GameObject>(LegacySurvivorPrefabPath) != null)
+        {
+            AssetDatabase.DeleteAsset(LegacySurvivorPrefabPath);
+            summary.AppendLine("    Legacy Survivor.prefab deleted");
         }
     }
 
@@ -466,6 +507,33 @@ public static class OpeningSequenceSetup
         GameObjectUtility.SetStaticEditorFlags(prop, PropStaticFlags);
     }
 
+    /// <summary>
+    /// Item id → tool art prefab, one row per tool in the catalog. A missing art
+    /// asset is reported and skipped (the tool then simply has no hand visual).
+    /// </summary>
+    private static HeldItem.ItemArt[] BuildToolArtTable(StringBuilder summary)
+    {
+        (string id, string art)[] tools =
+        {
+            ("stone_axe", "StoneAxe"), ("stone_pick", "StonePick"), ("fishing_spear", "FishingSpear"),
+            ("mallet", "Mallet"), ("wooden_spear", "WoodenSpear"), ("metal_pick", "MetalPick"),
+        };
+
+        var rows = new System.Collections.Generic.List<HeldItem.ItemArt>(tools.Length);
+        int missing = 0;
+        for (int i = 0; i < tools.Length; i++)
+        {
+            string path = "Assets/Art/Prefabs/Tools/" + tools[i].art + ".prefab";
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (prefab == null) { missing++; continue; }
+            rows.Add(new HeldItem.ItemArt { itemId = tools[i].id, prefab = prefab });
+        }
+        if (missing > 0)
+            Debug.LogWarning("[Opening] " + missing + " tool art prefab(s) missing under Assets/Art/Prefabs/Tools — run 'Generate All Assets' and re-run this tool for held-tool visuals.");
+        summary.AppendLine("    Held-tool art table: " + rows.Count + " of " + tools.Length + " tools wired");
+        return rows.ToArray();
+    }
+
     private static void BuildController(WorkerAssignmentUI workerUI, StringBuilder summary)
     {
         DestroyExisting("GameStart");
@@ -475,7 +543,7 @@ public static class OpeningSequenceSetup
 
         controller.campfirePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(CampfirePrefabPath);
         controller.campfireGhostPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(CampfireGhostPath);
-        controller.survivorPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(SurvivorPrefabPath);
+        controller.playerPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(PlayerPrefabPath);
         controller.workerUI = workerUI;
 
         GameObject spawn = new GameObject("SurvivorSpawn");
@@ -485,9 +553,9 @@ public static class OpeningSequenceSetup
 
         if (controller.campfirePrefab == null) Debug.LogError("[Opening] Campfire prefab missing at " + CampfirePrefabPath);
         if (controller.campfireGhostPrefab == null) Debug.LogError("[Opening] CampfireGhost prefab missing — see errors above");
-        if (controller.survivorPrefab == null) Debug.LogError("[Opening] Survivor prefab missing — see errors above");
+        if (controller.playerPrefab == null) Debug.LogError("[Opening] PlayerCharacter prefab missing — see errors above");
 
-        summary.AppendLine("    GameStart controller wired (campfire, ghost, survivor, workerUI, spawn point)");
+        summary.AppendLine("    GameStart controller wired (campfire, ghost, player, workerUI, spawn point)");
     }
 
     private static void ClearGameManagerCampfireRef(StringBuilder summary)

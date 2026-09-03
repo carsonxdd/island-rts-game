@@ -80,7 +80,14 @@ V:/islandrtsgame/                    # Repository root
 | `CameraShake.cs` | Combat shake, pure offset approach (no stored position) |
 | `AudioManager.cs` | Singleton: music, SFX, ambient, crossfades |
 | `GameStartController.cs` | Opening sequence: survivor landing → campfire placement → colony start |
-| `Survivor.cs` | Click-move castaway, exists only during the opening |
+| `PlayerCharacter.cs` | The player's own named character for the whole run (right-click move, HP with knock-out instead of death, regen at the fire, name label); replaced `Survivor.cs` 2026-09-02 |
+| `PlayerProfile.cs` | The run's character name: last-used value in PlayerPrefs, run snapshot set by the name popup (`Difficulty` pattern) |
+| `Items/ItemCatalog.cs` | Static item definitions: materials (stick, stone chunk), resources-in-hand, tools; the layer above the four pooled resources |
+| `Items/Inventory.cs` | Fixed-slot stack container (plain C#, zero-alloc) — the character's hands and the campfire stockpile |
+| `Items/CraftingCatalog.cs` | Campfire recipes: item + resource costs, seconds, output tool, unlocks; `CanAfford` / `Pay` across hands + stockpile + pool |
+| `Items/Unlocks.cs` | What the colony knows how to do (jobs, construction, militia); read at the point of effect, everything granted under the sim |
+| `Items/HeldItem.cs` | The tool in the character's hand (art under a HandSocket; visual only) |
+| `UI/PlayerHUD.cs` | Bottom-centre strip: name, six inventory slots, activity line |
 | `DebugMenu.cs` | F4 cheat menu (editor + dev builds only): resources, quick-start colony, time, combat cheats |
 | `Terrain/TerrainGrid.cs` | Island terrain: chunked flat-shaded heightmap in 7 material bands, `SampleHeight`/`IsBuildable`/`IsReachable` API, runtime NavMeshSurface, random seed per run (`RunSeed`) |
 | `Terrain/IslandGenerator.cs` | Pure seeded island pipeline (shape → relief → terraces → ponds → seabed → detail → anchors → validation + ramp repair); returns an `IslandField` |
@@ -312,7 +319,7 @@ Ask: "would this log spam the console during a normal 5-minute play session?" If
 1. Open `islandrts/` folder in Unity Hub (Unity 6000.5.9f1)
 2. Open scene: `Assets/MainIsland.unity` (**not** `Assets/Scenes/SampleScene.unity` — that is the leftover stock Unity scene, 3 objects, and is not the game)
 3. Press Play
-4. Opening: right-click to walk the survivor ashore, press B to place the campfire (free, one-time)
+4. Opening: name your castaway in the popup, right-click to walk them ashore, press B to place the campfire (free, one-time). The character stays yours for the whole run; colonists come ashore on their own
 5. Click campfire to assign workers, press B to build, recruit warriors before nightfall
 
 ## Controls
@@ -333,7 +340,8 @@ Ask: "would this log spam the console during a normal 5-minute play session?" If
 | F3 | AI debug overlay (editor only) |
 | F4 | Debug menu (editor + dev builds only) |
 | Click campfire | Worker assignment UI |
-| Right-click (opening) | Move the survivor |
+| Right-click | Smart command for your character: fetch a pickup / deposit at the campfire / walk there |
+| Space | Centre the camera on your character |
 | B (opening) | Place the campfire (Esc / right-click cancels) |
 
 Every gameplay key above is a **default**, not a fixed binding — `KeyBindings.cs` owns the map and *Options → Controls & Keybindings* rebinds it (two slots per action). Esc, the mouse buttons and F3/F4/F6/F7 are reserved and cannot be rebound.
@@ -1021,3 +1029,42 @@ The Phase 7 "jobless colonist" plan, delivered. People are a pool now: housing b
 - **`ConstructionSite.LaborFactor` is a const, not a field**, because the prefab's serialized `buildTime` (5) is what actually gets read (dead-data rule). `PopulationManager.arrivalInterval` is a field with a `> 0` fallback for the same reason: the scene object predates it.
 - **Repair pricing:** 25% of build cost per full repair, charged one whole unit at a time from fractional per-resource debt; the debt is only committed when `SpendResources` succeeds, so pausing on an empty pool loses nothing. The campfire has no `BuildingData` and is priced like a hut. `RepairAvailable` returns 0 when the next unit is unaffordable, so nobody walks to a repair they cannot start.
 - **Sim policies keep one idle colonist while any site exists** (`SimPolicy.HireWorker`), because sites no longer finish on their own. **Sweeps from before this change are not comparable to sweeps after it.**
+
+### Player Character, Slice A: Name Popup + Persistent Character (2026-09-02 — ⚠️ NEEDS EDITOR SETUP RE-RUN + PLAYTEST, UNCOMMITTED)
+
+First slice of `CRAFTING_AND_PLAYER_CHARACTER_PLAN.md` (repo root — the plan and its locked decisions live there). The castaway is now the player's own named character for the whole run; placing the campfire no longer turns them into a colonist. Compile-verified vs 6000.5.9f1 Roslyn in all three configs: **0 errors, 0 new warnings**. Playtest checklist: "Player character & name popup" in `docs/CONTROLS_AND_CHECKLIST.md`.
+
+**Editor run order:** `Setup Everything (In Order)`. Step 1 generates the `Castaway` unit art (Worker body, red bandana, blue sash), step 3 builds `Assets/Prefabs/PlayerCharacter.prefab` (agent + `PlayerCharacter` + `HealthBar` + Castaway art on a `Model` child), deletes the legacy `Survivor.prefab`, and wires `GameStartController.playerPrefab` (`[FormerlySerializedAs("survivorPrefab")]`, so the scene value survives until the tool runs).
+
+**New files:** `PlayerProfile.cs`, `PlayerCharacter.cs`. **Deleted:** `Survivor.cs`. **Edited:** `GameStartController` (popup, no conversion, `KeyBindings` for B), `MenuScreens` (`Screen.NameEntry`, `ShowNameEntry`, `Current`), `MenuFlow.NewGame` (`PlayerProfile.ClearRun`), `FloatingText.alwaysShow`, `KeyBindings` (`CenterOnCharacter`, Space), `CameraController` (`Instance`, `CenterOn`), `OcclusionFadeManager`, `OpeningSequenceSetup`, `Shapes_Units`.
+
+**Gotchas this encodes:**
+
+- **The name popup is modal the same way the game-over screen is.** `MenuScreens.Back()` early-returns on `Screen.NameEntry`, and `ShowNameEntry` clears the back-stack. It never needs `timeScale 0`: the intro already holds the clock, and `PauseController.BlockGameplayInput` (true while any screen is open) is what stops the right-click from moving the character underneath it — `UpdateLanding` / `UpdatePlacing` now check it, which they never did (the pause menu used to leak clicks through to the survivor).
+- **`PlayerProfile.Name` never returns empty and the sim never writes PlayerPrefs.** The popup is skipped under `SimHooks.Simulating` and on a Restart (`HasActive`); `DebugForceColonyStart` takes the last-used name instead of showing it, but only outside the sim, because `BeginRun` persists the name and a sweep must not overwrite the developer's.
+- **The player is not a colonist.** Never in the `PopulationManager` roster, no housing, no job, no `AIBrain`, and the enemy priority list never scans `PlayerCharacter.ActiveList`. The first colonist now arrives from the housing timer (~20 s after the fire); F4 quick-start and the sim policies still get their people through `SpawnArrival`, so nothing there changed — but **a sweep now starts with zero colonists instead of one, so sweeps before and after this slice are not comparable.**
+- **Death is a knock-out.** `SetupHealth` defaults `destroyOnDeath` to true; the player sets it false right after, so `Health.Die` fires the effect and `onDeath` and then leaves the object alone. `Health.Heal` refuses the dead, so the revive writes `currentHealth` directly. Health is set up in `Awake`, not `Start`, because the prefab's `HealthBar.Start` looks it up and component Start order is not something to lean on.
+- **The name label must not follow the state-label setting.** `FloatingText.alwaysShow` bypasses `GameSettings.UnitStateText` for this one label; the composed "name + activity" string is rebuilt only when either part changes, so the per-frame path allocates nothing.
+- **`CameraController.CenterOn` intersects the view ray at the target's own height**, not y=0 — on a hill the old y=0 plane landed the character a few metres downhill of screen centre. `GameStartController.FrameCameraOnPlayer` routes through it (plane fallback kept for a scene without the controller).
+- **No click collider on the player prefab, on purpose.** Every ground raycast is Default-layer; a capsule would park placement ghosts on top of the player. Slice B's `Pickups` layer is the pattern for anything clickable that must stay invisible to placement.
+
+### Player Character, Slices B + C: Hands, Stockpile, Campfire Crafting, Unlocks (2026-09-02 — ⚠️ NEEDS EDITOR SETUP RE-RUN + PLAYTEST, UNCOMMITTED)
+
+The character hand-collects sticks, stones and salvage, carries them in a six-slot inventory, deposits at the fire (resources to the pool, materials to a campfire stockpile), and crafts tools there; the first craft of each tool unlocks a colony activity (the four jobs, construction, warriors). Compile-verified vs 6000.5.9f1 Roslyn in all three configs: **0 errors, 0 new warnings**. Checklist: "Hands, stockpile & campfire crafting" in `docs/CONTROLS_AND_CHECKLIST.md`.
+
+**Editor run order:** `Setup Everything (In Order)`. Step 1 generates the new `Tools` art category (six grip-down tool meshes), step 3 adds `HeldItem` + a `HandSocket` to `PlayerCharacter.prefab` and wires the id → tool-art table, step 6 names layer 7 `Pickups` in the TagManager and rewrites `Stick` / `StonePickup` with their item ids.
+
+**New files:** `Items/{ItemCatalog, Inventory, CraftingCatalog, Unlocks, HeldItem}.cs`, `UI/PlayerHUD.cs`, `Editor/LowPoly/Shapes_Tools.cs`. **Edited:** `GroundPickup` (click collider, `CollectAsItem`, `claimedBy` widened to `MonoBehaviour`), `PickupSpawner` (cove cluster), `PlayerCharacter` (commands, tasks, crafting), `BaseBuilding` (`Stockpile`, two gates), `WorkerAssignmentUI` (tabs), `MenuBuilder.TabRow` (moved out of `MenuScreens`), `BuildPlacement`, `ConstructionAvailable`, `RepairAvailable`, `DebugMenu`, `NewContentSetup`, `LowPolyAssetDef` / `LowPolyAssetGenerator`.
+
+**Gotchas this encodes:**
+
+- **Pickup click colliders live on layer 7 (`GroundPickup.ClickLayer`), added in `Awake`, never on Default.** Every ground raycast in the game is mask `Default` (`BuildPlacement.groundLayer`, `GameStartController.RaycastGround`), so a collider on Default would park ghosts on sticks — the ghost-collider gotcha again. Adding it at runtime means scatter salvage and wreck cargo get it too, with no prefab edit. The player's command raycast is the ONLY thing that queries the layer. The layer is used by index; the name in the TagManager is cosmetic.
+- **A pickup is worth different things to different collectors.** Workers still get `amount` of `resourceType` straight into the carry (`Collect(AIBlackboard)`, unchanged); the character gets `itemId` × `itemAmount` (a stick is one Stick, not three wood), or the resource itself in hand when `itemId` is empty (a crate is Food × 6). One object, two `Collect` methods — don't unify them.
+- **Items and resources are two layers, and `ItemKind` says which.** Resource items exist only in hand; `DepositAll` turns them into `ResourceManager` amounts, materials go to the campfire `Stockpile`, tools are skipped (they stay in the hands — the KNOWLEDGE is what the colony gained, per the locked decision). `ItemCatalog.Stockpiled` is therefore materials only.
+- **Crafting charges on completion, not on start.** `TryQueueCraft` only checks affordability; `CompleteCraft` re-checks and pays (hands first, then stockpile, resources from the pool). So walking away, a knock-out, or a colonist spending the wood mid-craft all cost nothing — the last case fails at the end with "Missing materials". Any new command (`CommandAt`, `MoveTo`) calls `CancelCraft` first.
+- **Every gate is one `Unlocks.Has(...)` at the site that already decides the action**: `BaseBuilding.AssignWorker` / `CanRecruitWarrior`, `BuildPlacement.StartPlacement`, and the first line of `ConstructionAvailable` / `RepairAvailable` (before their scans, no yShift, so Build/Repair early-out). The UI reads the same flag to grey and label; nothing is duplicated. **`Unlocks.Has` returns true under `SimHooks.Simulating`**, exactly like `Difficulty.Active` returning Normal — sweeps must not stall at zero workers. **Sweeps before and after this slice are still not comparable** (the sim now starts with 0 colonists, see Slice A).
+- **Locked UI must name its recipe.** Job rows append "needs Stone Axe" to their caption, the warriors row swaps its cost line for "Craft a Wooden Spear…", and B before the Mallet flashes the recipe on the character's HUD line via `PlayerCharacter.SetActivity(text, seconds)`. `Unlocks.RecipeTitleFor` looks the title up from the catalog so the strings can never drift from the recipes.
+- **Arrival at a task target has a stall fallback.** `PlayerCharacter.Stalled()` (no pending destination, no path or remaining ≤ stopping distance, velocity ~0 for 0.5 s) counts as "as close as the NavMesh allows": within 2.5 u the pickup / fire interaction still happens, beyond it the task drops with "Can't reach that". Without this a pickup on the ragged shore edge left the character reading "Fetching Stick" forever.
+- **The campfire panel's tabs are three nested `Column`s with zero padding** inside the main column; `SwitchTab` toggles them and calls `FitPanelHeight` + `drag.Clamp()`, because the bodies differ in height and a taller tab would otherwise push the panel off the bottom edge. `MenuBuilder.TabRow` returns the buttons so the panel re-tints instead of rebuilding.
+- **Activity strings are composed only on change.** The floating label ("name + activity") and the crafting percent are rebuilt when the value changes, never per frame; the HUD repaints slots only on `Inventory.OnChanged`.
+- **`HeldItem` is visual only.** Equipping happens on craft completion; nothing reads the held tool to decide what the character can do — `Unlocks` does. The `Tools` art category needed the enum value, the `AddToolsImpl` partial, a menu item and the showcase row; `EnsureFolders` picks the folder up from the enum.

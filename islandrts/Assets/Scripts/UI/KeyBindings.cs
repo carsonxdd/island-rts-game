@@ -31,6 +31,7 @@ public static class KeyBindings
         SelectHut, SelectWoodWall, SelectStoneWall, SelectWatchtower, SelectWorkshop,
         ConvertToGate, RotateBuilding, StaircaseWalls,
         Demolish, ToggleGrid,
+        CenterOnCharacter,
     }
 
     /// <summary>
@@ -67,6 +68,8 @@ public static class KeyBindings
         ("Building", Action.StaircaseWalls,   "Staircase wall path"),
         ("Building", Action.Demolish,         "Demolish mode"),
         ("Building", Action.ToggleGrid,       "Toggle build grid"),
+
+        ("Character", Action.CenterOnCharacter, "Centre camera on your character"),
     };
 
     private static readonly Dictionary<Action, Binding> Defaults = new Dictionary<Action, Binding>
@@ -88,6 +91,7 @@ public static class KeyBindings
         { Action.StaircaseWalls,     new Binding(KeyCode.LeftShift, KeyCode.RightShift) },
         { Action.Demolish,           new Binding(KeyCode.Delete, KeyCode.X) },
         { Action.ToggleGrid,         new Binding(KeyCode.F2) },
+        { Action.CenterOnCharacter,  new Binding(KeyCode.Space) },
     };
 
     private static readonly Dictionary<Action, Binding> current = new Dictionary<Action, Binding>();

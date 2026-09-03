@@ -45,10 +45,11 @@ public static class NewContentSetup
         StringBuilder summary = new StringBuilder();
         summary.AppendLine("[Session Content] Pickups + Workshop setup.");
 
+        NamePickupLayer(summary);
         GameObject stickPrefab = BuildPickupPrefab(StickPrefabPath, "Stick",
-            ResourceNode.ResourceType.Wood, 3, DriftwoodArtPath, 0.45f, summary);
+            ResourceNode.ResourceType.Wood, 3, "stick", DriftwoodArtPath, 0.45f, summary);
         GameObject stonePrefab = BuildPickupPrefab(StonePickupPrefabPath, "StonePickup",
-            ResourceNode.ResourceType.Stone, 3, RockSmallArtPath, 0.9f, summary);
+            ResourceNode.ResourceType.Stone, 3, "stone_chunk", RockSmallArtPath, 0.9f, summary);
 
         GameObject workshopPrefab = BuildWorkshopPrefab(summary);
         GameObject workshopGhost = BuildWorkshopGhost(summary);
@@ -121,8 +122,35 @@ public static class NewContentSetup
             + "counts set to 150 trees / 60 bushes / 55 rocks / 24 ore (5 forests of r12)");
     }
 
+    /// <summary>
+    /// Give GroundPickup.ClickLayer its name in the TagManager so the layer reads
+    /// as "Pickups" in the Inspector rather than "User Layer 7". The code uses the
+    /// index, so the game works either way; this is for the humans.
+    /// </summary>
+    private static void NamePickupLayer(StringBuilder summary)
+    {
+        Object[] assets = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/TagManager.asset");
+        if (assets == null || assets.Length == 0) return;
+
+        SerializedObject tagManager = new SerializedObject(assets[0]);
+        SerializedProperty layers = tagManager.FindProperty("layers");
+        if (layers == null || !layers.isArray || layers.arraySize <= GroundPickup.ClickLayer) return;
+
+        SerializedProperty slot = layers.GetArrayElementAtIndex(GroundPickup.ClickLayer);
+        if (slot.stringValue == "Pickups") return;
+        if (!string.IsNullOrEmpty(slot.stringValue))
+        {
+            Debug.LogWarning("[Session Content] Layer " + GroundPickup.ClickLayer + " is already named '" + slot.stringValue
+                + "' — leaving it. GroundPickup.ClickLayer expects it to be the pickup click layer.");
+            return;
+        }
+        slot.stringValue = "Pickups";
+        tagManager.ApplyModifiedProperties();
+        summary.AppendLine("    Layer " + GroundPickup.ClickLayer + " named 'Pickups'");
+    }
+
     private static GameObject BuildPickupPrefab(string path, string name,
-        ResourceNode.ResourceType type, int amount, string artPath, float modelScale, StringBuilder summary)
+        ResourceNode.ResourceType type, int amount, string itemId, string artPath, float modelScale, StringBuilder summary)
     {
         GameObject art = AssetDatabase.LoadAssetAtPath<GameObject>(artPath);
         if (art == null)
@@ -138,6 +166,12 @@ public static class NewContentSetup
             GroundPickup pickup = root.AddComponent<GroundPickup>();
             pickup.resourceType = type;
             pickup.amount = amount;
+            pickup.itemId = itemId;      // what the player's character gets (one stick, one chunk)
+            pickup.itemAmount = 1;
+            // The click collider is added by GroundPickup.Awake at runtime (so scatter
+            // and wreck salvage get it too); the layer is set here as well so it reads
+            // correctly in the Inspector
+            root.layer = GroundPickup.ClickLayer;
 
             GameObject model = (GameObject)PrefabUtility.InstantiatePrefab(art);
             model.name = "Model";
