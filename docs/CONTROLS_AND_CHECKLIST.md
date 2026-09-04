@@ -72,7 +72,7 @@ and the debug keys F3 / F4 / F6 / F7.
 | Input | Action |
 |---|---|
 | Name popup | Names your character (Enter or BEGIN confirms; no Esc — the run cannot start unnamed) |
-| Right click | Smart command for your character, for the whole run: on a stick / stone / crate → fetch it; on a bush → pick it by hand; on a tree, rock or ore boulder → work it, once the matching tool is in hand; on the campfire → deposit everything and open the panel; on a Workshop → work its queue; anywhere else → walk there |
+| Right click | Smart command for your character, for the whole run: on a stick / stone / crate → fetch it; on a bush → pick it by hand; on a tree, rock or ore boulder → work it, once the matching tool is in hand; on the campfire (or the ground beside it) → deposit everything and work its queue, without opening the panel; on a Workshop → work its queue; anywhere else → walk there |
 | Space | Centre the camera on your character |
 | B | Show the campfire ghost (free, one-time; must be ≤6u from your character, on buildable ground) |
 | Left click | Place the campfire |
@@ -82,7 +82,7 @@ and the debug keys F3 / F4 / F6 / F7.
 
 | Input | Action |
 |---|---|
-| Click campfire | Campfire panel: Colonists · Stockpile · Craft tabs |
+| Left-click campfire | Campfire panel: Colonists · Stockpile · Craft · Research · Queue tabs. Left-click is the only gesture that opens it; a right-click deposit never does |
 | Click workshop | Crafting panel (Esc closes) |
 | Space | Centre the camera on your character (rebindable, "Character" group) |
 | Esc | Cancels the active mode; pauses when nothing is active (not rebindable) |

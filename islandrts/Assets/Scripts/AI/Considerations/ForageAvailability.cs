@@ -17,18 +17,25 @@ using UnityEngine;
 /// their hands hold one type, only that type scores, and ReturnUrgency sends them
 /// home to empty out (the same rule a job-changed worker follows).
 ///
-/// It only looks at pickups near the CAMPFIRE, not near itself. An idle colonist
-/// with island-wide range walks off to the far shore for one crate and is a long
-/// way from home when raiders land; keeping the search anchored on the fire makes
-/// them tidy the home clearing and stay in it.
+/// It only looks at pickups near the CAMPFIRE, not near itself. The radius covers
+/// the ground a colony actually works by day (2026-09-03: 35 -> 70), because the
+/// sticks and chunks workers shed at a forest or a quarry away from the fire were
+/// otherwise collected by nobody — a job worker only notices a pickup within 22u of
+/// itself, so anything shed outside its own errand simply lay there. It shrinks to
+/// <see cref="NightRadius"/> after dusk: a colonist with island-wide range is a long
+/// way from home when raiders land, and that is the one time it matters where they
+/// are standing.
 /// </summary>
 public class ForageAvailability : Consideration
 {
-    /// <summary>How far from the campfire a pickup is still the colony's business.</summary>
-    public const float HomeRadius = 35f;
+    /// <summary>How far from the campfire a pickup is still the colony's business, by day.</summary>
+    public const float HomeRadius = 70f;
+
+    /// <summary>The same radius at night, when standing near the fire is worth more than the stick.</summary>
+    public const float NightRadius = 30f;
 
     /// <summary>Distance from the colonist at which the score has faded to 0.</summary>
-    private const float AttractRange = 45f;
+    private const float AttractRange = 80f;
 
     public ForageAvailability(ResponseCurve curve) : base(curve) { }
 
@@ -43,7 +50,9 @@ public class ForageAvailability : Consideration
         if (fire == null) return 0f;
 
         Vector3 home = fire.transform.position;
-        float homeSqr = HomeRadius * HomeRadius;
+        bool night = AIWorldState.Instance != null && AIWorldState.Instance.isNight;
+        float homeRadius = night ? NightRadius : HomeRadius;
+        float homeSqr = homeRadius * homeRadius;
         bool carrying = bb.carryAmount > 0.01f;
 
         GroundPickup best = null;

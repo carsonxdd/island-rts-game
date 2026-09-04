@@ -466,8 +466,10 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         if (harvestByproduct >= HarvestByproductEvery)
         {
             harvestByproduct -= HarvestByproductEvery;
-            // No room for the material is not a reason to stop taking the resource
-            inventory.Add(harvestNode.ByproductItem, 1);
+            // No room for the material is not a reason to stop taking the resource —
+            // it falls at your feet instead, the same way a worker sheds one, so a
+            // full inventory costs you the walk home and not the stick (2026-09-03).
+            if (inventory.Add(harvestNode.ByproductItem, 1) <= 0) harvestNode.ShedOneByproduct();
         }
     }
 
@@ -513,12 +515,11 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
                     // Already standing at the fire: if its bench has work, get on with it
                     if (fire.Station != null && fire.Station.HasWork) BeginWork(fire.Station);
 
-                    // The click on the fire is also the "open the campfire" gesture
-                    if (!PauseController.BlockGameplayInput && !SimHooks.Simulating)
-                    {
-                        WorkerAssignmentUI ui = fire.workerUI != null ? fire.workerUI : WorkerAssignmentUI.Instance;
-                        if (ui != null) ui.OpenPanel(fire);
-                    }
+                    // Deliberately does NOT open the campfire panel (2026-09-03).
+                    // The two gestures are separate: right-click is "go do that",
+                    // left-click on the fire itself is "show me the fire". Opening a
+                    // panel every time the character walked home to empty their hands
+                    // covered the world with UI the player had not asked for.
                 }
                 else if (Stalled())
                 {

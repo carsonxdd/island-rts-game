@@ -442,10 +442,23 @@ public class ResourceNode : MonoBehaviour
         if (byproductProgress < byproductEvery) return;
         byproductProgress -= byproductEvery;
 
-        if (CountLooseByproducts() >= maxLooseByproducts) return;
+        ShedOneByproduct();
+    }
+
+    /// <summary>
+    /// Drop one byproduct beside this node right now, respecting the loose cap. The
+    /// worked-node path counts units first and calls this; the player's hand-harvest
+    /// calls it directly when their hands are too full to take the material, so a full
+    /// inventory costs them the walk home rather than the stick itself (2026-09-03).
+    /// </summary>
+    public bool ShedOneByproduct()
+    {
+        if (PickupSpawner.Instance == null) return false;
+        if (CountLooseByproducts() >= maxLooseByproducts) return false;
+
         // Rock throws off more slabs than pebbles; a worked tree mostly sheds twigs.
         float bigChance = (resourceType == ResourceType.Stone || resourceType == ResourceType.Metal) ? 0.65f : 0.15f;
-        PickupSpawner.Instance.DropByproduct(resourceType, transform.position, GatherRingRadius + 1.2f, bigChance);
+        return PickupSpawner.Instance.DropByproduct(resourceType, transform.position, GatherRingRadius + 1.2f, bigChance);
     }
 
     /// <summary>
