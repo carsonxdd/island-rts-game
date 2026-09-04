@@ -676,3 +676,20 @@ Editor step: **Generate All Assets** (the Iron Spear tool art) then **Setup Open
 - [ ] Add an iron spear (F4 "+5 Iron Spears") with a wooden-spear warrior alive and no enemies: the warrior walks to the fire showing "Rearming", the stockpile gains a Wooden Spear and loses an Iron Spear, the warrior goes back to patrolling; nothing happens while enemies are alive
 - [ ] Dismissing a rearmed warrior returns the Iron Spear, not the wooden one
 - [ ] F3 overlay: a crafter's action reads "Craft", a warrior fetching a weapon reads "Rearm"
+
+### Slice 4 — Food consumption (2026-09-04)
+
+No editor step. The `PopulationManager` scene object predates the food fields; a missing key
+reads as 0 and falls back to the defaults (1 / 0.25 / 1 days), so nothing needs re-serializing.
+
+- [ ] With 3 colonists the Food chip reads "Food · N workers · −3/day" and the pool drops by one food roughly every 50 s at the 150 s day (F4 status shows "eats 3/day")
+- [ ] Clicking the Food chip shows "Eaten per day −3" and "Reserve 16.7 days" at 50 food; the reserve falls as colonists arrive
+- [ ] Below one day of reserve the food amount turns amber; at 0 it turns red
+- [ ] Zero the food (F4 "Zero all"): after a quarter day the banner flashes "THE COLONY IS HUNGRY", the chip caption reads "Hungry!", the Colonists tab line ends "HUNGRY", gathering visibly slows and no survivor lands even with housing free
+- [ ] After a full day the banner flashes "STARVING", the caption reads "Starving · someone leaves each day", and one idle colonist walks to the cove showing "Leaving" in red and vanishes there; the roster, housing and the Colonists tab all drop by one
+- [ ] With no idle colonists a worker with a job leaves; with only warriors a warrior lays down arms (the spear returns to the stockpile) and leaves
+- [ ] One more colonist leaves each further day without food; deposit or forage food and the state returns to Fed at once, arrivals resume
+- [ ] F4 "Starve the colony" jumps straight to Starving with a departure due immediately
+- [ ] Your character never eats: alone on the island the drain reads 0/day
+- [ ] NEW GAME → Custom shows a "Food consumption" slider (0.25×–2×); the presets' read-only list shows 0.5× on Peaceful and 1.5× on Brutal; the chosen value changes the −N/day the chip shows
+- [ ] The end screen lists "Colonists who left" in red only when someone did

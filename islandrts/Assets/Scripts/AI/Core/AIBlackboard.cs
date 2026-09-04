@@ -27,6 +27,9 @@ public class AIBlackboard
     public bool isCrafter;
     // The bench a crafter is walking to or standing at (refreshed by StationWorkAvailable).
     public CraftStation targetStation;
+    // A starving colonist walking out on the colony (2026-09-04). Set once by
+    // Worker.Leave; the Leave action outranks everything and ends in Destroy.
+    public bool leaving;
     // What is actually in the worker's hands. Normally the assigned type, but a job
     // change mid-trip must still deliver what was picked up under the old job.
     public ResourceNode.ResourceType carryType;

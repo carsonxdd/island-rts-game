@@ -266,6 +266,20 @@ public class SimRunner : MonoBehaviour
 
         GameManager gm = FindAnyObjectByType<GameManager>();
         if (gm != null) gm.daysToSurvive = cfg.daysToSurvive;
+
+        // Food (2026-09-04): the manager is a scene object (or created on demand);
+        // it reads the field every frame, so writing it here is enough.
+        if (cfg.foodPerDay >= 0f)
+        {
+            PopulationManager pm = PopulationManager.EnsureExists();
+            if (pm != null)
+            {
+                // 0 is "nobody eats" here, but a non-positive field falls back to
+                // the default in the manager (missing-YAML-key rule), so off is a flag.
+                pm.foodDisabled = cfg.foodPerDay <= 0f;
+                pm.foodPerColonistPerDay = cfg.foodPerDay;
+            }
+        }
     }
 
     private IEnumerator RunRoutine(SimConfig cfg)
@@ -367,7 +381,9 @@ public class SimRunner : MonoBehaviour
             Enemies = Enemy.ActiveList.Count,
             Wood = rm != null ? rm.wood : 0,
             Food = rm != null ? rm.food : 0,
-            Stone = rm != null ? rm.stone : 0
+            Stone = rm != null ? rm.stone : 0,
+            Colonists = PopulationManager.Instance != null ? PopulationManager.Instance.GetColonistCount() : 0,
+            Hunger = PopulationManager.Instance != null ? (int)PopulationManager.Instance.Hunger : 0,
         };
     }
 
@@ -460,6 +476,10 @@ public class SimRunner : MonoBehaviour
         night.towersDawn = SimBuilder.TowerCount;
         night.campfireHpDawn = fire != null ? fire.GetCurrentHealth() : 0f;
         night.enemiesKilledTotal = GameManager.Instance != null ? GameManager.Instance.totalEnemiesKilled : 0;
+        PopulationManager pm = PopulationManager.Instance;
+        night.hungerDawn = pm != null ? (int)pm.Hunger : 0;
+        night.leftTotal = pm != null ? pm.ColonistsLeft : 0;
+        if (pm != null) metrics.colonistsLeft = pm.ColonistsLeft;
     }
 
     private void EndRun()

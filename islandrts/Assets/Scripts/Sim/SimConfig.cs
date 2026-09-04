@@ -105,6 +105,10 @@ public class SimConfig
     public float watchtowerDamageMultiplier = -1f;
     public float watchtowerBuffRadius = -1f;
 
+    [Header("Food")]
+    /// <summary>Food each colonist eats per calendar day (2026-09-04). 0 = nobody eats; -1 = the shipping 1.</summary>
+    public float foodPerDay = -1f;
+
     [Header("Day/Night")]
     public float dayLengthSeconds = -1f;
     public float nightLengthSeconds = -1f;

@@ -58,6 +58,11 @@ public class ResourceUI : MonoBehaviour
     private float bannerHideAt = -1f;
     const float BannerSeconds = 7f;
 
+    // Food chip (2026-09-04): the caption carries the daily drain and the colour
+    // the reserve, so the number the player watches says how long it lasts.
+    private Chip foodChip;
+    private int lastFoodKey = int.MinValue;
+
     // ---- metrics (reference pixels) ----
     const float EntryWidth = 150f;      // fits "Stone · 12 workers" at CaptionSize with room to spare
     const float EntryHeight = 54f;
@@ -93,12 +98,16 @@ public class ResourceUI : MonoBehaviour
         if (SimHooks.Simulating) { enabled = false; return; }
         Build();
         RaidDirector.OnRaidRolled += OnRaidRolled;
+        PopulationManager.OnHungerChanged += OnHungerChanged;
+        PopulationManager.OnColonistLeft += OnColonistLeft;
         UpdateUI();
     }
 
     void OnDestroy()
     {
         RaidDirector.OnRaidRolled -= OnRaidRolled;
+        PopulationManager.OnHungerChanged -= OnHungerChanged;
+        PopulationManager.OnColonistLeft -= OnColonistLeft;
     }
 
     void Update()
@@ -125,11 +134,40 @@ public class ResourceUI : MonoBehaviour
     /// <summary>The dawn roll came back: flash the warning for a few seconds. The chip carries it all day.</summary>
     void OnRaidRolled(bool raid)
     {
-        if (!raid || banner == null) return;
-        banner.gameObject.SetActive(true);
-        bannerHideAt = Time.unscaledTime + BannerSeconds;
+        if (!raid) return;
+        Flash("RAIDERS SIGHTED  —  they land tonight", MenuStyle.TextDanger, BannerSeconds);
         lastCalKey = -1;   // repaint the chip now rather than on the next tick
         UpdateUI();
+    }
+
+    /// <summary>Hunger crossings flash too (2026-09-04); the Food chip carries the state after that.</summary>
+    void OnHungerChanged(PopulationManager.HungerState state)
+    {
+        switch (state)
+        {
+            case PopulationManager.HungerState.Hungry:
+                Flash("THE COLONY IS HUNGRY  —  gathering and building slowed", MenuStyle.TextAccent, BannerSeconds);
+                break;
+            case PopulationManager.HungerState.Starving:
+                Flash("STARVING  —  someone leaves every day without food", MenuStyle.TextDanger, BannerSeconds);
+                break;
+        }
+        lastFoodKey = int.MinValue;
+    }
+
+    void OnColonistLeft()
+    {
+        Flash("A COLONIST HAS LEFT  —  there was no food", MenuStyle.TextDanger, BannerSeconds);
+    }
+
+    /// <summary>One bold line under the bar for a few seconds. A new flash replaces the old one.</summary>
+    public void Flash(string text, Color color, float seconds)
+    {
+        if (banner == null) return;
+        banner.text = text;
+        banner.color = color;
+        banner.gameObject.SetActive(true);
+        bannerHideAt = Time.unscaledTime + seconds;
     }
 
     // ------------------------------------------------------------------
@@ -171,7 +209,8 @@ public class ResourceUI : MonoBehaviour
 
         chips.Add(MakeChip(bar.transform, ResourceNode.ResourceType.Wood, "Wood"));
         VerticalDivider(bar.transform);
-        chips.Add(MakeChip(bar.transform, ResourceNode.ResourceType.Food, "Food"));
+        foodChip = MakeChip(bar.transform, ResourceNode.ResourceType.Food, "Food");
+        chips.Add(foodChip);
         VerticalDivider(bar.transform);
         chips.Add(MakeChip(bar.transform, ResourceNode.ResourceType.Stone, "Stone"));
         VerticalDivider(bar.transform);
@@ -397,6 +436,21 @@ public class ResourceUI : MonoBehaviour
             });
         }
 
+        if (type == ResourceNode.ResourceType.Food)
+        {
+            // What the colony eats and how long the stores last (2026-09-04)
+            Header("Eating");
+            AddRow("Eaten per day", () => PopulationManager.Instance != null
+                ? "−" + Mathf.RoundToInt(PopulationManager.Instance.DailyDrain) : "0");
+            AddRow("Reserve", () =>
+            {
+                PopulationManager pm = PopulationManager.Instance;
+                if (pm == null || pm.DailyDrain <= 0.0001f) return "-";
+                float days = pm.FoodReserveDays;
+                return days >= 10f ? "10+ days" : days.ToString("0.0") + " days";
+            });
+        }
+
         Header("Colonists");
         AddRow("On this job", () =>
         {
@@ -542,9 +596,12 @@ public class ResourceUI : MonoBehaviour
             if (w != c.lastWorkers)
             {
                 c.lastWorkers = w;
-                c.workers.text = Caption(c.type.ToString(), w == 1 ? "1 worker" : w + " workers");
+                if (c == foodChip) lastFoodKey = int.MinValue;   // the food caption is composed below
+                else c.workers.text = Caption(c.type.ToString(), w == 1 ? "1 worker" : w + " workers");
             }
         }
+
+        UpdateFoodChip(rm);
 
         if (PopulationManager.Instance != null)
         {
@@ -624,6 +681,45 @@ public class ResourceUI : MonoBehaviour
             calLabel.color = MenuStyle.TextMuted;
             calLabel.text = Caption("of " + total, night ? "quiet" : "quiet night ahead");
         }
+    }
+
+    /// <summary>
+    /// "Food · 2 workers · −6/day" (2026-09-04). The amount turns amber with
+    /// under a day of reserve and red at zero; the caption names the hunger
+    /// state once the colony is short. Repainted only when a part changes.
+    /// </summary>
+    void UpdateFoodChip(ResourceManager rm)
+    {
+        if (foodChip == null) return;
+        PopulationManager pm = PopulationManager.Instance;
+        if (pm == null) return;
+
+        int drain = Mathf.RoundToInt(pm.DailyDrain);
+        int hunger = (int)pm.Hunger;
+        // 0 fine, 1 under a day of reserve, 2 empty
+        int reserve = rm.food <= 0 ? 2 : (pm.FoodReserveDays < 1f ? 1 : 0);
+        int w = foodChip.lastWorkers;
+
+        int key = ((drain * 4 + hunger) * 4 + reserve) * 256 + Mathf.Clamp(w, 0, 255);
+        if (key == lastFoodKey) return;
+        lastFoodKey = key;
+
+        string workers = w == 1 ? "1 worker" : w + " workers";
+        string detail = drain > 0 ? workers + " · −" + drain + "/day" : workers;
+        switch ((PopulationManager.HungerState)hunger)
+        {
+            case PopulationManager.HungerState.Hungry:
+                foodChip.workers.text = Caption("Hungry!", detail);
+                break;
+            case PopulationManager.HungerState.Starving:
+                foodChip.workers.text = Caption("Starving", "someone leaves each day");
+                break;
+            default:
+                foodChip.workers.text = Caption("Food", detail);
+                break;
+        }
+        foodChip.value.color = reserve == 2 ? MenuStyle.TextDanger
+            : reserve == 1 ? MenuStyle.TextAccent : MenuStyle.TextPrimary;
     }
 
     static int WorkersOn(BaseBuilding fire, ResourceNode.ResourceType t)

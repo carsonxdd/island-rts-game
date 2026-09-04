@@ -97,6 +97,7 @@ public class WorkerAssignmentUI : MonoBehaviour
     }
 
     static readonly string LockHex = ColorUtility.ToHtmlStringRGBA(new Color(0.62f, 0.60f, 0.57f, 0.9f));
+    static readonly string DangerHex = ColorUtility.ToHtmlStringRGBA(MenuStyle.TextDanger);
 
     private readonly List<JobRow> jobs = new List<JobRow>();
     private readonly List<StockRow> stockRows = new List<StockRow>();
@@ -671,13 +672,18 @@ public class WorkerAssignmentUI : MonoBehaviour
 
         // "5 colonists · 2 idle · next survivor in 12s"
         int arrival = pm != null ? Mathf.CeilToInt(pm.SecondsToNextArrival) : -1;
-        if (colonists != lastColonists || idle != lastIdle || arrival != lastArrival)
+        int hunger = pm != null ? (int)pm.Hunger : 0;
+        // The hunger state rides on the arrival slot of the dirty key (both are small ints)
+        int arrivalKey = arrival * 4 + hunger;
+        if (colonists != lastColonists || idle != lastIdle || arrivalKey != lastArrival)
         {
             lastColonists = colonists;
             lastIdle = idle;
-            lastArrival = arrival;
+            lastArrival = arrivalKey;
             string line = colonists + (colonists == 1 ? " colonist" : " colonists") + "  ·  " + idle + " idle";
-            if (arrival >= 0) line += "  ·  next survivor in " + arrival + "s";
+            if (hunger == (int)PopulationManager.HungerState.Starving) line += "  ·  <color=#" + DangerHex + ">STARVING</color>";
+            else if (hunger == (int)PopulationManager.HungerState.Hungry) line += "  ·  <color=#" + DangerHex + ">HUNGRY</color>";
+            else if (arrival >= 0) line += "  ·  next survivor in " + arrival + "s";
             else if (colonists < housingCap) line += "  ·  survivors land by day";
             colonistText.text = line;
             colonistText.color = idle > 0 ? MenuStyle.TextPrimary : MenuStyle.TextMuted;

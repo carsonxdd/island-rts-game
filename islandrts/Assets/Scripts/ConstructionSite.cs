@@ -125,7 +125,8 @@ public class ConstructionSite : MonoBehaviour
         if (isComplete || seconds <= 0f) return;
 
         lastLaborTime = Time.time;
-        timeElapsed += seconds * CraftedUpgrades.BuildSpeedMult;
+        // Sturdy Scaffolds speeds it up; a hungry colony slows it down (2026-09-04)
+        timeElapsed += seconds * CraftedUpgrades.BuildSpeedMult * PopulationManager.LaborMultiplier;
         progress = Mathf.Clamp01(timeElapsed / (Mathf.Max(0.01f, buildTime) * LaborFactor));
 
         if (progress >= 1f)

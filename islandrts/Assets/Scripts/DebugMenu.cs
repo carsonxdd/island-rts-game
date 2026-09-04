@@ -175,6 +175,17 @@ public class DebugMenu : MonoBehaviour
                 + "   Raids so far " + director.RaidsSoFar
                 + "   Prosperity " + RaidDirector.Prosperity().ToString("0"));
         }
+        // Food (2026-09-04): what the colony eats, how long the stores last, and
+        // the hunger state that gates arrivals and slows labor.
+        if (pm != null)
+        {
+            float days = pm.FoodReserveDays;
+            GUILayout.Label("Food: " + pm.Hunger
+                + "   eats " + pm.DailyDrain.ToString("0.#") + "/day"
+                + "   reserve " + (days >= 99f ? "-" : days.ToString("0.0") + " days")
+                + "   left " + pm.ColonistsLeft
+                + "   labor x" + PopulationManager.LaborMultiplier.ToString("0.##"));
+        }
         // The island seed is what reproduces a layout bug report — restart
         // keeps it, NEW GAME rolls a fresh one
         if (TerrainGrid.Instance != null)
@@ -378,6 +389,12 @@ public class DebugMenu : MonoBehaviour
         if (GUILayout.Button("+5 Iron Spears (stockpile)"))
         {
             Campfire.Stockpile.Add(ItemCatalog.IronSpear, 5);
+        }
+        GUI.enabled = PopulationManager.Instance != null;
+        if (GUILayout.Button("Starve the colony (zero food, skip to Starving)"))
+        {
+            if (ResourceManager.Instance != null) ResourceManager.Instance.SpendFood(ResourceManager.Instance.food);
+            PopulationManager.Instance.DebugStarve();
         }
         GUI.enabled = PlayerCharacter.Instance != null && !PlayerCharacter.Instance.IsKnockedOut;
         if (GUILayout.Button("Knock Out Player"))

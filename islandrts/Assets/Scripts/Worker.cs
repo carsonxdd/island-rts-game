@@ -104,6 +104,25 @@ public class Worker : UnitBase<Worker>
         OnJobChanged();
     }
 
+    // --- Leaving (2026-09-04, Slice 4) ---
+    // A starving colonist gives up: no job, out of the idle pool (PopulationManager
+    // skips leavers), and the Leave action walks them to the cove and destroys the
+    // body there. One-way; only PopulationManager.SendOneAway sets it.
+    [System.NonSerialized] public bool leaving;
+
+    /// <summary>Walk out on the colony. The body is destroyed at the cove (the normal removal path).</summary>
+    public void Leave()
+    {
+        if (leaving) return;
+        ClearJob();
+        leaving = true;
+        if (aiBrain != null && aiBrain.blackboard != null)
+        {
+            aiBrain.blackboard.leaving = true;
+            aiBrain.ForceReeval();
+        }
+    }
+
     void OnJobChanged()
     {
         if (aiBrain == null || aiBrain.blackboard == null) return;   // brain not built yet — Initialize copies the fields
@@ -220,6 +239,7 @@ public class Worker : UnitBase<Worker>
         bb.assignedResourceType = assignedResourceType;
         bb.hasJob = hasJob;
         bb.isCrafter = isCrafter;
+        bb.leaving = leaving;
         bb.carryType = assignedResourceType;
         bb.carryCapacity = carryCapacity;
         bb.gatherDistance = gatherDistance;
@@ -371,7 +391,15 @@ public class Worker : UnitBase<Worker>
                 new EnemyPresence(20f, ResponseCurve.Linear(1f, 0f)),         // Populates bb.nearestEnemy; 0 if no enemy in 20u
                 new ThreatNearby(1f, ResponseCurve.Logistic(12f, 0.3f)),      // 1 enemy in grid → raw 1.0 → logistic ~0.999
                 new HealthPercent(ResponseCurve.InverseLinear(0.3f, 0.7f))    // Full HP=0.7, low HP=1.0 — nudge not gate
-            }, new FleeToHutExecutor(), basePriority: 1.2f, momentumBonus: 0.2f)
+            }, new FleeToHutExecutor(), basePriority: 1.2f, momentumBonus: 0.2f),
+
+            // Leave — a starving colonist walks out (2026-09-04, Slice 4). One
+            // zero-cost gate, priority 2.0 so it beats Flee; the executor ends in
+            // Destroy, so there is no exit to tune.
+            new ActionOption("Leave", new Consideration[]
+            {
+                new IsLeaving(ResponseCurve.Linear(1f, 0f))
+            }, new LeaveExecutor(), basePriority: 2.0f, momentumBonus: 0f)
         };
 
         aiBrain.Initialize(actions, bb);
@@ -554,7 +582,7 @@ public class Worker : UnitBase<Worker>
             color = Color.yellow;
         else if (displayName.Contains("Returning"))
             color = Color.cyan;
-        else if (displayName.Contains("Fleeing"))
+        else if (displayName.Contains("Fleeing") || displayName.Contains("Leaving"))
             color = Color.red;
         else if (displayName.Contains("Building") || displayName.Contains("Repairing") || displayName.Contains("Crafting"))
             color = new Color(1f, 0.65f, 0.2f);   // orange: labour

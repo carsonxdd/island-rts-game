@@ -118,6 +118,7 @@ these. Every field defaults to `-1`, so a run only has to name what it varies.
 | `warriorHealth/Damage/MoveSpeed` | each `Warrior` at spawn |
 | `warriorCostFood`, `maxWarriors` | the campfire (a warrior also costs a Wooden Spear from the stockpile since 2026-09-03; the old `warriorCostWood` key is ignored) |
 | `dayLengthSeconds`, `nightLengthSeconds` | `DayNightCycle` |
+| `foodPerDay` | `PopulationManager` — food each colonist eats per calendar day (2026-09-04); `0` switches eating off, `-1` keeps the shipping 1 |
 | `daysToSurvive`, `maxGameSeconds` | `GameManager` / the run's hard stop (a 30-day run is 4500 s of game time at the shipping clock) |
 
 Unit knobs can't be applied by patching the prefab (a `public float` on a unit
@@ -134,10 +135,11 @@ top of its `Start`, guarded by `UNITY_EDITOR || DEVELOPMENT_BUILD`.
 ```
 config_id, strategy, seed, outcome, day_reached, days_to_survive, raids,
 enemies_killed, peak_workers, peak_warriors, final_wood/food/stone,
-game_seconds, wall_seconds, frames, note
+colonists_left, game_seconds, wall_seconds, frames, note
 ```
 
-`outcome` is `victory` | `defeat` | `timeout` | `error`.
+`outcome` is `victory` | `defeat` | `timeout` | `error`. `colonists_left` counts
+the people who walked out because the colony starved them (2026-09-04).
 
 **`days.csv`** — one row per calendar day per game (dusk to dawn). Plot this.
 
@@ -145,8 +147,14 @@ game_seconds, wall_seconds, frames, note
 … day, raid, raid_size, survived, wood/food/stone at dusk AND dawn,
 workers/warriors/huts/walls/towers at dusk AND dawn,
 enemies_spawned, enemies_killed_total,
-campfire_hp_dusk, campfire_hp_min, campfire_hp_dawn
+campfire_hp_dusk, campfire_hp_min, campfire_hp_dawn,
+hunger_dawn, left_total
 ```
+
+`hunger_dawn` is 0 fed / 1 hungry / 2 starving at that dawn; `left_total` is
+cumulative. A run whose `hunger_dawn` is 2 for several days in a row is losing
+to its own kitchen, not to the raiders. Sweeps from before food consumption
+(2026-09-04) are not comparable: every colonist now eats one food a day.
 
 `campfire_hp_min` is the single most useful column — **on rows where `raid` is
 1**. Quiet nights are still written (that is the economy curve), but their

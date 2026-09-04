@@ -253,8 +253,10 @@ public class GatherExecutor : ActionExecutor
 
         // Gather incrementally (same logic as original Worker).
         // CraftedUpgrades.GatherRateMult: Workshop "Sharpened Tools" upgrade.
+        // PopulationManager.LaborMultiplier: a hungry colony works slower (2026-09-04).
         float spaceInInventory = bb.carryCapacity - bb.carryAmount;
-        float wantToGather = bb.gatherRatePerSecond * CraftedUpgrades.GatherRateMult * Time.deltaTime;
+        float wantToGather = bb.gatherRatePerSecond * CraftedUpgrades.GatherRateMult
+                             * PopulationManager.LaborMultiplier * Time.deltaTime;
         float requestAmount = Mathf.Min(wantToGather, spaceInInventory);
 
         float actuallyGathered = bb.targetResource.GatherResources(requestAmount);

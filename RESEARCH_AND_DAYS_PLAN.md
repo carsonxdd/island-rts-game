@@ -256,7 +256,12 @@ should garrison as the raid lands, which `ThreatNearby` already does once enemie
    Iron Spear (35 dmg, 4 metal), a weapon PICKER on the warrior row (decided 2026-09-04 over
    two recruit rows / auto-best), Rearm action (0.5, peacetime only), `Warrior.ApplyWeapon`
    as the one place weapon stats land. Eco policy builds a Workshop and assigns a Crafter.
-4. **Food.** Consumption, hungry/starving, chip, difficulty knob, sim knob and policies.
+4. **Food — DONE 2026-09-04, pending playtest.** One food per colonist per calendar day as a
+   fractional debt in `PopulationManager`; Hungry at 0.25 day (labor ×0.6, no arrivals),
+   Starving at 1 day (one departure per day via `Worker.Leave` → the Leave action → the cove);
+   Food chip drain/reserve/colour, banners, `Difficulty.foodConsumption` (0.5–1.5 across presets,
+   Custom slider), end-screen "Colonists who left", `SimConfig.foodPerDay`, `hunger_dawn` /
+   `left_total` / `colonists_left` columns, policies keep a forager per eight mouths.
 5. **Archers.** Bowyery research, Bow, ranged `Warrior`, projectile, Engage range hold.
 6. **Escape.** Shipwright research, Shipyard building + beach placement rule, Set sail.
 

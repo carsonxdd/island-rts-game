@@ -37,6 +37,8 @@ public class SimMetrics
         public int workersDawn, warriorsDawn, hutsDawn, wallsDawn, towersDawn;
         public float campfireHpStart, campfireHpMin, campfireHpDawn;
         public int enemiesKilledTotal;               // cumulative at dawn
+        public int hungerDawn;                       // 0 fed, 1 hungry, 2 starving (2026-09-04)
+        public int leftTotal;                        // colonists who walked out, cumulative at dawn
         public bool survived;
     }
 
@@ -56,6 +58,7 @@ public class SimMetrics
     public int totalEnemiesKilled;
     public int peakWorkers, peakWarriors;
     public float finalWood, finalFood, finalStone;
+    public int colonistsLeft;                // starved out over the run (2026-09-04)
     public string note = "";
 
     private readonly StringBuilder sb = new StringBuilder(256);
@@ -82,7 +85,7 @@ public class SimMetrics
             File.WriteAllText(runs,
                 "config_id,strategy,seed,outcome,day_reached,days_to_survive,raids," +
                 "enemies_killed,peak_workers,peak_warriors," +
-                "final_wood,final_food,final_stone," +
+                "final_wood,final_food,final_stone,colonists_left," +
                 "game_seconds,wall_seconds,frames,note\n");
         }
 
@@ -95,7 +98,8 @@ public class SimMetrics
                 "workers_dusk,warriors_dusk,huts_dusk,walls_dusk,towers_dusk," +
                 "workers_dawn,warriors_dawn,huts_dawn,walls_dawn,towers_dawn," +
                 "enemies_spawned,enemies_killed_total," +
-                "campfire_hp_dusk,campfire_hp_min,campfire_hp_dawn\n");
+                "campfire_hp_dusk,campfire_hp_min,campfire_hp_dawn," +
+                "hunger_dawn,left_total\n");
         }
     }
 
@@ -117,6 +121,7 @@ public class SimMetrics
           .Append(F(finalWood)).Append(',')
           .Append(F(finalFood)).Append(',')
           .Append(F(finalStone)).Append(',')
+          .Append(colonistsLeft).Append(',')
           .Append(F(gameSeconds)).Append(',')
           .Append(F(wallClockSeconds)).Append(',')
           .Append(frames).Append(',')
@@ -144,7 +149,9 @@ public class SimMetrics
               .Append(n.enemiesKilledTotal).Append(',')
               .Append(F(n.campfireHpStart)).Append(',')
               .Append(F(n.campfireHpMin)).Append(',')
-              .Append(F(n.campfireHpDawn)).Append('\n');
+              .Append(F(n.campfireHpDawn)).Append(',')
+              .Append(n.hungerDawn).Append(',')
+              .Append(n.leftTotal).Append('\n');
         }
         if (sb.Length > 0) File.AppendAllText(Path.Combine(dir, DaysFile), sb.ToString());
     }

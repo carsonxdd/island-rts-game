@@ -38,6 +38,7 @@ public static class Difficulty
         public float enemyDamage = 1f;
         public float nightLength = 1f;       // longer night = more time under attack
         public float startingResources = 1f;
+        public float foodConsumption = 1f;   // multiplies what each colonist eats per day (PopulationManager, 2026-09-04)
         public int daysToSurvive = 30;       // the rescue ship arrives at the dawn after this day
 
         public Preset Clone()
@@ -48,6 +49,7 @@ public static class Difficulty
                 enemyCount = enemyCount, raidFrequency = raidFrequency,
                 enemyHealth = enemyHealth, enemyDamage = enemyDamage,
                 nightLength = nightLength, startingResources = startingResources,
+                foodConsumption = foodConsumption,
                 daysToSurvive = daysToSurvive,
             };
         }
@@ -73,14 +75,14 @@ public static class Difficulty
             name = "Peaceful", daysToSurvive = 20,
             blurb = "For building and exploring. Raids are rare and token, and the colony starts flush.",
             enemyCount = 0.5f, raidFrequency = 0.6f, enemyHealth = 0.7f, enemyDamage = 0.55f,
-            nightLength = 0.85f, startingResources = 1.5f,
+            nightLength = 0.85f, startingResources = 1.5f, foodConsumption = 0.5f,
         },
         new Preset
         {
             name = "Relaxed", daysToSurvive = 20,
             blurb = "A forgiving run. Mistakes cost you a hut, not the colony.",
             enemyCount = 0.75f, raidFrequency = 0.8f, enemyHealth = 0.85f, enemyDamage = 0.8f,
-            nightLength = 0.95f, startingResources = 1.25f,
+            nightLength = 0.95f, startingResources = 1.25f, foodConsumption = 0.75f,
         },
         new Preset
         {
@@ -92,14 +94,14 @@ public static class Difficulty
             name = "Hard", daysToSurvive = 30,
             blurb = "Bigger raids, more of them, and tighter resources.",
             enemyCount = 1.3f, raidFrequency = 1.25f, enemyHealth = 1.15f, enemyDamage = 1.2f,
-            nightLength = 1.1f, startingResources = 0.8f,
+            nightLength = 1.1f, startingResources = 0.8f, foodConsumption = 1.25f,
         },
         new Preset
         {
             name = "Brutal", daysToSurvive = 30,
             blurb = "Walls are not optional. Raids come most nights, and the late ones are swarms.",
             enemyCount = 1.7f, raidFrequency = 1.5f, enemyHealth = 1.35f, enemyDamage = 1.45f,
-            nightLength = 1.25f, startingResources = 0.6f,
+            nightLength = 1.25f, startingResources = 0.6f, foodConsumption = 1.5f,
         },
     };
 
@@ -173,6 +175,7 @@ public static class Difficulty
     public static float EnemyDamageMultiplier => Active.enemyDamage;
     public static float NightLengthMultiplier => Active.nightLength;
     public static float StartingResourceMultiplier => Active.startingResources;
+    public static float FoodConsumptionMultiplier => Active.foodConsumption;
     public static int DaysToSurvive => Mathf.Max(1, Active.daysToSurvive);
 
     // ---- persistence ------------------------------------------------------
@@ -195,6 +198,7 @@ public static class Difficulty
         CustomPreset.enemyDamage = PlayerPrefs.GetFloat(KeyPrefix + "dmg", 1f);
         CustomPreset.nightLength = PlayerPrefs.GetFloat(KeyPrefix + "night", 1f);
         CustomPreset.startingResources = PlayerPrefs.GetFloat(KeyPrefix + "res", 1f);
+        CustomPreset.foodConsumption = PlayerPrefs.GetFloat(KeyPrefix + "food", 1f);
         // New key ("days"), not the old "nights": a Custom preset saved under the
         // wave rules would otherwise come back as a 5-day run.
         CustomPreset.daysToSurvive = PlayerPrefs.GetInt(KeyPrefix + "days", 30);
@@ -210,6 +214,7 @@ public static class Difficulty
         PlayerPrefs.SetFloat(KeyPrefix + "dmg", CustomPreset.enemyDamage);
         PlayerPrefs.SetFloat(KeyPrefix + "night", CustomPreset.nightLength);
         PlayerPrefs.SetFloat(KeyPrefix + "res", CustomPreset.startingResources);
+        PlayerPrefs.SetFloat(KeyPrefix + "food", CustomPreset.foodConsumption);
         PlayerPrefs.SetInt(KeyPrefix + "days", CustomPreset.daysToSurvive);
 
         PlayerPrefs.Save();

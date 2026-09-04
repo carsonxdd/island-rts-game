@@ -86,7 +86,8 @@ Every 0.25–0.35s (randomized per unit) the brain scores `basePriority × Π(co
 - Housing has ONE owner: buildings implement `IHousing`, `RegisterHousing` in Start, flag-guarded `UnregisterHousing` from both death and `OnDestroy` (demolish counts). PopulationManager never rescans the scene.
 - Assignment, arrivals and recruitment REQUIRE a `PopulationManager` — `BaseBuilding.Awake` / `Hut.Awake` call `PopulationManager.EnsureExists()`.
 - **`ReplaceUnit` before `Destroy`** when converting worker ↔ warrior, so the old body's OnDestroy finds nothing to double-count. Warriors occupy housing; dismiss returns the weapon, death loses it.
-- **The player is not a colonist:** never in the roster, no housing, no job, no AIBrain, never scanned by enemies. The first colonist arrives from the housing timer (~20s after the fire).
+- **The player is not a colonist:** never in the roster, no housing, no job, no AIBrain, never scanned by enemies, **does not eat**. The first colonist arrives from the housing timer (~20s after the fire).
+- **Food (2026-09-04):** `PopulationManager` eats `roster × foodPerColonistPerDay × Difficulty.FoodConsumptionMultiplier` per `DayNightCycle.CycleSeconds` as a fractional debt paid one `SpendFood(1)` at a time; `Hunger` is DERIVED from `starvedSeconds` (never stored), Hungry at 0.25 day (labor ×0.6 via `PopulationManager.LaborMultiplier` in the gather and construction ticks, no arrivals), Starving at 1 day (one departure per day: jobless → worker → warrior via `DismissWarrior`). `Worker.Leave()` → the Leave action (2.0, zero-cost gate) → `Destroy` at the cove = the normal removal path. The scene manager predates the fields: `<= 0 → default`, so the sim's off switch is `foodDisabled`, not 0.
 - `Health.Die` with `destroyOnDeath = false` is the player's knock-out; `Health.Heal` refuses the dead, so the revive writes `currentHealth` directly. Player health is set up in `Awake` (the prefab's `HealthBar.Start` looks it up).
 - Repair pricing: 25% of build cost per full repair, charged one whole unit at a time from fractional debt, committed only when `SpendResources` succeeds. `RepairAvailable` returns 0 when the next unit is unaffordable.
 
@@ -190,7 +191,7 @@ Every 0.25–0.35s (randomized per unit) the brain scores `basePriority × Π(co
 - `SimBuilder` mirrors `GhostPlacer.ConfirmPlacement` / `WallLinePlacer.ConfirmWallLine` step for step — change both together. Wall rings must have gaps. `SimTools` passes `MainIsland` to `BuildPipeline` explicitly.
 - `SimPlayerDriver.Tick` (polled before every policy tick) drives the player character as bench labor. Policies keep one idle colonist while any site exists.
 - **Not run-to-run deterministic** (async NavMesh rebuilds, job-system order, `-Parallel` contention): a seed makes runs comparable, not reproducible. n=12 win-rate CI ≈ ±13pp; read `campfire_hp_min` in `days.csv` first. Never report a one-or-two-run win-rate difference as a finding.
-- Sweeps are NOT comparable across: gatherable palms (09-02), salvage, colonist pool, player character (starts with 0 colonists), research/craft split (0 research, 0 spears), hauled materials, foraging (09-03). Re-run baselines after any of these.
+- Sweeps are NOT comparable across: gatherable palms (09-02), salvage, colonist pool, player character (starts with 0 colonists), research/craft split (0 research, 0 spears), hauled materials, foraging (09-03), the Crafter job and food consumption (09-04). Re-run baselines after any of these.
 - A script-only player build rewrites `<player>_Data/Managed/Assembly-CSharp.dll`, not the .exe timestamp. Never let two sim processes share one `outputDir` (`run-sim.ps1 -Parallel N` shards). ~23–25× realtime per process.
 - Sim-guards to keep: `Difficulty.Active` → Normal; name popup skipped; `PropScatter` runs gatherable + salvage rules but not decor; `OcclusionFadeManager` skipped; `GameManager.ShowEndScreen` guarded; `daysToSurvive` guarded behind `!SimHooks.Simulating` in `GameManager.Start`.
 
@@ -247,9 +248,9 @@ Branch `feature/balance-sim-and-menus`. Slices 3–6 of `RESEARCH_AND_DAYS_PLAN.
 
 **Shipped:** four-resource economy with a colonist pool (arrivals by housing, jobs from the idle pool, jobless colonists forage/build/repair); player character with hand-harvest and campfire deposit; research → craft split with stations (campfire + Workshop), a Crafter job, spears as per-warrior equipment with a recruit picker and the Iron Spear; 30-day calendar with dawn-rolled, prosperity-scaled raids; walls/gates/towers/demolish; Utility AI for every unit; random islands (size/style/seed) with terraces, cliffs, ponds, stylized water, runtime scatter; tree occlusion fade; code-built menus, end screens and an in-game changelog; F4 debug menu; headless balance sim.
 
-**Pending playtest:** Slice 2 research/stations, the 09-03 polish and byproduct passes, the changelog screen, Slice 3. A raid tuning pass is pending.
+**Pending playtest:** Slice 2 research/stations, the 09-03 polish and byproduct passes, the changelog screen, Slices 3 and 4. A raid tuning pass is pending.
 
-**Next** (`RESEARCH_AND_DAYS_PLAN.md`): Slice 4 food consumption; Slice 5 archers; Slice 6 escape ship. Then `COLONY_EXPANSION_PLAN.md` (collector radius, settlement tiers, processing chains, families, farming). Phase 10 Stages 3–4 (water polish, lighting bake) remain open.
+**Next** (`RESEARCH_AND_DAYS_PLAN.md`): Slice 5 archers; Slice 6 escape ship. Then `COLONY_EXPANSION_PLAN.md` (collector radius, settlement tiers, processing chains, families, farming). Phase 10 Stages 3–4 (water polish, lighting bake) remain open.
 
 ---
 
@@ -274,4 +275,4 @@ Branch `feature/balance-sim-and-menus`. Slices 3–6 of `RESEARCH_AND_DAYS_PLAN.
 
 - Starting resources 100W 50F 0S 0M (metal buys Iron Work and Iron Spears). Workshop makes tools and weapons at 2×. Worker carry 5, gather 1/sec; stick = 3 wood, chunk = 3 stone, crate = 6 food, barrel = 5 wood; large pickups ×3.
 - Raid size `round(2 + 0.4 × day + 0.08 × prosperity)`: day-4 ≈ 5, day-20 ≈ 16, day-30 ≈ 22; roughly every 3 days, spawned 0.4s apart so a raid arrives as one body.
-- Warrior heal at campfire 1.5 HP/s (deliberately slow). One builder finishes a site in `buildTime × 2` (10s), up to 3 stack. Repair = 25% of build cost per full repair. Stockpile 60 (+40 Storage Pits, +80 Racks and Baskets).
+- Food: 1 per colonist per calendar day (× difficulty 0.5–1.5); Hungry after 0.25 day (labor ×0.6, no arrivals), Starving after 1 day (one colonist leaves per day). Warrior heal at campfire 1.5 HP/s (deliberately slow). One builder finishes a site in `buildTime × 2` (10s), up to 3 stack. Repair = 25% of build cost per full repair. Stockpile 60 (+40 Storage Pits, +80 Racks and Baskets).

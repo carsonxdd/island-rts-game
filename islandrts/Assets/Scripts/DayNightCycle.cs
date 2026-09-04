@@ -216,6 +216,13 @@ public class DayNightCycle : MonoBehaviour
         return isNight;
     }
 
+    /// <summary>
+    /// Seconds in one full calendar day at the active difficulty (day + the
+    /// stretched night). The unit everything "per day" is measured in —
+    /// food consumption (2026-09-04) reads it every frame.
+    /// </summary>
+    public float CycleSeconds => dayLengthInSeconds + nightLengthInSeconds * Difficulty.NightLengthMultiplier;
+
     public float GetTimeOfDay()
     {
         return currentTimeOfDay;

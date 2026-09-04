@@ -139,6 +139,15 @@ public abstract class SimPolicy
         int total = fire.GetTotalWorkers();
         if (total >= fire.maxWorkers) return false;
 
+        // The colony eats (2026-09-04): whatever the ratio says, keep one forager
+        // per eight mouths so a strategy that ignores food starves on schedule
+        // rather than by accident.
+        if (Unlocks.HasJob(ResourceNode.ResourceType.Food)
+            && fire.foodWorkers < Mathf.CeilToInt(s.Colonists / 8f))
+        {
+            return fire.AssignWorker(ResourceNode.ResourceType.Food);
+        }
+
         // A job the colony has not researched yet scores nothing (2026-09-03)
         if (!Unlocks.HasJob(ResourceNode.ResourceType.Wood)) woodShare = 0f;
         if (!Unlocks.HasJob(ResourceNode.ResourceType.Food)) foodShare = 0f;
@@ -207,7 +216,8 @@ public class TurtlePolicy : SimPolicy
     public override void Tick(SimState s)
     {
         // The tech a turtle needs, in order: wood, stone, walls, a token guard, food
-        if (Research(s, "woodcutting", "quarrying", "construction", "spearcraft", "foraging")) return;
+        // Foraging before Spearcraft since the colony eats (2026-09-04)
+        if (Research(s, "woodcutting", "foraging", "quarrying", "construction", "spearcraft")) return;
 
         // Enough economy to pay for a wall, then wall, then a token guard.
         if (s.Workers < 4) { if (HireWorker(s, 2f, 1f, 2f)) return; }
@@ -257,7 +267,8 @@ public class RushPolicy : SimPolicy
 
     public override void Tick(SimState s)
     {
-        if (Research(s, "woodcutting", "spearcraft", "foraging", "construction")) return;
+        // Foraging before Spearcraft since the colony eats (2026-09-04)
+        if (Research(s, "woodcutting", "foraging", "spearcraft", "construction")) return;
 
         // Minimum viable economy, then everything into warriors.
         if (s.Workers < 3) { if (HireWorker(s, 2f, 2f, 0f)) return; }
@@ -324,5 +335,9 @@ public struct SimState
     public int Warriors;
     public int Enemies;
     public float Wood, Food, Stone;
+    /// <summary>Everyone on the roster (idle, working, crafting, soldiering) — the mouths to feed.</summary>
+    public int Colonists;
+    /// <summary>PopulationManager.HungerState as an int: 0 fed, 1 hungry, 2 starving (2026-09-04).</summary>
+    public int Hunger;
 }
 #endif

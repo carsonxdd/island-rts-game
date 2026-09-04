@@ -333,6 +333,10 @@ public class MenuScreens : MonoBehaviour
                 Multiplier, v => { p.startingResources = v; Difficulty.Save(); },
                 "What washes ashore with you, against the standard 100 wood / 50 food.");
 
+            MenuBuilder.RangeSliderRow(col.transform, "Food consumption", p.foodConsumption, 0.25f, 2f,
+                Multiplier, v => { p.foodConsumption = v; Difficulty.Save(); },
+                "How much each colonist eats per day, against the standard one food.");
+
             MenuBuilder.RangeSliderRow(col.transform, "Days to rescue", p.daysToSurvive, 5f, 60f,
                 v => Mathf.RoundToInt(v).ToString(),
                 v => { p.daysToSurvive = Mathf.RoundToInt(v); Difficulty.Save(); },
@@ -349,6 +353,7 @@ public class MenuScreens : MonoBehaviour
             MenuBuilder.ValueRow(col.transform, "Enemy damage", Multiplier(p.enemyDamage));
             MenuBuilder.ValueRow(col.transform, "Night length", Multiplier(p.nightLength));
             MenuBuilder.ValueRow(col.transform, "Starting resources", Multiplier(p.startingResources));
+            MenuBuilder.ValueRow(col.transform, "Food consumption", Multiplier(p.foodConsumption));
             MenuBuilder.ValueRow(col.transform, "Days to rescue", p.daysToSurvive.ToString());
         }
 
@@ -807,6 +812,10 @@ public class MenuScreens : MonoBehaviour
         MenuBuilder.ValueRow(parent, "Enemies defeated", gm.GetEnemiesKilled().ToString());
         MenuBuilder.ValueRow(parent, "Colony at its peak",
             gm.maxWorkers + " workers  ·  " + gm.maxWarriors + " warriors");
+        // Starvation departures (2026-09-04) — only when it happened
+        PopulationManager pm = PopulationManager.Instance;
+        if (pm != null && pm.ColonistsLeft > 0)
+            MenuBuilder.ValueRow(parent, "Colonists who left", pm.ColonistsLeft.ToString(), MenuStyle.TextDanger);
 
         ResourceManager rm = ResourceManager.Instance;
         if (rm != null)

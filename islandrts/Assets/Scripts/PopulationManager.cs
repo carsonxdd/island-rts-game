@@ -37,16 +37,48 @@ public class PopulationManager : MonoBehaviour
     [Tooltip("Nobody lands at night — the shallows are where the raids come from.")]
     public bool arriveOnlyByDay = true;
 
+    // --- Food (2026-09-04, Slice 4) ---
+    // Every colonist eats from the pool, continuously, one unit at a time. The
+    // scene object predates these fields, so a non-positive value falls back to
+    // the defaults below (a missing YAML key deserializes as 0).
+    [Header("Food")]
+    [Tooltip("Food each colonist eats per calendar day (day + night). Scaled by the difficulty's food knob.")]
+    public float foodPerColonistPerDay = 1f;
+    [Tooltip("Days without food before the colony is Hungry (slower work, no arrivals).")]
+    public float hungryAfterDays = 0.25f;
+    [Tooltip("Days without food before the colony is Starving (someone leaves each day).")]
+    public float starvingAfterDays = 1f;
+
+    public enum HungerState { Fed, Hungry, Starving }
+
+    /// <summary>Fires when the colony crosses between Fed / Hungry / Starving. The HUD flashes a banner on it.</summary>
+    public static event System.Action<HungerState> OnHungerChanged;
+    /// <summary>Fires when a starving colonist walks out on the colony.</summary>
+    public static event System.Action OnColonistLeft;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetStatics() { OnHungerChanged = null; OnColonistLeft = null; }
+
     private readonly List<IHousing> housing = new List<IHousing>();
     private readonly List<Colonist> roster = new List<Colonist>();
     private float arrivalTimer;
     private float pruneTimer;
     private DayNightCycle dayNight;
 
+    private float foodDebt;          // fractional food owed; a whole unit is taken when it reaches 1
+    private float starvedSeconds;    // how long the pool has been empty when a unit came due
+    private float nextDepartureAt;   // starvedSeconds at which the next colonist walks out
+    private HungerState hungerShown = HungerState.Fed;
+
     // The scene object predates these fields; a missing key can deserialize as 0,
     // so a non-positive interval falls back to this instead of spawning every frame.
     private const float DefaultArrivalInterval = 20f;
     private const float PruneInterval = 1f;
+    private const float DefaultFoodPerDay = 1f;
+    private const float DefaultHungryAfterDays = 0.25f;
+    private const float DefaultStarvingAfterDays = 1f;
+    /// <summary>Gathering and construction speed while Hungry or worse.</summary>
+    private const float HungryLaborMultiplier = 0.6f;
 
     void Awake()
     {
@@ -222,7 +254,7 @@ public class PopulationManager : MonoBehaviour
         for (int i = 0; i < roster.Count; i++)
         {
             Worker w = roster[i].unit as Worker;
-            if (w != null && !w.hasJob) n++;
+            if (w != null && !w.hasJob && !w.leaving) n++;
         }
         return n;
     }
@@ -235,7 +267,7 @@ public class PopulationManager : MonoBehaviour
         for (int i = 0; i < roster.Count; i++)
         {
             Worker w = roster[i].unit as Worker;
-            if (w == null || w.hasJob) continue;
+            if (w == null || w.hasJob || w.leaving) continue;
             float sqr = (w.transform.position - near).sqrMagnitude;
             if (sqr < bestSqr) { bestSqr = sqr; best = w; }
         }
@@ -276,6 +308,8 @@ public class PopulationManager : MonoBehaviour
             Prune();
         }
 
+        UpdateFood();
+
         if (!ArrivalsOpen())
         {
             // Hold the timer while nobody can land, so a colony that just built a
@@ -298,7 +332,157 @@ public class PopulationManager : MonoBehaviour
         if (GameManager.Instance != null && GameManager.Instance.isGameOver) return false;
         if (arriveOnlyByDay && IsNight()) return false;
         if (Campfire() == null) return false;
+        if (Hunger != HungerState.Fed) return false;   // word gets round: nobody joins a hungry colony
         return FindHomeWithRoom() != null;
+    }
+
+    // ------------------------------------------------------------------
+    // Food (2026-09-04)
+    // ------------------------------------------------------------------
+
+    float FoodPerDay => foodPerColonistPerDay > 0f ? foodPerColonistPerDay : DefaultFoodPerDay;
+    float HungryAfter => hungryAfterDays > 0f ? hungryAfterDays : DefaultHungryAfterDays;
+    float StarvingAfter => starvingAfterDays > 0f ? starvingAfterDays : DefaultStarvingAfterDays;
+
+    /// <summary>Seconds in a calendar day at the active difficulty (the "per day" unit).</summary>
+    float CycleSeconds
+    {
+        get
+        {
+            if (dayNight == null) dayNight = FindAnyObjectByType<DayNightCycle>();
+            return dayNight != null ? Mathf.Max(1f, dayNight.CycleSeconds) : 150f;
+        }
+    }
+
+    /// <summary>Food the whole colony eats per calendar day, after the difficulty knob.</summary>
+    public float DailyDrain => GetColonistCount() * FoodPerDay * Difficulty.FoodConsumptionMultiplier;
+
+    /// <summary>Fed, Hungry (a quarter day without food) or Starving (a full day).</summary>
+    public HungerState Hunger
+    {
+        get
+        {
+            float cycle = CycleSeconds;
+            if (starvedSeconds >= StarvingAfter * cycle) return HungerState.Starving;
+            if (starvedSeconds >= HungryAfter * cycle) return HungerState.Hungry;
+            return HungerState.Fed;
+        }
+    }
+
+    /// <summary>Days of food in the stores at the current drain (large when nothing is eaten).</summary>
+    public float FoodReserveDays
+    {
+        get
+        {
+            float drain = DailyDrain;
+            if (drain <= 0.0001f) return 999f;
+            float food = ResourceManager.Instance != null ? ResourceManager.Instance.food : 0f;
+            return food / drain;
+        }
+    }
+
+    /// <summary>Colonists who walked out because the colony starved them. Shown on the end screen.</summary>
+    public int ColonistsLeft { get; private set; }
+
+    /// <summary>
+    /// What a hungry colony's labor is worth: read at the point of effect by the
+    /// gather and construction ticks (the CraftedUpgrades pattern), 1 when fed.
+    /// </summary>
+    public static float LaborMultiplier =>
+        Instance != null && Instance.Hunger != HungerState.Fed ? HungryLaborMultiplier : 1f;
+
+    /// <summary>The balance sim's "nobody eats" switch (a 0 field would fall back to the default).</summary>
+    [System.NonSerialized] public bool foodDisabled;
+
+    bool ConsumptionOpen()
+    {
+        if (foodDisabled) return false;
+        if (GameStartController.IntroInProgress) return false;
+        if (GameManager.Instance != null && GameManager.Instance.isGameOver) return false;
+        return Campfire() != null;
+    }
+
+    void UpdateFood()
+    {
+        if (!ConsumptionOpen()) return;
+        int eaters = GetColonistCount();   // the player character is not on the roster and does not eat
+        if (eaters <= 0) return;
+
+        float cycle = CycleSeconds;
+        foodDebt += eaters * FoodPerDay * Difficulty.FoodConsumptionMultiplier * Time.deltaTime / cycle;
+
+        if (foodDebt >= 1f)
+        {
+            ResourceManager rm = ResourceManager.Instance;
+            if (rm != null && rm.SpendFood(1))
+            {
+                foodDebt -= 1f;
+                starvedSeconds = 0f;
+                nextDepartureAt = StarvingAfter * cycle;
+            }
+            else
+            {
+                // Nothing to eat: the debt holds at one unit and the clock runs
+                foodDebt = 1f;
+                starvedSeconds += Time.deltaTime;
+                if (nextDepartureAt <= 0f) nextDepartureAt = StarvingAfter * cycle;
+                if (starvedSeconds >= nextDepartureAt)
+                {
+                    nextDepartureAt += cycle;   // one more per day until they are fed
+                    SendOneAway();
+                }
+            }
+        }
+
+        HungerState now = Hunger;
+        if (now != hungerShown)
+        {
+            hungerShown = now;
+            OnHungerChanged?.Invoke(now);
+        }
+    }
+
+    /// <summary>
+    /// A starving colonist gives up on the colony: jobless first (they lose the
+    /// least), then a worker with a job, then a warrior (dismissed so the weapon
+    /// stays). The body walks to the cove and is destroyed there, which is the
+    /// normal removal path, so the roster and housing update themselves.
+    /// </summary>
+    void SendOneAway()
+    {
+        Worker pick = PickLeaver(wantJobless: true) ?? PickLeaver(wantJobless: false);
+        if (pick == null)
+        {
+            BaseBuilding fire = Campfire();
+            Warrior soldier = null;
+            for (int i = 0; i < roster.Count && soldier == null; i++) soldier = roster[i].unit as Warrior;
+            if (fire != null && soldier != null) pick = fire.DismissWarrior(soldier);
+        }
+        if (pick == null) return;
+
+        pick.Leave();
+        ColonistsLeft++;
+        OnColonistLeft?.Invoke();
+    }
+
+    /// <summary>F4 cheat: jump straight to Starving (the next departure is due at once).</summary>
+    public void DebugStarve()
+    {
+        foodDebt = 1f;
+        starvedSeconds = StarvingAfter * CycleSeconds;
+        nextDepartureAt = starvedSeconds;
+    }
+
+    Worker PickLeaver(bool wantJobless)
+    {
+        for (int i = 0; i < roster.Count; i++)
+        {
+            Worker w = roster[i].unit as Worker;
+            if (w == null || w.leaving) continue;
+            if (wantJobless != !w.hasJob) continue;
+            return w;
+        }
+        return null;
     }
 
     bool IsNight()
