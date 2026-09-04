@@ -30,6 +30,40 @@ public class Inventory
 
     public int SlotCount => slots.Length;
 
+    /// <summary>
+    /// A ceiling on the TOTAL number of items held, over and above the slots
+    /// (2026-09-03; the campfire stockpile uses it, the character's hands do
+    /// not). A delegate rather than a number because the campfire's room grows
+    /// with research: the cap is read at the point of effect, the same rule
+    /// every other upgrade in this codebase follows. Null = slots are the only
+    /// limit.
+    /// </summary>
+    public Func<int> totalCapacity;
+
+    /// <summary>Every item in every slot, counted.</summary>
+    public int TotalCount
+    {
+        get
+        {
+            int n = 0;
+            for (int i = 0; i < slots.Length; i++) n += slots[i].count;
+            return n;
+        }
+    }
+
+    /// <summary>The current ceiling, or 0 when there is none.</summary>
+    public int Capacity => totalCapacity != null ? totalCapacity() : 0;
+
+    /// <summary>How many more items of any kind the total cap still allows (int.MaxValue with no cap).</summary>
+    public int RoomLeft
+    {
+        get
+        {
+            if (totalCapacity == null) return int.MaxValue;
+            return Math.Max(0, totalCapacity() - TotalCount);
+        }
+    }
+
     public Slot this[int index] => slots[index];
 
     public bool IsEmpty
@@ -73,13 +107,15 @@ public class Inventory
             if (slots[i].IsEmpty) space += item.stackMax;
             else if (slots[i].item == item) space += item.stackMax - slots[i].count;
         }
-        return space;
+        return Math.Min(space, RoomLeft);
     }
 
     /// <summary>Adds up to <paramref name="amount"/>; returns how many actually fit.</summary>
     public int Add(ItemDef item, int amount)
     {
         if (item == null || amount <= 0) return 0;
+        amount = Math.Min(amount, RoomLeft);
+        if (amount <= 0) return 0;
         int remaining = amount;
 
         // Top up existing stacks first

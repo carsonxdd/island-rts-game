@@ -48,7 +48,7 @@ public static class MenuStyle
     public const float PanelPadding = 28f;
     public const float ButtonHeight = 52f;
     public const float ButtonSpacing = 10f;
-    public const float RowHeight = 44f;
+    public const float RowHeight = 48f;
     public const float MenuWidth = 460f;
     public const float OptionsWidth = 720f;
 

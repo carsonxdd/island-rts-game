@@ -32,7 +32,7 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 3549275679754221575}
+  - {fileID: 8171370209667753911}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &4176107455400080248
@@ -48,13 +48,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   resourceType: 3
-  maxResourceAmount: 10
-  currentAmount: 10
-  highlightColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  maxResourceAmount: 25
+  currentAmount: 25
+  hoverGlow: 1.7
   scaleWithDepletion: 1
   shakeDegrees: 1
   shakeFrequency: 7
   minShakeSpacing: 0.15
+  byproductEvery: 4
+  maxLooseByproducts: 2
 --- !u!65 &4575730837506005038
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -92,7 +94,7 @@ NavMeshObstacle:
   m_CarveOnlyStationary: 1
   m_Center: {x: 0, y: 0, z: 0}
   m_TimeToStationary: 0.5
---- !u!1001 &329150419256339477
+--- !u!1001 &4951257040181506981
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -149,8 +151,8 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: fb99c4ed61406464394e823c81625dfc, type: 3}
---- !u!4 &3549275679754221575 stripped
+--- !u!4 &8171370209667753911 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 3877863037350122514, guid: fb99c4ed61406464394e823c81625dfc, type: 3}
-  m_PrefabInstance: {fileID: 329150419256339477}
+  m_PrefabInstance: {fileID: 4951257040181506981}
   m_PrefabAsset: {fileID: 0}

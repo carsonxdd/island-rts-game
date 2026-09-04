@@ -171,6 +171,8 @@ public class TerrainGrid : MonoBehaviour
     void OnDestroy()
     {
         if (Instance == this) Instance = null;
+        // A texture created in code is not collected with the scene
+        if (depthMap != null) Destroy(depthMap);
     }
 
     // ------------------------------------------------------------------
@@ -450,6 +452,7 @@ public class TerrainGrid : MonoBehaviour
             for (int cx = cx0; cx <= cx1; cx++)
                 RebuildChunk(cx, cz);
 
+        PushWaterProperties();   // a flattened pad near the shore changes the water column
         UpdateNavMeshAsync();
     }
 
@@ -525,19 +528,88 @@ public class TerrainGrid : MonoBehaviour
         water.transform.position = Vector3.zero;   // sea level y = 0
         MeshFilter mf = water.AddComponent<MeshFilter>();
         mf.sharedMesh = BuildWaterMesh(Mathf.Max(480f, Half * 6f), WaterGridStep);
-        MeshRenderer mr = water.AddComponent<MeshRenderer>();
-        mr.sharedMaterial = waterMaterial;
-        mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-        mr.receiveShadows = false;
+        waterRenderer = water.AddComponent<MeshRenderer>();
+        waterRenderer.sharedMaterial = waterMaterial;
+        waterRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        waterRenderer.receiveShadows = false;
 
-        // The shader identifies grid triangles from world XZ (per-facet tone
-        // and glints), so it has to know the step. A property block, never
-        // the shared material — writing the asset in Play mode dirties it on
-        // disk in the editor.
+        PushWaterProperties();
+    }
+
+    // ------------------------------------------------------------------
+    // Water depth map
+    //
+    // How deep the water is at a pixel used to be read from the camera depth
+    // texture. That is a measurement along the VIEW RAY of whatever happens to
+    // be behind the water, which made the sea's colour depend on camera tilt
+    // and — far worse — drew a hard straight line across the ocean at the edge
+    // of the terrain, where the seabed geometry simply stops and the buffer
+    // holds nothing (2026-09-03). The island's own heightfield is the actual
+    // answer and it is already in memory: bake it into a one-channel texture
+    // and the shader knows the exact water column at every point, with no
+    // camera dependence, no depth-texture dependence, and a border that clamps
+    // to open-ocean depth so there is nothing left to cut.
+    // ------------------------------------------------------------------
+
+    /// <summary>Metres of water encoded by a full-white texel. Deeper than this is all "deep".</summary>
+    const float DepthEncodeRange = 4f;
+
+    MeshRenderer waterRenderer;
+    Texture2D depthMap;
+
+    static readonly int HeightMapId = Shader.PropertyToID("_HeightMap");
+    static readonly int MapParamsId = Shader.PropertyToID("_MapParams");
+
+    /// <summary>Rebuild the depth map and hand the water renderer its properties.</summary>
+    void PushWaterProperties()
+    {
+        if (waterRenderer == null) return;
+        BuildDepthMap();
+
+        // A property block, never the shared material — writing the asset in
+        // Play mode dirties it on disk in the editor.
         var block = new MaterialPropertyBlock();
         block.SetFloat(WaterGridStepId, WaterGridStep);
-        mr.SetPropertyBlock(block);
+        if (depthMap != null)
+        {
+            block.SetTexture(HeightMapId, depthMap);
+            // uv = worldXZ * x + y, landing on texel CENTRES (hence the +0.5)
+            int n = VertsPerSide;
+            float a = 1f / (Spacing * n);
+            float b = (Half / Spacing + 0.5f) / n;
+            block.SetVector(MapParamsId, new Vector4(a, b, DepthEncodeRange, 0f));
+        }
+        waterRenderer.SetPropertyBlock(block);
     }
+
+    /// <summary>One texel per terrain vertex: water column in metres, scaled into 0..1.</summary>
+    void BuildDepthMap()
+    {
+        if (heights == null) return;
+
+        int n = VertsPerSide;
+        if (depthMap == null)
+        {
+            // Linear, no mips, clamped: a sample past the map edge must read the
+            // border texel (open ocean), which is what removes the seam.
+            depthMap = new Texture2D(n, n, TextureFormat.RFloat, false, true)
+            {
+                name = "IslandWaterDepth",
+                filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Clamp,
+            };
+        }
+
+        if (depthPixels == null || depthPixels.Length != n * n) depthPixels = new float[n * n];
+        for (int z = 0; z < n; z++)
+            for (int x = 0; x < n; x++)
+                depthPixels[z * n + x] = Mathf.Clamp01(-heights[x, z] / DepthEncodeRange);
+
+        depthMap.SetPixelData(depthPixels, 0);
+        depthMap.Apply(false, false);
+    }
+
+    float[] depthPixels;
 
     /// <summary>
     /// Water grid spacing in metres. The shader's wavelengths must stay ≥ ~6× this

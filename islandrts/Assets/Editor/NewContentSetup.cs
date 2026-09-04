@@ -105,8 +105,8 @@ public static class NewContentSetup
         if (ore != null) so.FindProperty("oreNodePrefab").objectReferenceValue = ore;
         so.FindProperty("treeCount").intValue = 150;
         so.FindProperty("berryBushCount").intValue = 60;
-        so.FindProperty("rockNodeCount").intValue = 55;
-        so.FindProperty("oreNodeCount").intValue = 24;
+        so.FindProperty("rockNodeCount").intValue = 70;
+        so.FindProperty("oreNodeCount").intValue = 9;
         so.FindProperty("treeClusters").intValue = 5;
         so.FindProperty("clusterRadius").floatValue = 12f;
         so.FindProperty("minTreeSpacing").floatValue = 2.2f;

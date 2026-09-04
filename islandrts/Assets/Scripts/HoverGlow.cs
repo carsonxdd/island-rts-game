@@ -62,7 +62,7 @@ public class HoverGlow : MonoBehaviour
     /// instances someone else already collected. Returns null under the sim, which has
     /// no camera and no use for cosmetics.
     /// </summary>
-    public static HoverGlow Attach(GameObject go, Material[] mats, float idle, float hover)
+    public static HoverGlow Attach(GameObject go, Material[] mats, float idle, float hover, float gold = 0.55f)
     {
         if (go == null || SimHooks.Simulating) return null;
 
@@ -70,6 +70,7 @@ public class HoverGlow : MonoBehaviour
         if (glow == null) glow = go.AddComponent<HoverGlow>();
         glow.idleIntensity = idle;
         glow.hoverIntensity = hover;
+        glow.goldBlend = gold;
         glow.Bind(mats);
         return glow;
     }

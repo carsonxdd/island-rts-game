@@ -31,7 +31,7 @@ public class ResourceNode : MonoBehaviour
 
     [Header("Visual Feedback")]
     [Tooltip("Glow strength while the mouse is over this node. The colour comes from the node's own materials (see HoverGlow).")]
-    public float hoverGlow = 2.4f;
+    public float hoverGlow = 1.7f;
     public bool scaleWithDepletion = true;  // Shrink as resources deplete
     public float shakeDegrees = 1f;         // Gather-shake pulse amplitude (small tree sway)
     public float shakeFrequency = 7f;       // Wobble speed within a pulse, in Hz
@@ -125,7 +125,7 @@ public class ResourceNode : MonoBehaviour
 
             // Hover feedback is an emissive glow, not a colour tint: the tint fought the
             // occlusion fade for the same colour channel and washed the node out.
-            glow = HoverGlow.Attach(gameObject, nodeMaterials, 0f, hoverGlow);
+            glow = HoverGlow.Attach(gameObject, nodeMaterials, 0f, hoverGlow, 0.4f);
         }
         return nodeMaterials;
     }
@@ -443,7 +443,9 @@ public class ResourceNode : MonoBehaviour
         byproductProgress -= byproductEvery;
 
         if (CountLooseByproducts() >= maxLooseByproducts) return;
-        PickupSpawner.Instance.DropByproduct(resourceType, transform.position, GatherRingRadius + 1.2f);
+        // Rock throws off more slabs than pebbles; a worked tree mostly sheds twigs.
+        float bigChance = (resourceType == ResourceType.Stone || resourceType == ResourceType.Metal) ? 0.65f : 0.15f;
+        PickupSpawner.Instance.DropByproduct(resourceType, transform.position, GatherRingRadius + 1.2f, bigChance);
     }
 
     /// <summary>

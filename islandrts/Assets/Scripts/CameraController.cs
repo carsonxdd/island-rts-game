@@ -1,6 +1,8 @@
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
 
 /// <summary>
 /// RTS camera: smoothed WASD pan (screen-relative), smoothed Q/E rotation,
@@ -307,10 +309,44 @@ public class CameraController : MonoBehaviour
             transform.Rotate(Vector3.up, rotVelocity * dt, Space.World);
     }
 
+    /// <summary>Is the mouse over any uGUI graphic right now?</summary>
+    static readonly System.Collections.Generic.List<RaycastResult> uiHits = new System.Collections.Generic.List<RaycastResult>(8);
+
+    /// <summary>
+    /// Is the cursor over a scrolling list right now?
+    ///
+    /// Deliberately NOT <c>IsPointerOverGameObject()</c>: several always-on
+    /// canvases (the HUD strip, the resource bar's hit surfaces) carry
+    /// raycastable graphics, so that answer is true over big parts of the screen
+    /// and the wheel stopped zooming at all (2026-09-03). Only a ScrollRect
+    /// actually wants the wheel, so only a ScrollRect takes it. The raycast runs
+    /// solely on frames the wheel moved, into a reused list, so it costs nothing
+    /// while the player is not scrolling.
+    /// </summary>
+    static bool PointerOverScrollView()
+    {
+        EventSystem es = EventSystem.current;
+        if (es == null) return false;
+
+        PointerEventData data = new PointerEventData(es) { position = Input.mousePosition };
+        uiHits.Clear();
+        es.RaycastAll(data, uiHits);
+        for (int i = 0; i < uiHits.Count; i++)
+        {
+            GameObject go = uiHits[i].gameObject;
+            if (go != null && go.GetComponentInParent<ScrollRect>() != null) return true;
+        }
+        return false;
+    }
+
     void UpdateZoom(float dt)
     {
         float scroll = Input.GetAxis("Mouse ScrollWheel");
-        if (Mathf.Abs(scroll) > 0.0001f)
+        // A wheel notch over a panel belongs to that panel's list, not to the
+        // camera: scrolling the crafting list used to zoom the world out from
+        // under it (2026-09-03). uGUI consumes the wheel itself, so this is the
+        // only place that has to ask.
+        if (Mathf.Abs(scroll) > 0.0001f && !PointerOverScrollView())
         {
             targetOrthoSize = Mathf.Clamp(
                 targetOrthoSize - scroll * zoomSpeed * GameSettings.ZoomSpeed,

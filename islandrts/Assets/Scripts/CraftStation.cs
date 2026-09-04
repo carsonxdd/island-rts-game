@@ -238,6 +238,9 @@ public class CraftStation : MonoBehaviour
 
         if (e.research != null)
         {
+            // A research that carries a tool equips the player with it as it
+            // completes — learning to cut wood and making the axe are one step.
+            Deliver(e.research.tool, 1, who, stock);
             ResearchCatalog.Complete(e.research);
             queue.RemoveAt(0);
         }

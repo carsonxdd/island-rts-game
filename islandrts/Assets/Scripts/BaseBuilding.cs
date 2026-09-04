@@ -27,6 +27,17 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
     public const int StockpileSlots = 16;
 
     /// <summary>
+    /// Items the campfire can hold before it is full, before upgrades
+    /// (2026-09-03). A camp stores what fits around the fire; research adds
+    /// room (Storage Pits, Racks and Baskets) and a Warehouse building will
+    /// add more (see README). Read live, never cached — the same rule every
+    /// other upgrade follows.
+    /// </summary>
+    public const int BaseStockpileCapacity = 60;
+
+    public static int StockpileCapacity => BaseStockpileCapacity + CraftedUpgrades.StockpileRoom;
+
+    /// <summary>
     /// The campfire inventory (2026-09-02): sticks and stone chunks the player's
     /// character deposits here, and the weapons every station crafts (one colony
     /// store, 2026-09-03). Not the four pooled resources — those stay in
@@ -62,6 +73,8 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
     {
         ActiveRegistry<BaseBuilding>.Register(this);
         PopulationManager.EnsureExists();   // the roster must exist before Start registers housing
+
+        Stockpile.totalCapacity = () => StockpileCapacity;
 
         Station = GetComponent<CraftStation>();
         if (Station == null) Station = gameObject.AddComponent<CraftStation>();

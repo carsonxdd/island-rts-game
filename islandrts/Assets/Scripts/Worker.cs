@@ -307,6 +307,19 @@ public class Worker : UnitBase<Worker>
                 new ThreatNearby(1f, ResponseCurve.InverseLinear(1f, 0f))
             }, new RepairExecutor(), basePriority: 0.9f, momentumBonus: 0.15f),
 
+            // Forage — an idle colonist carries loose sticks, chunks and salvage near
+            // the fire home (2026-09-03). Below Build and Repair on purpose: real work
+            // first, tidying second, and well above Idle so nobody stands next to a
+            // stick doing nothing. Same executor as the job version; only the scan
+            // differs (ForageAvailability: any type, but only within 35u of the fire).
+            new ActionOption("Forage", new Consideration[]
+            {
+                new IsJobless(ResponseCurve.Linear(1f, 0f)),
+                new ForageAvailability(ResponseCurve.Linear(1f, 0f)),        // Caches bb.bestPickup; 0 when none
+                new ResourceCarry(ResponseCurve.InverseLinear(0.9f, 0.1f)),  // Full hands head home instead
+                new ThreatNearby(1f, ResponseCurve.InverseLinear(1f, 0f))    // Civilians flee, they don't forage
+            }, new CollectPickupExecutor(), basePriority: 0.85f, momentumBonus: 0.15f),
+
             // Idle at home (walks to the hut or campfire it is homed to, then waits)
             new ActionOption("Idle", new Consideration[]
             {

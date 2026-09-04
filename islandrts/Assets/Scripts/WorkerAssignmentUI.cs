@@ -30,7 +30,7 @@ public class WorkerAssignmentUI : MonoBehaviour
 
     const int TabColonists = 0, TabStockpile = 1, TabCraft = 2, TabResearch = 3, TabQueue = 4;
     const int QueueRowsShown = 8;
-    const float StationScrollHeight = 400f;
+    const float StationScrollHeight = 470f;
 
     private BaseBuilding baseBuilding;   // the campfire: roster, stockpile
     private CraftStation station;        // the bench the station tabs show
@@ -100,6 +100,8 @@ public class WorkerAssignmentUI : MonoBehaviour
 
     private readonly List<JobRow> jobs = new List<JobRow>();
     private readonly List<StockRow> stockRows = new List<StockRow>();
+    private TextMeshProUGUI stockpileRoom;
+    private int stockpileHeldShown = -1, stockpileCapShown = -1;
     private readonly List<CraftRow> craftRows = new List<CraftRow>();
     private readonly List<ResearchRow> researchRows = new List<ResearchRow>();
     private readonly List<QueueRow> queueRows = new List<QueueRow>();
@@ -249,7 +251,7 @@ public class WorkerAssignmentUI : MonoBehaviour
         // Root-level canvas on purpose (a canvas nested in a canvas ignores its own scaler)
         Canvas canvas = MenuBuilder.CreateCanvas("CampfireCanvas", 60);
 
-        panel = MenuBuilder.Panel(canvas.transform, "CampfirePanel", 540f, 100f);
+        panel = MenuBuilder.Panel(canvas.transform, "CampfirePanel", 640f, 100f);
         // Bottom-left by default (2026-09-01), and draggable by its title bar:
         // DraggablePanel needs the panel anchored + pivoted bottom-left so the
         // anchored position is the corner it clamps and saves
@@ -320,7 +322,8 @@ public class WorkerAssignmentUI : MonoBehaviour
     void BuildStockpileTab(Transform body)
     {
         MenuBuilder.SectionHeader(body, "Campfire stockpile");
-        MenuBuilder.RowDescription(body, "Materials your character brings, and everything the benches make.");
+        MenuBuilder.RowDescription(body, "What your character and your colonists bring in, and everything the benches make.");
+        stockpileRoom = MenuBuilder.ValueRow(body, "Room", "0 / 0");
 
         ItemDef[] items = ItemCatalog.Stockpiled;
         for (int i = 0; i < items.Length; i++)
@@ -530,6 +533,19 @@ public class WorkerAssignmentUI : MonoBehaviour
     void UpdateStockpileTab()
     {
         Inventory stock = baseBuilding.Stockpile;
+
+        // The cap is what tells a player their haulers are about to start
+        // wasting trips; it grows with Storage Pits and Racks and Baskets.
+        int held = stock.TotalCount;
+        int cap = stock.Capacity;
+        if (held != stockpileHeldShown || cap != stockpileCapShown)
+        {
+            stockpileHeldShown = held;
+            stockpileCapShown = cap;
+            stockpileRoom.text = held + " / " + cap;
+            stockpileRoom.color = held >= cap ? MenuStyle.TextDanger : MenuStyle.TextAccent;
+        }
+
         for (int i = 0; i < stockRows.Count; i++)
         {
             StockRow row = stockRows[i];

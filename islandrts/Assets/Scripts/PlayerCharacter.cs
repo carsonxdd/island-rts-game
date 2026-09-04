@@ -46,7 +46,8 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
     static readonly Color NameColor = new Color(1f, 0.85f, 0.4f);
 
     const float CollectDistance = 0.9f;      // same reach as CollectPickupExecutor
-    const float DepositEdgeDistance = 1.5f;  // from the campfire collider edge
+    const float DepositEdgeDistance = 2.4f;  // from the campfire collider edge - generous, the fire is a big warm target
+    const float DepositClickRadius = 3.5f;   // ground clicks this close to the fire edge count as "deposit"
     const float FlashSeconds = 2.2f;
     const float StallSeconds = 0.5f;         // standing still with no path = arrived as close as we can get
     const float StallReach = 2.5f;           // ...and that counts if the target is within this
@@ -260,6 +261,17 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
             if (station != null) { WorkAt(station); return; }
         }
 
+        // A click on the ground right beside the fire is a deposit too
+        // (2026-09-03). The campfire's collider is a 2x2 box under a wide,
+        // flickering silhouette, so aiming at the fire itself was fiddly, and
+        // missing it walked the character past the thing they were carrying to.
+        BaseBuilding near = BaseBuilding.FindAlive();
+        if (near != null)
+        {
+            float d = TargetingUtil.EdgeDistance(point, near.transform, near.GetComponent<Collider>());
+            if (d <= DepositClickRadius) { CommandDeposit(near); return; }
+        }
+
         ClearTask();
         MoveTo(point);
     }
@@ -316,6 +328,23 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
     /// to trickle them in. Colonists with jobs are unaffected; this is the player's own
     /// pair of hands.
     /// </summary>
+    /// <summary>
+    /// The tool this node cannot be worked without, or null when hands will do.
+    /// Food is deliberately free: berries are the one thing a castaway can gather
+    /// on day one, so no research ever stands between the colony and its first meal.
+    /// </summary>
+    public static ItemDef ToolFor(ResourceNode node)
+    {
+        if (node == null) return null;
+        switch (node.resourceType)
+        {
+            case ResourceNode.ResourceType.Wood: return ItemCatalog.StoneAxe;
+            case ResourceNode.ResourceType.Stone: return ItemCatalog.StonePick;
+            case ResourceNode.ResourceType.Metal: return ItemCatalog.MetalPick;
+            default: return null;   // Food - bare hands
+        }
+    }
+
     public void CommandHarvest(ResourceNode node)
     {
         if (knockedOut || node == null) return;
@@ -328,6 +357,18 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
             SetActivity("Nothing left there", FlashSeconds);
             return;
         }
+
+        // Bare hands strip a berry bush, and nothing else. A trunk needs an axe
+        // and stone needs a pick, so the opening is: fetch the loose sticks and
+        // chunks off the ground, deposit them, research, craft the tool - and
+        // only then does the island's timber open up (2026-09-03).
+        ItemDef tool = ToolFor(node);
+        if (tool != null && inventory.Count(tool) <= 0)
+        {
+            SetActivity("Need a " + tool.displayName.ToLowerInvariant() + " for that", FlashSeconds);
+            return;
+        }
+
         if (inventory.SpaceFor(node.PrimaryItem) <= 0)
         {
             SetActivity("Hands full - deposit at the fire", FlashSeconds);

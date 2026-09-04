@@ -154,7 +154,12 @@ public class PickupSpawner : MonoBehaviour
     /// the respawn budget: these are made by work, not placed by this spawner, so the
     /// island's trickle must not treat one as a replacement it owes.
     /// </summary>
-    public bool DropByproduct(ResourceNode.ResourceType type, Vector3 near, float radius)
+    /// <param name="bigChance">
+    /// Odds this one comes off big. Breaking rock throws off more slabs than
+    /// pebbles, so stone and ore pass a high number here and wood a low one
+    /// (2026-09-03).
+    /// </param>
+    public bool DropByproduct(ResourceNode.ResourceType type, Vector3 near, float radius, float bigChance = -1f)
     {
         GameObject prefab = (type == ResourceNode.ResourceType.Stone || type == ResourceNode.ResourceType.Metal)
             ? stonePrefab : stickPrefab;
@@ -166,13 +171,13 @@ public class PickupSpawner : MonoBehaviour
             float r = Mathf.Lerp(radius * 0.6f, radius, Random.value);
             Vector3 pos = near + new Vector3(Mathf.Cos(angle) * r, 0f, Mathf.Sin(angle) * r);
             // Tight spacing: a stick right beside the tree it fell from is the point
-            if (TryPlace(prefab, pos, owned: false, spacing: 1.1f)) return true;
+            if (TryPlace(prefab, pos, owned: false, spacing: 1.1f, bigChance: bigChance)) return true;
         }
         return false;
     }
 
     /// <summary>The shared validity gauntlet: land, gentle, reachable, on the NavMesh, spaced.</summary>
-    bool TryPlace(GameObject prefab, Vector3 pos, bool owned = true, float spacing = -1f)
+    bool TryPlace(GameObject prefab, Vector3 pos, bool owned = true, float spacing = -1f, float bigChance = -1f)
     {
         if (TerrainGrid.Instance != null)
         {
@@ -206,7 +211,8 @@ public class PickupSpawner : MonoBehaviour
         if (pickup != null)
         {
             pickup.spawnerOwned = owned;
-            if (Random.value < largeChance) MakeLarge(pickup);
+            float big = bigChance >= 0f ? bigChance : largeChance;
+            if (Random.value < big) MakeLarge(pickup);
         }
         return true;
     }

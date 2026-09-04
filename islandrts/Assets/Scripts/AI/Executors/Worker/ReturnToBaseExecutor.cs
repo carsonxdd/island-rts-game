@@ -125,6 +125,8 @@ public class ReturnToBaseExecutor : ActionExecutor
     {
         if (bb.carryAmount <= 0) return;
 
+        BankMaterials(bb);
+
         if (ResourceManager.Instance == null)
         {
             bb.carryAmount = 0f;
@@ -145,6 +147,25 @@ public class ReturnToBaseExecutor : ActionExecutor
         // instead of idling at base for up to 0.3s
         if (bb.brain != null)
             bb.brain.ForceReeval();
+    }
+
+    /// <summary>
+    /// Put the sticks and chunks a hauled pickup was made of into the campfire
+    /// stockpile, on top of the pooled resource they are also worth
+    /// (2026-09-03). This is what lets colonists pay for research and spears;
+    /// before it, every stick a colonist carried home dissolved into wood and
+    /// the stockpile only ever filled by the player's own hands. Whatever does
+    /// not fit is lost, which is the stockpile cap doing its job.
+    /// </summary>
+    void BankMaterials(AIBlackboard bb)
+    {
+        if (bb.carryItem == null || bb.carryItemCount <= 0) return;
+
+        BaseBuilding fire = bb.baseBuilding != null ? bb.baseBuilding : BaseBuilding.FindAlive();
+        if (fire != null) fire.Stockpile.Add(bb.carryItem, bb.carryItemCount);
+
+        bb.carryItem = null;
+        bb.carryItemCount = 0;
     }
 
     /// <summary>

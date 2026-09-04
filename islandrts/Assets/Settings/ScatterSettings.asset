@@ -71,10 +71,10 @@ MonoBehaviour:
     maxSlope: 1.5
     minTone: 0
     maxTone: 1
-    gatherable: 0
+    gatherable: 1
     salvage: 0
-    resourceType: 0
-    resourceAmount: 40
+    resourceType: 2
+    resourceAmount: 70
     spacing: 6
     minScale: 0.9
     maxScale: 1.3
@@ -86,10 +86,10 @@ MonoBehaviour:
     maxSlope: 0.3
     minTone: 0
     maxTone: 1
-    gatherable: 0
+    gatherable: 1
     salvage: 0
-    resourceType: 0
-    resourceAmount: 40
+    resourceType: 2
+    resourceAmount: 70
     spacing: 8
     minScale: 0.9
     maxScale: 1.3
@@ -101,10 +101,10 @@ MonoBehaviour:
     maxSlope: 1.5
     minTone: 0
     maxTone: 1
-    gatherable: 0
+    gatherable: 1
     salvage: 0
-    resourceType: 0
-    resourceAmount: 40
+    resourceType: 2
+    resourceAmount: 30
     spacing: 4.5
     minScale: 0.85
     maxScale: 1.25

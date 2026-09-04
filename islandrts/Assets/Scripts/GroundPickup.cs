@@ -92,11 +92,12 @@ public class GroundPickup : MonoBehaviour
 
     void Start()
     {
-        // A stick lying in grass at RTS zoom is invisible, so everything the player's
-        // character can pick up carries a low constant shimmer and lights up properly
-        // under the cursor. Collected here rather than in Awake: scatter and salvage
-        // mount their art as a child in the same frame the object is created.
-        glow = HoverGlow.Attach(gameObject, RendererTint.Collect(GetComponentsInChildren<Renderer>()), 0.6f, 2.8f);
+        // Pickups light up on hover only, the way resource nodes do - a constant shimmer
+        // on every stick and crate on the island read as clutter. The blend toward gold
+        // is high, so a hovered pickup glows paler and brighter than a node and stays the
+        // easier of the two to pick out. Collected here rather than in Awake: scatter and
+        // salvage mount their art as a child in the frame the object is created.
+        glow = HoverGlow.Attach(gameObject, RendererTint.Collect(GetComponentsInChildren<Renderer>()), 0f, 3.1f, 0.85f);
     }
 
     void OnMouseEnter() { if (glow != null) glow.SetHovered(true); }
@@ -125,6 +126,16 @@ public class GroundPickup : MonoBehaviour
         bb.carryType = resourceType;   // delivered as this type (PickupAvailability never mixes types)
         bb.carryAmount += granted;
         bb.worker.carryAmount = bb.carryAmount;
+
+        // Materials ride home alongside the resource and land in the campfire
+        // stockpile on delivery. Only materials: a salvage crate is food, and
+        // food has no item form to store.
+        ItemDef item = Item;
+        if (item != null && item.kind == ItemKind.Material)
+        {
+            if (bb.carryItem == item) bb.carryItemCount += ItemAmount;
+            else { bb.carryItem = item; bb.carryItemCount = ItemAmount; }
+        }
 
         Consume();
         return granted;

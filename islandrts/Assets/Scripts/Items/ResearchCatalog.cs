@@ -22,6 +22,13 @@ public static class ResearchCatalog
         public Station station;
         public string[] prerequisites = NoPrereqs;
         public Unlocks.Kind[] grants = NoGrants;
+        /// <summary>
+        /// The tool this research puts in the player's hands when it completes
+        /// (2026-09-03). Learning to cut wood and making the axe were two entries
+        /// on two tabs, and the second was easy to miss — one entry teaches AND
+        /// equips now, and the tool recipes are gone from the Craft tab.
+        /// </summary>
+        public ItemDef tool;
         /// <summary>Extra effect on completion (the Workshop-tier multipliers).</summary>
         public Action apply;
         public bool done;
@@ -38,35 +45,39 @@ public static class ResearchCatalog
         new ResearchDef
         {
             id = "woodcutting", title = "Woodcutting", tier = 1, station = Station.Campfire,
-            description = "Colonists can be sent to cut wood",
-            itemCosts = new[] { new ItemCost(ItemCatalog.Stick, 2), new ItemCost(ItemCatalog.StoneChunk, 1) },
-            seconds = 6f,
+            description = "Makes you a Stone Axe; colonists can be sent to cut wood",
+            itemCosts = new[] { new ItemCost(ItemCatalog.Stick, 3), new ItemCost(ItemCatalog.StoneChunk, 2) },
+            seconds = 10f,
             grants = new[] { Unlocks.Kind.WoodJob },
+            tool = ItemCatalog.StoneAxe,
         },
         new ResearchDef
         {
             id = "foraging", title = "Foraging", tier = 1, station = Station.Campfire,
-            description = "Colonists can be sent to forage food",
-            itemCosts = new[] { new ItemCost(ItemCatalog.Stick, 2), new ItemCost(ItemCatalog.StoneChunk, 1) },
-            seconds = 6f,
+            description = "Makes you a Fishing Spear; colonists can be sent to forage food",
+            itemCosts = new[] { new ItemCost(ItemCatalog.Stick, 3), new ItemCost(ItemCatalog.StoneChunk, 2) },
+            seconds = 10f,
             grants = new[] { Unlocks.Kind.FoodJob },
+            tool = ItemCatalog.FishingSpear,
         },
         new ResearchDef
         {
             id = "quarrying", title = "Quarrying", tier = 1, station = Station.Campfire,
-            description = "Colonists can be sent to quarry stone",
-            itemCosts = new[] { new ItemCost(ItemCatalog.Stick, 2), new ItemCost(ItemCatalog.StoneChunk, 2) },
-            seconds = 8f,
+            description = "Makes you a Stone Pick; colonists can be sent to quarry stone",
+            itemCosts = new[] { new ItemCost(ItemCatalog.Stick, 3), new ItemCost(ItemCatalog.StoneChunk, 3) },
+            seconds = 12f,
             grants = new[] { Unlocks.Kind.StoneJob },
+            tool = ItemCatalog.StonePick,
         },
         new ResearchDef
         {
             id = "construction", title = "Construction", tier = 2, station = Station.Campfire,
-            description = "Opens build mode; idle colonists build and repair",
-            itemCosts = new[] { new ItemCost(ItemCatalog.Stick, 3), new ItemCost(ItemCatalog.StoneChunk, 1) },
-            seconds = 8f,
+            description = "Makes you a Mallet; opens build mode, and idle colonists build and repair",
+            itemCosts = new[] { new ItemCost(ItemCatalog.Stick, 4), new ItemCost(ItemCatalog.StoneChunk, 2) },
+            seconds = 12f,
             prerequisites = new[] { "woodcutting" },
             grants = new[] { Unlocks.Kind.Construction },
+            tool = ItemCatalog.Mallet,
         },
         new ResearchDef
         {
@@ -90,12 +101,27 @@ public static class ResearchCatalog
         new ResearchDef
         {
             id = "mining", title = "Mining", tier = 3, station = Station.Campfire,
-            description = "Colonists can be sent to mine ore",
-            itemCosts = new[] { new ItemCost(ItemCatalog.Stick, 2), new ItemCost(ItemCatalog.StoneChunk, 2) },
+            description = "Makes you a Metal Pick; colonists can be sent to mine ore",
+            itemCosts = new[] { new ItemCost(ItemCatalog.Stick, 3), new ItemCost(ItemCatalog.StoneChunk, 3) },
             stoneCost = 15,
-            seconds = 12f,
+            seconds = 16f,
             prerequisites = new[] { "quarrying" },
             grants = new[] { Unlocks.Kind.MetalJob },
+            tool = ItemCatalog.MetalPick,
+        },
+
+        // Storage: the campfire stockpile starts small on purpose — a colony
+        // that wants to hoard has to invest in it (a Warehouse building comes
+        // later; see README).
+        new ResearchDef
+        {
+            id = "storage_pits", title = "Storage Pits", tier = 2, station = Station.Campfire,
+            description = "+40 room in the campfire stockpile",
+            itemCosts = new[] { new ItemCost(ItemCatalog.Stick, 4) },
+            woodCost = 15,
+            seconds = 10f,
+            prerequisites = new[] { "construction" },
+            apply = () => CraftedUpgrades.AddStockpileRoom(40),
         },
 
         // --- Workshop tier ---------------------------------------------------
@@ -116,6 +142,15 @@ public static class ResearchCatalog
             seconds = 10f,
             prerequisites = new[] { "construction" },
             apply = () => CraftedUpgrades.SetBuildSpeed(1.5f),
+        },
+        new ResearchDef
+        {
+            id = "racks", title = "Racks and Baskets", tier = 4, station = Station.Workshop,
+            description = "+80 room in the campfire stockpile",
+            woodCost = 30, stoneCost = 10,
+            seconds = 12f,
+            prerequisites = new[] { "storage_pits" },
+            apply = () => CraftedUpgrades.AddStockpileRoom(80),
         },
     };
 

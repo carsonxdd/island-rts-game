@@ -8,10 +8,11 @@ using UnityEngine;
 /// resources from the pool).
 ///
 /// Output: equipment and materials go to the campfire stockpile whichever
-/// station made them (one colony store); a tool goes into the player's hands
-/// when the player is the one at the bench. Tools are <see cref="Recipe.oncePerRun"/>
-/// — they are the character's own kit and purely visual, so a second one has
-/// no use.
+/// station made them (one colony store). The player's TOOLS are not recipes
+/// any more (2026-09-03): a research that teaches a job hands over its tool as
+/// it completes (<see cref="ResearchCatalog.ResearchDef.tool"/>), so learning
+/// and equipping are one step instead of two entries on two tabs. The
+/// <see cref="Recipe.oncePerRun"/> machinery stays for future one-off crafts.
 ///
 /// Research is the other kind of station work — see <see cref="ResearchCatalog"/>.
 /// </summary>
@@ -44,8 +45,6 @@ public static class CraftingCatalog
         }
     }
 
-    static readonly ItemCost[] Kit2_1 = { new ItemCost(ItemCatalog.Stick, 2), new ItemCost(ItemCatalog.StoneChunk, 1) };
-    static readonly ItemCost[] Kit2_2 = { new ItemCost(ItemCatalog.Stick, 2), new ItemCost(ItemCatalog.StoneChunk, 2) };
     static readonly ItemCost[] Kit3_1 = { new ItemCost(ItemCatalog.Stick, 3), new ItemCost(ItemCatalog.StoneChunk, 1) };
 
     public static readonly Recipe[] All =
@@ -58,48 +57,6 @@ public static class CraftingCatalog
             itemCosts = Kit3_1, woodCost = 5,
             seconds = 10f, output = ItemCatalog.WoodenSpear,
             requires = "spearcraft",
-        },
-
-        // --- The player's tools (once per run, visual) ------------------------
-        new Recipe
-        {
-            id = "stone_axe", title = "Stone Axe", category = WorkCategory.Tool,
-            description = "A tool for your own hands",
-            itemCosts = Kit2_1,
-            seconds = 6f, output = ItemCatalog.StoneAxe, oncePerRun = true,
-            requires = "woodcutting",
-        },
-        new Recipe
-        {
-            id = "fishing_spear", title = "Fishing Spear", category = WorkCategory.Tool,
-            description = "A tool for your own hands",
-            itemCosts = Kit2_1,
-            seconds = 6f, output = ItemCatalog.FishingSpear, oncePerRun = true,
-            requires = "foraging",
-        },
-        new Recipe
-        {
-            id = "stone_pick", title = "Stone Pick", category = WorkCategory.Tool,
-            description = "A tool for your own hands",
-            itemCosts = Kit2_2,
-            seconds = 8f, output = ItemCatalog.StonePick, oncePerRun = true,
-            requires = "quarrying",
-        },
-        new Recipe
-        {
-            id = "mallet", title = "Mallet", category = WorkCategory.Tool,
-            description = "A tool for your own hands",
-            itemCosts = Kit3_1,
-            seconds = 8f, output = ItemCatalog.Mallet, oncePerRun = true,
-            requires = "construction",
-        },
-        new Recipe
-        {
-            id = "metal_pick", title = "Metal Pick", category = WorkCategory.Tool,
-            description = "A tool for your own hands",
-            itemCosts = Kit2_2, stoneCost = 15,
-            seconds = 12f, output = ItemCatalog.MetalPick, oncePerRun = true,
-            requires = "mining",
         },
     };
 

@@ -1,7 +1,7 @@
 // Stylized low-poly water for the island (Phase 10 Stage 3, kept simple).
 //
-//  - depth-based colour: turquoise shallows fading to deep blue, read from
-//    the camera depth texture (URP "Depth Texture" must be on — PC_RPAsset is)
+//  - depth-based colour: turquoise shallows fading to deep blue, read from a
+//    depth map TerrainGrid bakes out of the island's own heightfield
 //  - shoreline foam: a noise-broken band where the water is thin
 //  - gentle wave displacement in the vertex shader (the water mesh is a real
 //    grid, built by TerrainGrid, so there are vertices to move)
@@ -14,10 +14,20 @@
 //  - lit by the main light (so the day/night cycle tints it) with a SOFT
 //    specular sheen
 //
+// Depth comes from the heightfield, NOT the camera depth texture (2026-09-03):
+//  1. The depth texture holds whatever is behind the water ALONG THE VIEW RAY,
+//     which made the sea's colour depend on camera tilt, and held nothing at
+//     all past the edge of the terrain, where the seabed geometry simply stops.
+//     The ocean was therefore cut by a hard straight line along the map border,
+//     lighter over the seabed and flat deep blue beyond it. The island's own
+//     heights are the real answer and are already in memory: TerrainGrid bakes
+//     them into _HeightMap (one texel per terrain vertex, water column scaled
+//     into 0..1 by _MapParams.z) and the shader reads the exact depth under
+//     every pixel. Sampling past the map clamps to the border texel, which is
+//     open-ocean depth, so there is no boundary left to see. _DepthDistance and
+//     _FoamDistance are real vertical metres.
+//
 // Orthographic camera notes:
-//  1. Eye depth is reconstructed linearly from the raw depth for ortho, and
-//     only the DIFFERENCE between scene depth and water depth is used, so the
-//     negative-near quirk that breaks SSAO does not affect this shader.
 //  2. The view direction is the same for every pixel, so a specular highlight
 //     has no spot to form: on a flat plane it is either on EVERYWHERE or off
 //     everywhere, depending only on camera tilt and heading. A hard-stepped
@@ -33,11 +43,13 @@ Shader "Island RTS/Stylized Water"
 {
     Properties
     {
+        _HeightMap ("Water depth map (set by TerrainGrid)", 2D) = "white" {}
+        _MapParams ("Depth map mapping (set by TerrainGrid)", Vector) = (1, 0, 4, 0)
         _ShallowColor ("Shallow colour", Color) = (0.24, 0.78, 0.80, 0.55)
-        _DeepColor ("Deep colour", Color) = (0.04, 0.27, 0.56, 0.94)
-        _DepthDistance ("Depth fade distance", Float) = 2.6
+        _DeepColor ("Deep colour", Color) = (0.04, 0.27, 0.56, 1.0)
+        _DepthDistance ("Depth fade distance (m of water column)", Float) = 1.3
         _FoamColor ("Foam colour", Color) = (0.94, 0.98, 1.0, 1.0)
-        _FoamDistance ("Foam distance", Float) = 0.75
+        _FoamDistance ("Foam distance (m of water column)", Float) = 0.4
         _FoamScale ("Foam noise scale", Float) = 0.45
         _FoamSpeed ("Foam speed", Float) = 0.35
         _WaveAmplitude ("Wave amplitude", Float) = 0.09
@@ -78,9 +90,15 @@ Shader "Island RTS/Stylized Water"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
+
+            // Water column per terrain vertex, baked by TerrainGrid. White = the
+            // full encode range (deep). Its default is "white", so a scene with no
+            // TerrainGrid renders open ocean rather than a world of foam.
+            TEXTURE2D(_HeightMap);
+            SAMPLER(sampler_HeightMap);
 
             CBUFFER_START(UnityPerMaterial)
+                float4 _MapParams;      // xy: worldXZ -> uv (scale, offset), z: metres per unit of texel
                 float4 _ShallowColor;
                 float4 _DeepColor;
                 float4 _FoamColor;
@@ -110,7 +128,7 @@ Shader "Island RTS/Stylized Water"
             {
                 float4 positionCS : SV_POSITION;
                 float3 positionWS : TEXCOORD0;
-                float4 screenPos : TEXCOORD1;
+
             };
 
             // Three sine trains at 1.0x / 0.69x / 1.25x the base wavelength,
@@ -132,7 +150,7 @@ Shader "Island RTS/Stylized Water"
                 ws.y += WaveHeight(ws.xz, _Time.y * _WaveSpeed);
                 o.positionWS = ws;
                 o.positionCS = TransformWorldToHClip(ws);
-                o.screenPos = ComputeScreenPos(o.positionCS);
+
                 return o;
             }
 
@@ -152,23 +170,6 @@ Shader "Island RTS/Stylized Water"
                 float c = Hash(i + float2(0, 1));
                 float d = Hash(i + float2(1, 1));
                 return lerp(lerp(a, b, f.x), lerp(c, d, f.x), f.y);
-            }
-
-            // Linear eye depth of whatever is under this pixel, for both
-            // projection types. Ortho depth is linear in the buffer already.
-            float SceneEyeDepth(float2 screenUV)
-            {
-                float raw = SampleSceneDepth(screenUV);
-                if (unity_OrthoParams.w > 0.5)
-                {
-                    #if UNITY_REVERSED_Z
-                        float lin01 = 1.0 - raw;
-                    #else
-                        float lin01 = raw;
-                    #endif
-                    return lerp(_ProjectionParams.y, _ProjectionParams.z, lin01);
-                }
-                return LinearEyeDepth(raw, _ZBufferParams);
             }
 
             // Which grid triangle this pixel is on. The grid's vertices sit on
@@ -199,11 +200,12 @@ Shader "Island RTS/Stylized Water"
 
             half4 frag(Varyings i) : SV_Target
             {
-                float2 screenUV = i.screenPos.xy / i.screenPos.w;
 
-                float sceneEye = SceneEyeDepth(screenUV);
-                float waterEye = -TransformWorldToView(i.positionWS).z;
-                float depthDiff = max(0.0, sceneEye - waterEye);
+                // Metres of water column, read from the island's own heightfield
+                // (TerrainGrid bakes it into _HeightMap). Sampling past the map
+                // clamps to the border texel, which is open-ocean depth.
+                float2 huv = i.positionWS.xz * _MapParams.x + _MapParams.y;
+                float depthDiff = SAMPLE_TEXTURE2D(_HeightMap, sampler_HeightMap, saturate(huv)).r * _MapParams.z;
 
                 // Colour by water thickness
                 float depthT = saturate(depthDiff / max(_DepthDistance, 0.01));

@@ -545,7 +545,8 @@ public static class MenuBuilder
 
         VerticalLayoutGroup v = contentGo.GetComponent<VerticalLayoutGroup>();
         v.spacing = spacing;
-        v.padding = new RectOffset((int)sidePadding, (int)sidePadding, 0, 8);
+        // Right padding leaves the scrollbar its lane, so no row sits under it.
+        v.padding = new RectOffset((int)sidePadding, (int)sidePadding + (int)ScrollbarWidth + 4, 0, 8);
         v.childControlWidth = true;
         v.childControlHeight = true;      // same reason as Column: LayoutElement is how rows size themselves
         v.childForceExpandWidth = true;
@@ -562,10 +563,62 @@ public static class MenuBuilder
         scroll.horizontal = false;
         scroll.vertical = true;
         scroll.movementType = ScrollRect.MovementType.Clamped;
-        scroll.scrollSensitivity = 28f;
+        // One wheel notch should move a row group, not a few pixels. 28 read as
+        // "the list is stuck" on the crafting tab, where a row group is ~90px.
+        scroll.scrollSensitivity = 60f;
         scroll.inertia = false;   // a settings list should stop where the player stops it
 
+        // A slim scrollbar down the right edge. Without one there is nothing on
+        // screen saying the list continues below the fold. Visibility is
+        // Permanent rather than AutoHide because AutoHideAndExpandViewport
+        // resizes the viewport, which fights the LayoutElement that sizes it.
+        scroll.verticalScrollbar = BuildScrollbar(viewport);
+        scroll.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.Permanent;
+
         return v;
+    }
+
+    /// <summary>Width reserved for a <see cref="ScrollColumn"/>'s scrollbar.</summary>
+    public const float ScrollbarWidth = 10f;
+
+    /// <summary>The slim bar down a scroll viewport's right edge (handle included).</summary>
+    static Scrollbar BuildScrollbar(RectTransform viewport)
+    {
+        GameObject go = new GameObject("Scrollbar", typeof(RectTransform), typeof(Image), typeof(Scrollbar));
+        go.transform.SetParent(viewport, false);
+
+        RectTransform rt = go.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(1f, 0f);
+        rt.anchorMax = new Vector2(1f, 1f);
+        rt.pivot = new Vector2(1f, 0.5f);
+        rt.sizeDelta = new Vector2(ScrollbarWidth, 0f);
+        rt.anchoredPosition = Vector2.zero;
+
+        Image track = go.GetComponent<Image>();
+        track.color = new Color(1f, 1f, 1f, 0.06f);
+        track.raycastTarget = true;   // the track is the click surface for paging
+
+        GameObject area = new GameObject("SlidingArea", typeof(RectTransform));
+        area.transform.SetParent(go.transform, false);
+        Stretch(area.GetComponent<RectTransform>());
+
+        GameObject handleGo = new GameObject("Handle", typeof(RectTransform), typeof(Image));
+        handleGo.transform.SetParent(area.transform, false);
+        Image handle = handleGo.GetComponent<Image>();
+        handle.color = Color.white;   // opaque white: the ColorBlock MULTIPLIES this
+        handle.raycastTarget = true;
+        Stretch(handleGo.GetComponent<RectTransform>());
+
+        Scrollbar bar = go.GetComponent<Scrollbar>();
+        bar.direction = Scrollbar.Direction.BottomToTop;
+        bar.handleRect = handleGo.GetComponent<RectTransform>();
+        bar.targetGraphic = handle;
+        ColorBlock colors = bar.colors;
+        colors.normalColor = new Color(0.85f, 0.72f, 0.45f, 0.45f);
+        colors.highlightedColor = new Color(0.95f, 0.80f, 0.45f, 0.75f);
+        colors.pressedColor = new Color(0.95f, 0.80f, 0.45f, 0.95f);
+        bar.colors = colors;
+        return bar;
     }
 
     private static void Arrow(Transform parent, string glyph, Vector2 aMin, Vector2 aMax, Action onClick)
@@ -677,7 +730,7 @@ public static class MenuBuilder
     {
         GameObject row = new GameObject("Tabs", typeof(RectTransform), typeof(HorizontalLayoutGroup), typeof(LayoutElement));
         row.transform.SetParent(parent, false);
-        row.GetComponent<LayoutElement>().preferredHeight = 44f;
+        row.GetComponent<LayoutElement>().preferredHeight = 52f;
 
         HorizontalLayoutGroup h = row.GetComponent<HorizontalLayoutGroup>();
         h.spacing = 6f;
@@ -691,7 +744,7 @@ public static class MenuBuilder
         {
             int idx = i;
             Button b = MenuButton(row.transform, names[i], () => onPick(idx));
-            b.GetComponent<LayoutElement>().preferredHeight = 40f;
+            b.GetComponent<LayoutElement>().preferredHeight = 48f;
             buttons[i] = b;
         }
         TintTabs(buttons, active);

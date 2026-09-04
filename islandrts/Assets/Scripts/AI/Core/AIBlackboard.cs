@@ -47,6 +47,15 @@ public class AIBlackboard
     // Carry amount (workers)
     public float carryAmount;
 
+    // The MATERIAL a hauled pickup was made of, carried alongside the resource
+    // (2026-09-03). A stick a colonist brings home is worth its wood in the pool
+    // AND one Stick in the campfire stockpile — without the second half, nothing
+    // colonists gathered could ever pay for research or a spear, which is exactly
+    // what the stockpile is for. Set by GroundPickup.Collect, banked and cleared
+    // by ReturnToBaseExecutor. Node gathering never sets it.
+    public ItemDef carryItem;
+    public int carryItemCount;
+
     // Current target (shared across executors)
     public Transform currentTarget;
     public Health currentTargetHealth;

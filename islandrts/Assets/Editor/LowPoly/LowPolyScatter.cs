@@ -73,10 +73,17 @@ namespace IslandRTS.ArtGen
             new Def("Palm_Bent.prefab",         16,   0.15f, 1.20f, 0f,    0.50f, 0f,   1f,   5.0f,  0.85f, 1.20f, 35),
             new Def("Palm_Young.prefab",        18,   0.30f, 2.50f, 0f,    0.55f, 0f,   1f,   4.0f,  0.90f, 1.15f, 20),
 
-            // Rocks: one rule for cliff feet and slopes, one for open ground
-            new Def("Rock_Large.prefab",         9,   0.60f, 7.50f, 0.30f, 1.50f, 0f,   1f,   6.0f,  0.90f, 1.30f),
-            new Def("Rock_Large.prefab",         4,   0.60f, 7.50f, 0f,    0.30f, 0f,   1f,   8.0f,  0.90f, 1.30f),
-            new Def("Rock_Medium.prefab",       16,   0.50f, 7.50f, 0.15f, 1.50f, 0f,   1f,   4.5f,  0.85f, 1.25f),
+            // Rocks: one rule for cliff feet and slopes, one for open ground.
+            // The big boulders are QUARRYABLE (2026-09-03) and hold more than a
+            // rock node does — a boulder that looks like a season's worth of
+            // stone should be one. Medium rocks give a smaller haul; the small
+            // ones stay scenery, or the island turns into a quarry.
+            new Def("Rock_Large.prefab",         9,   0.60f, 7.50f, 0.30f, 1.50f, 0f,   1f,   6.0f,  0.90f, 1.30f,
+                    70, Kind.Node, ResourceNode.ResourceType.Stone),
+            new Def("Rock_Large.prefab",         4,   0.60f, 7.50f, 0f,    0.30f, 0f,   1f,   8.0f,  0.90f, 1.30f,
+                    70, Kind.Node, ResourceNode.ResourceType.Stone),
+            new Def("Rock_Medium.prefab",       16,   0.50f, 7.50f, 0.15f, 1.50f, 0f,   1f,   4.5f,  0.85f, 1.25f,
+                    30, Kind.Node, ResourceNode.ResourceType.Stone),
             new Def("Rock_Small.prefab",        26,   0.50f, 7.50f, 0f,    1.50f, 0f,   1f,   3.5f,  0.80f, 1.30f),
 
             new Def("Bush_Round.prefab",        24,   0.70f, 7.00f, 0f,    0.60f, 0f,   1f,   3.5f,  0.85f, 1.25f),

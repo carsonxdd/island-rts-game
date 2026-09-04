@@ -72,7 +72,7 @@ and the debug keys F3 / F4 / F6 / F7.
 | Input | Action |
 |---|---|
 | Name popup | Names your character (Enter or BEGIN confirms; no Esc — the run cannot start unnamed) |
-| Right click | Smart command for your character, for the whole run: on a stick / stone / crate → fetch it; on a tree, bush, rock or ore boulder → work it by hand; on the campfire → deposit everything and open the panel; on a Workshop → work its queue; anywhere else → walk there |
+| Right click | Smart command for your character, for the whole run: on a stick / stone / crate → fetch it; on a bush → pick it by hand; on a tree, rock or ore boulder → work it, once the matching tool is in hand; on the campfire → deposit everything and open the panel; on a Workshop → work its queue; anywhere else → walk there |
 | Space | Centre the camera on your character |
 | B | Show the campfire ghost (free, one-time; must be ≤6u from your character, on buildable ground) |
 | Left click | Place the campfire |
@@ -558,13 +558,16 @@ No editor setup step, no scene or prefab edit: just Play.
 - [ ] Hovering the campfire, the Workshop or any tree, bush, rock or ore boulder warms the whole object with a soft breathing glow — no flat yellow anywhere
 - [ ] The glow covers every part of a multi-part building, not one panel
 - [ ] A tree that is both hovered and faded (a worker walking behind it) glows AND fades, with neither cancelling the other
-- [ ] Sticks, stone chunks, crates and barrels shimmer faintly on the ground at rest and light up brightly under the cursor
+- [ ] Sticks, stone chunks, crates and barrels sit dark at rest and light up palely and brightly under the cursor, brighter than a hovered node
 - [ ] Nothing is left glowing after it is collected, depleted or demolished
 
 **Hand-harvest**
 
 - [ ] Right-clicking a bush walks the character over and fills the hand slots with food, plus a stick every few units
 - [ ] A tree gives wood and sticks; a rock gives stone and chunks; an ore boulder gives metal and chunks
+- [ ] Before the Stone Axe, right-clicking a tree reads "Need a stone axe for that" and the character does not walk over; the same for rock without the Stone Pick and ore without the Metal Pick
+- [ ] Bushes never ask for a tool, so food is available from the first minute
+- [ ] Crafting the Stone Axe immediately makes trees workable, with no reload
 - [ ] The node shakes on the beat and shrinks as it empties, and disappears when emptied
 - [ ] Right-clicking anything else, moving, or being knocked out stops harvesting cleanly and the activity line clears
 - [ ] "Hands full — deposit at the fire" appears when the six slots fill, and depositing lets harvesting resume
@@ -599,3 +602,45 @@ No editor setup step, no scene or prefab edit: just Play.
 - [ ] Walking a worker across a clearing no longer blinks a row of trees
 - [ ] A unit standing level with a trunk does not make it flicker
 - [ ] Trees still come back to full opacity promptly once the unit clears them
+
+### Idle foraging, tool gate & UI feel (2026-09-03)
+
+**Idle colonists forage**
+
+- [ ] The colonists who come ashore in the opening carry loose sticks, chunks and salvage within about 35 m of the fire back to it, with no job assigned
+- [ ] They never wander to the far shore for a crate: a pickup well outside that radius is left alone
+- [ ] Their hands never mix types; they deliver one type and then go back out
+- [ ] A construction site or a damaged building outranks foraging, and enemies nearby stop it outright
+- [ ] Assigning a job stops the foraging and the colonist starts gathering normally
+
+**UI feel**
+
+- [ ] Scrolling the wheel over the campfire panel scrolls its list and does NOT zoom the camera
+- [ ] Scrolling the wheel over open ground still zooms as before
+- [ ] Scrolling over the HUD resource bar, the inventory strip and the raid banner still zooms — only a scrolling list takes the wheel
+- [ ] The ocean is one continuous colour with no straight line across it, at every camera tilt and zoom, and the turquoise shallows still ring the shore
+- [ ] Craft and Research lists move roughly a row group per wheel notch
+- [ ] A scrollbar sits down the right edge of every scrolling list, and its handle brightens on hover and drag
+- [ ] No row is hidden underneath the scrollbar
+- [ ] The panel is wider, the tabs and rows are taller, and nothing overflows or overlaps at any tab
+- [ ] The Options screen and the Controls keybinding list still lay out correctly with the taller rows
+
+### Research grants tools, stockpile caps, stone and metal (2026-09-03)
+
+Editor: run Setup Everything (In Order). Step 4 rewrites the scatter settings so the
+big boulders come back quarryable, step 6 rewrites the resource-spawner counts.
+
+- [ ] The Craft tab lists only the Wooden Spear; there are no tool recipes anywhere
+- [ ] Finishing Woodcutting puts a Stone Axe straight into the character's hands and trees become workable in the same moment
+- [ ] Quarrying gives the Stone Pick, Construction the Mallet, Foraging the Fishing Spear, Mining the Metal Pick
+- [ ] The Stockpile tab shows "held / 60", counts up as things arrive, and turns red at the cap
+- [ ] Researching Storage Pits raises the number to 100 without a reload; Racks and Baskets at the Workshop takes it to 180
+- [ ] A colonist hauling a stick raises the wood pool AND adds one Stick to the stockpile; the same for chunks
+- [ ] A colonist hauling to a full stockpile still delivers the pooled resource, and nothing errors
+- [ ] Right-clicking the ground a step away from the fire deposits instead of walking past it
+- [ ] The character stops close to the fire and the deposit lands immediately, with no hover
+- [ ] Right-clicking a stick lying beside the fire still picks the stick up rather than depositing
+- [ ] Rock nodes hold 40 stone and ore nodes 25 metal; a worked rock is a real haul, not four seconds of work
+- [ ] The big scattered boulders can be quarried for 70 stone each, and medium rocks for 30; small rocks stay scenery
+- [ ] Stone is common and ore is rare on a fresh island (roughly 70 rock nodes to 9 ore nodes at 150 m)
+- [ ] Working a rock sheds mostly big chunks and the odd small one; working a tree sheds mostly small sticks

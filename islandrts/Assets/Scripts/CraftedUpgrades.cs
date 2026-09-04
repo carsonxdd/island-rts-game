@@ -17,13 +17,18 @@ public static class CraftedUpgrades
     public static float GatherRateMult { get; private set; } = 1f;
     public static float BuildSpeedMult { get; private set; } = 1f;
 
+    /// <summary>Extra room in the campfire stockpile, on top of its base capacity.</summary>
+    public static int StockpileRoom { get; private set; }
+
     public static void SetGatherRate(float mult) { GatherRateMult = mult; }
     public static void SetBuildSpeed(float mult) { BuildSpeedMult = mult; }
+    public static void AddStockpileRoom(int extra) { StockpileRoom += extra; }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void ResetStatics()
     {
         GatherRateMult = 1f;
         BuildSpeedMult = 1f;
+        StockpileRoom = 0;
     }
 }

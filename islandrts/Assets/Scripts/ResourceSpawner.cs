@@ -30,8 +30,8 @@ public class ResourceSpawner : MonoBehaviour
     [Header("Spawn Counts (150 m map; scaled by area)")]
     public int treeCount = 150;
     public int berryBushCount = 60;
-    public int rockNodeCount = 55;
-    public int oreNodeCount = 24;
+    public int rockNodeCount = 70;
+    public int oreNodeCount = 9;
 
     [Header("Spawn Area (150 m map; scaled)")]
     public Vector2 spawnAreaMin = new Vector2(-70f, -70f);  // Min X/Z

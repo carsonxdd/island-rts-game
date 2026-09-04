@@ -49,7 +49,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Workshop
   maxHealth: 150
   noBuildRadius: 3.5
-  hoverColor: {r: 1, g: 1, b: 0.7, a: 1}
+  hoverGlow: 2.2
 --- !u!65 &4789431619846948908
 BoxCollider:
   m_ObjectHideFlags: 0
