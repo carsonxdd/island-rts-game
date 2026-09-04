@@ -390,6 +390,10 @@ public class DebugMenu : MonoBehaviour
         {
             Campfire.Stockpile.Add(ItemCatalog.IronSpear, 5);
         }
+        if (GUILayout.Button("+5 Bows (stockpile)"))
+        {
+            Campfire.Stockpile.Add(ItemCatalog.Bow, 5);
+        }
         GUI.enabled = PopulationManager.Instance != null;
         if (GUILayout.Button("Starve the colony (zero food, skip to Starving)"))
         {

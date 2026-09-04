@@ -148,11 +148,11 @@ the people who walked out because the colony starved them (2026-09-04).
 workers/warriors/huts/walls/towers at dusk AND dawn,
 enemies_spawned, enemies_killed_total,
 campfire_hp_dusk, campfire_hp_min, campfire_hp_dawn,
-hunger_dawn, left_total
+hunger_dawn, left_total, archers_dawn
 ```
 
 `hunger_dawn` is 0 fed / 1 hungry / 2 starving at that dawn; `left_total` is
-cumulative. A run whose `hunger_dawn` is 2 for several days in a row is losing
+cumulative; `archers_dawn` is how many of `warriors_dawn` carry a bow. A run whose `hunger_dawn` is 2 for several days in a row is losing
 to its own kitchen, not to the raiders. Sweeps from before food consumption
 (2026-09-04) are not comparable: every colonist now eats one food a day.
 

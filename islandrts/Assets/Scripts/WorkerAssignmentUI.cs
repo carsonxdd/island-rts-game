@@ -649,7 +649,9 @@ public class WorkerAssignmentUI : MonoBehaviour
         {
             weaponShown = weapon;
             weaponStockShown = inStock;
-            weaponLabel.text = weapon.displayName + "  <size=78%><color=#" + LockHex + ">" + inStock + " in stock</color></size>";
+            bool archer = weapon.equipment != null && weapon.equipment.ranged;
+            weaponLabel.text = weapon.displayName + "  <size=78%><color=#" + LockHex + ">" + inStock + " in stock"
+                + (archer ? " · an archer" : "") + "</color></size>";
             weaponLabel.color = inStock > 0 ? MenuStyle.TextAccent : MenuStyle.TextMuted;
         }
         weaponPrev.interactable = weaponNext.interactable = ItemCatalog.Weapons.Length > 1;

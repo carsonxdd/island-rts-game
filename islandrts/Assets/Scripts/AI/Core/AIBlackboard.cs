@@ -41,6 +41,8 @@ public class AIBlackboard
 
     // Warrior fields
     public Warrior warrior;
+    // Armed with a bow (2026-09-04): Engage looses an arrow instead of striking. Set by Warrior.ApplyWeapon.
+    public bool isRanged;
     public float attackRange;
     public float attackCooldown;
     public float damage;

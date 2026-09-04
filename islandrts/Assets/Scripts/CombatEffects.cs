@@ -130,6 +130,37 @@ public class CombatEffects : MonoBehaviour
         VfxEnd();
     }
 
+    // --- Arrows (2026-09-04, Slice 5) --------------------------------------
+    // A fixed pool of Projectile objects under this manager. Never grows past
+    // ArrowPool: with every slot in flight the oldest is re-launched, which at
+    // 18 u/s over a 9 u range means well over 30 arrows a second before anyone
+    // could notice. Not gated by enableAttackEffects — the arrow CARRIES the
+    // damage, so it flies headless too (invisible under the sim, but flying).
+    private const int ArrowPool = 32;
+    private Projectile[] arrows;
+    private int nextArrow;
+
+    /// <summary>Loose an arrow from <paramref name="from"/> at <paramref name="target"/>; it deals <paramref name="damage"/> on arrival.</summary>
+    public void FireArrow(Vector3 from, Transform target, Health targetHealth, float damage)
+    {
+        if (arrows == null)
+        {
+            arrows = new Projectile[ArrowPool];
+            for (int i = 0; i < ArrowPool; i++) arrows[i] = Projectile.Create(transform);
+        }
+
+        Projectile p = null;
+        for (int i = 0; i < ArrowPool; i++)
+        {
+            Projectile candidate = arrows[(nextArrow + i) % ArrowPool];
+            if (candidate != null && !candidate.Flying) { p = candidate; nextArrow = (nextArrow + i + 1) % ArrowPool; break; }
+        }
+        if (p == null) { p = arrows[nextArrow]; nextArrow = (nextArrow + 1) % ArrowPool; }
+        if (p == null) return;
+
+        p.Launch(from, target, targetHealth, damage);
+    }
+
     /// <summary>
     /// Spawn hit effect at impact position
     /// </summary>

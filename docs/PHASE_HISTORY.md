@@ -792,3 +792,21 @@ The pressure between raids. Every colonist on the roster eats `foodPerColonistPe
 - Sweeps before this slice are not comparable (a new sink on food, and policies now keep a forager per eight mouths).
 
 **Playtest:** the checklist section above — the chip's −N/day and reserve, amber under a day and red at zero, the Hungry banner + slowed labor + no arrivals after a quarter day, a colonist walking to the cove and vanishing after a full day and one more per day after, warriors last, Fed at once when food arrives, the Custom slider, the end-screen row.
+
+### Research and Days — Slice 5: Archers (2026-09-04 — ⚠️ PENDING PLAYTEST)
+
+A second unit type with no second unit class. Bowyery (Workshop tier, after Spearcraft) opens the Bow (12 / range 9 / 1.0 s, `ranged: true`); a warrior armed with one IS the archer — the same `Warrior`, the same Engage executor, holding at the weapon's reach because the range check already does, and loosing a pooled arrow that carries the damage. Compile-verified in all three configs, 0 errors. Checklist: "Slice 5" in `docs/CONTROLS_AND_CHECKLIST.md`. **Editor step: Generate All Assets → Plumb Everything** (the archer body and its green material).
+
+**New:** `Projectile.cs` (pooled arrow, shared mesh + material). **Edited:** `CombatEffects.FireArrow` (pool of 32), `EngageEnemyExecutor.AttemptAttack` (ranged branch), `Warrior` (`IsRanged`, body swap in `ApplyWeapon`, `bb.isRanged`), `AIBlackboard.isRanged`, `ItemCatalog` (Bow, `Weapons` = Iron, Wooden, Bow), `ResearchCatalog` (Bowyery), `CraftingCatalog` (Bow), `BaseBuilding.SpawnWarrior` (Archer_n), `WorkerAssignmentUI` (picker says "an archer"), `DebugMenu` (+5 Bows), `SimPolicy` (one bow in three, `PickRecruitWeapon`), `SimMetrics` / `SimRunner` (`archers_dawn`), `Editor/LowPoly/Shapes_Units` (Archer), `LowPolyPalette` (ClothGreen), `LowPolyPlumber` (`AltArtPrefab` / `AltModelName`, mounted inactive as `Model_Archer`).
+
+**Gotchas this encodes:**
+
+- **An archer is a warrior whose weapon says `ranged`.** No subclass, no second prefab, no second action: `bb.isRanged` (set by `ApplyWeapon`, the one place weapon stats land) flips `AttemptAttack` from a strike to `FireArrow`. Everything else — targeting, retreat, heal, patrol, enemy priority — is shared for free.
+- **The range hold is the existing edge-distance range check**: with `attackRange` 9 the agent stops at 9 and `isInAttackRange` holds it there. No kiting in v1 — a raider that closes gets a 12-damage duel, and loses it; that is the archer's price.
+- **The arrow carries the damage, decided at loose time** (tower buff included), and flies headless too: `FireArrow` is not gated by `enableAttackEffects`, so the sim's archers still hit. It flies to the target's LIVE position with no line of sight and no collision — over the wall is the point. A target that dies in flight is a miss.
+- **The pool never grows** (32; the oldest is re-launched) and everything about it is shared: one mesh, one material, one `Projectile` per slot, zero allocation once warm.
+- **The body swap is two prefab children, `Model` and `Model_Archer`**, both mounted by the plumber, the archer inactive; `Warrior.ShowBody` toggles them. A prefab that has not been re-plumbed keeps the spearman body and everything else still works. `HideOtherRenderers` is not set on the Warrior, or it would blank the alt body.
+- `BetterWeaponInStock` already refused to cross the melee/ranged line (Slice 3), so a bow never replaces a spear on its own and an archer never fetches a spear.
+- The sim's Eco makes one weapon in three a bow after Bowyery and points the picker at a bow while archers are under a third of the garrison (`PickRecruitWeapon` walks `CycleWeapon` — the picker is the only recruit path, on purpose).
+
+**Playtest:** the checklist section above — Bowyery → Bow → "an archer" on the picker → a green Archer_n; holds 9 out and arrows arc in; shoots over a wall; loses a duel; ignores an iron spear; the Bow comes back on dismiss.

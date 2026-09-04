@@ -162,6 +162,16 @@ public static class ResearchCatalog
             prerequisites = new[] { "mining" },
             grants = new[] { Unlocks.Kind.IronWork },
         },
+        // Archers (2026-09-04, Slice 5): the Bow recipe; a bow-armed recruit is an archer.
+        new ResearchDef
+        {
+            id = "bowyery", title = "Bowyery", tier = 4, station = Station.Workshop,
+            description = "Bows can be made; a colonist armed with one is an archer who shoots over walls",
+            woodCost = 20, foodCost = 5,
+            seconds = 14f,
+            prerequisites = new[] { "spearcraft" },
+            grants = new[] { Unlocks.Kind.Archery },
+        },
     };
 
     /// <summary>Fires after any entry completes. The campfire panel re-labels its locked rows on it.</summary>

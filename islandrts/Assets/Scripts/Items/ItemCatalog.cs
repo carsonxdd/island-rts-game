@@ -135,6 +135,11 @@ public static class ItemCatalog
     public static readonly ItemDef IronSpear = new ItemDef("iron_spear", "Iron Spear", "Is", ItemKind.Equipment, 5, IronColor,
         equipment: new EquipmentDef(damage: 35f, range: 2f, attackInterval: 1.2f, ranged: false),
         hudCategory: ResourceNode.ResourceType.Metal, hudListed: true);
+    // The archer's weapon (2026-09-04, Slice 5): low damage, long reach, an
+    // arrow per shot. `ranged` is what turns a recruit into an archer.
+    public static readonly ItemDef Bow = new ItemDef("bow", "Bow", "Bw", ItemKind.Equipment, 5, WeaponColor,
+        equipment: new EquipmentDef(damage: 12f, range: 9f, attackInterval: 1.0f, ranged: true),
+        hudCategory: ResourceNode.ResourceType.Wood, hudListed: true);
 
     /// <summary>Catalog order — also the display order in the stockpile and HUD.</summary>
     public static readonly ItemDef[] All =
@@ -142,11 +147,11 @@ public static class ItemCatalog
         Stick, StoneChunk,
         Wood, Food, Stone, Metal,
         StoneAxe, FishingSpear, StonePick, Mallet, MetalPick,
-        WoodenSpear, IronSpear,
+        WoodenSpear, IronSpear, Bow,
     };
 
     /// <summary>Everything that lives in the campfire stockpile (materials and equipment; tools stay in hand, resources go to the pool).</summary>
-    public static readonly ItemDef[] Stockpiled = { Stick, StoneChunk, WoodenSpear, IronSpear };
+    public static readonly ItemDef[] Stockpiled = { Stick, StoneChunk, WoodenSpear, IronSpear, Bow };
 
     /// <summary>
     /// Weapons a warrior can be armed with, in PREFERENCE order — best first. This
@@ -154,7 +159,7 @@ public static class ItemCatalog
     /// the recruit picker, the sim, <see cref="BetterWeaponInStock"/>), so a new
     /// weapon goes in at its place in the ranking, never at the end.
     /// </summary>
-    public static readonly ItemDef[] Weapons = { IronSpear, WoodenSpear };
+    public static readonly ItemDef[] Weapons = { IronSpear, WoodenSpear, Bow };
 
     /// <summary>
     /// The best weapon in <paramref name="stock"/> that outranks <paramref name="current"/>

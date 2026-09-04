@@ -22,6 +22,44 @@ namespace IslandRTS.ArtGen
             list.Add(new AssetDef("Warrior", AssetCategory.Units, Warrior, "0.50 wide, 1.4 tall"));
             list.Add(new AssetDef("Enemy", AssetCategory.Units, Enemy, "0.45 wide, 1.4 tall"));
             list.Add(new AssetDef("Castaway", AssetCategory.Units, Castaway, "0.40 wide, 1.2 tall"));
+            list.Add(new AssetDef("Archer", AssetCategory.Units, Archer, "0.50 wide, 1.4 tall"));
+        }
+
+        // ==================================================================
+        // Archer — a warrior armed with a bow (2026-09-04, Slice 5)
+        // ==================================================================
+
+        /// <summary>
+        /// The Warrior's body and helmet in green cloth, no shield, a bow held at
+        /// the left hip: from above the archer reads as a green warrior with a
+        /// stick, never as a blue spearman. Same footprint, so the Warrior prefab's
+        /// collider and UI offsets fit both bodies.
+        /// </summary>
+        private static MeshBuilder Archer()
+        {
+            MeshBuilder b = new MeshBuilder(3202);
+
+            b.Use("ClothGreen");
+            b.Frustum(Vector3.zero, new Vector2(0.28f, 0.22f), new Vector2(0.36f, 0.24f), 0.92f);
+
+            b.Use("SkinTan");
+            b.Frustum(new Vector3(0f, 0.92f, 0f), new Vector2(0.18f, 0.18f), new Vector2(0.16f, 0.16f), 0.20f);
+
+            // Leather cap instead of the steel helmet: no crest, a softer top
+            b.Use("LeatherBrown");
+            b.Frustum(new Vector3(0f, 1.10f, 0f), new Vector2(0.21f, 0.21f), new Vector2(0.12f, 0.12f), 0.14f);
+
+            // Bow: a bent stave up the left side with a string across it
+            b.Use("WoodPale");
+            Vector3 lo = new Vector3(-0.26f, 0.30f, 0.06f);
+            Vector3 mid = new Vector3(-0.30f, 0.72f, 0.14f);
+            Vector3 hi = new Vector3(-0.26f, 1.14f, 0.06f);
+            b.TaperedSegment(lo, mid, 0.022f, 0.026f, 5);
+            b.TaperedSegment(mid, hi, 0.026f, 0.022f, 5);
+            b.Use("ClothCream");
+            b.TaperedSegment(lo, hi, 0.006f, 0.006f, 3);
+
+            return b;
         }
 
         // ==================================================================

@@ -85,6 +85,14 @@ namespace IslandRTS.ArtGen
             public string[] VariantPrefabs;
 
             /// <summary>
+            /// A second art prefab mounted beside the Model child, INACTIVE, under
+            /// <see cref="AltModelName"/> (2026-09-04): the archer body on the Warrior.
+            /// Runtime code (Warrior.ApplyWeapon) swaps which of the two is active.
+            /// </summary>
+            public string AltArtPrefab;
+            public string AltModelName;
+
+            /// <summary>
             /// If the gameplay prefab does not exist yet, duplicate this one
             /// first (a node type that is a re-skin of an existing node).
             /// </summary>
@@ -114,6 +122,7 @@ namespace IslandRTS.ArtGen
             {
                 GameplayPrefab = "Assets/Prefabs/Warrior.prefab",
                 ArtPrefab      = ArtPrefabRoot + "Units/Warrior.prefab",
+                AltArtPrefab   = ArtPrefabRoot + "Units/Archer.prefab", AltModelName = "Model_Archer",
                 ResetRootScale = true, StripRootMesh = true,
                 CapsuleRadius = 0.25f, CapsuleHeight = 1.4f, BaseOffset = 0f,
                 BarOffset = 1.8f, BarWidth = 0.6f, BarHeight = 0.1f, TextOffset = 2.2f
@@ -486,6 +495,29 @@ namespace IslandRTS.ArtGen
                 model.transform.localPosition = Vector3.zero;
                 model.transform.localRotation = Quaternion.identity;
                 model.transform.localScale = Vector3.one;
+
+                // 4b. The alternate body (the archer), mounted the same way but INACTIVE;
+                //     the unit's own code decides which of the two is shown.
+                if (!string.IsNullOrEmpty(p.AltArtPrefab) && !string.IsNullOrEmpty(p.AltModelName))
+                {
+                    Transform existingAlt = root.transform.Find(p.AltModelName);
+                    if (existingAlt != null) Object.DestroyImmediate(existingAlt.gameObject);
+
+                    GameObject altArt = AssetDatabase.LoadAssetAtPath<GameObject>(p.AltArtPrefab);
+                    if (altArt == null)
+                    {
+                        Debug.LogError("[LowPoly] Alt art prefab not found: " + p.AltArtPrefab + ". Run 'Generate All Assets' first.");
+                    }
+                    else
+                    {
+                        GameObject alt = (GameObject)PrefabUtility.InstantiatePrefab(altArt, root.transform);
+                        alt.name = p.AltModelName;
+                        alt.transform.localPosition = Vector3.zero;
+                        alt.transform.localRotation = Quaternion.identity;
+                        alt.transform.localScale = Vector3.one;
+                        alt.SetActive(false);
+                    }
+                }
 
                 // 5. Hide leftover visuals that could not be deleted (nested prefab meshes) or
                 //    are being kept deliberately. Renderers only - the GameObjects stay.

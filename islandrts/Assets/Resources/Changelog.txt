@@ -8,6 +8,11 @@
 # Lines starting with a single # are comments. Anything else that is not a
 # heading, a bullet or an indented continuation is ignored.
 
+## 2026-09-04 — Archers
+- Bowyery, researched at the Workshop after Spearcraft, opens the Bow: 12 damage at 9 range, made from 4 sticks and 5 wood.
+- Arm a recruit with a Bow on the Warriors row and you get an archer: a green-clad warrior who holds back at range and shoots over your walls. Arrows arc to their target and hit on arrival.
+- Archers keep their bow when a better spear turns up; spearmen never swap to a bow on their own. Raiders charge an archer they can see like any other warrior.
+
 ## 2026-09-04 — The colony eats
 - Every colonist now eats one food a day, taken from the stores a unit at a time. The Food chip shows the daily drain, turns amber with under a day of food in hand and red when the stores are empty; click it to see how many days the reserve lasts.
 - A quarter of a day without food and the colony is Hungry: gathering and building slow to 60% and no new survivors come ashore. A full day and it is Starving: each day one colonist walks down to the cove and leaves, the idle first, then workers, then warriors. Feed them and it stops.

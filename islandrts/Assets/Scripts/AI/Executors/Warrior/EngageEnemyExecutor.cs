@@ -247,14 +247,31 @@ public class EngageEnemyExecutor : ActionExecutor
             displayName = "Attacking " + bb.currentTargetName + "! (Tower Buff)";
         }
 
+        // Audio
+        bb.warrior.PlayAttackSoundPublic();
+
+        // An archer (2026-09-04) looses an arrow that carries the damage to the
+        // target; the range check above already holds the agent at the weapon's
+        // reach, which IS the range hold. No line of sight — over the wall is the point.
+        if (bb.isRanged)
+        {
+            if (CombatEffects.Instance != null)
+            {
+                CombatEffects.Instance.FireArrow(bb.transform.position + Vector3.up * 1.2f,
+                    bb.currentTarget, bb.currentTargetHealth, finalDamage);
+            }
+            else if (bb.currentTargetHealth != null)
+            {
+                bb.currentTargetHealth.TakeDamage(finalDamage);   // headless: no effects manager
+            }
+            return;
+        }
+
         // Visual effect
         if (CombatEffects.Instance != null)
         {
             CombatEffects.Instance.SpawnAttackEffect(bb.transform.position, bb.currentTarget.position, true);
         }
-
-        // Audio
-        bb.warrior.PlayAttackSoundPublic();
 
         // Apply damage
         if (bb.currentTargetHealth != null)

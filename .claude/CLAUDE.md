@@ -165,6 +165,7 @@ Every 0.25–0.35s (randomized per unit) the brain scores `basePriority × Π(co
 - **A research hands over its tool** (`ResearchDef.tool`, delivered by `CraftStation.TryComplete` to whoever stood at the bench); there are no tool recipes. A new tool = a `tool =` line on a research entry.
 - **A warrior costs a weapon + 15 food + an idle colonist.** `SpawnWarrior` takes `BaseBuilding.SelectedWeapon` (the Arm-with picker; defaults to the best in stock) and sets `Warrior.weapon` right after `Instantiate`, before `Start` copies its `EquipmentDef` into damage / range / cooldown (before `SimOverrides.Apply`). `ItemCatalog.WoodenSpear` = 25 / 2 / 1.2, the live prefab numbers — retune the spear, not the prefab.
 - **`ItemCatalog.Weapons` is a RANKING, best first** — the picker's default, `FirstWeaponInStock`, the sim and `BetterWeaponInStock` (never crosses melee↔ranged) all read it; a new weapon goes in at its rank. **`Warrior.ApplyWeapon` is the only place weapon stats land** (Start and `BaseBuilding.RearmWarrior`); it refreshes the blackboard and stopping distance. Rearm is peacetime-only, priority 0.5, zero momentum.
+- **An archer is a warrior whose weapon says `ranged` (2026-09-04)** — no subclass, no second action: `bb.isRanged` flips `EngageEnemyExecutor.AttemptAttack` to `CombatEffects.FireArrow` (pool of 32 `Projectile`s, one shared mesh/material, damage decided at loose time, flies headless, no LOS). The range hold IS the existing edge-distance range check at reach 9; no kiting. `Warrior.ShowBody` toggles the plumber's `Model` / `Model_Archer` children — a prefab without the alt body just keeps the spearman.
 - `PlayerCharacter.ToolFor` gates hand-harvest: tree → Stone Axe, rock → Stone Pick, ore → Metal Pick, food free. A new node type needs a line or it harvests bare-handed. Reach is measured to the node CENTRE against `GatherRingRadius`. `GatherResources(..., shedByproducts)` sheds sticks/chunks for workers (every 4 units, `maxLooseByproducts` 2) and gives them in hand to the player; a full inventory calls `ResourceNode.ShedOneByproduct()` instead (the pooled resource never overflows to the ground — a stick is worth 3 wood).
 - Deposit has two reaches: any ground click within `DepositClickRadius` 3.5 of the fire's collider EDGE deposits; arrival is `DepositEdgeDistance` 2.4. `PlayerCharacter.Stalled()` (0.5s of no path and no velocity) counts as "as close as the NavMesh allows": within 2.5u the interaction happens, beyond it the task drops.
 - `HeldItem` is visual only; nothing reads the held tool. `PlayerProfile.Name` never returns empty; the popup is skipped under the sim and on Restart, and the sim never writes PlayerPrefs. `FloatingText.alwaysShow` bypasses the state-label setting for the name label. `CameraController.CenterOn` intersects at the target's own height.
@@ -248,9 +249,9 @@ Branch `feature/balance-sim-and-menus`. Slices 3–6 of `RESEARCH_AND_DAYS_PLAN.
 
 **Shipped:** four-resource economy with a colonist pool (arrivals by housing, jobs from the idle pool, jobless colonists forage/build/repair); player character with hand-harvest and campfire deposit; research → craft split with stations (campfire + Workshop), a Crafter job, spears as per-warrior equipment with a recruit picker and the Iron Spear; 30-day calendar with dawn-rolled, prosperity-scaled raids; walls/gates/towers/demolish; Utility AI for every unit; random islands (size/style/seed) with terraces, cliffs, ponds, stylized water, runtime scatter; tree occlusion fade; code-built menus, end screens and an in-game changelog; F4 debug menu; headless balance sim.
 
-**Pending playtest:** Slice 2 research/stations, the 09-03 polish and byproduct passes, the changelog screen, Slices 3 and 4. A raid tuning pass is pending.
+**Pending playtest:** Slice 2 research/stations, the 09-03 polish and byproduct passes, the changelog screen, Slices 3, 4 and 5 (Slice 5 needs Generate All Assets → Plumb Everything for the archer body). A raid tuning pass is pending.
 
-**Next** (`RESEARCH_AND_DAYS_PLAN.md`): Slice 5 archers; Slice 6 escape ship. Then `COLONY_EXPANSION_PLAN.md` (collector radius, settlement tiers, processing chains, families, farming). Phase 10 Stages 3–4 (water polish, lighting bake) remain open.
+**Next** (`RESEARCH_AND_DAYS_PLAN.md`): Slice 6 escape ship. Then `COLONY_EXPANSION_PLAN.md` (collector radius, settlement tiers, processing chains, families, farming). Phase 10 Stages 3–4 (water polish, lighting bake) remain open.
 
 ---
 
@@ -260,6 +261,7 @@ Branch `feature/balance-sim-and-menus`. Slices 3–6 of `RESEARCH_AND_DAYS_PLAN.
 |------|----|--------|-------------|-----|
 | Warrior (Wooden Spear) | 75 | 25 | 1.2s | 20.8 |
 | Warrior (Iron Spear) | 75 | 35 | 1.2s | 29.2 |
+| Archer (Bow, range 9) | 75 | 12 | 1.0s | 12 |
 | Enemy | 50 | 10 | 1.5s | 6.67 |
 
 | Building | Cost | HP |
@@ -272,6 +274,7 @@ Branch `feature/balance-sim-and-menus`. Slices 3–6 of `RESEARCH_AND_DAYS_PLAN.
 | Warrior | 1 Wooden Spear + 15F + an idle colonist | 75 |
 | Wooden Spear (craft, 10s) | 3 stick 1 chunk 5W | — |
 | Iron Spear (craft, 12s; Iron Work 20W 25S 10M) | 2 stick 5W 4M | — |
+| Bow (craft, 12s; Bowyery 20W 5F) | 4 stick 5W | — |
 
 - Starting resources 100W 50F 0S 0M (metal buys Iron Work and Iron Spears). Workshop makes tools and weapons at 2×. Worker carry 5, gather 1/sec; stick = 3 wood, chunk = 3 stone, crate = 6 food, barrel = 5 wood; large pickups ×3.
 - Raid size `round(2 + 0.4 × day + 0.08 × prosperity)`: day-4 ≈ 5, day-20 ≈ 16, day-30 ≈ 22; roughly every 3 days, spawned 0.4s apart so a raid arrives as one body.

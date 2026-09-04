@@ -76,8 +76,9 @@ public abstract class SimPolicy
     }
 
     /// <summary>
-    /// Keep spears in stock + queued at <paramref name="wanted"/>. Needs Spearcraft.
-    /// Iron Spears once Iron Work is known and the metal is there (2026-09-04) —
+    /// Keep weapons in stock + queued at <paramref name="wanted"/>. Needs Spearcraft.
+    /// Iron Spears once Iron Work is known and the metal is there (2026-09-04);
+    /// after Bowyery every third weapon is a Bow so the garrison gets archers —
     /// queued at the fire like everything else; a Crafter or the character works it.
     /// </summary>
     protected static bool KeepSpears(SimState s, int wanted)
@@ -88,13 +89,38 @@ public abstract class SimPolicy
 
         CraftingCatalog.Recipe wooden = CraftingCatalog.Find("wooden_spear");
         CraftingCatalog.Recipe iron = CraftingCatalog.Find("iron_spear");
+        CraftingCatalog.Recipe bow = CraftingCatalog.Find("bow");
         bool ironOk = iron != null && iron.Unlocked && ResourceManager.Instance != null
                       && ResourceManager.Instance.metal >= iron.metalCost;
         CraftingCatalog.Recipe spear = ironOk ? iron : wooden;
 
-        int have = fire.WeaponsInStock() + fire.Station.Queued(wooden) + fire.Station.Queued(iron);
+        int have = fire.WeaponsInStock() + fire.Station.Queued(wooden) + fire.Station.Queued(iron)
+                   + (bow != null ? fire.Station.Queued(bow) : 0);
         if (have >= wanted) return false;
-        return fire.Station.Enqueue(spear, wanted - have);
+
+        // One bow in three once the colony can make them (a third of the garrison shoots)
+        bool bowOk = bow != null && bow.Unlocked && (s.Warriors + have) % 3 == 2;
+        return fire.Station.Enqueue(bowOk ? bow : spear, 1);
+    }
+
+    /// <summary>
+    /// Point the recruit picker at a bow when the stock has one and the garrison is
+    /// short of archers (one in three), else at the best spear (2026-09-04).
+    /// </summary>
+    protected static void PickRecruitWeapon(SimState s)
+    {
+        BaseBuilding fire = s.Campfire;
+        if (fire == null) return;
+
+        int archers = 0;
+        var list = Warrior.ActiveList;
+        for (int i = 0; i < list.Count; i++) if (list[i] != null && list[i].IsRanged) archers++;
+
+        bool wantBow = fire.Stockpile.Count(ItemCatalog.Bow) > 0 && archers * 3 < s.Warriors + 1;
+        ItemDef target = wantBow ? ItemCatalog.Bow : fire.FirstWeaponInStock();
+        if (target == null) return;
+        for (int guard = 0; guard < ItemCatalog.Weapons.Length && fire.SelectedWeapon != target; guard++)
+            fire.CycleWeapon(1);
     }
 
     /// <summary>
@@ -177,6 +203,7 @@ public abstract class SimPolicy
     {
         BaseBuilding fire = s.Campfire;
         if (fire == null) return false;
+        PickRecruitWeapon(s);
         if (!fire.CanRecruitWarrior()) return false;
 
         int before = fire.GetWarriorCount();
@@ -293,7 +320,7 @@ public class EcoPolicy : SimPolicy
     public override void Tick(SimState s)
     {
         if (Research(s, "woodcutting", "foraging", "construction", "quarrying", "spearcraft",
-                        "crafting", "mining", "iron_work")) return;
+                        "crafting", "mining", "iron_work", "bowyery")) return;
 
         if (BuildHutIfCapped(s, 6)) return;
         if (RunWorkshop(s)) return;

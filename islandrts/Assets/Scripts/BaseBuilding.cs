@@ -528,7 +528,8 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         if (NavMesh.SamplePosition(spawnPos, out hit, 2f, NavMesh.AllAreas)) spawnPos = hit.position;
 
         GameObject warriorObj = Instantiate(warriorPrefab, spawnPos, recruit.transform.rotation);
-        warriorObj.name = $"Warrior_{currentWarriors + 1}";
+        bool archer = weapon.equipment != null && weapon.equipment.ranged;   // a bow makes an archer (2026-09-04)
+        warriorObj.name = (archer ? "Archer_" : "Warrior_") + (currentWarriors + 1);
 
         Warrior warrior = warriorObj.GetComponent<Warrior>();
         if (warrior == null)

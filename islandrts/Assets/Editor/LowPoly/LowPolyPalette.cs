@@ -96,6 +96,7 @@ namespace IslandRTS.ArtGen
             new Entry("ClothCream",  "#E8DCC0", 0f, null, 0f),
             new Entry("ClothBlue",   "#4A7EA8", 0f, null, 0f),
             new Entry("ClothRed",    "#B5453C", 0f, null, 0f),
+            new Entry("ClothGreen",  "#4F7A46", 0f, null, 0f),   // the archer's body (2026-09-04)
             new Entry("SkinTan",     "#D9A579", 0f, null, 0f),
             new Entry("LeatherBrown","#7A5236", 0f, null, 0f),
             new Entry("MetalSteel",  "#C3CAD2", 0.35f, null, 0f),

@@ -39,6 +39,7 @@ public class SimMetrics
         public int enemiesKilledTotal;               // cumulative at dawn
         public int hungerDawn;                       // 0 fed, 1 hungry, 2 starving (2026-09-04)
         public int leftTotal;                        // colonists who walked out, cumulative at dawn
+        public int archersDawn;                      // bow-armed warriors among warriorsDawn (2026-09-04)
         public bool survived;
     }
 
@@ -99,7 +100,7 @@ public class SimMetrics
                 "workers_dawn,warriors_dawn,huts_dawn,walls_dawn,towers_dawn," +
                 "enemies_spawned,enemies_killed_total," +
                 "campfire_hp_dusk,campfire_hp_min,campfire_hp_dawn," +
-                "hunger_dawn,left_total\n");
+                "hunger_dawn,left_total,archers_dawn\n");
         }
     }
 
@@ -151,7 +152,8 @@ public class SimMetrics
               .Append(F(n.campfireHpMin)).Append(',')
               .Append(F(n.campfireHpDawn)).Append(',')
               .Append(n.hungerDawn).Append(',')
-              .Append(n.leftTotal).Append('\n');
+              .Append(n.leftTotal).Append(',')
+              .Append(n.archersDawn).Append('\n');
         }
         if (sb.Length > 0) File.AppendAllText(Path.Combine(dir, DaysFile), sb.ToString());
     }

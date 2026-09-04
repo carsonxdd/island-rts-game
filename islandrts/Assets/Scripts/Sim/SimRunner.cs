@@ -480,6 +480,11 @@ public class SimRunner : MonoBehaviour
         night.hungerDawn = pm != null ? (int)pm.Hunger : 0;
         night.leftTotal = pm != null ? pm.ColonistsLeft : 0;
         if (pm != null) metrics.colonistsLeft = pm.ColonistsLeft;
+
+        int archers = 0;
+        var warriors = Warrior.ActiveList;
+        for (int i = 0; i < warriors.Count; i++) if (warriors[i] != null && warriors[i].IsRanged) archers++;
+        night.archersDawn = archers;
     }
 
     private void EndRun()

@@ -693,3 +693,20 @@ reads as 0 and falls back to the defaults (1 / 0.25 / 1 days), so nothing needs 
 - [ ] Your character never eats: alone on the island the drain reads 0/day
 - [ ] NEW GAME → Custom shows a "Food consumption" slider (0.25×–2×); the presets' read-only list shows 0.5× on Peaceful and 1.5× on Brutal; the chosen value changes the −N/day the chip shows
 - [ ] The end screen lists "Colonists who left" in red only when someone did
+
+### Slice 5 — Archers (2026-09-04)
+
+Editor step: **Generate All Assets** (the Archer body and the new ClothGreen material), then
+**Plumb Everything** (mounts `Model_Archer`, inactive, beside `Model` on the Warrior prefab).
+Without the plumb step archers fight correctly but wear the spearman body.
+
+- [ ] Workshop Research tab lists **Bowyery** (20 W 5 F, needs Spearcraft); once done the Craft tab lists **Bow** (4 Stick · 5 Wood) and the Stockpile tab and the Wood chip's breakdown count bows
+- [ ] The Arm-with picker cycles Iron Spear → Wooden Spear → Bow; the Bow row reads "Bow · 2 in stock · an archer"
+- [ ] Recruiting with a Bow selected spawns a green-bodied unit named Archer_n with a leather cap and a bow at the hip; no shield
+- [ ] Spawn a raid (F4): the archer stops about 9 units from the nearest raider and shoots; arrows arc from chest height to the raider and the damage number appears when the arrow lands, not when it is loosed
+- [ ] An archer behind a wall shoots over it at raiders on the far side without opening a gate
+- [ ] A raider that reaches an archer fights it as it would a spearman (the archer has no melee fallback: 12 damage, so it loses a duel)
+- [ ] Add an Iron Spear to the stockpile with an archer alive and no enemies: the archer does NOT walk to the fire to rearm; a wooden-spear warrior still does
+- [ ] Dismissing an archer returns the Bow, not a spear
+- [ ] F3 overlay: an archer's action reads "Engage" like a warrior, its label "Attacking …" while shooting
+- [ ] Run a headless sim smoke sweep: `days.csv` has an `archers_dawn` column and Eco fields at least one archer after Bowyery

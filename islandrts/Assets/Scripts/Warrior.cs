@@ -66,7 +66,27 @@ public class Warrior : UnitBase<Warrior>
             bb.damage = damage;
             bb.attackRange = attackRange;
             bb.attackCooldown = attackCooldown;
+            bb.isRanged = IsRanged;
         }
+        ShowBody(IsRanged);
+    }
+
+    /// <summary>Armed with a bow: Engage looses arrows and the archer body is shown (2026-09-04).</summary>
+    public bool IsRanged => weapon != null && weapon.equipment != null && weapon.equipment.ranged;
+
+    // The Warrior prefab carries two art children (LowPolyPlumber, 2026-09-04):
+    // "Model" (the spearman) and "Model_Archer", inactive. Whichever the weapon
+    // says is shown; a prefab without the archer body simply keeps the spearman.
+    private Transform bodyMelee, bodyArcher;
+
+    void ShowBody(bool archer)
+    {
+        if (bodyMelee == null) bodyMelee = transform.Find("Model");
+        if (bodyArcher == null) bodyArcher = transform.Find("Model_Archer");
+        if (bodyArcher == null) return;   // art not plumbed yet — nothing to swap
+        bool showArcher = archer;
+        if (bodyArcher.gameObject.activeSelf != showArcher) bodyArcher.gameObject.SetActive(showArcher);
+        if (bodyMelee != null && bodyMelee.gameObject.activeSelf == showArcher) bodyMelee.gameObject.SetActive(!showArcher);
     }
 
     void Start()
@@ -128,6 +148,7 @@ public class Warrior : UnitBase<Warrior>
         bb.damage = damage;
         bb.warriorSearchRadius = searchRadius;
         bb.patrolRadius = patrolRadius;
+        bb.isRanged = IsRanged;
 
         // Setup StuckResolver
         var stuckResolver = CreateStuckResolver();

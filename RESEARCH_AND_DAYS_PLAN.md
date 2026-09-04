@@ -262,7 +262,12 @@ should garrison as the raid lands, which `ThreatNearby` already does once enemie
    Food chip drain/reserve/colour, banners, `Difficulty.foodConsumption` (0.5–1.5 across presets,
    Custom slider), end-screen "Colonists who left", `SimConfig.foodPerDay`, `hunger_dawn` /
    `left_total` / `colonists_left` columns, policies keep a forager per eight mouths.
-5. **Archers.** Bowyery research, Bow, ranged `Warrior`, projectile, Engage range hold.
+5. **Archers — DONE 2026-09-04, pending playtest.** Bowyery (Workshop, after Spearcraft) →
+   Bow (12 / range 9 / 1.0 s, `ranged`); an archer is a `Warrior` whose weapon is ranged
+   (`bb.isRanged`), `EngageEnemyExecutor` looses a pooled `Projectile` via
+   `CombatEffects.FireArrow`; the range hold is the existing edge-distance check, no kiting;
+   `Model_Archer` alt body mounted inactive by the plumber and toggled by `Warrior.ShowBody`;
+   Eco makes one weapon in three a bow, `archers_dawn` column.
 6. **Escape.** Shipwright research, Shipyard building + beach placement rule, Set sail.
 
 ## 8. Decisions (locked 2026-09-02)
