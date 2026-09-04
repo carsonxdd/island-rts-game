@@ -126,7 +126,9 @@ Toggle on, then **click any unit**. Shows:
   1× / 2× / 4× timescale (disabled on game over so it can't fight the pause)
 - **Cheats** — Spawn Raid Now (today's size; disabled until a campfire exists),
   Kill All Enemies (runs the real death path so stats count), Heal Everything
-  Friendly, Finish All Construction
+  Friendly, Research Everything (the whole tech tree at once), +10 Sticks &
+  Stones and +5 Wooden Spears into the stockpile, Knock Out Player, Finish All
+  Construction
 
 Both overlays are wrapped in `#if UNITY_EDITOR || DEVELOPMENT_BUILD`; release
 builds ship without them.
@@ -508,3 +510,41 @@ Run `Setup Everything (In Order)` first: the metal node mesh is regenerated in s
 - [ ] Idle colonists ignore a construction site and damaged buildings until the Mallet exists (place one with F4 "Unlock all" toggled off… i.e. craft the Mallet mid-site and watch them start)
 - [ ] F4 "Unlock All Crafting" opens everything and marks every recipe Done; "+10 Sticks & Stones (stockpile)" fills the stockpile; "Knock Out Player" runs the knock-out
 - [ ] A sweep still hires workers and recruits warriors (every unlock is granted under the sim)
+
+### Research, stations & spears (2026-09-03 — Slice 2 of the research-and-days plan)
+
+The "Unlocks" block of the previous section is superseded: research opens jobs now, not the first craft of a tool.
+
+**Research at the fire**
+
+- [ ] Fresh run: click the fire → five tabs (Colonists · Stockpile · Craft · Research · Queue); Research lists Woodcutting, Foraging, Quarrying (available), Construction / Spearcraft ("Needs Woodcutting"), Crafting ("Needs Construction"), Mining ("Needs Quarrying"); the Workshop pair is not listed at the fire
+- [ ] Every job row on Colonists reads "research Woodcutting / Foraging / Quarrying / Mining" with `+` greyed even when a colonist is idle; the warriors row reads "Research Spearcraft at the fire to arm warriors"
+- [ ] Press Research on Woodcutting with 2 sticks + 1 chunk in hand or in the stockpile: the button reads Queued, the character walks to the fire ("Going to the campfire"), then the label counts "Researching Woodcutting 45%"
+- [ ] On completion: "Researched Woodcutting" console line, the row reads Done, Construction and Spearcraft un-grey, the Wood job row un-greys at once — no reopen
+- [ ] Queue Woodcutting with NOTHING in the stockpile: it still queues; the character stands at the fire and the Queue tab reads "Waiting for 2 Stick"; fetch and deposit the sticks (right-click) and it completes on its own — nothing was lost
+- [ ] Right-click the fire while research is queued: the character deposits AND starts working without a second click
+- [ ] Walk the character away mid-research: progress holds in the Queue tab; "Send your character to the bench" on the Queue tab brings them back and the count resumes where it stopped
+- [ ] Research once: the row never offers again; queuing the same entry at a Workshop later is refused ("Already known")
+- [ ] Pressing B before Construction: "Research Construction at the fire to build"; key 5 before Crafting: "Research Crafting at the fire to build a Workshop"
+
+**Crafting spears and arming warriors**
+
+- [ ] Craft tab: Wooden Spear reads "Research Spearcraft first" until then, with a Craft and a ×5 button; the five tools read "Research X first" and have no ×5
+- [ ] After Spearcraft: Craft ×5 → the title shows "×5 queued"; the Queue tab shows "Crafting Wooden Spear ×5 12%"; each finished spear lands in the Stockpile tab and the queued count on the title drops
+- [ ] Spend the pool's wood to 0 mid-queue: the front spear holds at 100 % with "Waiting for 5 Wood" and completes when a wood worker delivers
+- [ ] Warriors row: "15 food · one idle colonist · a spear from the stockpile (3 in stock)", `+` greyed at 0 in stock even with food and an idle colonist; `+` consumes one spear and 15 food, no wood
+- [ ] A recruited warrior fights exactly as before (25 damage, range 2, 1.2 s); `−` (dismiss) puts the spear back in the stockpile; a warrior killed in a raid does not
+- [ ] Craft a Stone Axe: goes to the character's hands and the row reads Made; a second one cannot be queued
+
+**Workshop as a station**
+
+- [ ] Research Crafting, build the Workshop (key 5), click it: the same panel opens titled WORKSHOP with only Craft · Research · Queue; Research lists Sharpened Tools and Sturdy Scaffolds
+- [ ] Right-click the Workshop with the character: they walk to it and work its queue; research Sharpened Tools there and gathering visibly speeds up (+30 %)
+- [ ] A spear crafted at the Workshop appears in the CAMPFIRE stockpile (one colony store)
+- [ ] Queue the same research at the fire and the Workshop: the second refuses ("Queued")
+- [ ] Esc closes the Workshop panel instead of pausing; the Workshop being destroyed while its panel is open closes it
+
+**Debug + sim**
+
+- [ ] F4 "Research Everything" marks every entry Done and un-greys every job, build mode and the warriors row; "+5 Wooden Spears (stockpile)" lets warriors be armed at once
+- [ ] A headless sweep (`tools/run-sim.ps1`) gets past research on its own: `runs.csv` shows workers hired and warriors recruited without any F4 help (the policies research and queue spears; the character fetches sticks and stands at the bench)

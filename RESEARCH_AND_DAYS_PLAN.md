@@ -1,7 +1,8 @@
 # Research, Crafting Stations & the 30-Day Calendar — Design Plan
 
 Drafted 2026-09-02. Status: **Slice 1 (calendar + raids) implemented the same evening and
-playtested 2026-09-03 ("a great start", tweaks to follow); Slices 2–6 not started.** Every decision is locked (section 8); section 9
+playtested 2026-09-03 ("a great start", tweaks to follow); Slice 2 (research / craft split,
+stations, spears as equipment) implemented 2026-09-03, pending playtest; Slices 3–6 not started.** Every decision is locked (section 8); section 9
 records how the open points were settled. Supersedes the "knowledge-only" unlock model of
 `CRAFTING_AND_PLAYER_CHARACTER_PLAN.md` §4.8 (that plan's Slices A–C are shipped and stay
 the foundation).
@@ -240,10 +241,14 @@ should garrison as the raid lands, which `ThreatNearby` already does once enemie
    `RaidDirector`, HUD calendar chip + warning banner, prosperity size, difficulty knobs
    (`raidFrequency`, `daysToSurvive`), `days.csv` + raid knobs in the sim, DebugMenu (raid
    toggle, day stepper), docs. Nothing about crafting changed.
-2. **Research/craft split.** `ResearchCatalog`, repeatable recipes, `ItemKind.Equipment`,
-   `CraftStation` + queue on the campfire, spear consumed on recruit, station panel on
-   `MenuBuilder`, `CraftedUpgrades` recipes moved to research, player as labor.
-   F4 "research all / give 5 spears". Sim policies research + queue spears.
+2. **Research/craft split — DONE 2026-09-03, pending playtest.** `ResearchCatalog`, repeatable
+   recipes, `ItemKind.Equipment`, `CraftStation` + queue on the campfire AND the Workshop (1×,
+   so the old `CraftingUI` could go now), spear consumed on recruit (the 10 wood is gone),
+   station panel = the campfire panel's Craft · Research · Queue tabs, `CraftedUpgrades`
+   recipes moved to Workshop-tier research, player as labor. F4 "Research Everything" /
+   "+5 Wooden Spears". Sim policies research + queue spears; `SimPlayerDriver` drives the
+   character to fetch materials and stand at the bench. Player tools stay as once-per-run
+   cosmetic crafts (decided at implementation).
 3. **Crafter job + Workshop as a station.** `Worker.Job.Crafter`, `CraftExecutor`,
    Workshop speed table, Iron Work research + Iron Spear (metal's first use), Rearm action.
 4. **Food.** Consumption, hungry/starving, chip, difficulty knob, sim knob and policies.

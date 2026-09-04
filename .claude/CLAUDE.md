@@ -85,8 +85,11 @@ V:/islandrtsgame/                    # Repository root
 | `PlayerProfile.cs` | The run's character name: last-used value in PlayerPrefs, run snapshot set by the name popup (`Difficulty` pattern) |
 | `Items/ItemCatalog.cs` | Static item definitions: materials (stick, stone chunk), resources-in-hand, tools; the layer above the four pooled resources |
 | `Items/Inventory.cs` | Fixed-slot stack container (plain C#, zero-alloc) — the character's hands and the campfire stockpile |
-| `Items/CraftingCatalog.cs` | Campfire recipes: item + resource costs, seconds, output tool, unlocks; `CanAfford` / `Pay` across hands + stockpile + pool |
-| `Items/Unlocks.cs` | What the colony knows how to do (jobs, construction, militia); read at the point of effect, everything granted under the sim |
+| `Items/WorkDef.cs` | Base of everything a bench works on (recipe or research): item + resource costs, seconds, `CanAfford` / `Pay` / `MissingText` across hands + stockpile + pool; `WorkCategory` (Tool / Weapon / Construction / Research) |
+| `Items/ResearchCatalog.cs` | The tech tree: one-time entries per station tier (campfire basics, Workshop upgrades), prerequisites, `grants` `Unlocks.Kind`s, `apply` for the multipliers |
+| `Items/CraftingCatalog.cs` | Repeatable recipes gated by a research id (`requires`); weapons go to the stockpile, the player's tools are `oncePerRun` |
+| `Items/Unlocks.cs` | What the colony knows how to do (jobs, construction, militia, crafting…); granted by research, read at the point of effect, NOT granted under the sim any more |
+| `CraftStation.cs` | A bench with a queue, runtime-added to the campfire and the Workshop: speed per `WorkCategory`, research tier, `AddLabor(dt, who, hands)`; progress only while someone stands at it |
 | `Items/HeldItem.cs` | The tool in the character's hand (art under a HandSocket; visual only) |
 | `UI/PlayerHUD.cs` | Bottom-centre strip: name, six inventory slots, activity line |
 | `DebugMenu.cs` | F4 cheat menu (editor + dev builds only): resources, quick-start colony, time, combat cheats |
@@ -323,7 +326,8 @@ Ask: "would this log spam the console during a normal 5-minute play session?" If
 2. Open scene: `Assets/MainIsland.unity` (**not** `Assets/Scenes/SampleScene.unity` — that is the leftover stock Unity scene, 3 objects, and is not the game)
 3. Press Play
 4. Opening: name your castaway in the popup, right-click to walk them ashore, press B to place the campfire (free, one-time). The character stays yours for the whole run; colonists come ashore on their own
-5. Click campfire to assign workers, press B to build, recruit warriors before nightfall
+5. Hand-collect sticks and stone chunks, deposit them at the fire, and **research** Woodcutting on the campfire panel's Research tab — the character stands at the fire while the queue runs. Research opens jobs, build mode and Spearcraft; **craft** Wooden Spears (repeatable) to arm warriors
+6. Click campfire to assign workers, press B to build, arm warriors (a spear + 15 food each) before a raid day
 
 ## Controls
 
@@ -342,8 +346,8 @@ Ask: "would this log spam the console during a normal 5-minute play session?" If
 | F2 | Build grid overlay (also auto-shows during build mode) |
 | F3 | AI debug overlay (editor only) |
 | F4 | Debug menu (editor + dev builds only) |
-| Click campfire | Worker assignment UI |
-| Right-click | Smart command for your character: fetch a pickup / deposit at the campfire / walk there |
+| Click campfire | Campfire panel: Colonists · Stockpile · Craft · Research · Queue (click a Workshop for its Craft · Research · Queue) |
+| Right-click | Smart command for your character: fetch a pickup / deposit at the campfire (and work its queue) / work a Workshop bench / walk there |
 | Space | Centre the camera on your character |
 | B (opening) | Place the campfire (Esc / right-click cancels) |
 
@@ -393,7 +397,7 @@ Every gameplay key above is a **default**, not a fixed binding — `KeyBindings.
 
 | Unit | HP | Damage | Attack Speed | DPS |
 |------|----|--------|-------------|-----|
-| Warrior | 75 | 15 | 1.2s | 12.5 |
+| Warrior (Wooden Spear) | 75 | 25 | 1.2s | 20.8 |
 | Enemy | 50 | 10 | 1.5s | 6.67 |
 
 | Building | Cost | HP |
@@ -403,8 +407,10 @@ Every gameplay key above is a **default**, not a fixed binding — `KeyBindings.
 | Stone Wall | 10W 20S | 300 |
 | Watchtower | 25W 15S | 200 |
 | Workshop | 30W 20S | 150 |
-| Warrior | 10W 15F | 75 |
+| Warrior | 1 Wooden Spear + 15F (+ an idle colonist) | 75 |
+| Wooden Spear (craft, 10s) | 3 stick 1 chunk 5W | — |
 
+- Warrior stats come from the weapon (`ItemCatalog.WoodenSpear.equipment`: 25 dmg / range 2 / 1.2s), which was set to the **live** `Warrior.prefab` values — the table used to say 15 dmg, which was the script default nothing read. The prefab fields are now the fallback for an unarmed warrior
 - Starting resources: 100W, 50F, 0S, 0M (metal: gathered from ore nodes by miners; nothing costs it yet)
 - Worker carry: 5 resources, 1/sec gather rate
 - Raid size: `round(2 + 0.4 × day + 0.08 × prosperity)` (Normal) — a day-4 first raid on a fresh colony ≈ 5, a day-20 colony of 12 colonists / 6 warriors / 5 huts / 30 walls ≈ 16, day 30 ≈ 22. Raids come every ~3 days on average (chance +0.2 per quiet night, forced after 5). Spawned 0.4s apart, so a raid arrives as one body rather than a trickle that warriors defeat in detail
@@ -1087,3 +1093,26 @@ The pivot's first slice: the run is a 30-day calendar with announced, prosperity
 - **`GetDaysSurvived` is `calendar day − 1` in both endings.** The victory dawn is day N+1 so it reports N; a defeat during day D reports D−1. The end screen no longer special-cases defeat.
 - **Quiet nights still write a `days.csv` row.** That is the economy curve; only rows with `raid = 1` have a meaningful `campfire_hp_min`. `maxGameSeconds` defaulted up to 6000 (a 30-day run is 4500 s) and `maxWallSecondsPerRun` to 900. **Sweeps before and after this slice are not comparable.**
 - **The HUD banner sits BELOW the resource bar, not top-centre** — the bar is ~900 px wide from the left edge, so a top-centre banner overlapped its right half.
+
+### Research / Craft Split + Stations (2026-09-03 — Slice 2 of `RESEARCH_AND_DAYS_PLAN.md`; ⚠️ PENDING PLAYTEST, UNCOMMITTED)
+
+Research teaches, crafting supplies. The six "craft a tool once to unlock a job" recipes became a **tech tree** (`ResearchCatalog`), recipes are **repeatable** and gated by a research id, weapons are **equipment** consumed per warrior, and both the campfire and the Workshop are **stations** with a queue that only moves while someone stands at the bench. The old `CraftingUI` and `CraftedUpgrades.Recipes` are gone; the Workshop's upgrades are Workshop-tier research on the same panel. Compile-verified vs 6000.5.9f1 Roslyn in all three configs: **0 errors, 0 new warnings**. No editor setup step: every new component is runtime-added. Checklist: "Research, stations & spears" in `docs/CONTROLS_AND_CHECKLIST.md`.
+
+**User decisions (4-option questions):** player tools stay as once-per-run cosmetic crafts; the Workshop becomes a station NOW at 1× (Slice 3 only adds its speed table and the Crafter); the sim drives the player character as bench labor; the campfire panel has five tabs and a Workshop opens the same panel with the three station tabs.
+
+**New:** `Items/WorkDef.cs`, `Items/ResearchCatalog.cs`, `CraftStation.cs`, `Sim/SimPlayerDriver.cs`. **Deleted:** `CraftingUI.cs`. **Rewritten:** `CraftingCatalog`, `Unlocks`, `CraftedUpgrades` (two statics + setters), `Workshop`, `WorkerAssignmentUI`, `SimPolicy`. **Edited:** `ItemCatalog` (`ItemKind.Equipment`, `EquipmentDef`, `Weapons`), `PlayerCharacter` (work task), `BaseBuilding` (station, spear recruit, 16-slot stockpile, `FindAlive`), `Warrior.weapon`, `EngageEnemyExecutor`, `BuildPlacement` (Workshop gate), `PauseController`, `DebugMenu`, `SimConfig` / `SimOverrides` / `SimRunner`.
+
+**Gotchas this encodes:**
+
+- **A queue nobody stands at does not move.** `CraftStation.AddLabor(dt, who, hands)` is the only way progress advances; `IsWorked` is "labor in the last 0.5 s" (the `ConstructionSite` pattern) and one laborer holds the bench. The player's `TaskKind.Work` walks to the station's carve-safe approach point and calls it every frame; any other command (`CommandAt`, `MoveTo`, a knock-out) leaves the bench via `StopWork`. Right-clicking the fire deposits AND then starts working if its queue has anything — one gesture.
+- **Costs are charged on completion and a short entry WAITS, it does not fail.** `WorkDef.Pay` runs when progress reaches `seconds`; if it cannot pay, the entry holds at 100 % and `CraftStation.Status` reads "Waiting for 2 Stick" until the next tick that can. The old flow dropped the craft with "Missing materials"; a queue of five spears must not lose four because a colonist spent the wood.
+- **`Unlocks.Has` is NOT true under the sim any more.** The sim researches like a player: policies call `Research(s, ids…)` / `KeepSpears(s, n)` (one thing queued at a time), and `SimPlayerDriver.Tick` — polled from `SimRunner` before every policy tick — fetches the material the front entry is short of, deposits, and parks the character at the bench. `HireWorker` scores unresearched jobs at zero and `BuildHutIfCapped` / every placement checks `Construction`. **Sweeps before and after this slice are not comparable** (they start with zero research and zero spears).
+- **A warrior costs a weapon, not wood.** `BaseBuilding.warriorCost_Wood` and the `warriorCostWood` sweep knob are deleted (old sweep JSONs still carry the key; `JsonUtility` ignores it). `CanRecruitWarrior` = Militia ∧ cap ∧ `FirstWeaponInStock()` ∧ food ∧ idle; `SpawnWarrior` removes the best weapon in stock and sets `Warrior.weapon` **right after `Instantiate`, before `Start`** copies its `EquipmentDef` into `damage` / `attackRange` / `attackCooldown` (applied before `SimOverrides.Apply`, so a sweep's `warriorDamage` still wins). Dismiss returns the weapon to the stockpile; death loses it.
+- **The spear's numbers are the LIVE warrior numbers, which were never the documented ones.** `Warrior.prefab` serialises damage 25 / range 2 / cooldown 1.2 while the script and the balance table said 15 / 4.5 — the dead-data rule again. `ItemCatalog.WoodenSpear` encodes 25 / 2 / 1.2 so arming changes nothing; the table is corrected above. Retune the spear, not the prefab, from here on.
+- **Tools go to the player whoever stood at the bench;** everything else to the campfire stockpile (`CraftStation.Deliver`). There is one colony store — the Workshop has no inventory of its own (`CraftStation.Stockpile` resolves to `BaseBuilding.FindAlive().Stockpile`).
+- **Research at a station is de-duplicated across stations** (`CraftStation.IsQueuedAnywhere`), and an entry finished elsewhere is dropped from any other queue on the next labor tick (same for a once-per-run tool).
+- **Stations are runtime-added in `Awake`** (`BaseBuilding.Awake`, `Workshop.Awake`), so `CraftStation.speeds` / `tier` / `displayName` are live values and no prefab carries a stale copy (the `RaidDirector` rule). `CraftStation.Awake` caches the building's `ITargetable` for `IsAlive`; the component outlives the building's Health death by a frame, which is why the panel and the player both check it.
+- **The Workshop is gated by the Crafting research at `SelectBuilding`**, with the same HUD-line flash the Construction lock uses. Every lock hint names its research through `Unlocks.ResearchTitleFor` → `ResearchCatalog.TitleGranting`, so the strings cannot drift from the tree.
+- **Panel:** `WorkerAssignmentUI.OpenStation(station)` hides the Colonists and Stockpile tab buttons (the `TabRow` is a `HorizontalLayoutGroup`, so it reflows) and forces a station tab; the campfire's own station routes back to `OpenPanel`. Craft and Research lists are `ScrollColumn`s (400 px) of nested zero-padding columns so a row group can be hidden as one object; the Queue tab is a pool of 8 rows reassigned on `CraftStation.Version` and refits the panel only when the shown count changes. `PlayerHUD` shows the bench progress through the ordinary activity line.
+- **`Unlocks.Kind` grew four entries** (`Crafting`, `Archery`, `IronWork`, `Shipwright`) for the later slices; only `Crafting` is granted by anything yet. Forged Blades (the +30 % warrior damage global) is gone — Slice 3's Iron Spear is the replacement, per the plan.
+- **Not done here:** the HUD weapon count (the plan puts it "beside the warrior chip", and there is no warrior chip — the campfire panel's warrior row shows "N in stock" instead), and the weapon picker (one weapon type exists; `SpawnWarrior` takes the best in stock, Slice 3 adds the choice).

@@ -237,9 +237,9 @@ public class EngageEnemyExecutor : ActionExecutor
 
         bb.lastAttackTime = Time.time;
 
-        // Watchtower damage buff × Workshop "Forged Blades" upgrade
+        // Watchtower damage buff (bb.damage already carries the weapon's stats)
         float towerMultiplier = Watchtower.GetDamageMultiplier(bb.transform.position);
-        float finalDamage = bb.damage * towerMultiplier * CraftedUpgrades.WarriorDamageMult;
+        float finalDamage = bb.damage * towerMultiplier;
         bool hasTowerBuff = towerMultiplier > 1f;
 
         if (hasTowerBuff)

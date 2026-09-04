@@ -159,8 +159,7 @@ public class PauseController : MonoBehaviour
     /// </summary>
     private static bool ModeActive()
     {
-        if (CraftingUI.CurrentWorkshop != null) return true;
-        if (WorkerAssignmentUI.IsOpen) return true;
+        if (WorkerAssignmentUI.IsOpen) return true;   // campfire AND workshop panel
         if (GameStartController.IntroInProgress) return true;
 
         BuildPlacement bp = FindAnyObjectByType<BuildPlacement>();

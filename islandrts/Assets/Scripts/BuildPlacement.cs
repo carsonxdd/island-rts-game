@@ -140,12 +140,12 @@ public class BuildPlacement : MonoBehaviour
     void StartPlacement()
     {
         // Construction is knowledge the colony has to acquire first (2026-09-02):
-        // no build mode until a Mallet has been crafted at the fire. The lock
-        // names its recipe on the character's HUD line instead of failing silently.
+        // no build mode until Construction has been researched at the fire. The
+        // lock names the research on the character's HUD line instead of failing silently.
         if (!Unlocks.Has(Unlocks.Kind.Construction))
         {
             if (PlayerCharacter.Instance != null)
-                PlayerCharacter.Instance.SetActivity("Craft a Mallet at the fire to build", 3f);
+                PlayerCharacter.Instance.SetActivity("Research Construction at the fire to build", 3f);
             return;
         }
 
@@ -214,6 +214,14 @@ public class BuildPlacement : MonoBehaviour
         if (!isPlacing)
         {
             Debug.LogWarning("BuildPlacement: Cannot select building - not in placement mode!");
+            return;
+        }
+
+        // The Workshop is the Crafting research's building (2026-09-03)
+        if (type == BuildingType.Workshop && !Unlocks.Has(Unlocks.Kind.Crafting))
+        {
+            if (PlayerCharacter.Instance != null)
+                PlayerCharacter.Instance.SetActivity("Research Crafting at the fire to build a Workshop", 3f);
             return;
         }
 

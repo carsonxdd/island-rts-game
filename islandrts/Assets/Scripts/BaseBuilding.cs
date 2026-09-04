@@ -23,15 +23,33 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
 {
     public static IReadOnlyList<BaseBuilding> ActiveList => ActiveRegistry<BaseBuilding>.List;
 
-    /// <summary>Slots in the campfire's stockpile (materials and tools; resources go to ResourceManager).</summary>
-    public const int StockpileSlots = 12;
+    /// <summary>Slots in the campfire's stockpile (materials and equipment; resources go to ResourceManager).</summary>
+    public const int StockpileSlots = 16;
 
     /// <summary>
-    /// The campfire inventory (2026-09-02): sticks, stone chunks and crafted
-    /// tools the player's character deposits here. Not the four pooled
-    /// resources — those stay in ResourceManager. Runtime-only, never serialized.
+    /// The campfire inventory (2026-09-02): sticks and stone chunks the player's
+    /// character deposits here, and the weapons every station crafts (one colony
+    /// store, 2026-09-03). Not the four pooled resources — those stay in
+    /// ResourceManager. Runtime-only, never serialized.
     /// </summary>
     public Inventory Stockpile { get; } = new Inventory(StockpileSlots);
+
+    /// <summary>The campfire's bench (runtime-added in Awake): "anything, but slowly" — every category at 1×.</summary>
+    public CraftStation Station { get; private set; }
+
+    /// <summary>The living campfire, or null. There is at most one; the registry is polled because it is spawned at runtime.</summary>
+    public static BaseBuilding FindAlive()
+    {
+        var list = ActiveList;
+        for (int i = 0; i < list.Count; i++)
+        {
+            BaseBuilding b = list[i];
+            if (b == null || !b.enabled) continue;
+            if (b.healthComponent != null && !b.healthComponent.IsAlive) continue;
+            return b;
+        }
+        return null;
+    }
 
     // IHousing — the campfire is the colony's first housing (the starting crew's slots)
     public int HousingCapacity => workerCapacity;
@@ -44,6 +62,12 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
     {
         ActiveRegistry<BaseBuilding>.Register(this);
         PopulationManager.EnsureExists();   // the roster must exist before Start registers housing
+
+        Station = GetComponent<CraftStation>();
+        if (Station == null) Station = gameObject.AddComponent<CraftStation>();
+        Station.tier = ResearchCatalog.Station.Campfire;
+        Station.speeds = new[] { 1f, 1f, 1f, 1f };
+        Station.displayName = "Campfire";
     }
 
     [Header("Health")]
@@ -83,7 +107,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
     [Header("Warrior Management")]
     public GameObject warriorPrefab;
     public int maxWarriors = 5;
-    public int warriorCost_Wood = 10;
+    [Tooltip("Food per recruit. The rest of the price is a weapon from the stockpile (2026-09-03) — the old 10 wood is gone.")]
     public int warriorCost_Food = 15;
     public int currentWarriors = 0;
 
@@ -357,21 +381,40 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
     // Warriors — recruited FROM the idle pool, not spawned (2026-09-02)
     // ------------------------------------------------------------------
 
-    /// <summary>True when a recruit could happen right now: under the cap, affordable, and someone is idle.</summary>
+    /// <summary>The best weapon in the stockpile (catalog preference order), or null when there is none.</summary>
+    public ItemDef FirstWeaponInStock()
+    {
+        ItemDef[] weapons = ItemCatalog.Weapons;
+        for (int i = 0; i < weapons.Length; i++)
+            if (Stockpile.Count(weapons[i]) > 0) return weapons[i];
+        return null;
+    }
+
+    /// <summary>Every weapon of every kind in the stockpile.</summary>
+    public int WeaponsInStock()
+    {
+        int n = 0;
+        ItemDef[] weapons = ItemCatalog.Weapons;
+        for (int i = 0; i < weapons.Length; i++) n += Stockpile.Count(weapons[i]);
+        return n;
+    }
+
+    /// <summary>True when a recruit could happen right now: Spearcraft known, under the cap, a weapon in stock, the food, and someone idle.</summary>
     public bool CanRecruitWarrior()
     {
-        if (!Unlocks.Has(Unlocks.Kind.Militia)) return false;   // no spear crafted yet
+        if (!Unlocks.Has(Unlocks.Kind.Militia)) return false;   // Spearcraft not researched
         if (currentWarriors >= maxWarriors) return false;
+        if (FirstWeaponInStock() == null) return false;         // nothing to arm them with
         if (ResourceManager.Instance == null
-            || ResourceManager.Instance.wood < warriorCost_Wood
             || ResourceManager.Instance.food < warriorCost_Food) return false;
         return PopulationManager.Instance != null && PopulationManager.Instance.GetIdleCount() > 0;
     }
 
     /// <summary>
     /// Arm the idle colonist nearest the fire: they keep their roster slot and their home,
-    /// the worker body is destroyed and a warrior stands in its place. Costs the usual
-    /// wood and food. No-op when nobody is idle, the cap is reached, or it is unaffordable.
+    /// the worker body is destroyed and a warrior stands in its place. Costs one weapon
+    /// from the stockpile (the best in stock) and the food. No-op when nobody is idle,
+    /// the cap is reached, or it is unaffordable.
     /// </summary>
     public void SpawnWarrior()
     {
@@ -386,7 +429,8 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         Worker recruit = PopulationManager.Instance.FindIdleColonist(transform.position);
         if (recruit == null) return;
 
-        ResourceManager.Instance.SpendWood(warriorCost_Wood);
+        ItemDef weapon = FirstWeaponInStock();
+        if (Stockpile.Remove(weapon, 1) <= 0) return;
         ResourceManager.Instance.SpendFood(warriorCost_Food);
 
         // Stand the warrior where the colonist stood (a garrisoned colonist is at a
@@ -407,6 +451,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         }
 
         warrior.baseBuilding = this;
+        warrior.weapon = weapon;   // before Start, which copies its stats into the unit
         activeWarriors.Add(warrior);
         currentWarriors++;
 
@@ -417,7 +462,10 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         Destroy(recruit.gameObject);
     }
 
-    /// <summary>Dismiss a warrior: they lay down arms and rejoin the idle pool where they stand. No refund.</summary>
+    /// <summary>
+    /// Dismiss a warrior: they lay down arms and rejoin the idle pool where they stand.
+    /// The weapon goes back to the stockpile (lost if it is full); the food is not refunded.
+    /// </summary>
     public void RemoveWarrior()
     {
         if (currentWarriors <= 0 || activeWarriors.Count == 0)
@@ -439,6 +487,8 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
 
         activeWarriors.Remove(warriorToRemove);
         currentWarriors--;
+
+        if (warriorToRemove.weapon != null) Stockpile.Add(warriorToRemove.weapon, 1);
 
         Worker colonist = InstantiateColonist(warriorToRemove.transform.position);
         if (colonist != null && PopulationManager.Instance != null)

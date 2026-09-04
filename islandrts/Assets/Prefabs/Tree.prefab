@@ -101,7 +101,7 @@ PrefabInstance:
     m_AddedGameObjects:
     - targetCorrespondingSourceObject: {fileID: -8679921383154817045, guid: 2f508ae278300a441b4df0706bed35b3, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 1967398902813691502}
+      addedObject: {fileID: 994479573506328599}
     m_AddedComponents:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 2f508ae278300a441b4df0706bed35b3, type: 3}
       insertIndex: -1
@@ -204,7 +204,7 @@ MonoBehaviour:
   variantMeshes: []
   minScale: 0.9
   maxScale: 1.12
---- !u!1001 &8704670033090928608
+--- !u!1001 &7948202712608364953
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -261,8 +261,8 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: c9f6346b35e17ea47a886928c0509daf, type: 3}
---- !u!4 &1967398902813691502 stripped
+--- !u!4 &994479573506328599 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 7169917138359767438, guid: c9f6346b35e17ea47a886928c0509daf, type: 3}
-  m_PrefabInstance: {fileID: 8704670033090928608}
+  m_PrefabInstance: {fileID: 7948202712608364953}
   m_PrefabAsset: {fileID: 0}

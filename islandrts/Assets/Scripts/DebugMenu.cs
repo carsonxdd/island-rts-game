@@ -359,18 +359,21 @@ public class DebugMenu : MonoBehaviour
             HealList(Gate.ActiveList);
         }
 
-        // Crafting / player character (2026-09-02)
-        GUI.enabled = !Unlocks.AllGranted;
-        if (GUILayout.Button("Unlock All Crafting"))
+        // Research / crafting / player character (2026-09-02; research split 2026-09-03)
+        GUI.enabled = !ResearchCatalog.AllDone;
+        if (GUILayout.Button("Research Everything"))
         {
-            Unlocks.GrantAll();
-            for (int i = 0; i < CraftingCatalog.CampfireRecipes.Length; i++) CraftingCatalog.CampfireRecipes[i].crafted = true;
+            ResearchCatalog.CompleteAll();
         }
         GUI.enabled = Campfire != null;
         if (GUILayout.Button("+10 Sticks & Stones (stockpile)"))
         {
             Campfire.Stockpile.Add(ItemCatalog.Stick, 10);
             Campfire.Stockpile.Add(ItemCatalog.StoneChunk, 10);
+        }
+        if (GUILayout.Button("+5 Wooden Spears (stockpile)"))
+        {
+            Campfire.Stockpile.Add(ItemCatalog.WoodenSpear, 5);
         }
         GUI.enabled = PlayerCharacter.Instance != null && !PlayerCharacter.Instance.IsKnockedOut;
         if (GUILayout.Button("Knock Out Player"))

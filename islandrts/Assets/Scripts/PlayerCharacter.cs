@@ -8,7 +8,9 @@ using UnityEngine.AI;
 /// Right-click is a smart command (see <see cref="HandleCommandClick"/>): a
 /// ground pickup is fetched into the character's <see cref="Inventory"/>, the
 /// campfire is walked to and everything is deposited there (resources into the
-/// pool, materials into the campfire stockpile), anything else is a move.
+/// pool, materials into the campfire stockpile), a station is walked to and
+/// worked (the character is the labor that moves its queue — see
+/// <see cref="CraftStation"/>), anything else is a move.
 ///
 /// Deliberately NOT a colonist: never in the PopulationManager roster, takes no
 /// housing, holds no job, has no AIBrain. Enemies do not target them (the enemy
@@ -60,20 +62,19 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
     private bool hasPendingDestination;
 
     // The one thing the character is walking to do
-    enum TaskKind { None, Collect, Deposit, Craft }
+    enum TaskKind { None, Collect, Deposit, Work }
     private TaskKind task;
     private GroundPickup taskPickup;
     private BaseBuilding taskFire;
     private Collider taskFireCollider;
-    private CraftingCatalog.Recipe taskRecipe;
+    private CraftStation taskStation;
     private float stallTimer;
 
-    // Crafting in progress (standing at the fire). Costs are taken on completion,
-    // so walking away mid-craft loses nothing.
-    private CraftingCatalog.Recipe craftRecipe;
-    private BaseBuilding craftFire;
-    private float craftProgress;
-    private int craftPercentShown = -1;
+    // Working a station's queue (standing at its bench). The station owns the
+    // progress and charges costs on completion, so walking away loses nothing.
+    private CraftStation workStation;
+    private string workTitleShown;
+    private int workPercentShown = -1;
     private HeldItem heldItem;
 
     private readonly Inventory inventory = new Inventory(InventorySlots);
@@ -99,13 +100,14 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
     /// <summary>True while knocked out — no input, no interactions.</summary>
     public bool IsKnockedOut => knockedOut;
 
-    /// <summary>The recipe being crafted right now, or null.</summary>
-    public CraftingCatalog.Recipe ActiveRecipe => craftRecipe;
+    /// <summary>The station the character is standing at and working, or null.</summary>
+    public CraftStation WorkingStation => workStation;
 
-    /// <summary>The recipe the character is walking to the fire to craft, or null.</summary>
-    public CraftingCatalog.Recipe QueuedRecipe => task == TaskKind.Craft ? taskRecipe : null;
+    /// <summary>The station the character is walking to in order to work, or null.</summary>
+    public CraftStation WalkingToStation => task == TaskKind.Work ? taskStation : null;
 
-    public float CraftProgress01 => craftRecipe == null ? 0f : Mathf.Clamp01(craftProgress / Mathf.Max(0.01f, craftRecipe.seconds));
+    /// <summary>Walking somewhere with a purpose (fetching, depositing, heading to a bench).</summary>
+    public bool HasTask => task != TaskKind.None;
 
     /// <summary>The tool shown in the character's hand (visual only).</summary>
     public ItemDef HeldTool => heldItem != null ? heldItem.Current : null;
@@ -178,7 +180,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         if (hasPendingDestination) TryIssueMove();
 
         UpdateTask();
-        UpdateCraft();
+        UpdateWork();
         RegenNearCampfire();
 
         // Right-click commands, once the colony is running. During the intro the
@@ -223,7 +225,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
     public void CommandAt(Collider hitCollider, Vector3 point)
     {
         if (knockedOut) return;
-        CancelCraft();   // any new order interrupts a craft (nothing has been paid yet)
+        StopWork();   // any new order leaves the bench (nothing has been paid yet)
 
         if (hitCollider != null)
         {
@@ -232,14 +234,21 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
 
             BaseBuilding fire = hitCollider.GetComponentInParent<BaseBuilding>();
             if (fire != null) { CommandDeposit(fire); return; }
+
+            // Any other station (the Workshop): walk over and work its queue
+            CraftStation station = hitCollider.GetComponentInParent<CraftStation>();
+            if (station != null) { WorkAt(station); return; }
         }
 
         ClearTask();
         MoveTo(point);
     }
 
-    void CommandCollect(GroundPickup pickup)
+    /// <summary>Walk to a ground pickup and take it. Public for the balance sim's player driver.</summary>
+    public void CommandCollect(GroundPickup pickup)
     {
+        if (knockedOut || pickup == null) return;
+        StopWork();
         ClearTask();
 
         if (pickup.IsClaimedByOther(this))
@@ -261,8 +270,11 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         MoveTo(pickup.transform.position);
     }
 
-    void CommandDeposit(BaseBuilding fire)
+    /// <summary>Walk to the fire and deposit everything in hand (then open its panel). Public for the sim's player driver.</summary>
+    public void CommandDeposit(BaseBuilding fire)
     {
+        if (knockedOut || fire == null) return;
+        StopWork();
         ClearTask();
 
         task = TaskKind.Deposit;
@@ -314,8 +326,11 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
                     ClearTask();
                     DepositAll(fire);
 
+                    // Already standing at the fire: if its bench has work, get on with it
+                    if (fire.Station != null && fire.Station.HasWork) BeginWork(fire.Station);
+
                     // The click on the fire is also the "open the campfire" gesture
-                    if (!PauseController.BlockGameplayInput)
+                    if (!PauseController.BlockGameplayInput && !SimHooks.Simulating)
                     {
                         WorkerAssignmentUI ui = fire.workerUI != null ? fire.workerUI : WorkerAssignmentUI.Instance;
                         if (ui != null) ui.OpenPanel(fire);
@@ -329,148 +344,185 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
                 break;
             }
 
-            case TaskKind.Craft:
+            case TaskKind.Work:
             {
-                if (taskFire == null || taskRecipe == null) { ClearTask(); return; }
+                if (taskStation == null || !taskStation.IsAlive) { ClearTask(); return; }
 
-                float edge = TargetingUtil.EdgeDistance(transform.position, taskFire.transform, taskFireCollider);
+                float edge = TargetingUtil.EdgeDistance(transform.position, taskStation.transform, taskStation.ApproachCollider);
                 if (edge <= DepositEdgeDistance || (Stalled() && edge <= StallReach))
                 {
                     if (agent != null && agent.isOnNavMesh) agent.ResetPath();
-                    BaseBuilding fire = taskFire;
-                    CraftingCatalog.Recipe recipe = taskRecipe;
+                    CraftStation station = taskStation;
                     ClearTask();
-                    BeginCraft(recipe, fire);
+                    BeginWork(station);
                 }
                 else if (Stalled())
                 {
                     ClearTask();
-                    SetActivity("Can't reach the fire", FlashSeconds);
+                    SetActivity("Can't reach the " + TaskStationName(), FlashSeconds);
                 }
                 break;
             }
         }
     }
 
+    string TaskStationName() => taskStation != null ? taskStation.displayName.ToLowerInvariant() : "bench";
+
     // ------------------------------------------------------------------
-    // Crafting at the fire
+    // Working a station (2026-09-03): the character is labor on its queue
     // ------------------------------------------------------------------
 
     /// <summary>
-    /// Craft <paramref name="recipe"/> at <paramref name="fire"/>: start at once
-    /// if the character is already there, otherwise walk over and start on
-    /// arrival. False (with a HUD flash) when it cannot be afforded or is done.
+    /// Queue <paramref name="count"/> of a recipe at a station and go work there
+    /// (if not already). False, with a HUD flash, when the station refuses it.
+    /// Affordability is not a condition: the entry waits at the bench for what
+    /// is missing, and the panel says what that is.
     /// </summary>
-    public bool TryQueueCraft(CraftingCatalog.Recipe recipe, BaseBuilding fire)
+    public bool TryQueueCraft(CraftingCatalog.Recipe recipe, CraftStation station, int count = 1)
     {
-        if (recipe == null || fire == null || knockedOut) return false;
-        if (recipe.crafted)
+        if (recipe == null || station == null || knockedOut) return false;
+        if (recipe.oncePerRun && recipe.made)
         {
             SetActivity("Already made", FlashSeconds);
             return false;
         }
-        if (!CraftingCatalog.CanAfford(recipe, inventory, fire.Stockpile))
+        if (!station.Enqueue(recipe, count))
         {
-            SetActivity("Missing materials for " + recipe.title, FlashSeconds);
+            SetActivity("Can't make that here", FlashSeconds);
             return false;
         }
-
-        CancelCraft();
-        ClearTask();
-
-        Collider fireCollider = fire.GetComponent<Collider>();
-        float edge = TargetingUtil.EdgeDistance(transform.position, fire.transform, fireCollider);
-        if (edge <= DepositEdgeDistance)
-        {
-            BeginCraft(recipe, fire);
-            return true;
-        }
-
-        task = TaskKind.Craft;
-        taskFire = fire;
-        taskFireCollider = fireCollider;
-        taskRecipe = recipe;
-        stallTimer = 0f;
-        SetActivity("Going to the fire to craft");
-        MoveTo(TargetingUtil.GetApproachPoint(transform.position, fire.transform, fireCollider));
+        if (workStation != station && WalkingToStation != station) WorkAt(station);
         return true;
     }
 
-    void BeginCraft(CraftingCatalog.Recipe recipe, BaseBuilding fire)
+    /// <summary>Queue a research entry at a station and go work there (if not already).</summary>
+    public bool TryQueueResearch(ResearchCatalog.ResearchDef def, CraftStation station)
     {
-        craftRecipe = recipe;
-        craftFire = fire;
-        craftProgress = 0f;
-        craftPercentShown = -1;
+        if (def == null || station == null || knockedOut) return false;
+        if (!station.Enqueue(def))
+        {
+            SetActivity(def.done ? "Already known" : "Can't research that here", FlashSeconds);
+            return false;
+        }
+        if (workStation != station && WalkingToStation != station) WorkAt(station);
+        return true;
+    }
+
+    /// <summary>
+    /// Go to a station and work its queue: start at once if already within
+    /// reach of its edge, otherwise walk over and start on arrival.
+    /// </summary>
+    public void WorkAt(CraftStation station)
+    {
+        if (station == null || knockedOut) return;
+        if (workStation == station) return;
+
+        StopWork();
+        ClearTask();
+
+        float edge = TargetingUtil.EdgeDistance(transform.position, station.transform, station.ApproachCollider);
+        if (edge <= DepositEdgeDistance)
+        {
+            BeginWork(station);
+            return;
+        }
+
+        task = TaskKind.Work;
+        taskStation = station;
+        stallTimer = 0f;
+        SetActivity("Going to the " + TaskStationName());
+        MoveTo(TargetingUtil.GetApproachPoint(transform.position, station.transform, station.ApproachCollider));
+    }
+
+    void BeginWork(CraftStation station)
+    {
+        workStation = station;
+        workTitleShown = null;
+        workPercentShown = -1;
         if (agent != null && agent.isOnNavMesh) agent.ResetPath();
         hasPendingDestination = false;
+        SetActivity("At the " + station.displayName.ToLowerInvariant());
     }
 
-    void UpdateCraft()
+    void UpdateWork()
     {
-        if (craftRecipe == null) return;
+        if (workStation == null) return;
 
-        if (craftFire == null || (craftFire.CachedHealth != null && !craftFire.CachedHealth.IsAlive))
+        if (!workStation.IsAlive)
         {
-            CancelCraft();
-            SetActivity("The fire is gone", FlashSeconds);
+            StopWork();
+            SetActivity("The bench is gone", FlashSeconds);
             return;
         }
 
-        craftProgress += Time.deltaTime;
-
-        // Only rebuild the label when the whole-percent changes (no per-frame string)
-        int pct = Mathf.Min(99, Mathf.FloorToInt(CraftProgress01 * 100f));
-        if (pct != craftPercentShown)
+        CraftStation.QueueEntry entry = workStation.Active;
+        if (entry == null)
         {
-            craftPercentShown = pct;
-            SetActivity("Crafting " + craftRecipe.title + "  " + pct + "%");
-        }
-
-        if (craftProgress >= craftRecipe.seconds) CompleteCraft();
-    }
-
-    void CompleteCraft()
-    {
-        CraftingCatalog.Recipe recipe = craftRecipe;
-        BaseBuilding fire = craftFire;
-        craftRecipe = null;
-        craftFire = null;
-        craftProgress = 0f;
-
-        // Re-checked at the end: a colonist may have spent the wood meanwhile
-        if (!CraftingCatalog.Pay(recipe, inventory, fire.Stockpile))
-        {
-            SetActivity("Missing materials for " + recipe.title, FlashSeconds);
+            // Queue ran dry: stand down (the panel's Queue tab says so too)
+            StopWork();
+            SetActivity("Nothing left to make", FlashSeconds);
             return;
         }
 
-        recipe.crafted = true;
-
-        // The tool goes to the hands; overflow to the stockpile; if neither has
-        // room it still exists as knowledge, which is what the colony needed
-        if (recipe.output != null)
+        if (!workStation.AddLabor(Time.deltaTime, this, inventory))
         {
-            int left = recipe.outputCount - inventory.Add(recipe.output, recipe.outputCount);
-            if (left > 0) fire.Stockpile.Add(recipe.output, left);
-            if (heldItem != null && recipe.output.kind == ItemKind.Tool) heldItem.Equip(recipe.output);
+            if (workTitleShown != "busy")
+            {
+                workTitleShown = "busy";
+                SetActivity("Someone is at the bench");
+            }
+            return;
         }
 
-        for (int i = 0; i < recipe.unlocks.Length; i++) Unlocks.Grant(recipe.unlocks[i]);
+        // The entry may have completed inside AddLabor
+        entry = workStation.Active;
+        if (entry == null) return;
 
-        SetActivity("Crafted " + recipe.title, FlashSeconds);
-        if (AudioManager.Instance != null) AudioManager.Instance.PlayBuildingPlaced();
-        Debug.Log("Crafted " + recipe.title + " — " + recipe.description);   // once per recipe per run
+        // Only rebuild the label when the title or the whole-percent changes
+        int pct = Mathf.Min(99, Mathf.FloorToInt(entry.Progress01 * 100f));
+        string status = workStation.Status;
+        if (status.Length > 0)
+        {
+            if (workTitleShown != status)
+            {
+                workTitleShown = status;
+                workPercentShown = -1;
+                SetActivity(status);
+            }
+        }
+        else if (pct != workPercentShown || workTitleShown != entry.Title)
+        {
+            workTitleShown = entry.Title;
+            workPercentShown = pct;
+            SetActivity((entry.IsResearch ? "Researching " : "Crafting ") + entry.Title + "  " + pct + "%");
+        }
     }
 
-    void CancelCraft()
+    /// <summary>Leave the bench. The queue keeps its progress; nothing has been paid.</summary>
+    public void StopWork()
     {
-        if (craftRecipe == null) return;
-        craftRecipe = null;
-        craftFire = null;
-        craftProgress = 0f;
-        craftPercentShown = -1;
+        if (workStation == null) return;
+        workStation = null;
+        workTitleShown = null;
+        workPercentShown = -1;
         SetActivity("");
+    }
+
+    /// <summary>
+    /// A station hands the character what it just made for them: into the hands
+    /// (a tool is also equipped), overflow into the campfire stockpile.
+    /// </summary>
+    public void ReceiveCrafted(ItemDef item, int count)
+    {
+        if (item == null || count <= 0) return;
+        int left = count - inventory.Add(item, count);
+        if (left > 0)
+        {
+            BaseBuilding fire = BaseBuilding.FindAlive();
+            if (fire != null) fire.Stockpile.Add(item, left);
+        }
+        if (heldItem != null && item.kind == ItemKind.Tool) heldItem.Equip(item);
+        SetActivity("Made " + item.displayName, FlashSeconds);
     }
 
     /// <summary>
@@ -491,7 +543,8 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
 
     /// <summary>
     /// Everything in hand goes to the fire: resources into the pool, materials
-    /// and tools into the campfire stockpile (what fits — the rest stays in hand).
+    /// and equipment into the campfire stockpile (what fits — the rest stays in
+    /// hand). Tools are the character's own and stay.
     /// </summary>
     public void DepositAll(BaseBuilding fire)
     {
@@ -538,7 +591,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         taskPickup = null;
         taskFire = null;
         taskFireCollider = null;
-        taskRecipe = null;
+        taskStation = null;
         stallTimer = 0f;
         if (activityExpires < 0f) SetActivity("");   // keep a flash, drop a "Fetching…"
     }
@@ -560,7 +613,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
     public void MoveTo(Vector3 worldPos)
     {
         if (knockedOut) return;
-        CancelCraft();
+        StopWork();
 
         NavMeshHit hit;
         if (NavMesh.SamplePosition(worldPos, out hit, 4f, NavMesh.AllAreas))
@@ -610,7 +663,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         knockedOut = true;
         reviveAt = Time.time + knockoutSeconds;
         hasPendingDestination = false;
-        CancelCraft();
+        StopWork();
         ClearTask();
         SetActivity("Knocked out");
 
@@ -667,18 +720,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         if (healthComponent != null) healthComponent.currentHealth = healthComponent.maxHealth;
     }
 
-    static BaseBuilding AliveCampfire()
-    {
-        var list = BaseBuilding.ActiveList;
-        for (int i = 0; i < list.Count; i++)
-        {
-            BaseBuilding b = list[i];
-            if (b == null || !b.enabled) continue;
-            if (b.CachedHealth != null && !b.CachedHealth.IsAlive) continue;
-            return b;
-        }
-        return null;
-    }
+    static BaseBuilding AliveCampfire() => BaseBuilding.FindAlive();
 
     // ------------------------------------------------------------------
     // Label

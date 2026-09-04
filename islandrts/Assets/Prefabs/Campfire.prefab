@@ -33,7 +33,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 682751522091000730}
-  - {fileID: 1847852117910260548}
+  - {fileID: 3149794788188475080}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!65 &4229379961232064540
@@ -92,7 +92,6 @@ MonoBehaviour:
   workerCapacity: 3
   warriorPrefab: {fileID: 4028577899709980378, guid: c8e31e7c193a9db4dbff2ecbdd343c48, type: 3}
   maxWarriors: 5
-  warriorCost_Wood: 10
   warriorCost_Food: 15
   currentWarriors: 0
   spawnRadius: 2
@@ -214,7 +213,7 @@ CapsuleCollider:
   m_Height: 2
   m_Direction: 1
   m_Center: {x: 0, y: 0, z: 0}
---- !u!1001 &7988464275543611737
+--- !u!1001 &6687295626415938773
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -271,8 +270,8 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 727ed61e467e6e949a46e14d02c2cbb6, type: 3}
---- !u!4 &1847852117910260548 stripped
+--- !u!4 &3149794788188475080 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 8608730034235134493, guid: 727ed61e467e6e949a46e14d02c2cbb6, type: 3}
-  m_PrefabInstance: {fileID: 7988464275543611737}
+  m_PrefabInstance: {fileID: 6687295626415938773}
   m_PrefabAsset: {fileID: 0}

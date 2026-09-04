@@ -5,20 +5,21 @@ using System;
 using System.Collections.Generic;
 
 /// <summary>
-/// The campfire panel: assign workers to wood, food, stone or metal and
-/// recruit warriors. This is the player's main lever on the economy.
+/// The campfire panel — and, since the research split (2026-09-03), the station
+/// panel for every bench. Tabs: <b>Colonists</b> (jobs, warriors, housing),
+/// <b>Stockpile</b> (the campfire inventory), <b>Craft</b> (repeatable recipes at
+/// this bench), <b>Research</b> (this bench's tier of the tech tree) and
+/// <b>Queue</b> (what the bench is working through, and who is at it). Clicking
+/// the campfire shows all five; clicking a Workshop opens the same panel with only
+/// the three station tabs, for that station.
 /// </summary>
 /// <remarks>
-/// Built entirely in code on the menu system's widgets (2026-09-01) — no
-/// scene wiring, one row per job with a coloured swatch, a −/+ pair and a
-/// live count, a warriors row with its cost, and a housing line. The old
-/// hand-built WorkerAssignmentPanel is removed by the legacy cleanup step.
-///
-/// Display only — the campfire owns the worker roster and every count shown
-/// here. Buttons disable themselves when an action is unaffordable or the
-/// population is capped, and every label is dirty-checked so an open panel
-/// costs nothing while idle. Esc closes it (PauseController defers to
-/// <see cref="IsOpen"/>), as does clicking X.
+/// Built entirely in code on the menu system's widgets (2026-09-01) — no scene
+/// wiring. Display only — the campfire owns the roster, the station owns its
+/// queue, the catalogs own the definitions. Buttons disable themselves when an
+/// action cannot happen, and every label is dirty-checked so an open panel costs
+/// nothing while idle. Esc closes it (PauseController defers to <see cref="IsOpen"/>),
+/// as does clicking X. Never built under the balance sim.
 /// </remarks>
 public class WorkerAssignmentUI : MonoBehaviour
 {
@@ -27,9 +28,16 @@ public class WorkerAssignmentUI : MonoBehaviour
     /// <summary>True while the panel is showing — PauseController lets Esc close it instead of pausing.</summary>
     public static bool IsOpen => Instance != null && Instance.panel != null && Instance.panel.gameObject.activeSelf;
 
-    private BaseBuilding baseBuilding;
+    const int TabColonists = 0, TabStockpile = 1, TabCraft = 2, TabResearch = 3, TabQueue = 4;
+    const int QueueRowsShown = 8;
+    const float StationScrollHeight = 400f;
+
+    private BaseBuilding baseBuilding;   // the campfire: roster, stockpile
+    private CraftStation station;        // the bench the station tabs show
+    private bool stationOnly;            // a Workshop: no Colonists / Stockpile tabs
     private RectTransform panel;
     private DraggablePanel drag;
+    private TextMeshProUGUI titleText;
 
     /// <summary>Bottom-left corner, in reference pixels, when the player has never moved it.</summary>
     static readonly Vector2 DefaultPanelPos = new Vector2(16f, 16f);
@@ -46,33 +54,40 @@ public class WorkerAssignmentUI : MonoBehaviour
         public int lockedLast = -1;   // -1 unknown, 0 open, 1 locked
     }
 
-    // Craft tab (2026-09-02): one row per campfire recipe
+    // Craft tab: one row group per recipe (title + buttons, effect, cost)
     private class CraftRow
     {
         public CraftingCatalog.Recipe recipe;
+        public GameObject root;
+        public TextMeshProUGUI label;
+        public Button one, five;
+        public TextMeshProUGUI oneLabel;
+        public TextMeshProUGUI cost;
+        public int stateLast = -1;
+        public int queuedLast = -1;
+        public bool visible = true;
+    }
+
+    // Research tab: one row group per entry
+    private class ResearchRow
+    {
+        public ResearchCatalog.ResearchDef def;
+        public GameObject root;
         public Button button;
         public TextMeshProUGUI buttonLabel;
         public TextMeshProUGUI cost;
-        public int stateLast = -1;   // 0 unaffordable, 1 affordable, 2 crafted
+        public int stateLast = -1;
+        public bool visible = true;
     }
-    private readonly List<CraftRow> craftRows = new List<CraftRow>();
-    private VerticalLayoutGroup craftBody;
-    private TextMeshProUGUI craftStatus;
-    private string craftStatusLast;
-    private string warriorCostLine = "";
-    private int warriorLockLast = -1;
 
-    static readonly string LockHex = ColorUtility.ToHtmlStringRGBA(new Color(0.62f, 0.60f, 0.57f, 0.9f));
-
-    private readonly List<JobRow> jobs = new List<JobRow>();
-    private TextMeshProUGUI warriorCount, warriorCost, housingText, colonistText;
-
-    // Tabs (2026-09-02): Colonists is the old panel; Stockpile shows the campfire
-    // inventory the player's character deposits into.
-    private VerticalLayoutGroup mainColumn;
-    private Button[] tabs;
-    private VerticalLayoutGroup colonistsBody, stockpileBody;
-    private int activeTab;
+    // Queue tab: a fixed pool of rows reassigned to whatever is queued
+    private class QueueRow
+    {
+        public GameObject root;
+        public TextMeshProUGUI text;
+        public Button remove;
+        public string textLast;
+    }
 
     private class StockRow
     {
@@ -80,10 +95,31 @@ public class WorkerAssignmentUI : MonoBehaviour
         public TextMeshProUGUI count;
         public int last = -1;
     }
+
+    static readonly string LockHex = ColorUtility.ToHtmlStringRGBA(new Color(0.62f, 0.60f, 0.57f, 0.9f));
+
+    private readonly List<JobRow> jobs = new List<JobRow>();
     private readonly List<StockRow> stockRows = new List<StockRow>();
+    private readonly List<CraftRow> craftRows = new List<CraftRow>();
+    private readonly List<ResearchRow> researchRows = new List<ResearchRow>();
+    private readonly List<QueueRow> queueRows = new List<QueueRow>();
+
+    private TextMeshProUGUI warriorCount, warriorCost, housingText, colonistText;
     private Button warriorMinus, warriorPlus;
+    private TextMeshProUGUI craftStatus, researchStatus, queueStatus;
+    private Button sendButton;
+    private string craftStatusLast, researchStatusLast, queueStatusLast;
+    private int queueVersionShown = -1;
+    private int queueRowsActive = -1;
+
+    private VerticalLayoutGroup mainColumn;
+    private Button[] tabs;
+    private VerticalLayoutGroup colonistsBody, stockpileBody, craftBody, researchBody, queueBody;
+    private int activeTab;
+
     private int lastWarriors = -1, lastHousingUsed = -1, lastHousingCap = -1;
     private int lastColonists = -1, lastIdle = -1, lastArrival = -1;
+    private int warriorLineLast = int.MinValue;
     private bool lastCanRecruit;
 
     void Awake()
@@ -103,27 +139,71 @@ public class WorkerAssignmentUI : MonoBehaviour
         if (Instance == this) Instance = null;
     }
 
+    // ------------------------------------------------------------------
+    // Open / close
+    // ------------------------------------------------------------------
+
     /// <summary>
-    /// Opens the panel for a specific base building. Called from
-    /// BaseBuilding when the player clicks the campfire, and from the HUD.
+    /// Opens the panel for the campfire (all five tabs). Called from BaseBuilding
+    /// when the player clicks it, from the HUD, and after the character deposits.
     /// </summary>
     public void OpenPanel(BaseBuilding building)
     {
-        if (panel == null) Build();
-        baseBuilding = building;
+        if (building == null) return;
+        Open(building, building.Station, stationOnly: false);
+    }
 
-        // Invalidate dirty caches so everything refreshes for this building
+    /// <summary>
+    /// Opens the panel for a bench. The campfire's own bench opens the full
+    /// panel; any other station (the Workshop) shows only Craft · Research · Queue.
+    /// </summary>
+    public void OpenStation(CraftStation st)
+    {
+        if (st == null) return;
+        BaseBuilding fire = BaseBuilding.FindAlive();
+        if (fire == null) return;
+        if (st == fire.Station) { OpenPanel(fire); return; }
+        Open(fire, st, stationOnly: true);
+    }
+
+    void Open(BaseBuilding fire, CraftStation st, bool stationOnly)
+    {
+        if (SimHooks.Simulating) return;
+        if (panel == null) Build();
+
+        bool changed = baseBuilding != fire || station != st || this.stationOnly != stationOnly;
+        baseBuilding = fire;
+        station = st;
+        this.stationOnly = stationOnly;
+
+        titleText.text = stationOnly && st != null ? st.displayName.ToUpperInvariant() : "CAMPFIRE";
+        tabs[TabColonists].gameObject.SetActive(!stationOnly);
+        tabs[TabStockpile].gameObject.SetActive(!stationOnly);
+
+        // Invalidate dirty caches so everything refreshes for this building / bench
         for (int i = 0; i < jobs.Count; i++) { jobs[i].last = -1; jobs[i].lockedLast = -1; }
         for (int i = 0; i < stockRows.Count; i++) stockRows[i].last = -1;
-        for (int i = 0; i < craftRows.Count; i++) craftRows[i].stateLast = -1;
+        for (int i = 0; i < craftRows.Count; i++) { craftRows[i].stateLast = -1; craftRows[i].queuedLast = -1; }
+        for (int i = 0; i < researchRows.Count; i++) researchRows[i].stateLast = -1;
+        for (int i = 0; i < queueRows.Count; i++) queueRows[i].textLast = null;
         lastWarriors = lastHousingUsed = lastHousingCap = -1;
-        warriorLockLast = -1;
-        craftStatusLast = null;
-
-        warriorCostLine = building.warriorCost_Wood + " wood  ·  " + building.warriorCost_Food + " food  ·  one idle colonist";
+        lastColonists = lastIdle = lastArrival = -1;
+        warriorLineLast = int.MinValue;
+        craftStatusLast = researchStatusLast = queueStatusLast = null;
+        queueVersionShown = -1;
+        queueRowsActive = -1;
 
         panel.gameObject.SetActive(true);
-        drag.Clamp();   // window may have been resized since the last open
+        RefreshVisibility();
+
+        int tab = activeTab;
+        if (stationOnly && tab < TabCraft) tab = TabCraft;
+        if (changed || tab != activeTab) SwitchTab(tab, silent: true);
+        else
+        {
+            MenuBuilder.FitPanelHeight(panel, mainColumn);
+            drag.Clamp();   // window may have been resized since the last open
+        }
         UpdateDisplay();
     }
 
@@ -131,6 +211,7 @@ public class WorkerAssignmentUI : MonoBehaviour
     {
         if (panel != null) panel.gameObject.SetActive(false);
         baseBuilding = null;
+        station = null;
 
         if (AudioManager.Instance != null)
         {
@@ -142,9 +223,11 @@ public class WorkerAssignmentUI : MonoBehaviour
     {
         if (panel == null || !panel.gameObject.activeSelf) return;
 
-        if (baseBuilding == null)  // campfire destroyed while open
+        if (baseBuilding == null || station == null || !station.IsAlive)   // destroyed while open
         {
             panel.gameObject.SetActive(false);
+            baseBuilding = null;
+            station = null;
             return;
         }
 
@@ -166,7 +249,7 @@ public class WorkerAssignmentUI : MonoBehaviour
         // Root-level canvas on purpose (a canvas nested in a canvas ignores its own scaler)
         Canvas canvas = MenuBuilder.CreateCanvas("CampfireCanvas", 60);
 
-        panel = MenuBuilder.Panel(canvas.transform, "CampfirePanel", 520f, 100f);
+        panel = MenuBuilder.Panel(canvas.transform, "CampfirePanel", 540f, 100f);
         // Bottom-left by default (2026-09-01), and draggable by its title bar:
         // DraggablePanel needs the panel anchored + pivoted bottom-left so the
         // anchored position is the corner it clamps and saves
@@ -179,7 +262,7 @@ public class WorkerAssignmentUI : MonoBehaviour
         // Title row with an X — also the drag handle
         RectTransform title = MenuBuilder.SettingRow(col.transform, "CAMPFIRE", out RectTransform titleSlot, 40f);
         drag = DraggablePanel.Attach(title, panel, PanelPosKey, DefaultPanelPos);
-        TextMeshProUGUI titleText = title.GetComponentInChildren<TextMeshProUGUI>();
+        titleText = title.GetComponentInChildren<TextMeshProUGUI>();
         titleText.color = MenuStyle.TextAccent;
         titleText.fontSize = MenuStyle.HeadingSize - 4f;
         titleText.characterSpacing = 3f;
@@ -187,7 +270,7 @@ public class WorkerAssignmentUI : MonoBehaviour
         MenuBuilder.Divider(col.transform);
 
         mainColumn = col;
-        tabs = MenuBuilder.TabRow(col.transform, new[] { "Colonists", "Stockpile", "Craft" }, 0, SwitchTab);
+        tabs = MenuBuilder.TabRow(col.transform, new[] { "Colonists", "Stockpile", "Craft", "Research", "Queue" }, 0, i => SwitchTab(i, silent: false));
 
         // Each tab is a nested column with no padding of its own (the outer column
         // already pads the panel); only one is active at a time.
@@ -195,8 +278,27 @@ public class WorkerAssignmentUI : MonoBehaviour
         colonistsBody = MenuBuilder.Column(col.transform, 4f, none);
         stockpileBody = MenuBuilder.Column(col.transform, 4f, none);
         craftBody = MenuBuilder.Column(col.transform, 4f, none);
+        researchBody = MenuBuilder.Column(col.transform, 4f, none);
+        queueBody = MenuBuilder.Column(col.transform, 4f, none);
 
-        Transform body = colonistsBody.transform;
+        BuildColonistsTab(colonistsBody.transform);
+        BuildStockpileTab(stockpileBody.transform);
+        BuildCraftTab(craftBody.transform);
+        BuildResearchTab(researchBody.transform);
+        BuildQueueTab(queueBody.transform);
+
+        stockpileBody.gameObject.SetActive(false);
+        craftBody.gameObject.SetActive(false);
+        researchBody.gameObject.SetActive(false);
+        queueBody.gameObject.SetActive(false);
+
+        MenuBuilder.Spacer(col.transform, 4f);
+        MenuBuilder.FitPanelHeight(panel, col);
+        drag.Clamp();   // a saved position from a larger window must not leave it off-screen
+    }
+
+    void BuildColonistsTab(Transform body)
+    {
         MenuBuilder.SectionHeader(body, "Colonists");
         colonistText = MenuBuilder.RowDescription(body, "");
         housingText = MenuBuilder.RowDescription(body, "Housing 0 / 0");
@@ -212,23 +314,13 @@ public class WorkerAssignmentUI : MonoBehaviour
         MenuBuilder.SettingRow(body, "Warriors", out RectTransform wslot);
         CounterControls(wslot, OnWarriorMinusClicked, OnWarriorPlusClicked, out warriorCount, out warriorMinus, out warriorPlus);
         warriorCost = MenuBuilder.RowDescription(body, "");
-
-        BuildStockpileTab(stockpileBody.transform);
-        stockpileBody.gameObject.SetActive(false);
-
-        BuildCraftTab(craftBody.transform);
-        craftBody.gameObject.SetActive(false);
-
-        MenuBuilder.Spacer(col.transform, 4f);
-        MenuBuilder.FitPanelHeight(panel, col);
-        drag.Clamp();   // a saved position from a larger window must not leave it off-screen
     }
 
     /// <summary>One count row per stockpiled item, in catalog order.</summary>
     void BuildStockpileTab(Transform body)
     {
         MenuBuilder.SectionHeader(body, "Campfire stockpile");
-        MenuBuilder.RowDescription(body, "What your character has brought to the fire. Crafting draws from it.");
+        MenuBuilder.RowDescription(body, "Materials your character brings, and everything the benches make.");
 
         ItemDef[] items = ItemCatalog.Stockpiled;
         for (int i = 0; i < items.Length; i++)
@@ -242,54 +334,133 @@ public class WorkerAssignmentUI : MonoBehaviour
     }
 
     /// <summary>
-    /// One row per campfire recipe: title + Craft button, then the effect and the
-    /// cost line (coloured by affordability). Costs come from the character's
-    /// hands and the stockpile together; the button walks the character over.
+    /// One row group per recipe: title + Craft / ×5 buttons, then the effect and
+    /// the cost line (coloured by affordability). Costs come from the character's
+    /// hands and the stockpile together and are paid when the item is finished;
+    /// the buttons queue at this bench and send the character to work it.
     /// </summary>
     void BuildCraftTab(Transform body)
     {
-        MenuBuilder.SectionHeader(body, "Craft at the fire");
+        MenuBuilder.SectionHeader(body, "Craft");
+        VerticalLayoutGroup list = MenuBuilder.ScrollColumn(body, 2f, StationScrollHeight);
+        RectOffset none = new RectOffset(0, 0, 0, 0);
 
-        var recipes = CraftingCatalog.CampfireRecipes;
+        var recipes = CraftingCatalog.All;
         for (int i = 0; i < recipes.Length; i++)
         {
             CraftRow row = new CraftRow { recipe = recipes[i] };
-            MenuBuilder.SettingRow(body, recipes[i].title, out RectTransform slot);
-            row.button = SmallButton(slot, "Craft", () => OnCraftClicked(row.recipe), new Vector2(0.50f, 0.1f), new Vector2(1f, 0.9f));
-            row.buttonLabel = row.button.GetComponentInChildren<TextMeshProUGUI>();
-            MenuBuilder.RowDescription(body, recipes[i].description);
-            row.cost = MenuBuilder.RowDescription(body, recipes[i].CostText);
+            VerticalLayoutGroup group = MenuBuilder.Column(list.transform, 2f, none);
+            row.root = group.gameObject;
+
+            RectTransform rt = MenuBuilder.SettingRow(group.transform, recipes[i].title, out RectTransform slot);
+            row.label = rt.GetComponentInChildren<TextMeshProUGUI>();
+            CraftingCatalog.Recipe captured = recipes[i];
+            row.one = SmallButton(slot, "Craft", () => OnCraftClicked(captured, 1), new Vector2(0.44f, 0.1f), new Vector2(0.74f, 0.9f));
+            row.oneLabel = row.one.GetComponentInChildren<TextMeshProUGUI>();
+            row.five = SmallButton(slot, "×5", () => OnCraftClicked(captured, 5), new Vector2(0.77f, 0.1f), new Vector2(1f, 0.9f));
+            if (recipes[i].oncePerRun) row.five.gameObject.SetActive(false);
+
+            MenuBuilder.RowDescription(group.transform, recipes[i].description);
+            row.cost = MenuBuilder.RowDescription(group.transform, recipes[i].CostText);
             craftRows.Add(row);
         }
 
         craftStatus = MenuBuilder.RowDescription(body, "");
     }
 
-    void OnCraftClicked(CraftingCatalog.Recipe recipe)
+    /// <summary>One row group per research entry of this bench's tier.</summary>
+    void BuildResearchTab(Transform body)
     {
-        if (baseBuilding == null || PlayerCharacter.Instance == null) return;
-        if (PlayerCharacter.Instance.TryQueueCraft(recipe, baseBuilding))
+        MenuBuilder.SectionHeader(body, "Research");
+        VerticalLayoutGroup list = MenuBuilder.ScrollColumn(body, 2f, StationScrollHeight);
+        RectOffset none = new RectOffset(0, 0, 0, 0);
+
+        var defs = ResearchCatalog.All;
+        for (int i = 0; i < defs.Length; i++)
         {
-            if (AudioManager.Instance != null) AudioManager.Instance.PlayButtonClick();
+            ResearchRow row = new ResearchRow { def = defs[i] };
+            VerticalLayoutGroup group = MenuBuilder.Column(list.transform, 2f, none);
+            row.root = group.gameObject;
+
+            MenuBuilder.SettingRow(group.transform, defs[i].title, out RectTransform slot);
+            ResearchCatalog.ResearchDef captured = defs[i];
+            row.button = SmallButton(slot, "Research", () => OnResearchClicked(captured), new Vector2(0.50f, 0.1f), new Vector2(1f, 0.9f));
+            row.buttonLabel = row.button.GetComponentInChildren<TextMeshProUGUI>();
+
+            MenuBuilder.RowDescription(group.transform, defs[i].description);
+            row.cost = MenuBuilder.RowDescription(group.transform, defs[i].CostText);
+            researchRows.Add(row);
         }
-        UpdateDisplay();
+
+        researchStatus = MenuBuilder.RowDescription(body, "");
     }
 
-    void SwitchTab(int index)
+    /// <summary>A pool of queue rows plus the "who is at the bench" line and a Send button.</summary>
+    void BuildQueueTab(Transform body)
     {
-        if (index == activeTab && colonistsBody.gameObject.activeSelf == (index == 0)) return;
+        MenuBuilder.SectionHeader(body, "Queue");
+
+        for (int i = 0; i < QueueRowsShown; i++)
+        {
+            QueueRow row = new QueueRow();
+            RectTransform rt = MenuBuilder.SettingRow(body, "", out RectTransform slot);
+            row.root = rt.gameObject;
+            row.text = rt.GetComponentInChildren<TextMeshProUGUI>();
+            int index = i;
+            row.remove = SmallButton(slot, "Remove", () => OnRemoveClicked(index), new Vector2(0.56f, 0.1f), new Vector2(1f, 0.9f));
+            row.root.SetActive(false);
+            queueRows.Add(row);
+        }
+
+        queueStatus = MenuBuilder.RowDescription(body, "");
+        sendButton = MenuBuilder.MenuButton(body, "Send your character to the bench", OnSendClicked);
+    }
+
+    // ------------------------------------------------------------------
+    // Tabs and rows
+    // ------------------------------------------------------------------
+
+    void SwitchTab(int index, bool silent)
+    {
+        if (stationOnly && index < TabCraft) index = TabCraft;
         activeTab = index;
-        colonistsBody.gameObject.SetActive(index == 0);
-        stockpileBody.gameObject.SetActive(index == 1);
-        craftBody.gameObject.SetActive(index == 2);
+        colonistsBody.gameObject.SetActive(index == TabColonists);
+        stockpileBody.gameObject.SetActive(index == TabStockpile);
+        craftBody.gameObject.SetActive(index == TabCraft);
+        researchBody.gameObject.SetActive(index == TabResearch);
+        queueBody.gameObject.SetActive(index == TabQueue);
         MenuBuilder.TintTabs(tabs, index);
 
-        // The two bodies differ in height: refit the panel and keep it on screen
+        // The bodies differ in height: refit the panel and keep it on screen
         MenuBuilder.FitPanelHeight(panel, mainColumn);
         drag.Clamp();
 
-        if (AudioManager.Instance != null) AudioManager.Instance.PlayButtonClick();
+        if (!silent && AudioManager.Instance != null) AudioManager.Instance.PlayButtonClick();
         UpdateDisplay();
+    }
+
+    /// <summary>Which recipes and research entries this bench lists at all (its speed table and tier).</summary>
+    void RefreshVisibility()
+    {
+        if (station == null) return;
+        for (int i = 0; i < craftRows.Count; i++)
+        {
+            bool show = station.Lists(craftRows[i].recipe);
+            if (show != craftRows[i].visible)
+            {
+                craftRows[i].visible = show;
+                craftRows[i].root.SetActive(show);
+            }
+        }
+        for (int i = 0; i < researchRows.Count; i++)
+        {
+            bool show = station.Lists(researchRows[i].def);
+            if (show != researchRows[i].visible)
+            {
+                researchRows[i].visible = show;
+                researchRows[i].root.SetActive(show);
+            }
+        }
     }
 
     JobRow MakeJobRow(Transform parent, ResourceNode.ResourceType type, string label)
@@ -343,29 +514,35 @@ public class WorkerAssignmentUI : MonoBehaviour
 
     void UpdateDisplay()
     {
-        if (baseBuilding == null) return;
+        if (baseBuilding == null || station == null) return;
 
-        if (activeTab == 1)
+        switch (activeTab)
         {
-            Inventory stock = baseBuilding.Stockpile;
-            for (int i = 0; i < stockRows.Count; i++)
-            {
-                StockRow row = stockRows[i];
-                int n = stock.Count(row.item);
-                if (n == row.last) continue;
-                row.last = n;
-                row.count.text = n.ToString();
-                row.count.color = n > 0 ? MenuStyle.TextAccent : MenuStyle.TextMuted;
-            }
-            return;
+            case TabStockpile: UpdateStockpileTab(); return;
+            case TabCraft: UpdateCraftTab(); return;
+            case TabResearch: UpdateResearchTab(); return;
+            case TabQueue: UpdateQueueTab(); return;
         }
 
-        if (activeTab == 2)
-        {
-            UpdateCraftTab();
-            return;
-        }
+        UpdateColonistsTab();
+    }
 
+    void UpdateStockpileTab()
+    {
+        Inventory stock = baseBuilding.Stockpile;
+        for (int i = 0; i < stockRows.Count; i++)
+        {
+            StockRow row = stockRows[i];
+            int n = stock.Count(row.item);
+            if (n == row.last) continue;
+            row.last = n;
+            row.count.text = n.ToString();
+            row.count.color = n > 0 ? MenuStyle.TextAccent : MenuStyle.TextMuted;
+        }
+    }
+
+    void UpdateColonistsTab()
+    {
         PopulationManager pm = PopulationManager.Instance;
         int housingCap = pm != null ? pm.GetHousingCapacity() : 0;
         int colonists = pm != null ? pm.GetColonistCount() : baseBuilding.GetTotalWorkers();
@@ -382,14 +559,14 @@ public class WorkerAssignmentUI : MonoBehaviour
                 row.count.text = n.ToString();
             }
 
-            // A job the colony has not learned yet says which tool opens it
+            // A job the colony has not learned yet says which research opens it
             bool locked = !Unlocks.HasJob(row.type);
             int lockState = locked ? 1 : 0;
             if (lockState != row.lockedLast && row.label != null)
             {
                 row.lockedLast = lockState;
                 row.label.text = locked
-                    ? row.name + "  <size=78%><color=#" + LockHex + ">needs " + Unlocks.RecipeTitleFor(Unlocks.ForJob(row.type)) + "</color></size>"
+                    ? row.name + "  <size=78%><color=#" + LockHex + ">research " + Unlocks.ResearchTitleFor(Unlocks.ForJob(row.type)) + "</color></size>"
                     : row.name;
             }
 
@@ -397,15 +574,24 @@ public class WorkerAssignmentUI : MonoBehaviour
             row.plus.interactable = canAssign && !locked;
         }
 
-        // Warriors need the spear crafted first
-        int militia = Unlocks.Has(Unlocks.Kind.Militia) ? 1 : 0;
-        if (militia != warriorLockLast)
+        // Warriors need Spearcraft, then a spear in the stockpile
+        bool militia = Unlocks.Has(Unlocks.Kind.Militia);
+        int weapons = baseBuilding.WeaponsInStock();
+        int warriorLine = militia ? weapons : -1;
+        if (warriorLine != warriorLineLast)
         {
-            warriorLockLast = militia;
-            warriorCost.text = militia == 1
-                ? warriorCostLine
-                : "Craft a " + Unlocks.RecipeTitleFor(Unlocks.Kind.Militia) + " at the fire to arm warriors";
-            warriorCost.color = militia == 1 ? MenuStyle.TextMuted : MenuStyle.TextAccent;
+            warriorLineLast = warriorLine;
+            if (!militia)
+            {
+                warriorCost.text = "Research " + Unlocks.ResearchTitleFor(Unlocks.Kind.Militia) + " at the fire to arm warriors";
+                warriorCost.color = MenuStyle.TextAccent;
+            }
+            else
+            {
+                warriorCost.text = baseBuilding.warriorCost_Food + " food  ·  one idle colonist  ·  a spear from the stockpile ("
+                    + weapons + " in stock)";
+                warriorCost.color = weapons > 0 ? MenuStyle.TextMuted : MenuStyle.TextAccent;
+            }
         }
 
         // "5 colonists · 2 idle · next survivor in 12s"
@@ -452,35 +638,237 @@ public class WorkerAssignmentUI : MonoBehaviour
         PlayerCharacter pc = PlayerCharacter.Instance;
         Inventory hands = pc != null ? pc.Inventory : null;
         Inventory stock = baseBuilding.Stockpile;
-        bool busy = pc == null || pc.IsKnockedOut || pc.ActiveRecipe != null || pc.QueuedRecipe != null;
+        bool canQueue = pc != null && !pc.IsKnockedOut;
 
         for (int i = 0; i < craftRows.Count; i++)
         {
             CraftRow row = craftRows[i];
-            bool affordable = !row.recipe.crafted && CraftingCatalog.CanAfford(row.recipe, hands, stock);
-            int state = row.recipe.crafted ? 2 : (affordable ? 1 : 0);
+            if (!row.visible) continue;
+            CraftingCatalog.Recipe r = row.recipe;
+
+            int queued = station.Queued(r);
+            // 0 locked (research first), 1 made (once per run), 2 queued once-tool, 3 unaffordable, 4 affordable
+            int state;
+            if (!r.Unlocked) state = 0;
+            else if (r.oncePerRun && r.made) state = 1;
+            else if (r.oncePerRun && queued > 0) state = 2;
+            else state = r.CanAfford(hands, stock) ? 4 : 3;
+
             if (state != row.stateLast)
             {
                 row.stateLast = state;
-                row.cost.color = state == 2 ? MenuStyle.TextMuted : (state == 1 ? MenuStyle.TextPrimary : MenuStyle.TextDanger);
-                row.buttonLabel.text = state == 2 ? "Done" : "Craft";
+                switch (state)
+                {
+                    case 0:
+                        row.cost.text = "Research " + r.RequiredTitle + " first";
+                        row.cost.color = MenuStyle.TextAccent;
+                        row.oneLabel.text = "Craft";
+                        break;
+                    case 1:
+                        row.cost.text = r.CostText;
+                        row.cost.color = MenuStyle.TextMuted;
+                        row.oneLabel.text = "Made";
+                        break;
+                    case 2:
+                        row.cost.text = r.CostText;
+                        row.cost.color = MenuStyle.TextMuted;
+                        row.oneLabel.text = "Queued";
+                        break;
+                    default:
+                        row.cost.text = r.CostText;
+                        row.cost.color = state == 4 ? MenuStyle.TextPrimary : MenuStyle.TextDanger;
+                        row.oneLabel.text = "Craft";
+                        break;
+                }
             }
-            row.button.interactable = state == 1 && !busy;
+
+            if (queued != row.queuedLast)
+            {
+                row.queuedLast = queued;
+                row.label.text = queued > 0 && !r.oncePerRun
+                    ? r.title + "  <size=78%><color=#" + LockHex + ">×" + queued + " queued</color></size>"
+                    : r.title;
+            }
+
+            bool open = state >= 3 && canQueue;
+            row.one.interactable = open;
+            row.five.interactable = open;
         }
 
-        string status;
-        if (pc == null) status = "No character to craft with.";
-        else if (pc.IsKnockedOut) status = "Your character is knocked out.";
-        else if (pc.ActiveRecipe != null) status = "Crafting " + pc.ActiveRecipe.title + "…  " + Mathf.RoundToInt(pc.CraftProgress01 * 100f) + "%";
-        else if (pc.QueuedRecipe != null) status = "Walking to the fire to craft " + pc.QueuedRecipe.title + "…";
-        else status = "Your character crafts standing at the fire. Costs are taken when the tool is finished.";
-
+        string status = StationStatus(pc, "Costs are paid when each item is finished; a short entry waits for what is missing.");
         if (status != craftStatusLast)
         {
             craftStatusLast = status;
             craftStatus.text = status;
-            craftStatus.color = pc != null && pc.ActiveRecipe != null ? MenuStyle.TextAccent : MenuStyle.TextMuted;
+            craftStatus.color = pc != null && pc.WorkingStation == station ? MenuStyle.TextAccent : MenuStyle.TextMuted;
         }
+    }
+
+    void UpdateResearchTab()
+    {
+        PlayerCharacter pc = PlayerCharacter.Instance;
+        Inventory hands = pc != null ? pc.Inventory : null;
+        Inventory stock = baseBuilding.Stockpile;
+        bool canQueue = pc != null && !pc.IsKnockedOut;
+
+        for (int i = 0; i < researchRows.Count; i++)
+        {
+            ResearchRow row = researchRows[i];
+            if (!row.visible) continue;
+            ResearchCatalog.ResearchDef d = row.def;
+
+            // 0 done, 1 prerequisite missing, 2 queued, 3 unaffordable, 4 affordable
+            int state;
+            if (d.done) state = 0;
+            else if (!ResearchCatalog.IsAvailable(d)) state = 1;
+            else if (CraftStation.IsQueuedAnywhere(d)) state = 2;
+            else state = d.CanAfford(hands, stock) ? 4 : 3;
+
+            if (state != row.stateLast)
+            {
+                row.stateLast = state;
+                switch (state)
+                {
+                    case 0:
+                        row.cost.text = d.CostText;
+                        row.cost.color = MenuStyle.TextMuted;
+                        row.buttonLabel.text = "Done";
+                        break;
+                    case 1:
+                        row.cost.text = "Needs " + ResearchCatalog.PrerequisiteTitle(d);
+                        row.cost.color = MenuStyle.TextAccent;
+                        row.buttonLabel.text = "Research";
+                        break;
+                    case 2:
+                        row.cost.text = d.CostText;
+                        row.cost.color = MenuStyle.TextMuted;
+                        row.buttonLabel.text = "Queued";
+                        break;
+                    default:
+                        row.cost.text = d.CostText;
+                        row.cost.color = state == 4 ? MenuStyle.TextPrimary : MenuStyle.TextDanger;
+                        row.buttonLabel.text = "Research";
+                        break;
+                }
+            }
+
+            row.button.interactable = state >= 3 && canQueue;
+        }
+
+        string status = StationStatus(pc, "Research once and the whole colony knows it. Costs are paid on completion.");
+        if (status != researchStatusLast)
+        {
+            researchStatusLast = status;
+            researchStatus.text = status;
+            researchStatus.color = pc != null && pc.WorkingStation == station ? MenuStyle.TextAccent : MenuStyle.TextMuted;
+        }
+    }
+
+    void UpdateQueueTab()
+    {
+        PlayerCharacter pc = PlayerCharacter.Instance;
+        IReadOnlyList<CraftStation.QueueEntry> q = station.Queue;
+
+        int shown = Mathf.Min(q.Count, queueRows.Count);
+        if (shown != queueRowsActive || station.Version != queueVersionShown)
+        {
+            queueVersionShown = station.Version;
+            bool refit = shown != queueRowsActive;
+            queueRowsActive = shown;
+            for (int i = 0; i < queueRows.Count; i++)
+            {
+                bool on = i < shown;
+                if (queueRows[i].root.activeSelf != on) queueRows[i].root.SetActive(on);
+                queueRows[i].textLast = null;
+            }
+            if (refit)
+            {
+                MenuBuilder.FitPanelHeight(panel, mainColumn);
+                drag.Clamp();
+            }
+        }
+
+        for (int i = 0; i < shown; i++)
+        {
+            CraftStation.QueueEntry e = q[i];
+            string text;
+            if (i == 0)
+            {
+                int pct = Mathf.FloorToInt(e.Progress01 * 100f);
+                text = (e.IsResearch ? "Researching " : "Crafting ") + e.Title
+                    + (e.remaining > 1 ? " ×" + e.remaining : "") + "  " + pct + "%";
+            }
+            else
+            {
+                text = e.Title + (e.remaining > 1 ? " ×" + e.remaining : "");
+            }
+            if (text != queueRows[i].textLast)
+            {
+                queueRows[i].textLast = text;
+                queueRows[i].text.text = text;
+                queueRows[i].text.color = i == 0 ? MenuStyle.TextAccent : MenuStyle.TextPrimary;
+            }
+        }
+
+        string status;
+        Color color = MenuStyle.TextMuted;
+        bool showSend = false;
+        if (q.Count == 0)
+        {
+            status = "Nothing queued — the Craft and Research tabs add work here.";
+        }
+        else if (station.Status.Length > 0)
+        {
+            status = station.Status + (station.IsWorked ? "" : "  ·  no one at the bench");
+            color = MenuStyle.TextDanger;
+            showSend = pc != null && pc.WorkingStation != station;
+        }
+        else if (station.IsWorked)
+        {
+            status = station.Laborer == (object)pc ? "Your character is at the bench." : "Someone is at the bench.";
+            color = MenuStyle.TextAccent;
+        }
+        else if (pc != null && pc.WalkingToStation == station)
+        {
+            status = "Your character is on the way.";
+        }
+        else
+        {
+            status = "No one at the bench — nothing moves until someone stands here.";
+            color = MenuStyle.TextAccent;
+            showSend = pc != null;
+        }
+
+        if (status != queueStatusLast)
+        {
+            queueStatusLast = status;
+            queueStatus.text = status;
+            queueStatus.color = color;
+        }
+        bool sendActive = showSend && pc != null && !pc.IsKnockedOut && pc.WalkingToStation != station;
+        if (sendButton.gameObject.activeSelf != sendActive)
+        {
+            sendButton.gameObject.SetActive(sendActive);
+            MenuBuilder.FitPanelHeight(panel, mainColumn);
+            drag.Clamp();
+        }
+    }
+
+    /// <summary>The line under the Craft / Research lists: what the character is doing about this bench.</summary>
+    string StationStatus(PlayerCharacter pc, string idleHint)
+    {
+        if (pc == null) return "No character to work the bench.";
+        if (pc.IsKnockedOut) return "Your character is knocked out.";
+        if (pc.WorkingStation == station)
+        {
+            CraftStation.QueueEntry e = station.Active;
+            if (e == null) return "Your character is at the bench.";
+            if (station.Status.Length > 0) return station.Status;
+            return (e.IsResearch ? "Researching " : "Crafting ") + e.Title + "…  " + Mathf.RoundToInt(e.Progress01 * 100f) + "%";
+        }
+        if (pc.WalkingToStation == station) return "Walking to the bench…";
+        if (station.HasWork) return "Queued " + station.Queue.Count + " — nobody at the bench. Queue more, or see the Queue tab.";
+        return idleHint;
     }
 
     int WorkersOn(ResourceNode.ResourceType t)
@@ -498,11 +886,47 @@ public class WorkerAssignmentUI : MonoBehaviour
     // Actions
     // ------------------------------------------------------------------
 
+    void OnCraftClicked(CraftingCatalog.Recipe recipe, int count)
+    {
+        if (station == null || PlayerCharacter.Instance == null) return;
+        if (PlayerCharacter.Instance.TryQueueCraft(recipe, station, count))
+        {
+            if (AudioManager.Instance != null) AudioManager.Instance.PlayButtonClick();
+        }
+        UpdateDisplay();
+    }
+
+    void OnResearchClicked(ResearchCatalog.ResearchDef def)
+    {
+        if (station == null || PlayerCharacter.Instance == null) return;
+        if (PlayerCharacter.Instance.TryQueueResearch(def, station))
+        {
+            if (AudioManager.Instance != null) AudioManager.Instance.PlayButtonClick();
+        }
+        UpdateDisplay();
+    }
+
+    void OnRemoveClicked(int index)
+    {
+        if (station == null) return;
+        station.RemoveAt(index);
+        if (AudioManager.Instance != null) AudioManager.Instance.PlayButtonClick();
+        UpdateDisplay();
+    }
+
+    void OnSendClicked()
+    {
+        if (station == null || PlayerCharacter.Instance == null) return;
+        PlayerCharacter.Instance.WorkAt(station);
+        if (AudioManager.Instance != null) AudioManager.Instance.PlayButtonClick();
+        UpdateDisplay();
+    }
+
     void OnPlusClicked(ResourceNode.ResourceType resourceType)
     {
         if (baseBuilding == null) return;
 
-        // Add worker through BaseBuilding (it checks housing capacity internally)
+        // Add worker through BaseBuilding (it checks the research and the idle pool)
         baseBuilding.AssignWorker(resourceType);
 
         if (AudioManager.Instance != null)

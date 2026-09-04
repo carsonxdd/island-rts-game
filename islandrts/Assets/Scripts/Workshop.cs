@@ -2,17 +2,18 @@ using UnityEngine;
 using System.Collections.Generic;
 
 /// <summary>
-/// Crafting building (2026-08-26): click to open the CraftingUI and craft
-/// one-time global upgrades (see CraftedUpgrades). One craft runs at a time;
-/// resources are spent up front. Buildable via the normal placement flow
-/// (key 5 in build mode) — assets and BuildingData are created by
-/// Tools &gt; Island RTS &gt; Session Content &gt; Setup Pickups + Workshop.
+/// The Workshop (2026-08-26): a crafting building. Since the research split
+/// (2026-09-03) it is a <see cref="CraftStation"/> like the campfire — click it
+/// to open the station panel — and the one that lists the Workshop-tier
+/// research (Sharpened Tools, Sturdy Scaffolds). Its speed table is 1× until
+/// Slice 3 makes it the fast bench and adds the Crafter job. Buildable via the
+/// normal placement flow (key 5) once <i>Crafting</i> is researched — assets and
+/// BuildingData are created by Tools &gt; Island RTS &gt; Session Content &gt;
+/// Setup Pickups + Workshop.
 /// </summary>
 public class Workshop : MonoBehaviour, ITargetable
 {
     public static IReadOnlyList<Workshop> ActiveList => ActiveRegistry<Workshop>.List;
-
-    void Awake() { ActiveRegistry<Workshop>.Register(this); }
 
     [Header("Health")]
     public float maxHealth = 150f;
@@ -28,13 +29,19 @@ public class Workshop : MonoBehaviour, ITargetable
     private Material[] buildingMaterials;
     private Color[] originalColors;
 
-    // Active craft
-    private CraftedUpgrades.Recipe activeRecipe;
-    private float craftProgress;  // seconds accumulated
+    /// <summary>The bench (runtime-added, so the prefab never carries a stale copy).</summary>
+    public CraftStation Station { get; private set; }
 
-    public CraftedUpgrades.Recipe ActiveRecipe => activeRecipe;
-    public float ActiveProgress01 =>
-        activeRecipe == null ? 0f : Mathf.Clamp01(craftProgress / activeRecipe.craftSeconds);
+    void Awake()
+    {
+        ActiveRegistry<Workshop>.Register(this);
+
+        Station = GetComponent<CraftStation>();
+        if (Station == null) Station = gameObject.AddComponent<CraftStation>();
+        Station.tier = ResearchCatalog.Station.Workshop;
+        Station.speeds = new[] { 1f, 1f, 1f, 1f };   // Slice 3: 2× Tool / Weapon
+        Station.displayName = "Workshop";
+    }
 
     void Start()
     {
@@ -63,53 +70,20 @@ public class Workshop : MonoBehaviour, ITargetable
         originalColors = RendererTint.CaptureColors(buildingMaterials);
     }
 
-    void Update()
-    {
-        if (activeRecipe == null) return;
-
-        craftProgress += Time.deltaTime;
-        if (craftProgress >= activeRecipe.craftSeconds)
-        {
-            activeRecipe.crafted = true;
-            activeRecipe.apply?.Invoke();
-            activeRecipe = null;
-            craftProgress = 0f;
-
-            if (AudioManager.Instance != null)
-                AudioManager.Instance.PlayBuildingPlaced();
-        }
-    }
-
-    /// <summary>
-    /// Try to begin crafting (spends resources up front).
-    /// False when busy, already crafted, or unaffordable.
-    /// </summary>
-    public bool TryStartCraft(CraftedUpgrades.Recipe recipe)
-    {
-        if (recipe == null || recipe.crafted || activeRecipe != null) return false;
-        if (ResourceManager.Instance == null) return false;
-        if (!ResourceManager.Instance.SpendResources(recipe.woodCost, recipe.foodCost, recipe.stoneCost))
-            return false;
-
-        activeRecipe = recipe;
-        craftProgress = 0f;
-        return true;
-    }
-
     void OnMouseEnter() { RendererTint.SetColor(buildingMaterials, hoverColor); }
     void OnMouseExit() { RendererTint.RestoreColors(buildingMaterials, originalColors); }
 
     void OnMouseDown()
     {
-        // Don't open the panel while placing buildings / demolishing
         if (GameStartController.IntroInProgress) return;
-        CraftingUI.Open(this);
+        if (PauseController.BlockGameplayInput) return;
+        WorkerAssignmentUI ui = WorkerAssignmentUI.Instance;
+        if (ui != null) ui.OpenStation(Station);
     }
 
     void OnDestroy()
     {
         ActiveRegistry<Workshop>.Unregister(this);
-        if (CraftingUI.CurrentWorkshop == this) CraftingUI.Close();
     }
 
     void OnDrawGizmosSelected()

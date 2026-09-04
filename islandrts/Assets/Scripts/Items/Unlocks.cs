@@ -2,16 +2,18 @@ using System;
 using UnityEngine;
 
 /// <summary>
-/// What the colony knows how to do (2026-09-02). Each flag is opened by
-/// crafting a tool at the campfire once — knowledge, not supply: after the
-/// first Stone Axe every colonist may take the Wood job.
+/// What the colony knows how to do (2026-09-02). Each flag is granted by
+/// completing a <see cref="ResearchCatalog"/> entry at a station bench (since
+/// 2026-09-03; it used to be the first craft of a tool) — knowledge, not
+/// supply: after Woodcutting every colonist may take the Wood job.
 ///
 /// Read at the point of effect, never pushed (the <c>CraftedUpgrades</c> and
 /// <c>Difficulty</c> pattern): <c>BaseBuilding.AssignWorker</c>,
 /// <c>BaseBuilding.CanRecruitWarrior</c>, <c>BuildPlacement.StartPlacement</c>
 /// and the Build / Repair considerations each ask <see cref="Has"/> at the
-/// moment they decide. Everything is granted under the balance sim, where no
-/// player can craft (same rule as <c>Difficulty.Active</c> returning Normal).
+/// moment they decide. NOT granted under the balance sim any more: the sim
+/// researches like a player (its policies queue research and drive the
+/// player character to the bench), or it is not measuring the pivot.
 ///
 /// Statics reset on play via [RuntimeInitializeOnLoadMethod].
 /// </summary>
@@ -25,6 +27,14 @@ public static class Unlocks
         MetalJob,
         Construction,
         Militia,
+        /// <summary>The Workshop building and (Slice 3) the Crafter job.</summary>
+        Crafting,
+        /// <summary>Bows and archers (Slice 5).</summary>
+        Archery,
+        /// <summary>Iron Spears (Slice 3).</summary>
+        IronWork,
+        /// <summary>The Shipyard and the escape (Slice 6).</summary>
+        Shipwright,
     }
 
     public static readonly int Count = Enum.GetValues(typeof(Kind)).Length;
@@ -36,7 +46,6 @@ public static class Unlocks
 
     public static bool Has(Kind kind)
     {
-        if (SimHooks.Simulating) return true;
         return granted[(int)kind];
     }
 
@@ -54,16 +63,6 @@ public static class Unlocks
 
     public static bool HasJob(ResourceNode.ResourceType type) => Has(ForJob(type));
 
-    public static bool AllGranted
-    {
-        get
-        {
-            for (int i = 0; i < granted.Length; i++)
-                if (!granted[i]) return false;
-            return true;
-        }
-    }
-
     public static void Grant(Kind kind)
     {
         if (granted[(int)kind]) return;
@@ -71,7 +70,7 @@ public static class Unlocks
         OnChanged?.Invoke();
     }
 
-    /// <summary>Everything at once — the F4 cheat.</summary>
+    /// <summary>Everything at once — the F4 cheat (research rows stay as they are; use ResearchCatalog.CompleteAll for those).</summary>
     public static void GrantAll()
     {
         bool changed = false;
@@ -82,17 +81,10 @@ public static class Unlocks
         if (changed) OnChanged?.Invoke();
     }
 
-    /// <summary>Player-facing name of the recipe that opens <paramref name="kind"/> ("Stone Axe"), for lock hints.</summary>
-    public static string RecipeTitleFor(Kind kind)
+    /// <summary>Player-facing name of the research that opens <paramref name="kind"/> ("Woodcutting"), for lock hints.</summary>
+    public static string ResearchTitleFor(Kind kind)
     {
-        var recipes = CraftingCatalog.CampfireRecipes;
-        for (int i = 0; i < recipes.Length; i++)
-        {
-            var unlocks = recipes[i].unlocks;
-            for (int u = 0; u < unlocks.Length; u++)
-                if (unlocks[u] == kind) return recipes[i].title;
-        }
-        return "a tool";
+        return ResearchCatalog.TitleGranting(kind) ?? kind.ToString();
     }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]

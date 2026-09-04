@@ -2,10 +2,12 @@
 using UnityEngine;
 
 /// <summary>
-/// The simulated player. Everything a human decides in a run — worker
-/// assignment, what to build, when to recruit — and nothing else. Movement,
-/// combat, gathering and pathing are still the game's own Utility AI, which is
-/// exactly why a run of this is worth reading as balance data.
+/// The simulated player. Everything a human decides in a run — what to research,
+/// what to queue at the fire, worker assignment, what to build, when to recruit —
+/// and nothing else. Movement, combat, gathering and pathing are still the game's
+/// own Utility AI, which is exactly why a run of this is worth reading as balance
+/// data. The character's legs (fetching materials, standing at the bench) are
+/// <see cref="SimPlayerDriver"/>.
 ///
 /// A policy is polled once a second (<see cref="Tick"/>). It should take at most
 /// one action per tick, so the resource curve stays legible rather than the
@@ -31,7 +33,42 @@ public abstract class SimPolicy
 
     // ---- shared moves -----------------------------------------------------
 
-    /// <summary>Assigns one worker to whichever type the ratio is shortest on.</summary>
+    /// <summary>
+    /// Queue the first of <paramref name="ids"/> that is neither done nor queued,
+    /// at the campfire bench. One entry at a time keeps the character's material
+    /// runs short. True when something was queued this tick.
+    /// </summary>
+    protected static bool Research(SimState s, params string[] ids)
+    {
+        BaseBuilding fire = s.Campfire;
+        if (fire == null || fire.Station == null) return false;
+        if (fire.Station.HasWork) return false;   // one thing at a time
+
+        for (int i = 0; i < ids.Length; i++)
+        {
+            ResearchCatalog.ResearchDef d = ResearchCatalog.Find(ids[i]);
+            if (d == null || d.done) continue;
+            if (!ResearchCatalog.IsAvailable(d)) continue;   // a prerequisite is still ahead in the list
+            if (CraftStation.IsQueuedAnywhere(d)) return false;
+            return fire.Station.Enqueue(d);
+        }
+        return false;
+    }
+
+    /// <summary>Keep spears in stock + queued at <paramref name="wanted"/>. Needs Spearcraft.</summary>
+    protected static bool KeepSpears(SimState s, int wanted)
+    {
+        BaseBuilding fire = s.Campfire;
+        if (fire == null || fire.Station == null) return false;
+        if (!Unlocks.Has(Unlocks.Kind.Militia)) return false;
+
+        CraftingCatalog.Recipe spear = CraftingCatalog.Find("wooden_spear");
+        int have = fire.WeaponsInStock() + fire.Station.Queued(spear);
+        if (have >= wanted) return false;
+        return fire.Station.Enqueue(spear, wanted - have);
+    }
+
+    /// <summary>Assigns one worker to whichever type the ratio is shortest on, among the jobs the colony knows.</summary>
     protected static bool HireWorker(SimState s, float woodShare, float foodShare, float stoneShare)
     {
         BaseBuilding fire = s.Campfire;
@@ -49,14 +86,19 @@ public abstract class SimPolicy
         int total = fire.GetTotalWorkers();
         if (total >= fire.maxWorkers) return false;
 
+        // A job the colony has not researched yet scores nothing (2026-09-03)
+        if (!Unlocks.HasJob(ResourceNode.ResourceType.Wood)) woodShare = 0f;
+        if (!Unlocks.HasJob(ResourceNode.ResourceType.Food)) foodShare = 0f;
+        if (!Unlocks.HasJob(ResourceNode.ResourceType.Stone)) stoneShare = 0f;
+
         // Largest deficit against target share wins. Starts everyone on wood,
         // which is what a player does before the ratio means anything.
         float sum = woodShare + foodShare + stoneShare;
         if (sum <= 0f) return false;
 
-        float woodDef = woodShare / sum * (total + 1) - fire.woodWorkers;
-        float foodDef = foodShare / sum * (total + 1) - fire.foodWorkers;
-        float stoneDef = stoneShare / sum * (total + 1) - fire.stoneWorkers;
+        float woodDef = woodShare > 0f ? woodShare / sum * (total + 1) - fire.woodWorkers : float.NegativeInfinity;
+        float foodDef = foodShare > 0f ? foodShare / sum * (total + 1) - fire.foodWorkers : float.NegativeInfinity;
+        float stoneDef = stoneShare > 0f ? stoneShare / sum * (total + 1) - fire.stoneWorkers : float.NegativeInfinity;
 
         ResourceNode.ResourceType pick = ResourceNode.ResourceType.Wood;
         float best = woodDef;
@@ -68,13 +110,12 @@ public abstract class SimPolicy
         return fire.GetTotalWorkers() > before;
     }
 
+    /// <summary>Arm an idle colonist with a spear from the stockpile (the campfire checks food, cap and research).</summary>
     protected static bool Recruit(SimState s)
     {
         BaseBuilding fire = s.Campfire;
         if (fire == null) return false;
-        if (fire.GetWarriorCount() >= fire.maxWarriors) return false;
-        if (ResourceManager.Instance == null) return false;
-        if (!ResourceManager.Instance.CanAfford(fire.warriorCost_Wood, fire.warriorCost_Food, 0)) return false;
+        if (!fire.CanRecruitWarrior()) return false;
 
         int before = fire.GetWarriorCount();
         fire.SpawnWarrior();
@@ -84,12 +125,16 @@ public abstract class SimPolicy
     /// <summary>Build a hut when housing is the thing capping the colony.</summary>
     protected static bool BuildHutIfCapped(SimState s, int maxHuts)
     {
+        if (!Unlocks.Has(Unlocks.Kind.Construction)) return false;
         if (SimBuilder.HutCount + SimBuilder.PendingSites(BuildingType.Hut) >= maxHuts) return false;
         if (PopulationManager.Instance != null
             && PopulationManager.Instance.GetAvailableHousing() > 0
             && SimBuilder.PendingSites(BuildingType.Hut) > 0) return false;
         return SimBuilder.PlaceBuilding(BuildingType.Hut, 7f, 16f);
     }
+
+    /// <summary>Construction research gates every placement.</summary>
+    protected static bool CanBuild => Unlocks.Has(Unlocks.Kind.Construction);
 }
 
 /// <summary>
@@ -108,6 +153,9 @@ public class TurtlePolicy : SimPolicy
 
     public override void Tick(SimState s)
     {
+        // The tech a turtle needs, in order: wood, stone, walls, a token guard, food
+        if (Research(s, "woodcutting", "quarrying", "construction", "spearcraft", "foraging")) return;
+
         // Enough economy to pay for a wall, then wall, then a token guard.
         if (s.Workers < 4) { if (HireWorker(s, 2f, 1f, 2f)) return; }
         if (BuildHutIfCapped(s, 3)) return;
@@ -116,7 +164,7 @@ public class TurtlePolicy : SimPolicy
         // whole bank to 48 wall sites at once is what made this policy lose
         // every run at 0 wood / 400 stone: it could no longer fund warriors,
         // huts, or replacements for anything it lost.
-        if (!ringOrdered && s.Wood >= WoodReserve + 90f && s.Stone >= 40)
+        if (CanBuild && !ringOrdered && s.Wood >= WoodReserve + 90f && s.Stone >= 40)
         {
             if (SimBuilder.PlaceWallRing(BuildingType.WoodenWall, 9, 6) > 0) return;
             ringOrdered = true;   // ring is complete or fully blocked
@@ -131,16 +179,17 @@ public class TurtlePolicy : SimPolicy
         if (s.Workers < 8) { if (HireWorker(s, 2f, 1f, 2f)) return; }
 
         // A small garrison from the start — walls without anyone behind them
-        // just delay the wave. Gating this on a finished ring meant Turtle
-        // faced night 1 and 2 with nothing but construction sites.
-        if (s.Warriors < 1 + s.Day / 2 || (s.RaidTonight && s.Warriors < 2 + s.Day / 2)) { if (Recruit(s)) return; }
+        // just delay the wave. Spears first (the fire makes them), then people.
+        int wantedWarriors = 1 + s.Day / 2 + (s.RaidTonight ? 1 : 0);
+        if (KeepSpears(s, Mathf.Max(0, wantedWarriors - s.Warriors))) return;
+        if (s.Warriors < wantedWarriors) { if (Recruit(s)) return; }
 
         // Late: a tower for reach, then top the ring back up as it gets chewed.
-        if (s.Day >= 3 && SimBuilder.TowerCount == 0 && s.Stone >= 80)
+        if (CanBuild && s.Day >= 3 && SimBuilder.TowerCount == 0 && s.Stone >= 80)
         {
             if (SimBuilder.PlaceBuilding(BuildingType.Watchtower, 6f, 12f)) return;
         }
-        if (ringOrdered && s.Wood >= 150) SimBuilder.PlaceWallRing(BuildingType.WoodenWall, 9, 6);
+        if (CanBuild && ringOrdered && s.Wood >= 150) SimBuilder.PlaceWallRing(BuildingType.WoodenWall, 9, 6);
     }
 }
 
@@ -155,10 +204,14 @@ public class RushPolicy : SimPolicy
 
     public override void Tick(SimState s)
     {
+        if (Research(s, "woodcutting", "spearcraft", "foraging", "construction")) return;
+
         // Minimum viable economy, then everything into warriors.
         if (s.Workers < 3) { if (HireWorker(s, 2f, 2f, 0f)) return; }
         if (BuildHutIfCapped(s, 2)) return;
 
+        // A spear per would-be warrior, always one ahead
+        if (KeepSpears(s, 1 + (s.RaidTonight ? 1 : 0))) return;
         if (Recruit(s)) return;
 
         if (s.Workers < 5) { if (HireWorker(s, 2f, 2f, 0f)) return; }
@@ -175,6 +228,8 @@ public class EcoPolicy : SimPolicy
 
     public override void Tick(SimState s)
     {
+        if (Research(s, "woodcutting", "foraging", "construction", "quarrying", "spearcraft", "mining")) return;
+
         if (BuildHutIfCapped(s, 6)) return;
         if (s.Workers < 10) { if (HireWorker(s, 3f, 2f, 1f)) return; }
 
@@ -188,14 +243,15 @@ public class EcoPolicy : SimPolicy
         bool spend = s.RaidTonight || (s.Wood > 60 && s.Food > 60);
         if (s.Warriors < wanted && spend)
         {
+            if (KeepSpears(s, Mathf.Min(2, wanted - s.Warriors))) return;
             if (Recruit(s)) return;
         }
 
-        if (s.Day >= 3 && SimBuilder.TowerCount == 0 && s.Stone >= 100)
+        if (CanBuild && s.Day >= 3 && SimBuilder.TowerCount == 0 && s.Stone >= 100)
         {
             if (SimBuilder.PlaceBuilding(BuildingType.Watchtower, 6f, 12f)) return;
         }
-        if (s.Day >= 4 && s.Wood >= 250 && s.Stone >= 150)
+        if (CanBuild && s.Day >= 4 && s.Wood >= 250 && s.Stone >= 150)
         {
             SimBuilder.PlaceWallRing(BuildingType.WoodenWall, 8, 12);
         }

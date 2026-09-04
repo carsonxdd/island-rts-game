@@ -64,7 +64,6 @@ public static class SimOverrides
         // SimRunner, so a campfire spawned mid-run (the opening sequence places
         // it at runtime) picks them up the same way a pre-placed one would.
         if (Active.maxWarriors >= 0) campfire.maxWarriors = Active.maxWarriors;
-        if (Active.warriorCostWood >= 0) campfire.warriorCost_Wood = Active.warriorCostWood;
         if (Active.warriorCostFood >= 0) campfire.warriorCost_Food = Active.warriorCostFood;
     }
 

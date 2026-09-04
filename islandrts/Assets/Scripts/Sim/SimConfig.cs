@@ -82,7 +82,7 @@ public class SimConfig
     public float warriorDamage = -1f;
     public float warriorMoveSpeed = -1f;
     public float warriorAttackCooldown = -1f;
-    public int warriorCostWood = -1;
+    /// <summary>Food per recruit. The old wood cost is gone: a warrior costs a spear from the stockpile instead (2026-09-03).</summary>
     public int warriorCostFood = -1;
     public int maxWarriors = -1;
     /// <summary>

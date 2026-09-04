@@ -54,6 +54,18 @@ the same verdict the player's HUD shows.
 Policies live in `SimPolicy.cs` and take at most one action per tick, so the
 resource curve stays legible instead of the whole bank emptying in one frame.
 
+Since 2026-09-03 nothing is unlocked for free under the sim: `Unlocks.Has` is
+the real ledger, so a policy has to **research** like a player (`Research(s,
+ids…)` queues the next entry of its list at the campfire bench, one at a time)
+and **craft spears** before it can recruit (`KeepSpears(s, n)`; a warrior costs
+a Wooden Spear + 15 food, no wood). A bench only moves while someone stands at
+it, and the sticks and stone chunks research costs are hand-collected by the
+player's character, so `SimPlayerDriver.Tick` — run before every policy tick —
+fetches whatever the front entry is short of, deposits it, and parks the
+character at the bench until the queue runs dry. **Sweeps from before this
+change are not comparable**: they started with every job open and armed
+warriors for wood.
+
 ### The speed trick (important)
 
 The harness sets **`Time.captureDeltaTime = 1/60`**, not `Time.timeScale`.
@@ -104,7 +116,7 @@ these. Every field defaults to `-1`, so a run only has to name what it varies.
 | `raidBaseSize`, `raidSizePerDay`, `raidSizePerProsperity` | `RaidDirector` — how big: `base + perDay × day + perProsperity × prosperity` |
 | `enemyHealth/Damage/MoveSpeed` | each `Enemy` at spawn |
 | `warriorHealth/Damage/MoveSpeed` | each `Warrior` at spawn |
-| `warriorCostWood/Food`, `maxWarriors` | the campfire |
+| `warriorCostFood`, `maxWarriors` | the campfire (a warrior also costs a Wooden Spear from the stockpile since 2026-09-03; the old `warriorCostWood` key is ignored) |
 | `dayLengthSeconds`, `nightLengthSeconds` | `DayNightCycle` |
 | `daysToSurvive`, `maxGameSeconds` | `GameManager` / the run's hard stop (a 30-day run is 4500 s of game time at the shipping clock) |
 
@@ -177,7 +189,8 @@ Two fidelity caveats on what it *does* test:
 | File | Role |
 |---|---|
 | `Assets/Scripts/Sim/SimRunner.cs` | Driver: bootstrap, run loop, scene reload between runs, quit |
-| `Assets/Scripts/Sim/SimPolicy.cs` | Turtle / Rush / Eco — the simulated player |
+| `Assets/Scripts/Sim/SimPolicy.cs` | Turtle / Rush / Eco — the simulated player's decisions |
+| `Assets/Scripts/Sim/SimPlayerDriver.cs` | The simulated player's character: fetches research materials, stands at the bench |
 | `Assets/Scripts/Sim/SimBuilder.cs` | Programmatic placement mirroring the real confirm paths |
 | `Assets/Scripts/Sim/SimConfig.cs` | Sweep + run JSON schema |
 | `Assets/Scripts/Sim/SimOverrides.cs` | Per-unit knobs, applied from unit `Start` |

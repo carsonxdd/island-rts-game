@@ -34,8 +34,25 @@ public class Warrior : UnitBase<Warrior>
     [Header("References")]
     public BaseBuilding baseBuilding;  // Reference to campfire
 
+    /// <summary>
+    /// The weapon this warrior was armed with (2026-09-03): one piece of
+    /// ItemKind.Equipment taken from the campfire stockpile on recruit, returned
+    /// on dismiss, lost on death. BaseBuilding.SpawnWarrior sets it right after
+    /// Instantiate, so it is in place before Start copies the stats below.
+    /// </summary>
+    [System.NonSerialized] public ItemDef weapon;
+
     void Start()
     {
+        // Combat stats come from the weapon; the prefab's damage / range /
+        // cooldown are only the fallback for a warrior armed with nothing.
+        // Applied BEFORE the sim knobs so an explicit sweep override still wins.
+        if (weapon != null && weapon.equipment != null)
+        {
+            damage = weapon.equipment.damage;
+            attackRange = weapon.equipment.range;
+            attackCooldown = weapon.equipment.attackInterval;
+        }
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         // Balance-sim knobs, if a sweep is running. Must land before these
         // values are copied into the AI blackboard below.

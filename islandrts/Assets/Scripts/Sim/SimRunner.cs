@@ -340,7 +340,9 @@ public class SimRunner : MonoBehaviour
             if (policyTimer >= 1f)
             {
                 policyTimer = 0f;
-                policy.Tick(BuildState());
+                SimState state = BuildState();
+                SimPlayerDriver.Tick(state);   // the character's legs: materials + bench labor
+                policy.Tick(state);
             }
 
             yield return null;
