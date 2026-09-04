@@ -19,8 +19,8 @@ public static class RepairCosts
 
     public struct PerHp
     {
-        public float wood, food, stone;
-        public bool Any => wood > 0f || food > 0f || stone > 0f;
+        public float wood, food, stone, metal;   // metal since the Shipyard (2026-09-04)
+        public bool Any => wood > 0f || food > 0f || stone > 0f || metal > 0f;
     }
 
     /// <summary>Per-HP price for a building of this type. False when the database has no entry.</summary>
@@ -35,6 +35,7 @@ public static class RepairCosts
         cost.wood = data.woodCost * k;
         cost.food = data.foodCost * k;
         cost.stone = data.stoneCost * k;
+        cost.metal = data.metalCost * k;
         return true;
     }
 
@@ -50,6 +51,7 @@ public static class RepairCosts
         if (cost.wood > 0f && rm.wood < 1) return false;
         if (cost.food > 0f && rm.food < 1) return false;
         if (cost.stone > 0f && rm.stone < 1) return false;
+        if (cost.metal > 0f && rm.metal < 1) return false;
         return true;
     }
 

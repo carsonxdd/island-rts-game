@@ -63,6 +63,59 @@ namespace IslandRTS.ArtGen
             list.Add(new AssetDef("Crate", AssetCategory.Environment,
                 () => Crate(0.8f),
                 "0.8 cube"));
+
+            list.Add(new AssetDef("EscapeShip", AssetCategory.Environment,
+                () => EscapeShip(5f),
+                "5.0 long, ~3.6 to masthead"));
+        }
+
+        // ==================================================================
+        // EscapeShip — the sloop that sails on Set Sail (2026-09-04, Slice 6)
+        // ==================================================================
+
+        /// <summary>
+        /// A sloop hull (bow at +X), a single mast with a square of cream sail,
+        /// pivot at the waterline so it sits on the sea plane as it slides out.
+        /// Seen only for the six-second departure beat, from RTS camera height —
+        /// silhouette and the sail's colour are all it needs.
+        /// </summary>
+        private static MeshBuilder EscapeShip(float length)
+        {
+            MeshBuilder b = new MeshBuilder(1601);
+            float hl = length * 0.5f;
+
+            // Hull: keel beam, a frustum body that narrows toward the bow, a raised stern
+            b.Use("WoodDark");
+            b.Beam(new Vector3(-hl * 0.9f, 0.05f, 0f), new Vector3(hl * 0.95f, 0.05f, 0f), 0.16f, 0.12f);
+            b.Use("WoodPlank");
+            b.Push();
+            b.Translate(-hl * 0.1f, 0.0f, 0f);
+            b.Frustum(Vector3.zero, new Vector2(length * 0.72f, 1.0f), new Vector2(length * 0.8f, 1.5f), 0.8f);
+            b.Pop();
+            // Bow: a tapered segment from the body forward to the stem
+            b.TaperedSegment(new Vector3(hl * 0.3f, 0.45f, 0f), new Vector3(hl * 0.98f, 0.62f, 0f), 0.62f, 0.08f, 6);
+            // Stern rise
+            b.Box(new Vector3(-hl * 0.72f, 0.9f, 0f), new Vector3(0.7f, 0.3f, 1.4f));
+
+            // Deck rail
+            b.Use("WoodPale");
+            b.Box(new Vector3(-hl * 0.1f, 0.86f, 0.72f), new Vector3(length * 0.7f, 0.08f, 0.06f));
+            b.Box(new Vector3(-hl * 0.1f, 0.86f, -0.72f), new Vector3(length * 0.7f, 0.08f, 0.06f));
+
+            // Mast, yard and sail
+            b.Use("WoodLog");
+            b.Prism(new Vector3(0f, 0.8f, 0f), 0.09f, 0.06f, 2.8f, 6);
+            b.LogBetween(new Vector3(0.02f, 3.2f, -1.1f), new Vector3(0.02f, 3.2f, 1.1f), 0.05f, 5);
+            b.Use("ClothCream");
+            b.Box(new Vector3(0.12f, 2.3f, 0f), new Vector3(0.06f, 1.7f, 2.1f));
+
+            // Bowsprit and a red pennant
+            b.Use("WoodLog");
+            b.TaperedSegment(new Vector3(hl * 0.9f, 0.7f, 0f), new Vector3(hl * 1.25f, 0.95f, 0f), 0.05f, 0.02f, 5);
+            b.Use("ClothRed");
+            b.Box(new Vector3(0.1f, 3.5f, 0f), new Vector3(0.04f, 0.16f, 0.4f));
+
+            return b;
         }
 
         // ==================================================================

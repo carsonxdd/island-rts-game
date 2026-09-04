@@ -268,7 +268,12 @@ should garrison as the raid lands, which `ThreatNearby` already does once enemie
    `CombatEffects.FireArrow`; the range hold is the existing edge-distance check, no kiting;
    `Model_Archer` alt body mounted inactive by the plumber and toggled by `Warrior.ShowBody`;
    Eco makes one weapon in three a bow, `archers_dawn` column.
-6. **Escape.** Shipwright research, Shipyard building + beach placement rule, Set sail.
+6. **Escape — DONE 2026-09-04, pending playtest.** Shipwright (Workshop tier 5, after Iron
+   Work) → the Shipyard (key 6, 200 W 120 S 30 M, `requiresShore` within 6 m of water,
+   `buildTimeOverride` 45 s); `BuildingData.metalCost` everywhere; click → "Set sail on day
+   N?" → a six-second departure beat (`GameManager.TriggerEscape`, camera on the ship) → the
+   victory path with `isEscape` → "ESCAPED". Rope dropped (decided 2026-09-04). Eco escapes from
+   day 12; `runs.csv` outcome `escape`.
 
 ## 8. Decisions (locked 2026-09-02)
 

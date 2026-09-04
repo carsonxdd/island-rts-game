@@ -759,14 +759,20 @@ public class MenuScreens : MonoBehaviour
 
         Color accent = gameOverVictory ? MenuStyle.TextAccent : MenuStyle.TextDanger;
 
-        TextMeshProUGUI title = MenuBuilder.Label(col.transform,
-            gameOverVictory ? "VICTORY" : "DEFEAT", MenuStyle.TitleSize - 10f, accent);
+        // The escape (2026-09-04, Slice 6) is a victory with its own dressing:
+        // the colony sailed for home on day N instead of waiting for the rescue.
+        bool escaped = gameOverVictory && GameManager.Instance != null && GameManager.Instance.isEscape;
+        string titleText = escaped ? "ESCAPED" : gameOverVictory ? "VICTORY" : "DEFEAT";
+        string subtitle = escaped
+            ? "You built a ship and sailed for home on day "
+              + (GameManager.Instance != null ? GameManager.Instance.currentDay : 0) + "."
+            : gameOverVictory ? "The rescue ship has arrived." : "Your camp was overrun.";
+
+        TextMeshProUGUI title = MenuBuilder.Label(col.transform, titleText, MenuStyle.TitleSize - 10f, accent);
         title.characterSpacing = 8f;
         title.gameObject.AddComponent<LayoutElement>().preferredHeight = 62f;
 
-        MenuBuilder.Label(col.transform,
-            gameOverVictory ? "The rescue ship has arrived." : "Your camp was overrun.",
-            MenuStyle.BodySize, MenuStyle.TextMuted)
+        MenuBuilder.Label(col.transform, subtitle, MenuStyle.BodySize, MenuStyle.TextMuted)
             .gameObject.AddComponent<LayoutElement>().preferredHeight = 28f;
 
         MenuBuilder.Spacer(col.transform, 6f);
@@ -876,6 +882,15 @@ public class MenuScreens : MonoBehaviour
         confirmMessage = message;
         confirmAction = action;
         Show(Screen.Confirm);
+    }
+
+    /// <summary>
+    /// The Shipyard's question (2026-09-04, Slice 6): the same Confirm screen
+    /// Restart uses, opened from gameplay, so Esc / NO simply closes it.
+    /// </summary>
+    public void AskSetSail(int day, Action yes)
+    {
+        AskConfirm("Set sail on day " + day + "? Everyone leaves the island.", yes);
     }
 
     private void BuildConfirm()

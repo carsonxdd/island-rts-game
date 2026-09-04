@@ -400,6 +400,13 @@ public class DebugMenu : MonoBehaviour
             if (ResourceManager.Instance != null) ResourceManager.Instance.SpendFood(ResourceManager.Instance.food);
             PopulationManager.Instance.DebugStarve();
         }
+        // The escape (2026-09-04): skips the Shipyard's confirm, keeps the departure beat
+        GUI.enabled = Shipyard.ActiveList.Count > 0 && GameManager.Instance != null && !GameManager.Instance.isGameOver;
+        if (GUILayout.Button("Set Sail (needs a finished Shipyard)"))
+        {
+            Shipyard yard = Shipyard.ActiveList[0];
+            if (yard != null) yard.SetSail();
+        }
         GUI.enabled = PlayerCharacter.Instance != null && !PlayerCharacter.Instance.IsKnockedOut;
         if (GUILayout.Button("Knock Out Player"))
         {

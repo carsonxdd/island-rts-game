@@ -138,7 +138,8 @@ enemies_killed, peak_workers, peak_warriors, final_wood/food/stone,
 colonists_left, game_seconds, wall_seconds, frames, note
 ```
 
-`outcome` is `victory` | `defeat` | `timeout` | `error`. `colonists_left` counts
+`outcome` is `victory` | `escape` | `defeat` | `timeout` | `error` — `escape` is the
+Shipyard ending (2026-09-04), a win before the rescue dawn. `colonists_left` counts
 the people who walked out because the colony starved them (2026-09-04).
 
 **`days.csv`** — one row per calendar day per game (dusk to dawn). Plot this.

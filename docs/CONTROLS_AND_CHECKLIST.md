@@ -60,6 +60,7 @@ and the debug keys F3 / F4 / F6 / F7.
 | 3 | Stone Wall |
 | 4 | Watchtower |
 | 5 | Workshop |
+| 6 | Shipyard (beach only, after Shipwright) |
 | Left click | Place (walls: click-start → click-end line) |
 | R | Rotate building / toggle L-path direction in wall mode |
 | Shift (hold) | Bresenham staircase wall path instead of L-path |
@@ -710,3 +711,22 @@ Without the plumb step archers fight correctly but wear the spearman body.
 - [ ] Dismissing an archer returns the Bow, not a spear
 - [ ] F3 overlay: an archer's action reads "Engage" like a warrior, its label "Attacking …" while shooting
 - [ ] Run a headless sim smoke sweep: `days.csv` has an `archers_dawn` column and Eco fields at least one archer after Bowyery
+
+### Slice 6 — The escape ship (2026-09-04)
+
+Editor steps: **Generate All Assets** (Shipyard + EscapeShip shapes), then **Setup Pickups + Workshop**
+(rebuilds `Shipyard.prefab`, `ShipyardGhost.prefab`, `ShipyardData.asset` and registers it in the
+BuildingDatabase). Setup Everything (In Order) covers both.
+
+- [ ] In build mode, 6 says "Research Shipwright at the Workshop to build a Shipyard" on the character's line until Shipwright (40 W 30 S 10 M, needs Iron Work) is done
+- [ ] After Shipwright, 6 shows the slipway ghost with "Cost: 200W 120S 30M"; it is red anywhere inland and green only within about six steps of the water, on flat sand
+- [ ] Placing it deducts metal too; the site takes about 90 s with one builder and about 30 s with three; F4 "Finish All Construction" completes it
+- [ ] The finished Shipyard glows on hover, has a health bar, carves the NavMesh (colonists walk around it) and blocks placement within 5 units
+- [ ] Left-clicking it asks "Set sail on day N? Everyone leaves the island."; NO or Esc returns to the game unchanged
+- [ ] YES: the clock stops, input is ignored, a sloop slides from the yard toward open water for about six seconds with the camera following it and a slight bob, then the fanfare and the end screen read "ESCAPED" with "sailed for home on day N"; the run summary is the normal one
+- [ ] KEEP PLAYING from the ESCAPED screen resumes the game; RESTART and MAIN MENU work as before
+- [ ] F4 "Set Sail" skips the confirm and plays the same beat
+- [ ] Spawn a raid with a Shipyard standing: raiders attack it like a hut (it is worth 8 prosperity, so the raid is larger)
+- [ ] Demolishing the Shipyard refunds 100W 60S 15M; a damaged one is repaired by idle colonists with metal drawn one unit at a time
+- [ ] Options → Controls lists "Select shipyard" under Building and it rebinds like the others
+- [ ] Headless sim: an Eco run past day 12 researches Shipwright, places the yard on the beach and ends with outcome `escape` in `runs.csv`

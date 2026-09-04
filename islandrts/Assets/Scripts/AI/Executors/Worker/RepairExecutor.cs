@@ -25,7 +25,7 @@ public class RepairExecutor : ActionExecutor
     private Collider targetCollider;
     private RepairCosts.PerHp cost;
     private bool hasCost;
-    private float debtWood, debtFood, debtStone;
+    private float debtWood, debtFood, debtStone, debtMetal;   // metal since the Shipyard (2026-09-04)
     private bool working;
     private bool destinationQueued;
 
@@ -49,7 +49,7 @@ public class RepairExecutor : ActionExecutor
         health = null;
         working = false;
         destinationQueued = false;
-        debtWood = debtFood = debtStone = 0f;
+        debtWood = debtFood = debtStone = debtMetal = 0f;
         displayName = "Heading to repair";
         Worker.RollMovingAvoidance(bb.agent);
         Acquire(bb);
@@ -108,7 +108,7 @@ public class RepairExecutor : ActionExecutor
         health = bb.bestRepairHealth;
         targetCollider = target.GetComponent<Collider>();
         hasCost = RepairCosts.TryGetPerHp(bb.bestRepairType, health.maxHealth, out cost);
-        debtWood = debtFood = debtStone = 0f;
+        debtWood = debtFood = debtStone = debtMetal = 0f;
         destinationQueued = false;
         IssueMove(bb);
     }
@@ -145,14 +145,16 @@ public class RepairExecutor : ActionExecutor
             float newWood = debtWood + cost.wood * hp;
             float newFood = debtFood + cost.food * hp;
             float newStone = debtStone + cost.stone * hp;
+            float newMetal = debtMetal + cost.metal * hp;
             int dueWood = Mathf.FloorToInt(newWood);
             int dueFood = Mathf.FloorToInt(newFood);
             int dueStone = Mathf.FloorToInt(newStone);
+            int dueMetal = Mathf.FloorToInt(newMetal);
 
-            if (dueWood > 0 || dueFood > 0 || dueStone > 0)
+            if (dueWood > 0 || dueFood > 0 || dueStone > 0 || dueMetal > 0)
             {
                 ResourceManager rm = ResourceManager.Instance;
-                if (rm == null || !rm.SpendResources(dueWood, dueFood, dueStone))
+                if (rm == null || !rm.SpendResources(dueWood, dueFood, dueStone, dueMetal))
                 {
                     displayName = "Repairing (no materials)";
                     return;   // pause — the debt is not committed, so nothing was lost
@@ -160,11 +162,13 @@ public class RepairExecutor : ActionExecutor
                 newWood -= dueWood;
                 newFood -= dueFood;
                 newStone -= dueStone;
+                newMetal -= dueMetal;
             }
 
             debtWood = newWood;
             debtFood = newFood;
             debtStone = newStone;
+            debtMetal = newMetal;
             displayName = "Repairing";
         }
 

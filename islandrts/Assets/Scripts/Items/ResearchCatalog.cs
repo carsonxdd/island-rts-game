@@ -172,6 +172,16 @@ public static class ResearchCatalog
             prerequisites = new[] { "spearcraft" },
             grants = new[] { Unlocks.Kind.Archery },
         },
+        // The escape (2026-09-04, Slice 6): the Shipyard building, and with it the early ending.
+        new ResearchDef
+        {
+            id = "shipwright", title = "Shipwright", tier = 5, station = Station.Workshop,
+            description = "The Shipyard can be built on a beach; a finished ship sails you home early",
+            woodCost = 40, stoneCost = 30, metalCost = 10,
+            seconds = 20f,
+            prerequisites = new[] { "iron_work" },
+            grants = new[] { Unlocks.Kind.Shipwright },
+        },
     };
 
     /// <summary>Fires after any entry completes. The campfire panel re-labels its locked rows on it.</summary>

@@ -25,6 +25,18 @@ public class GameManager : MonoBehaviour
     [Header("Game State")]
     public bool isGameOver = false;
     public bool isVictory = false;
+    /// <summary>The run ended by sailing away (2026-09-04, Slice 6): a victory with its own end screen.</summary>
+    [System.NonSerialized] public bool isEscape = false;
+
+    /// <summary>
+    /// True from "Set sail" until the end screen: gameplay input is blocked and
+    /// the clock holds while the ship slides out. Static so PauseController can
+    /// read it without a lookup; reset on load like every other static.
+    /// </summary>
+    public static bool EscapeInProgress { get; private set; }
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetStatics() { EscapeInProgress = false; }
 
     [Header("References")]
     // The victoryScreen / defeatScreen object references are gone. Both screens
@@ -198,6 +210,70 @@ public class GameManager : MonoBehaviour
     {
         if (SimHooks.Simulating) return;
         MenuScreens.Ensure().ShowGameOver(victory);
+    }
+
+    /// <summary>
+    /// The colony sails away (2026-09-04, Slice 6). Freezes input and the clock,
+    /// slides the ship out from the Shipyard toward open water for a few seconds
+    /// with the camera following, then ends the run through the victory path
+    /// with <see cref="isEscape"/> set so the end screen says ESCAPED. Under the
+    /// balance sim the beat is skipped and the run ends at once.
+    /// </summary>
+    public void TriggerEscape(Shipyard yard)
+    {
+        if (isGameOver || EscapeInProgress) return;
+
+        if (SimHooks.Simulating)
+        {
+            isEscape = true;
+            TriggerVictory();
+            return;
+        }
+
+        EscapeInProgress = true;
+        StartCoroutine(DepartureBeat(yard));
+    }
+
+    private const float DepartureSeconds = 6f;
+    private const float ShipSpeed = 3f;
+
+    private System.Collections.IEnumerator DepartureBeat(Shipyard yard)
+    {
+        DayNightCycle clock = FindAnyObjectByType<DayNightCycle>();
+        if (clock != null) clock.clockPaused = true;
+
+        // The ship starts at the slipway's water edge, on the sea plane, and
+        // slides out along the direction the Shipyard found toward open water.
+        Vector3 dir = yard != null ? yard.LaunchDirection : Vector3.right;
+        Vector3 start = yard != null ? yard.transform.position + dir * 3f : Vector3.zero;
+        start.y = 0.05f;
+
+        // The art's bow is +X: rotate so +X points along the launch direction
+        GameObject ship = null;
+        if (yard != null && yard.shipArtPrefab != null)
+            ship = Instantiate(yard.shipArtPrefab, start, Quaternion.FromToRotation(Vector3.right, dir));
+
+        // TriggerVictory plays the fanfare at the end of the beat; the launch is quiet.
+        CameraController cam = FindAnyObjectByType<CameraController>();
+        float t = 0f;
+        while (t < DepartureSeconds)
+        {
+            t += Time.deltaTime;
+            Vector3 pos = start + dir * (ShipSpeed * t);
+            pos.y = 0.05f + Mathf.Sin(t * 2.6f) * 0.06f;   // a small bob
+            if (ship != null)
+            {
+                ship.transform.position = pos;
+                ship.transform.rotation = Quaternion.FromToRotation(Vector3.right, dir)
+                    * Quaternion.Euler(Mathf.Sin(t * 2.6f) * 2f, 0f, Mathf.Cos(t * 1.7f) * 1.5f);
+            }
+            if (cam != null) cam.CenterOn(pos);
+            yield return null;
+        }
+
+        isEscape = true;
+        TriggerVictory();   // isVictory, timescale 0, the end screen
+        EscapeInProgress = false;
     }
 
     /// <summary>

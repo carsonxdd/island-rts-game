@@ -13,6 +13,9 @@ public class GhostPlacer
     private bool isValidPlacement = false;
     private float currentRotation = 0f;  // Current ghost rotation in degrees
 
+    /// <summary>How close to the water a shore building (the Shipyard) must stand. A beach-band width, unscaled.</summary>
+    public const float ShoreRadius = 6f;
+
     public GhostPlacer(BuildPlacement owner)
     {
         this.owner = owner;
@@ -89,8 +92,19 @@ public class GhostPlacer
         // Terrain (T1): buildings only on dry, gentle ground
         bool terrainOk = TerrainGrid.Instance == null || TerrainGrid.Instance.IsBuildable(targetPosition);
 
+        // Shore rule (2026-09-04, Slice 6): the Shipyard must sit within ShoreRadius
+        // of the water. 6 m is a beach-band width, not a map distance, so it does
+        // not scale with TerrainGrid.SizeScale.
+        bool shoreOk = true;
+        if (TerrainGrid.Instance != null && BuildingDatabase.Instance != null)
+        {
+            BuildingData sel = BuildingDatabase.Instance.GetBuildingData(owner.selectedBuildingType);
+            if (sel != null && sel.requiresShore)
+                shoreOk = TerrainGrid.Instance.IsNearWater(targetPosition, ShoreRadius);
+        }
+
         // Update validity and color (must pass all checks)
-        isValidPlacement = !hasCollision && !tooCloseToBuilding && terrainOk;
+        isValidPlacement = !hasCollision && !tooCloseToBuilding && terrainOk && shoreOk;
 
         owner.SetGhostColor(isValidPlacement ? owner.validColor : owner.invalidColor);
     }
@@ -124,13 +138,13 @@ public class GhostPlacer
             return;
         }
 
-        if (!ResourceManager.Instance.CanAfford(data.woodCost, data.foodCost, data.stoneCost))
+        if (!ResourceManager.Instance.CanAfford(data.woodCost, data.foodCost, data.stoneCost, data.metalCost))
         {
             return;
         }
 
-        // Deduct resources
-        ResourceManager.Instance.SpendResources(data.woodCost, data.foodCost, data.stoneCost);
+        // Deduct resources (metal too since the Shipyard, 2026-09-04)
+        ResourceManager.Instance.SpendResources(data.woodCost, data.foodCost, data.stoneCost, data.metalCost);
 
         // Terrain T2: level a pad under the footprint so the building sits
         // flush instead of clipping into the slope (target height = center
@@ -252,6 +266,24 @@ public class GhostPlacer
         }
 
         // Walls have noBuildRadius=0 so this check is effectively skipped for them
+
+        // Workshops and Shipyards (2026-09-04): the Workshop was never in this list
+        for (int i = 0; i < Workshop.ActiveList.Count; i++)
+        {
+            Workshop w = Workshop.ActiveList[i];
+            if (w == null) continue;
+            if (Mathf.Abs(position.x - w.transform.position.x) < w.noBuildRadius + gridBuffer
+                && Mathf.Abs(position.z - w.transform.position.z) < w.noBuildRadius + gridBuffer)
+                return true;
+        }
+        for (int i = 0; i < Shipyard.ActiveList.Count; i++)
+        {
+            Shipyard y = Shipyard.ActiveList[i];
+            if (y == null) continue;
+            if (Mathf.Abs(position.x - y.transform.position.x) < y.noBuildRadius + gridBuffer
+                && Mathf.Abs(position.z - y.transform.position.z) < y.noBuildRadius + gridBuffer)
+                return true;
+        }
 
         // Check all Watchtower objects (finished towers)
         for (int i = 0; i < Watchtower.ActiveList.Count; i++)

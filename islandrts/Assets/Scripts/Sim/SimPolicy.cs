@@ -346,7 +346,25 @@ public class EcoPolicy : SimPolicy
         }
         if (CanBuild && s.Day >= 4 && s.Wood >= 250 && s.Stone >= 150)
         {
-            SimBuilder.PlaceWallRing(BuildingType.WoodenWall, 8, 12);
+            if (SimBuilder.PlaceWallRing(BuildingType.WoodenWall, 8, 12) > 0) return;
+        }
+
+        // The escape (2026-09-04, Slice 6): from day 12 research Shipwright, build the
+        // Shipyard on the beach when the bank covers it, and sail the moment it stands.
+        // A run that ends "escape" is the metric: how early can Eco leave?
+        if (s.Day >= 12)
+        {
+            if (Research(s, "shipwright")) return;
+            if (Unlocks.Has(Unlocks.Kind.Shipwright) && CanBuild
+                && Shipyard.ActiveList.Count == 0 && SimBuilder.PendingSites(BuildingType.Shipyard) == 0)
+            {
+                if (SimBuilder.PlaceShoreBuilding(BuildingType.Shipyard, 60f)) return;
+            }
+            if (Shipyard.ActiveList.Count > 0)
+            {
+                Shipyard yard = Shipyard.ActiveList[0];
+                if (yard != null) { yard.SetSail(); return; }
+            }
         }
     }
 }

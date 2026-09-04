@@ -117,6 +117,7 @@ public class BuildPlacement : MonoBehaviour
             if (KeyBindings.Down(KeyBindings.Action.SelectStoneWall)) SelectBuilding(BuildingType.StoneWall);
             if (KeyBindings.Down(KeyBindings.Action.SelectWatchtower)) SelectBuilding(BuildingType.Watchtower);
             if (KeyBindings.Down(KeyBindings.Action.SelectWorkshop)) SelectBuilding(BuildingType.Workshop);
+            if (KeyBindings.Down(KeyBindings.Action.SelectShipyard)) SelectBuilding(BuildingType.Shipyard);
 
             // Convert the wall under the cursor to a gate (grid-based detection)
             if (KeyBindings.Down(KeyBindings.Action.ConvertToGate))
@@ -200,7 +201,7 @@ public class BuildPlacement : MonoBehaviour
         // Update UI if exists
         if (selectionUI != null)
         {
-            bool canAfford = ResourceManager.Instance.CanAfford(data.woodCost, data.foodCost, data.stoneCost);
+            bool canAfford = ResourceManager.Instance.CanAfford(data.woodCost, data.foodCost, data.stoneCost, data.metalCost);
             selectionUI.UpdateDisplay(data, canAfford);
             selectionUI.Show();
         }
@@ -222,6 +223,14 @@ public class BuildPlacement : MonoBehaviour
         {
             if (PlayerCharacter.Instance != null)
                 PlayerCharacter.Instance.SetActivity("Research Crafting at the fire to build a Workshop", 3f);
+            return;
+        }
+
+        // The Shipyard is the Shipwright research's building (2026-09-04, Slice 6)
+        if (type == BuildingType.Shipyard && !Unlocks.Has(Unlocks.Kind.Shipwright))
+        {
+            if (PlayerCharacter.Instance != null)
+                PlayerCharacter.Instance.SetActivity("Research Shipwright at the Workshop to build a Shipyard", 3f);
             return;
         }
 
@@ -288,7 +297,7 @@ public class BuildPlacement : MonoBehaviour
         // Update UI if exists
         if (selectionUI != null)
         {
-            bool canAfford = ResourceManager.Instance.CanAfford(data.woodCost, data.foodCost, data.stoneCost);
+            bool canAfford = ResourceManager.Instance.CanAfford(data.woodCost, data.foodCost, data.stoneCost, data.metalCost);
             selectionUI.UpdateDisplay(data, canAfford);
         }
     }

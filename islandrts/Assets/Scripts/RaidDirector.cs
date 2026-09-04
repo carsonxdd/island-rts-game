@@ -177,6 +177,7 @@ public class RaidDirector : MonoBehaviour
         p += Hut.ActiveList.Count * 3f;
         p += Watchtower.ActiveList.Count * 6f;
         p += Workshop.ActiveList.Count * 4f;
+        p += Shipyard.ActiveList.Count * 8f;   // a ship on the slipway is worth raiding (2026-09-04)
         p += (Wall.ActiveList.Count + Gate.ActiveList.Count) * 0.3f;
 
         ResourceManager rm = ResourceManager.Instance;

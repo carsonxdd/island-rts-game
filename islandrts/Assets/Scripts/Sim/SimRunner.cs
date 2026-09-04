@@ -338,7 +338,7 @@ public class SimRunner : MonoBehaviour
             }
             if (gm != null && gm.isGameOver)
             {
-                metrics.outcome = gm.isVictory ? "victory" : "defeat";
+                metrics.outcome = gm.isEscape ? "escape" : gm.isVictory ? "victory" : "defeat";   // escape (2026-09-04)
                 break;
             }
             if (SimBuilder.Campfire == null)

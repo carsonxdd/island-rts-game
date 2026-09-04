@@ -54,7 +54,7 @@ public static class SimBuilder
             ? BuildingDatabase.Instance.GetBuildingData(type) : null;
         if (data == null || data.constructionSitePrefab == null) return false;
         if (ResourceManager.Instance == null || Campfire == null) return false;
-        if (!ResourceManager.Instance.CanAfford(data.woodCost, data.foodCost, data.stoneCost)) return false;
+        if (!ResourceManager.Instance.CanAfford(data.woodCost, data.foodCost, data.stoneCost, data.metalCost)) return false;
 
         Vector3 origin = Campfire.transform.position;
 
@@ -150,9 +150,44 @@ public static class SimBuilder
 
     // ---- shared internals -------------------------------------------------
 
+    /// <summary>
+    /// Place a shore building (the Shipyard, 2026-09-04): spiral out from the
+    /// campfire in 2 m steps until a buildable cell within GhostPlacer.ShoreRadius
+    /// of the water is clear, then the normal confirm mirror. False when none is
+    /// found within <paramref name="maxRadius"/> or it is unaffordable.
+    /// </summary>
+    public static bool PlaceShoreBuilding(BuildingType type, float maxRadius)
+    {
+        BuildingData data = BuildingDatabase.Instance != null
+            ? BuildingDatabase.Instance.GetBuildingData(type) : null;
+        if (data == null || data.constructionSitePrefab == null) return false;
+        if (ResourceManager.Instance == null || Campfire == null || TerrainGrid.Instance == null) return false;
+        if (!ResourceManager.Instance.CanAfford(data.woodCost, data.foodCost, data.stoneCost, data.metalCost)) return false;
+
+        Vector3 origin = Campfire.transform.position;
+        for (float radius = 6f; radius <= maxRadius; radius += 2f)
+        {
+            int steps = Mathf.Max(8, Mathf.RoundToInt(radius));
+            for (int i = 0; i < steps; i++)
+            {
+                float angle = i * (Mathf.PI * 2f / steps);
+                Vector3 pos = origin + new Vector3(Mathf.Cos(angle) * radius, 0f, Mathf.Sin(angle) * radius);
+                pos = GridSnap.SnapXZ(pos, 1f);
+                pos.y = GroundY(pos);
+
+                if (!TerrainGrid.Instance.IsNearWater(pos, GhostPlacer.ShoreRadius)) continue;
+                if (!IsClear(pos, data.buildingSize)) continue;
+
+                Spawn(data, type, pos, flatten: true);
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static void Spawn(BuildingData data, BuildingType type, Vector3 pos, bool flatten)
     {
-        ResourceManager.Instance.SpendResources(data.woodCost, data.foodCost, data.stoneCost);
+        ResourceManager.Instance.SpendResources(data.woodCost, data.foodCost, data.stoneCost, data.metalCost);
 
         if (flatten && TerrainGrid.Instance != null)
         {

@@ -66,6 +66,12 @@ public class BuildingSelectionUI : MonoBehaviour
                 costText += $" {data.stoneCost}S";
             }
 
+            // Metal since the Shipyard (2026-09-04)
+            if (data.metalCost > 0)
+            {
+                costText += $" {data.metalCost}M";
+            }
+
             buildingCostText.text = costText;
             buildingCostText.color = canAfford ? affordableColor : unaffordableColor;
         }

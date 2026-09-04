@@ -221,6 +221,9 @@ public class ConstructionSite : MonoBehaviour
             if (data != null)
             {
                 targetHealth = data.maxHealth;
+                // A slow build (the Shipyard) carries its own time; 0 keeps the
+                // site prefab's serialized buildTime (2026-09-04).
+                if (data.buildTimeOverride > 0f) buildTime = data.buildTimeOverride;
             }
         }
 

@@ -16,5 +16,7 @@ public enum BuildingType
     Watchtower,
     WoodenGate,
     StoneGate,
-    Workshop
+    Workshop,
+    /// <summary>The escape ship's slipway (2026-09-04, Slice 6). Beach-only; clicking it offers to set sail.</summary>
+    Shipyard
 }

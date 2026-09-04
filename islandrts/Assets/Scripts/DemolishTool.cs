@@ -183,10 +183,12 @@ public class DemolishTool
             int woodRefund = Mathf.FloorToInt(data.woodCost * 0.5f);
             int foodRefund = Mathf.FloorToInt(data.foodCost * 0.5f);
             int stoneRefund = Mathf.FloorToInt(data.stoneCost * 0.5f);
+            int metalRefund = Mathf.FloorToInt(data.metalCost * 0.5f);
 
             if (woodRefund > 0) ResourceManager.Instance.AddWood(woodRefund);
             if (foodRefund > 0) ResourceManager.Instance.AddFood(foodRefund);
             if (stoneRefund > 0) ResourceManager.Instance.AddStone(stoneRefund);
+            if (metalRefund > 0) ResourceManager.Instance.AddMetal(metalRefund);
         }
 
         // Play sound

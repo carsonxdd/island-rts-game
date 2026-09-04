@@ -231,6 +231,41 @@ public class TerrainGrid : MonoBehaviour
     }
 
     /// <summary>
+    /// Is there water within <paramref name="radius"/> of this point (2026-09-04)?
+    /// Sixteen samples on the ring, any at or below sea level counts — a beach
+    /// test for the Shipyard, cheap enough to run per ghost frame.
+    /// </summary>
+    public bool IsNearWater(Vector3 worldPos, float radius)
+    {
+        for (int i = 0; i < 16; i++)
+        {
+            float a = i * (Mathf.PI * 2f / 16f);
+            Vector3 p = new Vector3(worldPos.x + Mathf.Cos(a) * radius, 0f, worldPos.z + Mathf.Sin(a) * radius);
+            if (SampleHeight(p) <= 0f) return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Direction from this point toward the nearest water on a ring of
+    /// <paramref name="radius"/>, or +X when none is found. The escape ship
+    /// launches along it.
+    /// </summary>
+    public Vector3 DirectionToWater(Vector3 worldPos, float radius)
+    {
+        Vector3 best = Vector3.right;
+        float lowest = float.MaxValue;
+        for (int i = 0; i < 16; i++)
+        {
+            float a = i * (Mathf.PI * 2f / 16f);
+            Vector3 dir = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
+            float h = SampleHeight(worldPos + dir * radius);
+            if (h < lowest) { lowest = h; best = dir; }
+        }
+        return best;
+    }
+
+    /// <summary>
     /// Grass tone 0..1 at a world position (0 = dark valley grass, 1 = dry
     /// plateau meadow) — the same value the material bands use, so scatter
     /// and resource placement can agree with what the ground looks like.

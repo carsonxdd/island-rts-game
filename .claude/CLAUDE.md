@@ -50,7 +50,7 @@ Every 0.25–0.35s (randomized per unit) the brain scores `basePriority × Π(co
 - **Targeting:** everything implements `ITargetable`. Scans go through `TargetingUtil.FindNearest`, target state through `bb.SetTarget` / `ClearTarget` / `IsTargetAlive`, carve-safe destinations and ranges through `TargetingUtil.GetApproachPoint` / `EdgeDistance`. Never hand-roll a scan or an approach point.
 - **Performance:** zero GC in Update and AI eval; `AINavHelper` throttles SetDestination (20/frame) and CalculatePath (2/frame); enemy density grid (`AIWorldState`, cell 10); dirty-checked UI text; audio preloaded; staggered per-unit timers.
 - **Point-of-effect reads:** difficulty multipliers, settings, `CraftedUpgrades`, `Unlocks.Has` and stockpile capacity are read where they take effect, never pushed. Run-scoped choices (`Difficulty`, `IslandOptions`, `PlayerProfile`, `TerrainGrid.RunSeed`) are snapshotted by `MenuFlow.NewGame` and deliberately kept by `Restart`.
-- **Building:** `BuildingData` SOs in `BuildingDatabase` keyed by `BuildingType`. Wall lines are click-start/click-end (L-path, or Shift for Bresenham); G converts wall→gate; Delete/X demolishes at 50% refund, campfire protected. Placement flattens a pad; walls follow terrain per cell. Construction advances only via `ConstructionSite.AddLabor` from jobless colonists — no auto-build.
+- **Building:** `BuildingData` SOs in `BuildingDatabase` keyed by `BuildingType`. Wall lines are click-start/click-end (L-path, or Shift for Bresenham); G converts wall→gate; Delete/X demolishes at 50% refund, campfire protected. Placement flattens a pad; walls follow terrain per cell. Construction advances only via `ConstructionSite.AddLabor` from jobless colonists — no auto-build. `BuildingData.metalCost` (2026-09-04) is read by every four-resource cost overload (placement, refund, repair; walls keep three-arg calls). `requiresShore` = within `GhostPlacer.ShoreRadius` 6 of water (a beach-band width, NOT `SizeScale`d) via `TerrainGrid.IsNearWater`; `buildTimeOverride` exists because huts and the Workshop share one site prefab. The escape is the victory path with `GameManager.isEscape`; `EscapeInProgress` (static) blocks input during the beat.
 - **Calendar:** 30-day run. `RaidDirector` rolls at dawn — `chance = (0.15 + 0.2 × quietNights) × raidFrequency`, never before day 3, forced after 5 quiet nights. Size frozen at roll time: `round((2 + 0.4 × day + 0.08 × prosperity) × enemyCount)`. Victory = dawn after day `daysToSurvive` (Normal 30, Peaceful/Relaxed 20; Hard/Brutal raise `raidFrequency` instead of length).
 - **Economy layers:** four pooled resources (`ResourceType`, Metal appended last — **never reorder**) ← items (`ItemCatalog`: materials, resources-in-hand, tools, equipment) ← research (`ResearchCatalog`, one-time, grants `Unlocks.Kind`s and hands over its tool) and repeatable recipes (`CraftingCatalog`, gated by a research id). Stations run the queue only while someone stands at the bench; costs are paid on completion.
 
@@ -231,7 +231,7 @@ Console kept quiet on purpose (212 → 65 calls). **Before adding any `Debug.Log
 |-----|--------|
 | WASD / Arrows · Q / E · Wheel · Middle-drag | Pan · rotate · zoom · tilt/rotate |
 | B | Build mode (opening: place the campfire) |
-| 1–5 | Hut · Wood Wall · Stone Wall · Watchtower · Workshop |
+| 1–6 | Hut · Wood Wall · Stone Wall · Watchtower · Workshop · Shipyard (beach only) |
 | G / R / Shift | Wall → gate · L-path toggle or rotate · Bresenham staircase |
 | Delete / X | Demolish (50% refund) |
 | F2 / F3 / F4 / F6 | Grid overlay · AI overlay · Debug menu (cheats) · Perf logger |
@@ -249,9 +249,9 @@ Branch `feature/balance-sim-and-menus`. Slices 3–6 of `RESEARCH_AND_DAYS_PLAN.
 
 **Shipped:** four-resource economy with a colonist pool (arrivals by housing, jobs from the idle pool, jobless colonists forage/build/repair); player character with hand-harvest and campfire deposit; research → craft split with stations (campfire + Workshop), a Crafter job, spears as per-warrior equipment with a recruit picker and the Iron Spear; 30-day calendar with dawn-rolled, prosperity-scaled raids; walls/gates/towers/demolish; Utility AI for every unit; random islands (size/style/seed) with terraces, cliffs, ponds, stylized water, runtime scatter; tree occlusion fade; code-built menus, end screens and an in-game changelog; F4 debug menu; headless balance sim.
 
-**Pending playtest:** Slice 2 research/stations, the 09-03 polish and byproduct passes, the changelog screen, Slices 3, 4 and 5 (Slice 5 needs Generate All Assets → Plumb Everything for the archer body). A raid tuning pass is pending.
+**Pending playtest:** Slice 2 research/stations, the 09-03 polish and byproduct passes, the changelog screen, Slices 3–6 (run Setup Everything first: the archer body, the Shipyard prefab/ghost/data). A raid tuning pass is pending.
 
-**Next** (`RESEARCH_AND_DAYS_PLAN.md`): Slice 6 escape ship. Then `COLONY_EXPANSION_PLAN.md` (collector radius, settlement tiers, processing chains, families, farming). Phase 10 Stages 3–4 (water polish, lighting bake) remain open.
+**Next:** playtest slices 3–6, then `COLONY_EXPANSION_PLAN.md` (collector radius, settlement tiers, processing chains, families, farming). Then `COLONY_EXPANSION_PLAN.md` (collector radius, settlement tiers, processing chains, families, farming). Phase 10 Stages 3–4 (water polish, lighting bake) remain open.
 
 ---
 
@@ -271,6 +271,7 @@ Branch `feature/balance-sim-and-menus`. Slices 3–6 of `RESEARCH_AND_DAYS_PLAN.
 | Stone Wall / Gate | 10W 20S | 300 / 150 |
 | Watchtower | 25W 15S | 200 |
 | Workshop | 30W 20S | 150 |
+| Shipyard (beach only, 45s×2 build; Shipwright 40W 30S 10M) | 200W 120S 30M | 300 |
 | Warrior | 1 Wooden Spear + 15F + an idle colonist | 75 |
 | Wooden Spear (craft, 10s) | 3 stick 1 chunk 5W | — |
 | Iron Spear (craft, 12s; Iron Work 20W 25S 10M) | 2 stick 5W 4M | — |

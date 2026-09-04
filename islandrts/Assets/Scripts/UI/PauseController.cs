@@ -25,7 +25,7 @@ public class PauseController : MonoBehaviour
     /// True when gameplay input should be ignored — paused, or any menu open.
     /// Input-driven Updates check this; they still run, they just do nothing.
     /// </summary>
-    public static bool BlockGameplayInput => IsPaused || MenuScreens.AnyOpen;
+    public static bool BlockGameplayInput => IsPaused || MenuScreens.AnyOpen || GameManager.EscapeInProgress;   // the departure beat (2026-09-04) locks input too
 
     private float resumeTimeScale = 1f;
 

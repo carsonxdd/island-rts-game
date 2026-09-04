@@ -40,6 +40,72 @@ namespace IslandRTS.ArtGen
 
             list.Add(new AssetDef("Workshop", AssetCategory.Buildings,
                 () => Workshop(2f), "2.0 x 2.0 footprint, ~2.1 tall"));
+
+            list.Add(new AssetDef("Shipyard", AssetCategory.Buildings,
+                () => Shipyard(4f, 2.5f), "4.0 x 2.5 footprint, ~1.8 tall"));
+        }
+
+        // ==================================================================
+        // Shipyard — the escape ship's slipway (2026-09-04, Slice 6)
+        // ==================================================================
+
+        /// <summary>
+        /// Two rails on posts running the long axis (+X is the launch side), a
+        /// half-planked hull sitting on them, a sawhorse and a log pile. The hull
+        /// is deliberately unfinished: the finished ship is a separate art prefab
+        /// (Shapes_Environment.EscapeShip) that slides out on Set Sail.
+        /// </summary>
+        private static MeshBuilder Shipyard(float length, float width)
+        {
+            MeshBuilder b = new MeshBuilder(2601);
+            float hl = length * 0.5f, hw = width * 0.5f;
+
+            // Slipway rails on short posts, down the long axis
+            b.Use("WoodLog");
+            for (int s = -1; s <= 1; s += 2)
+            {
+                float z = s * width * 0.22f;
+                for (int i = 0; i < 4; i++)
+                {
+                    float x = -hl * 0.85f + i * (length * 0.85f / 3f);
+                    b.Prism(new Vector3(x, 0f, z), 0.08f, 0.07f, 0.36f, 4);
+                }
+                b.LogBetween(new Vector3(-hl * 0.9f, 0.40f, z), new Vector3(hl * 0.9f, 0.40f, z), 0.07f, 5);
+            }
+
+            // Half-planked hull on the rails: ribs plus a low run of planking
+            b.Use("WoodDark");
+            b.Beam(new Vector3(-hl * 0.7f, 0.52f, 0f), new Vector3(hl * 0.7f, 0.52f, 0f), 0.12f, 0.10f);   // keel
+            b.Use("WoodPlank");
+            for (int i = 0; i < 5; i++)
+            {
+                float x = -hl * 0.55f + i * (length * 0.55f / 2f);
+                float rib = 0.9f - Mathf.Abs(i - 2) * 0.12f;
+                b.Push();
+                b.Translate(x, 0.52f, 0f);
+                b.Frustum(Vector3.zero, new Vector2(0.10f, rib * 0.5f), new Vector2(0.10f, rib), 0.7f);
+                b.Pop();
+            }
+            b.Use("WoodPale");
+            b.Box(new Vector3(0f, 0.68f, hw * 0.28f), new Vector3(length * 0.66f, 0.10f, 0.08f));
+            b.Box(new Vector3(0f, 0.68f, -hw * 0.28f), new Vector3(length * 0.66f, 0.10f, 0.08f));
+            b.Box(new Vector3(0f, 0.86f, hw * 0.34f), new Vector3(length * 0.58f, 0.10f, 0.08f));
+            b.Box(new Vector3(0f, 0.86f, -hw * 0.34f), new Vector3(length * 0.58f, 0.10f, 0.08f));
+
+            // Sawhorse and plank pile on the shore side
+            b.Use("WoodLog");
+            b.Prism(new Vector3(-hl * 0.55f, 0f, -hw * 0.82f), 0.05f, 0.05f, 0.5f, 4);
+            b.Prism(new Vector3(-hl * 0.25f, 0f, -hw * 0.82f), 0.05f, 0.05f, 0.5f, 4);
+            b.Use("WoodPale");
+            b.Box(new Vector3(-hl * 0.4f, 0.54f, -hw * 0.82f), new Vector3(length * 0.42f, 0.08f, 0.22f));
+            b.Use("WoodPlank");
+            b.BoxOnGround(new Vector3(hl * 0.55f, 0f, -hw * 0.8f), new Vector3(1.1f, 0.26f, 0.5f));
+
+            // A mast lying ready beside the rails
+            b.Use("WoodLog");
+            b.LogBetween(new Vector3(-hl * 0.8f, 0.1f, hw * 0.8f), new Vector3(hl * 0.6f, 0.1f, hw * 0.86f), 0.07f, 5);
+
+            return b;
         }
 
         // ==================================================================

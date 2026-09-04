@@ -8,6 +8,11 @@
 # Lines starting with a single # are comments. Anything else that is not a
 # heading, a bullet or an indented continuation is ignored.
 
+## 2026-09-04 — The escape ship
+- Shipwright, researched at the Workshop after Iron Work, opens the Shipyard: press 6 in build mode. It only stands on a beach, within a few steps of the water, and costs 200 wood, 120 stone and 30 metal. It is a slow build: about a minute and a half for one builder, half a minute with three.
+- Click a finished Shipyard and choose to set sail. The colony's ship slides out to sea while the camera follows, and the run ends as an escape, with the day you left on the end screen. You can keep playing from there if you like.
+- Raiders go for the Shipyard like any other building, and a colony with one draws bigger raids. Repairs and demolition refunds now include metal.
+
 ## 2026-09-04 — Archers
 - Bowyery, researched at the Workshop after Spearcraft, opens the Bow: 12 damage at 9 range, made from 4 sticks and 5 wood.
 - Arm a recruit with a Bow on the Warriors row and you get an archer: a green-clad warrior who holds back at range and shoots over your walls. Arrows arc to their target and hit on arrival.

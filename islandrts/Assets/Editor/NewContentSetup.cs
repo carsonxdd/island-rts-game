@@ -37,6 +37,13 @@ public static class NewContentSetup
     private const string WorkshopPrefabPath = "Assets/Prefabs/Workshop.prefab";
     private const string WorkshopGhostPrefabPath = "Assets/Prefabs/WorkshopGhost.prefab";
 
+    // The Shipyard and the escape ship (2026-09-04, Slice 6)
+    private const string ShipyardArtPath = "Assets/Art/Prefabs/Buildings/Shipyard.prefab";
+    private const string ShipyardMeshPath = "Assets/Art/Meshes/Shipyard.asset";
+    private const string EscapeShipArtPath = "Assets/Art/Prefabs/Environment/EscapeShip.prefab";
+    private const string ShipyardPrefabPath = "Assets/Prefabs/Shipyard.prefab";
+    private const string ShipyardGhostPrefabPath = "Assets/Prefabs/ShipyardGhost.prefab";
+
     [MenuItem("Tools/Island RTS/Session Content/Setup Pickups + Workshop", false, 10)]
     public static void Setup()
     {
@@ -56,6 +63,12 @@ public static class NewContentSetup
         BuildingData workshopData = BuildWorkshopData(workshopPrefab, workshopGhost, summary);
         RegisterInDatabase(workshopData, summary);
 
+        // The Shipyard (2026-09-04): same three steps, its own art and a beach rule
+        GameObject shipyardPrefab = BuildShipyardPrefab(summary);
+        GameObject shipyardGhost = BuildShipyardGhost(summary);
+        BuildingData shipyardData = BuildShipyardData(shipyardPrefab, shipyardGhost, summary);
+        RegisterInDatabase(shipyardData, summary);
+
         BuildPickupSpawner(stickPrefab, stonePrefab, summary);
         WireResourceSpawner(summary);
 
@@ -64,7 +77,7 @@ public static class NewContentSetup
         EditorSceneManager.SaveScene(scene);
         AssetDatabase.SaveAssets();
 
-        summary.AppendLine("[Session Content] Done. Build mode key 5 = Workshop; pickups spawn at Play.");
+        summary.AppendLine("[Session Content] Done. Build mode key 5 = Workshop, key 6 = Shipyard (beach only); pickups spawn at Play.");
         Debug.Log(summary.ToString());
     }
 
@@ -327,14 +340,14 @@ public static class NewContentSetup
         return workshopData;
     }
 
-    private static void RegisterInDatabase(BuildingData workshopData, StringBuilder summary)
+    private static void RegisterInDatabase(BuildingData data, StringBuilder summary)
     {
-        if (workshopData == null) return;
+        if (data == null) return;
 
         BuildingDatabase db = Object.FindAnyObjectByType<BuildingDatabase>();
         if (db == null)
         {
-            Debug.LogError("[Session Content] No BuildingDatabase in the scene — Workshop not registered.");
+            Debug.LogError("[Session Content] No BuildingDatabase in the scene — " + data.buildingType + " not registered.");
             return;
         }
 
@@ -342,18 +355,154 @@ public static class NewContentSetup
         bool present = false;
         for (int i = 0; i < list.Count; i++)
         {
-            if (list[i] != null && list[i].buildingType == BuildingType.Workshop)
+            if (list[i] != null && list[i].buildingType == data.buildingType)
             {
-                list[i] = workshopData;
+                list[i] = data;
                 present = true;
             }
         }
-        if (!present) list.Add(workshopData);
+        if (!present) list.Add(data);
 
         db.buildings = list.ToArray();
         EditorUtility.SetDirty(db);
-        summary.AppendLine("    BuildingDatabase: Workshop " + (present ? "refreshed" : "registered")
+        summary.AppendLine("    BuildingDatabase: " + data.buildingType + " " + (present ? "refreshed" : "registered")
             + " (" + db.buildings.Length + " entries)");
+    }
+
+    // ------------------------------------------------------------------
+    // Shipyard (2026-09-04, Slice 6): the Workshop steps with the slipway art,
+    // a wider collider, and the escape ship wired onto the component.
+    // ------------------------------------------------------------------
+
+    private static GameObject BuildShipyardPrefab(StringBuilder summary)
+    {
+        GameObject art = AssetDatabase.LoadAssetAtPath<GameObject>(ShipyardArtPath);
+        GameObject ship = AssetDatabase.LoadAssetAtPath<GameObject>(EscapeShipArtPath);
+        if (art == null || ship == null)
+        {
+            Debug.LogError("[Session Content] Shipyard art missing: " + ShipyardArtPath + " / " + EscapeShipArtPath
+                + " — run 'Low-Poly Templates > Generate All Assets' first (it includes the Shipyard and EscapeShip shapes).");
+            return AssetDatabase.LoadAssetAtPath<GameObject>(ShipyardPrefabPath);
+        }
+
+        GameObject root = new GameObject("Shipyard");
+        try
+        {
+            Shipyard yard = root.AddComponent<Shipyard>();
+            yard.shipArtPrefab = ship;
+
+            BoxCollider box = root.AddComponent<BoxCollider>();
+            box.size = new Vector3(4f, 1.5f, 2.5f);
+            box.center = new Vector3(0f, 0.75f, 0f);
+
+            NavMeshObstacle obstacle = root.AddComponent<NavMeshObstacle>();
+            obstacle.shape = NavMeshObstacleShape.Box;
+            obstacle.size = new Vector3(4.2f, 1.65f, 2.7f);
+            obstacle.center = new Vector3(0f, 0.825f, 0f);
+            obstacle.carving = true;
+            obstacle.carveOnlyStationary = true;
+
+            GameObject model = (GameObject)PrefabUtility.InstantiatePrefab(art);
+            model.name = "Model";
+            model.transform.SetParent(root.transform, false);
+            model.transform.localPosition = Vector3.zero;
+
+            int layer = LayerMask.NameToLayer("Buildings");
+            if (layer >= 0) root.layer = layer;
+
+            GameObject saved = PrefabUtility.SaveAsPrefabAsset(root, ShipyardPrefabPath);
+            summary.AppendLine("    Shipyard.prefab rebuilt (Shipyard + collider 4x1.5x2.5 + carving obstacle + EscapeShip art)");
+            return saved;
+        }
+        finally
+        {
+            Object.DestroyImmediate(root);
+        }
+    }
+
+    private static GameObject BuildShipyardGhost(StringBuilder summary)
+    {
+        Mesh mesh = AssetDatabase.LoadAssetAtPath<Mesh>(ShipyardMeshPath);
+        Material ghostMat = AssetDatabase.LoadAssetAtPath<Material>(GhostMaterialPath);
+        if (mesh == null || ghostMat == null)
+        {
+            Debug.LogError("[Session Content] Shipyard mesh or ghost material missing ("
+                + ShipyardMeshPath + " / " + GhostMaterialPath + ") — run the art generation first.");
+            return AssetDatabase.LoadAssetAtPath<GameObject>(ShipyardGhostPrefabPath);
+        }
+
+        GameObject root = new GameObject("ShipyardGhost");
+        try
+        {
+            MeshFilter mf = root.AddComponent<MeshFilter>();
+            mf.sharedMesh = mesh;
+
+            MeshRenderer mr = root.AddComponent<MeshRenderer>();
+            Material[] mats = new Material[mesh.subMeshCount];
+            for (int i = 0; i < mats.Length; i++) mats[i] = ghostMat;
+            mr.sharedMaterials = mats;
+
+            GameObject saved = PrefabUtility.SaveAsPrefabAsset(root, ShipyardGhostPrefabPath);
+            summary.AppendLine("    ShipyardGhost.prefab rebuilt (" + mesh.subMeshCount + " ghost material slots)");
+            return saved;
+        }
+        finally
+        {
+            Object.DestroyImmediate(root);
+        }
+    }
+
+    private static BuildingData BuildShipyardData(GameObject shipyardPrefab, GameObject ghostPrefab, StringBuilder summary)
+    {
+        BuildingData hutData = null;
+        string dataFolder = "Assets";
+        foreach (string guid in AssetDatabase.FindAssets("t:BuildingData"))
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            BuildingData data = AssetDatabase.LoadAssetAtPath<BuildingData>(path);
+            if (data != null && data.buildingType == BuildingType.Hut)
+            {
+                hutData = data;
+                dataFolder = System.IO.Path.GetDirectoryName(path).Replace('\\', '/');
+                break;
+            }
+        }
+        if (hutData == null)
+        {
+            Debug.LogError("[Session Content] HutData not found — cannot borrow the construction site prefab for the Shipyard.");
+            return null;
+        }
+
+        string dataPath = dataFolder + "/ShipyardData.asset";
+        BuildingData yardData = AssetDatabase.LoadAssetAtPath<BuildingData>(dataPath);
+        bool isNew = yardData == null;
+        if (isNew) yardData = ScriptableObject.CreateInstance<BuildingData>();
+
+        yardData.buildingType = BuildingType.Shipyard;
+        yardData.buildingName = "Shipyard";
+        yardData.woodCost = 200;
+        yardData.foodCost = 0;
+        yardData.stoneCost = 120;
+        yardData.metalCost = 30;
+        yardData.ghostPrefab = ghostPrefab;
+        yardData.constructionSitePrefab = hutData.constructionSitePrefab;
+        yardData.finishedBuildingPrefab = shipyardPrefab;
+        yardData.buildingSize = new Vector3(4f, 1.5f, 2.5f);
+        yardData.noBuildRadius = 5f;
+        yardData.visualNoBuildRadius = 5f;
+        yardData.placementHeight = 0f;
+        yardData.maxHealth = 300f;
+        yardData.blocksNavMesh = false;
+        yardData.isWall = false;
+        yardData.requiresShore = true;
+        yardData.buildTimeOverride = 45f;   // × LaborFactor 2 = 90 s alone, ~30 s with three builders
+
+        if (isNew) AssetDatabase.CreateAsset(yardData, dataPath);
+        else EditorUtility.SetDirty(yardData);
+
+        summary.AppendLine("    ShipyardData.asset " + (isNew ? "created" : "updated")
+            + " (200W 120S 30M, HP 300, shore only, 45 s) at " + dataPath);
+        return yardData;
     }
 
     private static void BuildPickupSpawner(GameObject stickPrefab, GameObject stonePrefab, StringBuilder summary)
