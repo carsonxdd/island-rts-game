@@ -375,6 +375,10 @@ public class DebugMenu : MonoBehaviour
         {
             Campfire.Stockpile.Add(ItemCatalog.WoodenSpear, 5);
         }
+        if (GUILayout.Button("+5 Iron Spears (stockpile)"))
+        {
+            Campfire.Stockpile.Add(ItemCatalog.IronSpear, 5);
+        }
         GUI.enabled = PlayerCharacter.Instance != null && !PlayerCharacter.Instance.IsKnockedOut;
         if (GUILayout.Button("Knock Out Player"))
         {

@@ -106,13 +106,28 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
     public int stoneWorkers => CountJob(ResourceNode.ResourceType.Stone);
     public int metalWorkers => CountJob(ResourceNode.ResourceType.Metal);
 
+    /// <summary>Colonists on the Crafter job (2026-09-04): they work benches, not nodes.</summary>
+    public int crafterWorkers
+    {
+        get
+        {
+            int n = 0;
+            for (int i = 0; i < activeWorkers.Count; i++)
+            {
+                Worker w = activeWorkers[i];
+                if (w != null && w.hasJob && w.isCrafter) n++;
+            }
+            return n;
+        }
+    }
+
     int CountJob(ResourceNode.ResourceType type)
     {
         int n = 0;
         for (int i = 0; i < activeWorkers.Count; i++)
         {
             Worker w = activeWorkers[i];
-            if (w != null && w.hasJob && w.assignedResourceType == type) n++;
+            if (w != null && w.hasJob && !w.isCrafter && w.assignedResourceType == type) n++;
         }
         return n;
     }
@@ -251,7 +266,38 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         for (int i = 0; i < activeWorkers.Count; i++)
         {
             Worker worker = activeWorkers[i];
-            if (worker != null && worker.hasJob && worker.assignedResourceType == resourceType)
+            if (worker != null && worker.hasJob && !worker.isCrafter && worker.assignedResourceType == resourceType)
+            {
+                worker.ClearJob();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Give the idle colonist nearest the fire the Crafter job (2026-09-04): they
+    /// work whichever bench has a queue. Needs the Crafting research, like the
+    /// Workshop itself. False when nobody is idle.
+    /// </summary>
+    public bool AssignCrafter()
+    {
+        if (!Unlocks.Has(Unlocks.Kind.Crafting)) return false;
+        if (PopulationManager.Instance == null) return false;
+        Worker idle = PopulationManager.Instance.FindIdleColonist(transform.position);
+        if (idle == null) return false;
+
+        idle.SetCrafter();
+        return true;
+    }
+
+    /// <summary>Send one crafter back to the idle pool.</summary>
+    public bool UnassignCrafter()
+    {
+        for (int i = 0; i < activeWorkers.Count; i++)
+        {
+            Worker worker = activeWorkers[i];
+            if (worker != null && worker.hasJob && worker.isCrafter)
             {
                 worker.ClearJob();
                 return true;
@@ -382,10 +428,10 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         return fallback;
     }
 
-    // Get total number of workers
+    /// <summary>Everyone with a job: the four gathering jobs plus crafters.</summary>
     public int GetTotalWorkers()
     {
-        return woodWorkers + foodWorkers + stoneWorkers + metalWorkers;
+        return woodWorkers + foodWorkers + stoneWorkers + metalWorkers + crafterWorkers;
     }
 
     // ------------------------------------------------------------------
@@ -410,12 +456,43 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         return n;
     }
 
-    /// <summary>True when a recruit could happen right now: Spearcraft known, under the cap, a weapon in stock, the food, and someone idle.</summary>
+    // --- The recruit picker (2026-09-04, Slice 3) ---
+    // Which weapon the next recruit is armed with. The Colonists tab cycles it;
+    // it starts on the best weapon in stock the first time anyone asks, and a
+    // choice sticks until the player changes it (an empty stock just disables
+    // the + button — the label says "0 in stock"). Never serialized.
+    private ItemDef selectedWeapon;
+
+    /// <summary>The weapon the next recruit takes. Defaults to the best in stock.</summary>
+    public ItemDef SelectedWeapon
+    {
+        get
+        {
+            if (selectedWeapon == null)
+            {
+                selectedWeapon = FirstWeaponInStock();
+                if (selectedWeapon == null) selectedWeapon = ItemCatalog.Weapons[0];
+            }
+            return selectedWeapon;
+        }
+    }
+
+    /// <summary>Step the recruit picker through <see cref="ItemCatalog.Weapons"/> (+1 / -1, wrapping).</summary>
+    public void CycleWeapon(int step)
+    {
+        ItemDef[] weapons = ItemCatalog.Weapons;
+        int index = System.Array.IndexOf(weapons, SelectedWeapon);
+        if (index < 0) index = 0;
+        index = (index + step + weapons.Length) % weapons.Length;
+        selectedWeapon = weapons[index];
+    }
+
+    /// <summary>True when a recruit could happen right now: Spearcraft known, under the cap, the chosen weapon in stock, the food, and someone idle.</summary>
     public bool CanRecruitWarrior()
     {
         if (!Unlocks.Has(Unlocks.Kind.Militia)) return false;   // Spearcraft not researched
         if (currentWarriors >= maxWarriors) return false;
-        if (FirstWeaponInStock() == null) return false;         // nothing to arm them with
+        if (Stockpile.Count(SelectedWeapon) <= 0) return false; // nothing to arm them with
         if (ResourceManager.Instance == null
             || ResourceManager.Instance.food < warriorCost_Food) return false;
         return PopulationManager.Instance != null && PopulationManager.Instance.GetIdleCount() > 0;
@@ -424,8 +501,8 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
     /// <summary>
     /// Arm the idle colonist nearest the fire: they keep their roster slot and their home,
     /// the worker body is destroyed and a warrior stands in its place. Costs one weapon
-    /// from the stockpile (the best in stock) and the food. No-op when nobody is idle,
-    /// the cap is reached, or it is unaffordable.
+    /// from the stockpile (the one the picker shows) and the food. No-op when nobody
+    /// is idle, the cap is reached, or it is unaffordable.
     /// </summary>
     public void SpawnWarrior()
     {
@@ -440,7 +517,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         Worker recruit = PopulationManager.Instance.FindIdleColonist(transform.position);
         if (recruit == null) return;
 
-        ItemDef weapon = FirstWeaponInStock();
+        ItemDef weapon = SelectedWeapon;
         if (Stockpile.Remove(weapon, 1) <= 0) return;
         ResourceManager.Instance.SpendFood(warriorCost_Food);
 
@@ -496,17 +573,46 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         }
         if (warriorToRemove == null) return;
 
-        activeWarriors.Remove(warriorToRemove);
+        DismissWarrior(warriorToRemove);
+    }
+
+    /// <summary>
+    /// The one path a living warrior becomes a colonist again (2026-09-04): the
+    /// panel's − button and, later, a starving colony's departures. Returns the
+    /// new colonist body, or null if the warrior was not this campfire's.
+    /// </summary>
+    public Worker DismissWarrior(Warrior warrior)
+    {
+        if (warrior == null || !activeWarriors.Remove(warrior)) return null;
         currentWarriors--;
 
-        if (warriorToRemove.weapon != null) Stockpile.Add(warriorToRemove.weapon, 1);
+        if (warrior.weapon != null) Stockpile.Add(warrior.weapon, 1);
 
-        Worker colonist = InstantiateColonist(warriorToRemove.transform.position);
+        Worker colonist = InstantiateColonist(warrior.transform.position);
         if (colonist != null && PopulationManager.Instance != null)
         {
-            PopulationManager.Instance.ReplaceUnit(warriorToRemove, colonist);
+            PopulationManager.Instance.ReplaceUnit(warrior, colonist);
         }
-        Destroy(warriorToRemove.gameObject);
+        Destroy(warrior.gameObject);
+        return colonist;
+    }
+
+    /// <summary>
+    /// Swap a warrior's weapon for the better one in the stockpile, if there still is
+    /// one (2026-09-04): the better weapon comes out, the old one goes back in, and
+    /// the stats land through <see cref="Warrior.ApplyWeapon"/>. Called by the Rearm
+    /// executor on arrival at the fire; a no-op when nothing better is in stock.
+    /// </summary>
+    public bool RearmWarrior(Warrior warrior)
+    {
+        if (warrior == null) return false;
+        ItemDef better = ItemCatalog.BetterWeaponInStock(warrior.weapon, Stockpile);
+        if (better == null) return false;
+        if (Stockpile.Remove(better, 1) <= 0) return false;
+
+        if (warrior.weapon != null) Stockpile.Add(warrior.weapon, 1);   // lost if the stockpile is full
+        warrior.ApplyWeapon(better);
+        return true;
     }
 
     // Called when a warrior is killed — the one path a warrior leaves the roster by

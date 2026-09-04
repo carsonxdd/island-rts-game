@@ -8,6 +8,13 @@
 # Lines starting with a single # are comments. Anything else that is not a
 # heading, a bullet or an indented continuation is ignored.
 
+## 2026-09-04 — Crafters, the Workshop bench, and the Iron Spear
+- A new Crafters job on the Colonists tab. A crafter walks to whichever bench has a queue and works it, so research and spears keep moving while you are away from the fire. Your character still takes over the bench the moment you step up to it.
+- The Workshop now makes tools and weapons twice as fast as the campfire. Research runs at the same speed at both.
+- Iron Work, researched at the Workshop after Mining, opens the Iron Spear: 35 damage against the Wooden Spear's 25, costing 2 sticks, 5 wood and 4 metal. Metal finally has a use.
+- The Warriors row has an "Arm with" picker. Step through the weapons in stock to choose what the next recruit carries.
+- A warrior with a plain spear walks to the fire and swaps it for an iron one on their own, as long as no raiders are about. The old spear goes back to the stockpile.
+
 ## 2026-09-04 — Changelog
 - What's new, in the game itself. Reach it from the main menu or the pause menu; newest first.
 

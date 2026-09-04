@@ -517,6 +517,7 @@ public static class OpeningSequenceSetup
         {
             ("stone_axe", "StoneAxe"), ("stone_pick", "StonePick"), ("fishing_spear", "FishingSpear"),
             ("mallet", "Mallet"), ("wooden_spear", "WoodenSpear"), ("metal_pick", "MetalPick"),
+            ("iron_spear", "IronSpear"),
         };
 
         var rows = new System.Collections.Generic.List<HeldItem.ItemArt>(tools.Length);

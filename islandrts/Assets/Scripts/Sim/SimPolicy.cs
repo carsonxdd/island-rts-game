@@ -35,14 +35,17 @@ public abstract class SimPolicy
 
     /// <summary>
     /// Queue the first of <paramref name="ids"/> that is neither done nor queued,
-    /// at the campfire bench. One entry at a time keeps the character's material
-    /// runs short. True when something was queued this tick.
+    /// at a bench that lists it — the campfire for its own tier, a Workshop for
+    /// the upgrades (2026-09-04). One entry at a time per bench keeps the
+    /// character's material runs short. A Workshop entry is only queued once a
+    /// Crafter is on the roster: the simulated character works the fire alone
+    /// (<see cref="SimPlayerDriver"/>), so nobody else would stand at it.
+    /// True when something was queued this tick.
     /// </summary>
     protected static bool Research(SimState s, params string[] ids)
     {
         BaseBuilding fire = s.Campfire;
         if (fire == null || fire.Station == null) return false;
-        if (fire.Station.HasWork) return false;   // one thing at a time
 
         for (int i = 0; i < ids.Length; i++)
         {
@@ -50,22 +53,72 @@ public abstract class SimPolicy
             if (d == null || d.done) continue;
             if (!ResearchCatalog.IsAvailable(d)) continue;   // a prerequisite is still ahead in the list
             if (CraftStation.IsQueuedAnywhere(d)) return false;
-            return fire.Station.Enqueue(d);
+
+            CraftStation bench = StationListing(d);
+            if (bench == null) continue;                      // no Workshop yet — try the next id
+            if (bench != fire.Station && fire.crafterWorkers == 0) continue;
+            if (bench.HasWork) return false;                  // one thing at a time
+            return bench.Enqueue(d);
         }
         return false;
     }
 
-    /// <summary>Keep spears in stock + queued at <paramref name="wanted"/>. Needs Spearcraft.</summary>
+    /// <summary>The nearest-to-the-fire living bench that lists <paramref name="d"/>, or null.</summary>
+    static CraftStation StationListing(ResearchCatalog.ResearchDef d)
+    {
+        var list = CraftStation.ActiveList;
+        for (int i = 0; i < list.Count; i++)
+        {
+            CraftStation st = list[i];
+            if (st != null && st.IsAlive && st.Lists(d)) return st;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Keep spears in stock + queued at <paramref name="wanted"/>. Needs Spearcraft.
+    /// Iron Spears once Iron Work is known and the metal is there (2026-09-04) —
+    /// queued at the fire like everything else; a Crafter or the character works it.
+    /// </summary>
     protected static bool KeepSpears(SimState s, int wanted)
     {
         BaseBuilding fire = s.Campfire;
         if (fire == null || fire.Station == null) return false;
         if (!Unlocks.Has(Unlocks.Kind.Militia)) return false;
 
-        CraftingCatalog.Recipe spear = CraftingCatalog.Find("wooden_spear");
-        int have = fire.WeaponsInStock() + fire.Station.Queued(spear);
+        CraftingCatalog.Recipe wooden = CraftingCatalog.Find("wooden_spear");
+        CraftingCatalog.Recipe iron = CraftingCatalog.Find("iron_spear");
+        bool ironOk = iron != null && iron.Unlocked && ResourceManager.Instance != null
+                      && ResourceManager.Instance.metal >= iron.metalCost;
+        CraftingCatalog.Recipe spear = ironOk ? iron : wooden;
+
+        int have = fire.WeaponsInStock() + fire.Station.Queued(wooden) + fire.Station.Queued(iron);
         if (have >= wanted) return false;
         return fire.Station.Enqueue(spear, wanted - have);
+    }
+
+    /// <summary>
+    /// The Workshop and a Crafter to run it (2026-09-04): place the building once
+    /// Crafting is known and there is wood to spare, then give the bench a colonist
+    /// once it stands and the idle pool can afford one. One action per call.
+    /// </summary>
+    protected static bool RunWorkshop(SimState s)
+    {
+        if (!Unlocks.Has(Unlocks.Kind.Crafting) || !CanBuild) return false;
+        BaseBuilding fire = s.Campfire;
+        if (fire == null) return false;
+
+        if (Workshop.ActiveList.Count == 0)
+        {
+            if (SimBuilder.PendingSites(BuildingType.Workshop) > 0) return false;
+            if (s.Wood < 80f) return false;
+            return SimBuilder.PlaceBuilding(BuildingType.Workshop, 6f, 14f);
+        }
+
+        if (fire.crafterWorkers > 0) return false;
+        PopulationManager pm = PopulationManager.Instance;
+        if (pm == null || pm.GetIdleCount() < 2) return false;   // keep a builder
+        return fire.AssignCrafter();
     }
 
     /// <summary>Assigns one worker to whichever type the ratio is shortest on, among the jobs the colony knows.</summary>
@@ -228,9 +281,11 @@ public class EcoPolicy : SimPolicy
 
     public override void Tick(SimState s)
     {
-        if (Research(s, "woodcutting", "foraging", "construction", "quarrying", "spearcraft", "mining")) return;
+        if (Research(s, "woodcutting", "foraging", "construction", "quarrying", "spearcraft",
+                        "crafting", "mining", "iron_work")) return;
 
         if (BuildHutIfCapped(s, 6)) return;
+        if (RunWorkshop(s)) return;
         if (s.Workers < 10) { if (HireWorker(s, 3f, 2f, 1f)) return; }
 
         // Scale the garrison with the threat, not to a fixed 5. The old

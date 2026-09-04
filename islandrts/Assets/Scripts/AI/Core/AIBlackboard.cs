@@ -21,6 +21,12 @@ public class AIBlackboard
     // False for an idle colonist (the builders). Gather/Pickup score 0 without a job;
     // Build/Repair score 0 with one. Kept in sync by Worker.SetJob / ClearJob.
     public bool hasJob;
+    // The Crafter job (2026-09-04): hasJob is true (never idle, never a builder) but
+    // Gather/Pickup score 0 — a crafter's work is a bench, not a node. Kept in sync
+    // by Worker.SetCrafter / SetJob / ClearJob.
+    public bool isCrafter;
+    // The bench a crafter is walking to or standing at (refreshed by StationWorkAvailable).
+    public CraftStation targetStation;
     // What is actually in the worker's hands. Normally the assigned type, but a job
     // change mid-trip must still deliver what was picked up under the old job.
     public ResourceNode.ResourceType carryType;

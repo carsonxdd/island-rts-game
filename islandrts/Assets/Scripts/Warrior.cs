@@ -42,17 +42,39 @@ public class Warrior : UnitBase<Warrior>
     /// </summary>
     [System.NonSerialized] public ItemDef weapon;
 
+    /// <summary>
+    /// The ONE place a weapon's stats land on a warrior (2026-09-04): recruit
+    /// (from Start) and rearm (from BaseBuilding.RearmWarrior) both come through
+    /// here. Copies damage / range / interval into the unit fields, into the
+    /// blackboard if the brain already exists, and re-derives the agent's
+    /// stopping distance from the new reach. A null weapon leaves the prefab
+    /// fallback stats alone.
+    /// </summary>
+    public void ApplyWeapon(ItemDef item)
+    {
+        weapon = item;
+        if (item == null || item.equipment == null) return;
+
+        damage = item.equipment.damage;
+        attackRange = item.equipment.range;
+        attackCooldown = item.equipment.attackInterval;
+
+        if (agent != null) agent.stoppingDistance = attackRange - 1.0f;
+        if (aiBrain != null && aiBrain.blackboard != null)
+        {
+            AIBlackboard bb = aiBrain.blackboard;
+            bb.damage = damage;
+            bb.attackRange = attackRange;
+            bb.attackCooldown = attackCooldown;
+        }
+    }
+
     void Start()
     {
         // Combat stats come from the weapon; the prefab's damage / range /
         // cooldown are only the fallback for a warrior armed with nothing.
         // Applied BEFORE the sim knobs so an explicit sweep override still wins.
-        if (weapon != null && weapon.equipment != null)
-        {
-            damage = weapon.equipment.damage;
-            attackRange = weapon.equipment.range;
-            attackCooldown = weapon.equipment.attackInterval;
-        }
+        ApplyWeapon(weapon);
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         // Balance-sim knobs, if a sweep is running. Must land before these
         // values are copied into the AI blackboard below.
@@ -180,7 +202,18 @@ public class Warrior : UnitBase<Warrior>
             {
                 new EnemyPresence(0f, ResponseCurve.InverseLinear(1f, 0f)),   // No enemies = 1.0, any enemies = 0
                 new HealthPercent(ResponseCurve.InverseLinear(2f, 0f))        // 100%→0 (exits), 80%→0.4, 50%→1.0
-            }, new HealAtCampfireExecutor(), basePriority: 0.9f, momentumBonus: 0f)
+            }, new HealAtCampfireExecutor(), basePriority: 0.9f, momentumBonus: 0f),
+
+            // Rearm — a better weapon of this warrior's kind sits in the stockpile
+            // and no enemy is alive (2026-09-04, Slice 3). 0.5 sits above Patrol
+            // (0.3) and below Heal (0.9): a hurt warrior heals first, a healthy
+            // idle one walks over and swaps. Zero momentum and no yShift, so the
+            // action dies the moment the weapon is in hand.
+            new ActionOption("Rearm", new Consideration[]
+            {
+                new EnemyPresence(0f, ResponseCurve.InverseLinear(1f, 0f)),   // Peacetime only
+                new RearmAvailable(ResponseCurve.Linear(1f, 0f))            // 1 with something better in stock
+            }, new RearmExecutor(), basePriority: 0.5f, momentumBonus: 0f)
         };
 
         bb.brain = aiBrain;
@@ -266,7 +299,7 @@ public class Warrior : UnitBase<Warrior>
             color = Color.red;
         else if (displayName.Contains("Engaging") || displayName.Contains("defeated"))
             color = Color.yellow;
-        else if (displayName.Contains("Defending") || displayName.Contains("Guarding"))
+        else if (displayName.Contains("Defending") || displayName.Contains("Guarding") || displayName.Contains("Rearming"))
             color = new Color(0.3f, 0.8f, 1f);
         else if (displayName.Contains("Intercepting"))
             color = new Color(1f, 0.6f, 0f);  // Orange for intercept/rally

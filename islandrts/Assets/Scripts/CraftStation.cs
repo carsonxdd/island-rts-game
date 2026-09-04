@@ -72,6 +72,36 @@ public class CraftStation : MonoBehaviour
     /// <summary>Who is at the bench right now, or null.</summary>
     public object Laborer => IsWorked ? laborer : null;
 
+    /// <summary>True while the player's character is the one adding labor here.</summary>
+    public bool PlayerAtBench => IsWorked && laborer is PlayerCharacter;
+
+    // --- Crafter claim (2026-09-04, Slice 3) ---
+    // The ConstructionSite.RegisterBuilder shape: a Crafter colonist claims the
+    // bench when it sets out so a second crafter walks to a different bench. The
+    // claim is about WHO WALKS HERE, not who labors — the player's character never
+    // claims and always wins the bench on arrival (see AddLabor).
+    private Worker crafter;
+
+    /// <summary>The crafter colonist headed to or standing at this bench, or null.</summary>
+    public Worker Crafter => crafter;
+
+    /// <summary>Room for this crafter: unclaimed, or already claimed by them.</summary>
+    public bool CanClaim(Worker w) => crafter == null || crafter == w;
+
+    /// <summary>Claim the bench for a crafter. False when another crafter holds it.</summary>
+    public bool Claim(Worker w)
+    {
+        if (w == null || !CanClaim(w)) return false;
+        crafter = w;
+        return true;
+    }
+
+    /// <summary>Release by worker — safe whether or not they held it.</summary>
+    public void Release(Worker w)
+    {
+        if (w != null && crafter == w) crafter = null;
+    }
+
     /// <summary>"Waiting for 2 Stick" while the front entry is held for materials; empty otherwise.</summary>
     public string Status => status;
 
@@ -201,11 +231,15 @@ public class CraftStation : MonoBehaviour
     /// Returns false when there is nothing to do or someone else is already at
     /// the bench. <paramref name="hands"/> is the laborer's inventory (may be
     /// null) — items in it count toward, and are taken for, the costs.
+    ///
+    /// The player's character always wins the bench (2026-09-04): they take it
+    /// over from a Crafter colonist at once, and the crafter waits beside it
+    /// until they walk off. Two crafters, or two of anything else, do not stack.
     /// </summary>
     public bool AddLabor(float dt, object who, Inventory hands)
     {
         if (queue.Count == 0) return false;
-        if (laborer != who && IsWorked) return false;   // bench busy
+        if (laborer != who && IsWorked && !(who is PlayerCharacter)) return false;   // bench busy
 
         laborer = who;
         lastLaborTime = Time.time;

@@ -249,8 +249,13 @@ should garrison as the raid lands, which `ThreatNearby` already does once enemie
    "+5 Wooden Spears". Sim policies research + queue spears; `SimPlayerDriver` drives the
    character to fetch materials and stand at the bench. Player tools stay as once-per-run
    cosmetic crafts (decided at implementation).
-3. **Crafter job + Workshop as a station.** `Worker.Job.Crafter`, `CraftExecutor`,
-   Workshop speed table, Iron Work research + Iron Spear (metal's first use), Rearm action.
+3. **Crafter job + Workshop as a station — DONE 2026-09-04, pending playtest.**
+   `Worker.isCrafter` (a flag beside `hasJob`, not a Job enum — decided at implementation),
+   `CraftExecutor` + `StationWorkAvailable` + a bench claim on `CraftStation`, the player's
+   character preempts a crafter at the bench, Workshop 2× Tool/Weapon, Iron Work research +
+   Iron Spear (35 dmg, 4 metal), a weapon PICKER on the warrior row (decided 2026-09-04 over
+   two recruit rows / auto-best), Rearm action (0.5, peacetime only), `Warrior.ApplyWeapon`
+   as the one place weapon stats land. Eco policy builds a Workshop and assigns a Crafter.
 4. **Food.** Consumption, hungry/starving, chip, difficulty knob, sim knob and policies.
 5. **Archers.** Bowyery research, Bow, ranged `Warrior`, projectile, Engage range hold.
 6. **Escape.** Shipwright research, Shipyard building + beach placement rule, Set sail.

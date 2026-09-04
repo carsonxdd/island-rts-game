@@ -58,6 +58,14 @@ public static class CraftingCatalog
             seconds = 10f, output = ItemCatalog.WoodenSpear,
             requires = "spearcraft",
         },
+        new Recipe
+        {
+            id = "iron_spear", title = "Iron Spear", category = WorkCategory.Weapon,
+            description = "35 damage. Arms one warrior; armed warriors fetch it themselves",
+            itemCosts = new[] { new ItemCost(ItemCatalog.Stick, 2) }, woodCost = 5, metalCost = 4,
+            seconds = 12f, output = ItemCatalog.IronSpear,
+            requires = "iron_work",
+        },
     };
 
     public static Recipe Find(string id)

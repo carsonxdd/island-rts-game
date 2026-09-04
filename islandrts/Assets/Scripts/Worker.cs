@@ -22,6 +22,10 @@ public class Worker : UnitBase<Worker>
     // them a job (2026-09-02). assignedResourceType only means anything while hasJob;
     // an idle colonist builds and repairs instead. Only SetJob / ClearJob change these.
     public bool hasJob = false;
+    // The Crafter job (2026-09-04, Slice 3): hasJob is true AND this is set. Only
+    // SetCrafter / SetJob / ClearJob change it. Serialized for the same dead-data
+    // reason as hasJob: the prefab value (false) is what a fresh colonist gets.
+    public bool isCrafter = false;
     public ResourceNode.ResourceType assignedResourceType = ResourceNode.ResourceType.Wood;
     public BaseBuilding baseBuilding;  // Reference to campfire
 
@@ -72,10 +76,23 @@ public class Worker : UnitBase<Worker>
     /// <summary>Give this colonist a gathering job (or change the one they have).</summary>
     public void SetJob(ResourceNode.ResourceType type)
     {
-        bool changed = !hasJob || assignedResourceType != type;
+        bool changed = !hasJob || isCrafter || assignedResourceType != type;
         hasJob = true;
+        isCrafter = false;
         assignedResourceType = type;
         if (changed) OnJobChanged();
+    }
+
+    /// <summary>
+    /// The Crafter job (2026-09-04): a job like any other for the idle pool and the
+    /// warrior count, but its work is whichever bench has a queue, not a node.
+    /// </summary>
+    public void SetCrafter()
+    {
+        if (hasJob && isCrafter) return;
+        hasJob = true;
+        isCrafter = true;
+        OnJobChanged();
     }
 
     /// <summary>Back to the idle pool: builder, repairer, and the next candidate for a job or the militia.</summary>
@@ -83,6 +100,7 @@ public class Worker : UnitBase<Worker>
     {
         if (!hasJob) return;
         hasJob = false;
+        isCrafter = false;
         OnJobChanged();
     }
 
@@ -91,6 +109,7 @@ public class Worker : UnitBase<Worker>
         if (aiBrain == null || aiBrain.blackboard == null) return;   // brain not built yet — Initialize copies the fields
         AIBlackboard bb = aiBrain.blackboard;
         bb.hasJob = hasJob;
+        bb.isCrafter = isCrafter;
         bb.assignedResourceType = assignedResourceType;
         if (bb.carryAmount <= 0.01f) bb.carryType = assignedResourceType;
 
@@ -200,6 +219,7 @@ public class Worker : UnitBase<Worker>
         bb.worker = this;
         bb.assignedResourceType = assignedResourceType;
         bb.hasJob = hasJob;
+        bb.isCrafter = isCrafter;
         bb.carryType = assignedResourceType;
         bb.carryCapacity = carryCapacity;
         bb.gatherDistance = gatherDistance;
@@ -296,6 +316,18 @@ public class Worker : UnitBase<Worker>
                 new ConstructionAvailable(ResponseCurve.Linear(1f, 0f)),   // Caches bb.bestSite; 0 when none
                 new ThreatNearby(1f, ResponseCurve.InverseLinear(1f, 0f))
             }, new BuildExecutor(), basePriority: 1.0f, momentumBonus: 0.15f),
+
+            // Craft — the Crafter job (2026-09-04, Slice 3). IsCrafter is the zero-cost
+            // gate (everyone else early-outs before the station scan); the scan is 0
+            // with no queue anywhere, and there is no yShift, so a bench that ran
+            // dry cannot be kept alive by momentum. ThreatNearby hard-suppresses so a
+            // crafter flees with the other civilians.
+            new ActionOption("Craft", new Consideration[]
+            {
+                new IsCrafter(ResponseCurve.Linear(1f, 0f)),
+                new StationWorkAvailable(ResponseCurve.Linear(1f, 0f)),   // Caches bb.targetStation; 0 when none
+                new ThreatNearby(1f, ResponseCurve.InverseLinear(1f, 0f))
+            }, new CraftExecutor(), basePriority: 1.0f, momentumBonus: 0.15f),
 
             // Repair — below Build so a colonist finishes new construction before
             // patching. RepairAvailable is 0 when nothing is damaged OR the pool
@@ -524,7 +556,7 @@ public class Worker : UnitBase<Worker>
             color = Color.cyan;
         else if (displayName.Contains("Fleeing"))
             color = Color.red;
-        else if (displayName.Contains("Building") || displayName.Contains("Repairing"))
+        else if (displayName.Contains("Building") || displayName.Contains("Repairing") || displayName.Contains("Crafting"))
             color = new Color(1f, 0.65f, 0.2f);   // orange: labour
         else if (displayName.Contains("Heading"))
             color = Color.yellow;

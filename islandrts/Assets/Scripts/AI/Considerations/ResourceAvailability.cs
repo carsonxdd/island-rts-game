@@ -12,10 +12,11 @@ public class ResourceAvailability : Consideration
 
     public override float ScoreRaw(AIBlackboard bb)
     {
-        // Idle colonists build; they never gather. And a worker whose hands hold a
-        // different type (job changed mid-trip) must deliver before gathering the
-        // new one — ReturnUrgency's "no node available" branch sends them home.
-        if (!bb.hasJob || (bb.carryAmount > 0.01f && bb.carryType != bb.assignedResourceType))
+        // Idle colonists build and crafters work a bench; neither gathers. And a
+        // worker whose hands hold a different type (job changed mid-trip) must
+        // deliver before gathering the new one — ReturnUrgency's "no node
+        // available" branch sends them home.
+        if (!bb.hasJob || bb.isCrafter || (bb.carryAmount > 0.01f && bb.carryType != bb.assignedResourceType))
         {
             bb.bestResource = null;
             return 0f;

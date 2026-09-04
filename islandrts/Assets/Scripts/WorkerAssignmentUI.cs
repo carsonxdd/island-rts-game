@@ -108,6 +108,15 @@ public class WorkerAssignmentUI : MonoBehaviour
 
     private TextMeshProUGUI warriorCount, warriorCost, housingText, colonistText;
     private Button warriorMinus, warriorPlus;
+    // The Crafter job row (2026-09-04): same controls as a gathering job, no swatch
+    private TextMeshProUGUI crafterLabel, crafterCount;
+    private Button crafterMinus, crafterPlus;
+    private int crafterLast = -1, crafterLockedLast = -1;
+    // The recruit picker: which weapon the next warrior takes
+    private TextMeshProUGUI weaponLabel;
+    private Button weaponPrev, weaponNext;
+    private ItemDef weaponShown;
+    private int weaponStockShown = -1;
     private TextMeshProUGUI craftStatus, researchStatus, queueStatus;
     private Button sendButton;
     private string craftStatusLast, researchStatusLast, queueStatusLast;
@@ -191,6 +200,9 @@ public class WorkerAssignmentUI : MonoBehaviour
         lastWarriors = lastHousingUsed = lastHousingCap = -1;
         lastColonists = lastIdle = lastArrival = -1;
         warriorLineLast = int.MinValue;
+        crafterLast = crafterLockedLast = -1;
+        weaponShown = null;
+        weaponStockShown = -1;
         craftStatusLast = researchStatusLast = queueStatusLast = null;
         queueVersionShown = -1;
         queueRowsActive = -1;
@@ -310,11 +322,30 @@ public class WorkerAssignmentUI : MonoBehaviour
         jobs.Add(MakeJobRow(body, ResourceNode.ResourceType.Food, "Foragers"));
         jobs.Add(MakeJobRow(body, ResourceNode.ResourceType.Stone, "Quarriers"));
         jobs.Add(MakeJobRow(body, ResourceNode.ResourceType.Metal, "Miners"));
+
+        // Crafters (2026-09-04): they work whichever bench has a queue
+        RectTransform crt = MenuBuilder.SettingRow(body, "Crafters", out RectTransform cslot);
+        crafterLabel = crt.GetComponentInChildren<TextMeshProUGUI>();
+        CounterControls(cslot, OnCrafterMinusClicked, OnCrafterPlusClicked, out crafterCount, out crafterMinus, out crafterPlus);
+
         MenuBuilder.RowDescription(body, "Idle colonists build and repair. + gives one a job, − sends them back.");
 
         MenuBuilder.SectionHeader(body, "Defence");
         MenuBuilder.SettingRow(body, "Warriors", out RectTransform wslot);
         CounterControls(wslot, OnWarriorMinusClicked, OnWarriorPlusClicked, out warriorCount, out warriorMinus, out warriorPlus);
+
+        // The recruit picker: ‹ weapon › with the stock count, cycling ItemCatalog.Weapons
+        MenuBuilder.SettingRow(body, "Arm with", out RectTransform pslot);
+        weaponPrev = SmallButton(pslot, "‹", () => OnWeaponCycle(-1), new Vector2(0.0f, 0.1f), new Vector2(0.14f, 0.9f));
+        weaponNext = SmallButton(pslot, "›", () => OnWeaponCycle(+1), new Vector2(0.86f, 0.1f), new Vector2(1f, 0.9f));
+        weaponLabel = MenuBuilder.Label(pslot, "", MenuStyle.BodySize, MenuStyle.TextAccent);
+        weaponLabel.textWrappingMode = TextWrappingModes.NoWrap;
+        RectTransform wl = weaponLabel.rectTransform;
+        wl.anchorMin = new Vector2(0.16f, 0f);
+        wl.anchorMax = new Vector2(0.84f, 1f);
+        wl.offsetMin = Vector2.zero;
+        wl.offsetMax = Vector2.zero;
+
         warriorCost = MenuBuilder.RowDescription(body, "");
     }
 
@@ -590,10 +621,39 @@ public class WorkerAssignmentUI : MonoBehaviour
             row.plus.interactable = canAssign && !locked;
         }
 
-        // Warriors need Spearcraft, then a spear in the stockpile
+        // Crafters (2026-09-04): open once Crafting is researched
+        int crafters = baseBuilding.crafterWorkers;
+        if (crafters != crafterLast)
+        {
+            crafterLast = crafters;
+            crafterCount.text = crafters.ToString();
+        }
+        bool crafting = Unlocks.Has(Unlocks.Kind.Crafting);
+        int crafterLock = crafting ? 0 : 1;
+        if (crafterLock != crafterLockedLast && crafterLabel != null)
+        {
+            crafterLockedLast = crafterLock;
+            crafterLabel.text = crafting
+                ? "Crafters"
+                : "Crafters  <size=78%><color=#" + LockHex + ">research " + Unlocks.ResearchTitleFor(Unlocks.Kind.Crafting) + "</color></size>";
+        }
+        crafterMinus.interactable = crafters > 0;
+        crafterPlus.interactable = canAssign && crafting;
+
+        // Warriors need Spearcraft, then the chosen weapon in the stockpile
         bool militia = Unlocks.Has(Unlocks.Kind.Militia);
-        int weapons = baseBuilding.WeaponsInStock();
-        int warriorLine = militia ? weapons : -1;
+        ItemDef weapon = baseBuilding.SelectedWeapon;
+        int inStock = baseBuilding.Stockpile.Count(weapon);
+        if (weapon != weaponShown || inStock != weaponStockShown)
+        {
+            weaponShown = weapon;
+            weaponStockShown = inStock;
+            weaponLabel.text = weapon.displayName + "  <size=78%><color=#" + LockHex + ">" + inStock + " in stock</color></size>";
+            weaponLabel.color = inStock > 0 ? MenuStyle.TextAccent : MenuStyle.TextMuted;
+        }
+        weaponPrev.interactable = weaponNext.interactable = ItemCatalog.Weapons.Length > 1;
+
+        int warriorLine = militia ? 1 : -1;
         if (warriorLine != warriorLineLast)
         {
             warriorLineLast = warriorLine;
@@ -604,9 +664,8 @@ public class WorkerAssignmentUI : MonoBehaviour
             }
             else
             {
-                warriorCost.text = baseBuilding.warriorCost_Food + " food  ·  one idle colonist  ·  a spear from the stockpile ("
-                    + weapons + " in stock)";
-                warriorCost.color = weapons > 0 ? MenuStyle.TextMuted : MenuStyle.TextAccent;
+                warriorCost.text = baseBuilding.warriorCost_Food + " food  ·  one idle colonist  ·  the weapon above from the stockpile";
+                warriorCost.color = MenuStyle.TextMuted;
             }
         }
 
@@ -841,16 +900,21 @@ public class WorkerAssignmentUI : MonoBehaviour
         }
         else if (station.IsWorked)
         {
-            status = station.Laborer == (object)pc ? "Your character is at the bench." : "Someone is at the bench.";
+            status = station.Laborer == (object)pc ? "Your character is at the bench."
+                : station.Laborer is Worker ? "A crafter is at the bench." : "Someone is at the bench.";
             color = MenuStyle.TextAccent;
         }
         else if (pc != null && pc.WalkingToStation == station)
         {
             status = "Your character is on the way.";
         }
+        else if (station.Crafter != null)
+        {
+            status = "A crafter is on the way.";
+        }
         else
         {
-            status = "No one at the bench — nothing moves until someone stands here.";
+            status = "No one at the bench — assign a Crafter, or send your character.";
             color = MenuStyle.TextAccent;
             showSend = pc != null;
         }
@@ -994,6 +1058,29 @@ public class WorkerAssignmentUI : MonoBehaviour
             AudioManager.Instance.PlayButtonClick();
         }
 
+        UpdateDisplay();
+    }
+
+    void OnCrafterPlusClicked()
+    {
+        if (baseBuilding == null) return;
+        if (baseBuilding.AssignCrafter() && AudioManager.Instance != null) AudioManager.Instance.PlayWorkerAssigned();
+        UpdateDisplay();
+    }
+
+    void OnCrafterMinusClicked()
+    {
+        if (baseBuilding == null) return;
+        baseBuilding.UnassignCrafter();
+        if (AudioManager.Instance != null) AudioManager.Instance.PlayButtonClick();
+        UpdateDisplay();
+    }
+
+    void OnWeaponCycle(int step)
+    {
+        if (baseBuilding == null) return;
+        baseBuilding.CycleWeapon(step);
+        if (AudioManager.Instance != null) AudioManager.Instance.PlayButtonClick();
         UpdateDisplay();
     }
 }

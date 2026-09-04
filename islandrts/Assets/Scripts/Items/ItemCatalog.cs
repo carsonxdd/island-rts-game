@@ -129,6 +129,12 @@ public static class ItemCatalog
     public static readonly ItemDef WoodenSpear = new ItemDef("wooden_spear", "Wooden Spear", "Sp", ItemKind.Equipment, 5, WeaponColor,
         equipment: new EquipmentDef(damage: 25f, range: 2f, attackInterval: 1.2f, ranged: false),
         hudCategory: ResourceNode.ResourceType.Wood, hudListed: true);
+    // The first use for metal (2026-09-04, Slice 3): same reach and rhythm as
+    // the wooden spear, harder hit. Made at the Workshop after Iron Work.
+    static readonly Color IronColor = new Color(0.72f, 0.76f, 0.80f);
+    public static readonly ItemDef IronSpear = new ItemDef("iron_spear", "Iron Spear", "Is", ItemKind.Equipment, 5, IronColor,
+        equipment: new EquipmentDef(damage: 35f, range: 2f, attackInterval: 1.2f, ranged: false),
+        hudCategory: ResourceNode.ResourceType.Metal, hudListed: true);
 
     /// <summary>Catalog order — also the display order in the stockpile and HUD.</summary>
     public static readonly ItemDef[] All =
@@ -136,14 +142,39 @@ public static class ItemCatalog
         Stick, StoneChunk,
         Wood, Food, Stone, Metal,
         StoneAxe, FishingSpear, StonePick, Mallet, MetalPick,
-        WoodenSpear,
+        WoodenSpear, IronSpear,
     };
 
     /// <summary>Everything that lives in the campfire stockpile (materials and equipment; tools stay in hand, resources go to the pool).</summary>
-    public static readonly ItemDef[] Stockpiled = { Stick, StoneChunk, WoodenSpear };
+    public static readonly ItemDef[] Stockpiled = { Stick, StoneChunk, WoodenSpear, IronSpear };
 
-    /// <summary>Weapons a warrior can be armed with, in preference order (best first once there is more than one).</summary>
-    public static readonly ItemDef[] Weapons = { WoodenSpear };
+    /// <summary>
+    /// Weapons a warrior can be armed with, in PREFERENCE order — best first. This
+    /// order is what "the best weapon in stock" means everywhere (the default of
+    /// the recruit picker, the sim, <see cref="BetterWeaponInStock"/>), so a new
+    /// weapon goes in at its place in the ranking, never at the end.
+    /// </summary>
+    public static readonly ItemDef[] Weapons = { IronSpear, WoodenSpear };
+
+    /// <summary>
+    /// The best weapon in <paramref name="stock"/> that outranks <paramref name="current"/>
+    /// and is the same kind of weapon (melee for melee, ranged for ranged — a
+    /// spearman never swaps to a bow on his own), or null. An unarmed unit
+    /// (<c>current == null</c>) is outranked by anything.
+    /// </summary>
+    public static ItemDef BetterWeaponInStock(ItemDef current, Inventory stock)
+    {
+        if (stock == null) return null;
+        bool ranged = current != null && current.equipment != null && current.equipment.ranged;
+        for (int i = 0; i < Weapons.Length; i++)
+        {
+            ItemDef w = Weapons[i];
+            if (w == current) return null;                       // reached our own rank: nothing above it in stock
+            if (w.equipment == null || w.equipment.ranged != ranged) continue;
+            if (stock.Count(w) > 0) return w;
+        }
+        return null;
+    }
 
     public static ItemDef Find(string id)
     {

@@ -5,8 +5,8 @@ using System.Collections.Generic;
 /// The Workshop (2026-08-26): a crafting building. Since the research split
 /// (2026-09-03) it is a <see cref="CraftStation"/> like the campfire — click it
 /// to open the station panel — and the one that lists the Workshop-tier
-/// research (Sharpened Tools, Sturdy Scaffolds). Its speed table is 1× until
-/// Slice 3 makes it the fast bench and adds the Crafter job. Buildable via the
+/// research (Sharpened Tools, Sturdy Scaffolds, Iron Work). It makes tools and
+/// weapons at 2× (2026-09-04) and is where a Crafter colonist works. Buildable via the
 /// normal placement flow (key 5) once <i>Crafting</i> is researched — assets and
 /// BuildingData are created by Tools &gt; Island RTS &gt; Session Content &gt;
 /// Setup Pickups + Workshop.
@@ -40,7 +40,9 @@ public class Workshop : MonoBehaviour, ITargetable
         Station = GetComponent<CraftStation>();
         if (Station == null) Station = gameObject.AddComponent<CraftStation>();
         Station.tier = ResearchCatalog.Station.Workshop;
-        Station.speeds = new[] { 1f, 1f, 1f, 1f };   // Slice 3: 2× Tool / Weapon
+        // Tool, Weapon, Construction, Research: the fast bench for MAKING things
+        // (2026-09-04); research runs at the same 1× the fire manages.
+        Station.speeds = new[] { 2f, 2f, 1f, 1f };
         Station.displayName = "Workshop";
     }
 

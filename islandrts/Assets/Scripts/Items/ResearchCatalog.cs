@@ -152,6 +152,16 @@ public static class ResearchCatalog
             prerequisites = new[] { "storage_pits" },
             apply = () => CraftedUpgrades.AddStockpileRoom(80),
         },
+        // Metal's first use (2026-09-04, Slice 3): the Iron Spear recipe.
+        new ResearchDef
+        {
+            id = "iron_work", title = "Iron Work", tier = 4, station = Station.Workshop,
+            description = "Iron Spears can be made: 35 damage against the Wooden Spear's 25",
+            woodCost = 20, stoneCost = 25, metalCost = 10,
+            seconds = 14f,
+            prerequisites = new[] { "mining" },
+            grants = new[] { Unlocks.Kind.IronWork },
+        },
     };
 
     /// <summary>Fires after any entry completes. The campfire panel re-labels its locked rows on it.</summary>

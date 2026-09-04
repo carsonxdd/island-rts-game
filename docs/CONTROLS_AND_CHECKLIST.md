@@ -658,3 +658,21 @@ No editor step. Notes live in `Assets/Resources/Changelog.txt`; Unity generates 
 - [ ] In a run, the pause menu has CHANGELOG after CONTROLS; it opens the same screen over the frozen game, and BACK returns to the pause menu with the game still paused
 - [ ] Leaving and reopening the screen restores the scroll position
 - [ ] Adding a line to `Changelog.txt` and re-entering Play shows it without a code change; a stray line that is not a heading or bullet is ignored rather than breaking the screen
+
+### Slice 3 — Crafters, Workshop speed, Iron Spear, weapon picker, Rearm (2026-09-04)
+
+Editor step: **Generate All Assets** (the Iron Spear tool art) then **Setup Opening Scene**
+(the held-item art table gains the iron spear row). Neither is load-bearing for play.
+
+- [ ] Colonists tab: a **Crafters** row sits under Miners, locked with "research Crafting" until Crafting is known; + assigns an idle colonist, − sends them back, and the colonist line's idle count moves with it
+- [ ] Queue something at the fire with a Crafter assigned and nobody at the bench: the crafter shows "Heading to the bench", then "Crafting" in orange, and the Queue tab reads "A crafter is at the bench"; the entry's percentage climbs
+- [ ] Right-click the fire while the crafter is working it: your character takes the bench at once, the crafter's label turns to "Waiting for the bench" and they stand beside it; walk your character away and the crafter resumes without a re-assignment
+- [ ] With the queue empty the crafter goes home and idles (never builds, never gathers, never forages)
+- [ ] Build a Workshop and queue Wooden Spears at both benches: the Workshop's entry finishes in about half the time; research queued at the Workshop runs at the campfire's pace
+- [ ] With two Crafters and two benches with work, each crafter goes to a different bench
+- [ ] Workshop Research tab lists **Iron Work** (20 W 25 S 10 M, needs Mining); once done, the Craft tab lists **Iron Spear** (2 Stick · 5 Wood · 4 Metal) and the Stockpile tab and the Metal HUD chip's breakdown show iron spears
+- [ ] Defence: an **Arm with** row under Warriors cycles "Wooden Spear · 3 in stock" / "Iron Spear · 0 in stock" with ‹ ›; + is disabled while the chosen weapon reads 0 in stock; a recruit takes the chosen weapon and the count drops by one
+- [ ] A warrior recruited with an Iron Spear kills a raider in two hits (50 HP / 35)
+- [ ] Add an iron spear (F4 "+5 Iron Spears") with a wooden-spear warrior alive and no enemies: the warrior walks to the fire showing "Rearming", the stockpile gains a Wooden Spear and loses an Iron Spear, the warrior goes back to patrolling; nothing happens while enemies are alive
+- [ ] Dismissing a rearmed warrior returns the Iron Spear, not the wooden one
+- [ ] F3 overlay: a crafter's action reads "Craft", a warrior fetching a weapon reads "Rearm"

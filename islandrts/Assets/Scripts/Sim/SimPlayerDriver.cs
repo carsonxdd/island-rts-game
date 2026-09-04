@@ -9,8 +9,9 @@ using UnityEngine;
 /// deposit it, stand at the bench until the queue runs dry. Nothing else —
 /// the policies decide WHAT to queue; this only keeps it moving.
 ///
-/// Polled once a game-second from SimRunner, before the policy. Until the
-/// Crafter job (Slice 3) this is the sim's only bench labor.
+/// Polled once a game-second from SimRunner, before the policy. It drives the
+/// CAMPFIRE bench only; a Crafter colonist (2026-09-04) covers the Workshop, which
+/// is why the policies queue Workshop research only once a Crafter exists.
 /// </summary>
 public static class SimPlayerDriver
 {

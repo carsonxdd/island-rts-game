@@ -20,6 +20,7 @@ namespace IslandRTS.ArtGen
             list.Add(new AssetDef("Mallet", AssetCategory.Tools, Mallet, "0.50 tall"));
             list.Add(new AssetDef("WoodenSpear", AssetCategory.Tools, WoodenSpear, "1.15 tall"));
             list.Add(new AssetDef("MetalPick", AssetCategory.Tools, MetalPick, "0.60 tall"));
+            list.Add(new AssetDef("IronSpear", AssetCategory.Tools, IronSpear, "1.20 tall"));
         }
 
         private static void Handle(MeshBuilder b, float height, float radius)
@@ -94,6 +95,18 @@ namespace IslandRTS.ArtGen
             b.Box(new Vector3(0f, 0.54f, 0f), new Vector3(0.34f, 0.055f, 0.045f));
             b.Use("MetalDark");
             Binding(b, 0.49f, 0.08f);
+            return b;
+        }
+
+        /// <summary>The Wooden Spear's shaft with a longer steel head (2026-09-04, Slice 3).</summary>
+        private static MeshBuilder IronSpear()
+        {
+            MeshBuilder b = new MeshBuilder(4107);
+            Handle(b, 0.98f, 0.022f);
+            b.Use("MetalSteel");
+            b.TaperedSegment(new Vector3(0f, 0.98f, 0f), new Vector3(0f, 1.20f, 0f), 0.032f, 0.003f, 6);
+            b.Use("MetalDark");
+            Binding(b, 0.94f, 0.06f);
             return b;
         }
     }
