@@ -39,10 +39,10 @@ public static class SimTools
                 new SimConfig { id = "rush_baseline",   strategy = "Rush",   seed = 1 },
                 new SimConfig { id = "eco_baseline",    strategy = "Eco",    seed = 1 },
 
-                // A first knob sweep: is the night curve the thing that decides runs?
-                new SimConfig { id = "eco_enemies4", strategy = "Eco", seed = 1, baseEnemiesPerNight = 4 },
-                new SimConfig { id = "eco_enemies5", strategy = "Eco", seed = 1, baseEnemiesPerNight = 5 },
-                new SimConfig { id = "eco_ramp2",    strategy = "Eco", seed = 1, enemyIncreasePerNight = 2f },
+                // A first knob sweep: is the raid curve the thing that decides runs?
+                new SimConfig { id = "eco_raids_often", strategy = "Eco", seed = 1, raidChancePerQuietDay = 0.35f },
+                new SimConfig { id = "eco_raids_big",   strategy = "Eco", seed = 1, raidSizePerDay = 0.6f },
+                new SimConfig { id = "eco_rich_target", strategy = "Eco", seed = 1, raidSizePerProsperity = 0.14f },
             }
         };
 

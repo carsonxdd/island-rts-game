@@ -133,7 +133,7 @@ public class TurtlePolicy : SimPolicy
         // A small garrison from the start — walls without anyone behind them
         // just delay the wave. Gating this on a finished ring meant Turtle
         // faced night 1 and 2 with nothing but construction sites.
-        if (s.Warriors < 1 + s.Day / 2) { if (Recruit(s)) return; }
+        if (s.Warriors < 1 + s.Day / 2 || (s.RaidTonight && s.Warriors < 2 + s.Day / 2)) { if (Recruit(s)) return; }
 
         // Late: a tower for reach, then top the ring back up as it gets chewed.
         if (s.Day >= 3 && SimBuilder.TowerCount == 0 && s.Stone >= 80)
@@ -145,8 +145,9 @@ public class TurtlePolicy : SimPolicy
 }
 
 /// <summary>
-/// Army first. Tests whether the warrior cost/DPS curve keeps pace with
-/// 3 + nightNumber enemies, with almost no economy behind it.
+/// Army first. Tests whether the warrior cost/DPS curve keeps pace with raids
+/// that grow with the day number and the colony's prosperity, with almost no
+/// economy behind it.
 /// </summary>
 public class RushPolicy : SimPolicy
 {
@@ -182,7 +183,10 @@ public class EcoPolicy : SimPolicy
         // which would make any test of raising that cap meaningless — the
         // policy would never ask for the extra warriors.
         int wanted = 1 + s.Day;
-        if (s.Warriors < wanted && s.Wood > 60 && s.Food > 60)
+        // The dawn roll is public knowledge — a human who sees "raiders land
+        // tonight" spends the reserve on warriors, so the policy does too.
+        bool spend = s.RaidTonight || (s.Wood > 60 && s.Food > 60);
+        if (s.Warriors < wanted && spend)
         {
             if (Recruit(s)) return;
         }
@@ -203,6 +207,8 @@ public struct SimState
 {
     public BaseBuilding Campfire;
     public int Day;
+    /// <summary>The director's dawn verdict for the coming night — what the raid banner shows a player.</summary>
+    public bool RaidTonight;
     public int Workers;
     public int Warriors;
     public int Enemies;

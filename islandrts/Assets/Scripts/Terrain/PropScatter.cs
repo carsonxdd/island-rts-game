@@ -156,8 +156,11 @@ public class PropScatter : MonoBehaviour
     /// every gather tick. Yaw and size jitter therefore go on the Model too, which is
     /// also where TreeVariance puts them.
     ///
-    /// The click hitbox is measured from the art's own renderer bounds rather than
-    /// hard-coded, because one rule covers palms from 2.2 m to 5 m tall.
+    /// The click hitbox takes its HEIGHT from the art's renderer bounds (one rule covers
+    /// palms from 2.2 m to 5 m tall) but its footprint is trunk-sized, not canopy-sized:
+    /// a palm's fronds span 3-4 m, and a box that wide was a huge rectangle that caught
+    /// every click and hover metres from the trunk (2026-09-03). Bounds are read in the
+    /// model's LOCAL space too — the world AABB of a yawed model is inflated by the yaw.
     /// </remarks>
     void SpawnNode(ScatterSettings.Rule rule, Transform group, Vector3 pos, float yaw, float scale)
     {
@@ -172,18 +175,36 @@ public class PropScatter : MonoBehaviour
         model.transform.localScale = new Vector3(scale, scale, scale);
 
         BoxCollider box = node.AddComponent<BoxCollider>();
-        Renderer[] renderers = model.GetComponentsInChildren<Renderer>();
-        if (renderers.Length > 0)
+        MeshFilter[] filters = model.GetComponentsInChildren<MeshFilter>();
+        bool measured = false;
+        if (filters.Length > 0)
         {
-            Bounds b = renderers[0].bounds;
-            for (int i = 1; i < renderers.Length; i++) b.Encapsulate(renderers[i].bounds);
-            box.center = node.transform.InverseTransformPoint(b.center);
-            box.size = b.size;
+            // Mesh bounds in the model's own frame (unrotated), scaled by the jitter
+            Bounds b = new Bounds();
+            for (int i = 0; i < filters.Length; i++)
+            {
+                Mesh mesh = filters[i].sharedMesh;
+                if (mesh == null) continue;
+                Bounds mb = mesh.bounds;
+                // Local-to-model transform of this piece (art prefabs are shallow; yaw-free)
+                Vector3 c = model.transform.InverseTransformPoint(filters[i].transform.TransformPoint(mb.center));
+                Vector3 s = Vector3.Scale(mb.size, filters[i].transform.lossyScale) / Mathf.Max(scale, 0.01f);
+                if (!measured) { b = new Bounds(c, s); measured = true; }
+                else b.Encapsulate(new Bounds(c, s));
+            }
+            if (measured)
+            {
+                float height = b.size.y * scale;
+                float canopy = Mathf.Max(b.size.x, b.size.z) * scale;
+                float footprint = Mathf.Clamp(canopy * 0.35f, 0.9f, 1.6f);   // trunk plus a hand's width of canopy centre
+                box.center = new Vector3(0f, height * 0.5f, 0f);
+                box.size = new Vector3(footprint, height, footprint);
+            }
         }
-        else
+        if (!measured)
         {
             box.center = new Vector3(0f, 1.5f, 0f);
-            box.size = new Vector3(2f, 3f, 2f);
+            box.size = new Vector3(1.2f, 3f, 1.2f);
         }
 
         // Fields are assigned before Start runs, which is where ResourceNode sizes its

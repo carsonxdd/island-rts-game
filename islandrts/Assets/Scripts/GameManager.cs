@@ -2,22 +2,25 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 /// <summary>
-/// Owns the run: tracks which night it is, decides victory and defeat, and keeps the
+/// Owns the run: tracks the calendar day, decides victory and defeat, and keeps the
 /// statistics the end screen reports.
 /// </summary>
 /// <remarks>
-/// Victory is surviving nightsToSurvive nights; defeat is the campfire being destroyed.
-/// Both freeze the game and hand off to MenuScreens, which builds the end screen - this
-/// class owns no UI of its own. The end screen is skipped entirely during a balance sweep,
-/// where a run finishes every few seconds and there is nobody to look at it.
+/// Victory is reaching the dawn after day <see cref="daysToSurvive"/> (the rescue ship
+/// arrives); defeat is the campfire being destroyed. Raids are not every night any more
+/// (see RaidDirector), so the day count — not a wave count — is the run's clock.
+/// Both endings freeze the game and hand off to MenuScreens, which builds the end screen -
+/// this class owns no UI of its own. The end screen is skipped entirely during a balance
+/// sweep, where a run finishes every few seconds and there is nobody to look at it.
 /// </remarks>
 public class GameManager : MonoBehaviour
 {
     [Header("Victory Conditions")]
-    // Seeded from the run's difficulty in Start (Peaceful..Normal are 5 nights,
-    // Hard 7, Brutal 10). The serialized value is only the fallback for a scene
-    // played without going through the menu.
-    public int nightsToSurvive = 5;
+    // Seeded from the run's difficulty in Start (Normal is 30 days). The serialized
+    // value is only the fallback for a scene played without going through the menu.
+    // Renamed from nightsToSurvive on 2026-09-02 WITHOUT FormerlySerializedAs on
+    // purpose: the scene's old "5" must not carry over as the new day count.
+    public int daysToSurvive = 30;
 
     [Header("Game State")]
     public bool isGameOver = false;
@@ -31,7 +34,7 @@ public class GameManager : MonoBehaviour
     public BaseBuilding campfire;  // Reference to campfire
 
     [Header("Statistics")]
-    public int currentNight = 0;
+    public int currentDay = 1;
     public int totalEnemiesKilled = 0;
     public int maxWorkers = 0;
     public int maxWarriors = 0;
@@ -40,7 +43,6 @@ public class GameManager : MonoBehaviour
     public static GameManager Instance { get; private set; }
 
     private DayNightCycle dayNightCycle;
-    private EnemySpawner enemySpawner;
     private bool victoryChecked = false;
 
     void Awake()
@@ -60,13 +62,12 @@ public class GameManager : MonoBehaviour
     void Start()
     {
         // The run's difficulty owns the win condition — except during a sweep,
-        // which sets nightsToSurvive itself from sceneLoaded (before this Start)
-        // and would have it silently clobbered back to 5 here.
-        if (!SimHooks.Simulating) nightsToSurvive = Difficulty.NightsToSurvive;
+        // which sets daysToSurvive itself from sceneLoaded (before this Start)
+        // and would have it silently clobbered back here.
+        if (!SimHooks.Simulating) daysToSurvive = Difficulty.DaysToSurvive;
 
         // Find references
         dayNightCycle = FindAnyObjectByType<DayNightCycle>();
-        enemySpawner = FindAnyObjectByType<EnemySpawner>();
 
         if (campfire == null)
         {
@@ -76,7 +77,7 @@ public class GameManager : MonoBehaviour
         // Subscribe to day/night events to track progress
         DayNightCycle.OnDayStart += OnDayStart;
 
-        Debug.Log($"GameManager: Initialized. Win condition: Survive {nightsToSurvive} nights");
+        Debug.Log($"GameManager: Initialized. Win condition: reach day {daysToSurvive + 1}");
     }
 
     void OnDestroy()
@@ -100,16 +101,18 @@ public class GameManager : MonoBehaviour
                 maxWarriors = warriors;
         }
 
-        // Update current night from DayNightCycle
+        // Mirror the calendar from DayNightCycle
         if (dayNightCycle != null)
         {
-            currentNight = dayNightCycle.GetCurrentDay();
+            currentDay = dayNightCycle.GetCurrentDay();
         }
 
-        // Check for victory (after surviving the required nights)
-        if (!victoryChecked && !isGameOver && currentNight > nightsToSurvive && !dayNightCycle.IsNightTime())
+        // Victory check here as well as in OnDayStart: the event fires from the
+        // cycle's own Update, which may run before this component has mirrored
+        // the new day, so whichever sees the crossing first declares it.
+        if (!victoryChecked && !isGameOver && dayNightCycle != null
+            && currentDay > daysToSurvive && !dayNightCycle.IsNightTime())
         {
-            // Survived the required nights and it's now day - VICTORY!
             TriggerVictory();
             victoryChecked = true;
         }
@@ -117,11 +120,13 @@ public class GameManager : MonoBehaviour
 
     void OnDayStart()
     {
-        // Each day that starts means we survived another night
-        Debug.Log($"GameManager: Survived night {currentNight - 1}. {nightsToSurvive - currentNight + 1} nights remaining to victory");
+        int day = dayNightCycle != null ? dayNightCycle.GetCurrentDay() : currentDay;
+        currentDay = day;
 
-        // Check if we've survived enough nights
-        if (currentNight > nightsToSurvive && !victoryChecked)
+        // One line per dawn — the calendar is the run's clock now
+        Debug.Log($"GameManager: Day {day} of {daysToSurvive}.");
+
+        if (day > daysToSurvive && !victoryChecked)
         {
             TriggerVictory();
             victoryChecked = true;
@@ -155,7 +160,7 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Called when player survives required nights
+    /// Called when the player reaches the dawn after the last required day
     /// </summary>
     public void TriggerVictory()
     {
@@ -219,9 +224,15 @@ public class GameManager : MonoBehaviour
     }
 
     // Public getters for UI
-    public int GetNightsSurvived()
+
+    /// <summary>
+    /// Full days the colony has lived through. On the victory dawn the calendar
+    /// reads daysToSurvive + 1, so this is daysToSurvive; on a defeat during day
+    /// N it is N - 1 — the day you lost was not survived.
+    /// </summary>
+    public int GetDaysSurvived()
     {
-        return currentNight;
+        return Mathf.Max(0, currentDay - 1);
     }
 
     public int GetEnemiesKilled()

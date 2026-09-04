@@ -8,10 +8,13 @@ using UnityEngine;
 /// <summary>
 /// Two CSVs, because balance questions come in two shapes.
 ///
-/// runs.csv   — one row per game. "Is Rush beatable at night 5?" "Which seeds
-///              lose?" This is what you sort and filter.
-/// nights.csv — one row per night per game. "Where does the economy curve cross
-///              the enemy curve?" This is what you plot.
+/// runs.csv  — one row per game. "Is Rush beatable to day 30?" "Which seeds
+///             lose?" This is what you sort and filter.
+/// days.csv  — one row per calendar day per game (dusk to dawn). "Where does
+///             the economy curve cross the raid curve?" This is what you plot.
+///             Since raids stopped being nightly (2026-09-02) every row carries
+///             a <c>raid</c> flag; <c>campfire_hp_min</c> only means anything
+///             on rows where it is 1.
 ///
 /// Written incrementally and flushed after every row, so a sweep that crashes on
 /// run 80 of 100 still leaves 79 usable rows on disk.
@@ -19,13 +22,15 @@ using UnityEngine;
 public class SimMetrics
 {
     public const string RunsFile = "runs.csv";
-    public const string NightsFile = "nights.csv";
+    public const string DaysFile = "days.csv";
 
-    /// <summary>Snapshot of one night, captured at dusk and again at dawn.</summary>
-    public class NightRow
+    /// <summary>Snapshot of one calendar day's night, captured at dusk and again at dawn.</summary>
+    public class DayRow
     {
-        public int night;
-        public float wood, food, stone;              // at night start
+        public int day;
+        public bool raid;                            // did the director land raiders this night
+        public int raidSize;                         // what it committed to at the dawn roll
+        public float wood, food, stone;              // at dusk
         public float woodDawn, foodDawn, stoneDawn;  // at the following dawn
         public int workers, warriors, huts, walls, towers;
         public int enemiesSpawned;
@@ -38,12 +43,13 @@ public class SimMetrics
     public string configId;
     public string strategy;
     public int seed;
-    public int nightsToSurvive;
+    public int daysToSurvive;
 
-    public readonly List<NightRow> nights = new List<NightRow>();
+    public readonly List<DayRow> days = new List<DayRow>();
 
     public string outcome = "incomplete";   // victory | defeat | timeout | error
-    public int nightReached;
+    public int dayReached;
+    public int raids;                        // raids that landed
     public float gameSeconds;
     public float wallClockSeconds;
     public int frames;
@@ -74,17 +80,17 @@ public class SimMetrics
         if (!File.Exists(runs))
         {
             File.WriteAllText(runs,
-                "config_id,strategy,seed,outcome,night_reached,nights_to_survive," +
+                "config_id,strategy,seed,outcome,day_reached,days_to_survive,raids," +
                 "enemies_killed,peak_workers,peak_warriors," +
                 "final_wood,final_food,final_stone," +
                 "game_seconds,wall_seconds,frames,note\n");
         }
 
-        string nights = Path.Combine(dir, NightsFile);
-        if (!File.Exists(nights))
+        string days = Path.Combine(dir, DaysFile);
+        if (!File.Exists(days))
         {
-            File.WriteAllText(nights,
-                "config_id,strategy,seed,night,survived," +
+            File.WriteAllText(days,
+                "config_id,strategy,seed,day,raid,raid_size,survived," +
                 "wood_dusk,food_dusk,stone_dusk,wood_dawn,food_dawn,stone_dawn," +
                 "workers_dusk,warriors_dusk,huts_dusk,walls_dusk,towers_dusk," +
                 "workers_dawn,warriors_dawn,huts_dawn,walls_dawn,towers_dawn," +
@@ -102,8 +108,9 @@ public class SimMetrics
           .Append(Csv(strategy)).Append(',')
           .Append(seed).Append(',')
           .Append(Csv(outcome)).Append(',')
-          .Append(nightReached).Append(',')
-          .Append(nightsToSurvive).Append(',')
+          .Append(dayReached).Append(',')
+          .Append(daysToSurvive).Append(',')
+          .Append(raids).Append(',')
           .Append(totalEnemiesKilled).Append(',')
           .Append(peakWorkers).Append(',')
           .Append(peakWarriors).Append(',')
@@ -117,13 +124,15 @@ public class SimMetrics
         File.AppendAllText(Path.Combine(dir, RunsFile), sb.ToString());
 
         sb.Clear();
-        for (int i = 0; i < nights.Count; i++)
+        for (int i = 0; i < days.Count; i++)
         {
-            NightRow n = nights[i];
+            DayRow n = days[i];
             sb.Append(Csv(configId)).Append(',')
               .Append(Csv(strategy)).Append(',')
               .Append(seed).Append(',')
-              .Append(n.night).Append(',')
+              .Append(n.day).Append(',')
+              .Append(n.raid ? 1 : 0).Append(',')
+              .Append(n.raidSize).Append(',')
               .Append(n.survived ? 1 : 0).Append(',')
               .Append(F(n.wood)).Append(',').Append(F(n.food)).Append(',').Append(F(n.stone)).Append(',')
               .Append(F(n.woodDawn)).Append(',').Append(F(n.foodDawn)).Append(',').Append(F(n.stoneDawn)).Append(',')
@@ -137,14 +146,14 @@ public class SimMetrics
               .Append(F(n.campfireHpMin)).Append(',')
               .Append(F(n.campfireHpDawn)).Append('\n');
         }
-        if (sb.Length > 0) File.AppendAllText(Path.Combine(dir, NightsFile), sb.ToString());
+        if (sb.Length > 0) File.AppendAllText(Path.Combine(dir, DaysFile), sb.ToString());
     }
 
     /// <summary>One-line console summary, the thing you actually watch scroll past.</summary>
     public string Summary()
     {
         return $"[Sim] {configId} ({strategy}, seed {seed}) -> {outcome} " +
-               $"night {nightReached}/{nightsToSurvive} | kills {totalEnemiesKilled} " +
+               $"day {dayReached}/{daysToSurvive} | raids {raids} | kills {totalEnemiesKilled} " +
                $"| peak {peakWorkers}w/{peakWarriors}s " +
                $"| res {finalWood:F0}/{finalFood:F0}/{finalStone:F0} " +
                $"| {gameSeconds:F0}s game in {wallClockSeconds:F1}s wall " +

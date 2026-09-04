@@ -2,14 +2,19 @@ using UnityEngine;
 using System.Collections.Generic;
 
 /// <summary>
-/// Runs the nightly raid: listens for nightfall, works out how many enemies this night
-/// deserves, and spawns them offshore so the wave wades in from one direction.
+/// Lands a raid: given a head count from <see cref="RaidDirector"/>, spawns that many
+/// enemies offshore so the raid wades in from one direction, and clears whatever is
+/// left at dawn.
 /// </summary>
 /// <remarks>
-/// A wave arrives as one body rather than a trickle - spawns are only fractions of a
+/// This class no longer decides WHEN or HOW MANY (2026-09-02) — the director rolls
+/// that at dawn from the calendar and the colony's prosperity. It only owns the
+/// mechanics: the ring, the clustering, the stagger, the dawn despawn.
+///
+/// A raid arrives as one body rather than a trickle - spawns are only fractions of a
 /// second apart and clustered around a single randomly chosen bearing - because a trickle
-/// lets a couple of warriors defeat a whole night in detail.
-/// Anything still alive at dawn is despawned; nights do not overlap.
+/// lets a couple of warriors defeat a whole raid in detail.
+/// Anything still alive at dawn is despawned; raids never overlap.
 /// </remarks>
 public class EnemySpawner : MonoBehaviour
 {
@@ -17,47 +22,38 @@ public class EnemySpawner : MonoBehaviour
     public GameObject enemyPrefab;
 
     [Header("Spawn Settings")]
-    public int baseEnemiesPerNight = 5;         // Starting number of enemies (scene: 5)
-    public float enemyIncreasePerNight = 2.25f; // Extra enemies each night (scene: 2.25)
     public float spawnDistance = 45f;           // Distance from center to spawn enemies (scene: 45)
     public float spawnHeight = 1f;              // Y position to spawn at
 
     [Header("Spawn Timing")]
     public float spawnDelay = 2f;               // Delay after night starts before spawning
-    public float spawnInterval = 0.4f;          // Time between spawns - low enough that a wave lands as one body (scene: 0.4)
+    public float spawnInterval = 0.4f;          // Time between spawns - low enough that a raid lands as one body (scene: 0.4)
 
     [Header("Group Spawning")]
-    public float groupSpreadAngle = 15f;        // Max angle spread within a wave group (degrees)
-    public float groupSpreadDistance = 3f;       // Max distance spread within a wave group
-
-    [Header("Difficulty Scaling")]
-    public bool increaseDifficulty = true;      // Increase enemies each night
+    public float groupSpreadAngle = 15f;        // Max angle spread within a raid group (degrees)
+    public float groupSpreadDistance = 3f;       // Max distance spread within a raid group
 
     // Private
     private List<GameObject> activeEnemies = new List<GameObject>();
-    private int currentNight = 0;
-    private float waveBaseAngle = 0f;  // Chosen direction for current wave group
+    private float waveBaseAngle = 0f;  // Chosen direction for current raid group
+    private int pendingCount;          // Head count handed over by SpawnRaid, consumed by StartSpawning
+    private int pendingRaidIndex;
+
+    void Awake()
+    {
+        // The director rides on this object so it needs no scene wiring and its
+        // code defaults are the live values (see RaidDirector's remarks).
+        if (GetComponent<RaidDirector>() == null) gameObject.AddComponent<RaidDirector>();
+    }
 
     void OnEnable()
     {
-        // Subscribe to day/night events
-        DayNightCycle.OnNightStart += HandleNightStart;
         DayNightCycle.OnDayStart += HandleDayStart;
     }
 
     void OnDisable()
     {
-        // Unsubscribe from events
-        DayNightCycle.OnNightStart -= HandleNightStart;
         DayNightCycle.OnDayStart -= HandleDayStart;
-    }
-
-    void HandleNightStart()
-    {
-        currentNight++;
-
-        // Start spawning enemies after a delay (StartSpawning computes the count)
-        Invoke(nameof(StartSpawning), spawnDelay);
     }
 
     void HandleDayStart()
@@ -66,21 +62,15 @@ public class EnemySpawner : MonoBehaviour
         DespawnAllEnemies();
     }
 
-    int CalculateEnemyCount()
+    /// <summary>
+    /// Land <paramref name="count"/> raiders after the usual delay. Called by the
+    /// director at nightfall on raid nights, and by the F4 cheat.
+    /// </summary>
+    public void SpawnRaid(int count, int raidIndex)
     {
-        // Wave size is the knob the player's difficulty moves hardest, because
-        // the sim runs show campfire damage tracks how many enemies arrive at
-        // once far more closely than how hard each one hits.
-        float scale = Difficulty.EnemyCountMultiplier;
-
-        if (!increaseDifficulty)
-        {
-            return Mathf.Max(1, Mathf.RoundToInt(baseEnemiesPerNight * scale));
-        }
-
-        // Increase enemies each night
-        int count = Mathf.RoundToInt((baseEnemiesPerNight + (currentNight - 1) * enemyIncreasePerNight) * scale);
-        return Mathf.Max(1, count);  // At least 1 enemy
+        pendingCount = Mathf.Max(1, count);
+        pendingRaidIndex = raidIndex;
+        Invoke(nameof(StartSpawning), spawnDelay);
     }
 
     void StartSpawning()
@@ -91,12 +81,12 @@ public class EnemySpawner : MonoBehaviour
             return;
         }
 
-        int enemiesToSpawn = CalculateEnemyCount();
+        int enemiesToSpawn = pendingCount;
 
-        // Pick a random direction for this wave — all enemies cluster around it
+        // Pick a random direction for this raid — all enemies cluster around it
         waveBaseAngle = Random.Range(0f, 360f);
 
-        Debug.Log($"EnemySpawner: Spawning {enemiesToSpawn} enemies for night {currentNight} from direction {waveBaseAngle:F0}°");
+        Debug.Log($"EnemySpawner: Raid {pendingRaidIndex} — {enemiesToSpawn} raiders landing from direction {waveBaseAngle:F0}°");
 
         // Start combat music when enemies begin spawning
         if (AudioManager.Instance != null)
@@ -118,7 +108,7 @@ public class EnemySpawner : MonoBehaviour
 
         // Spawn the enemy
         GameObject enemy = Instantiate(enemyPrefab, spawnPos, Quaternion.identity);
-        enemy.name = $"Enemy_{activeEnemies.Count + 1}_Night{currentNight}";
+        enemy.name = $"Enemy_{activeEnemies.Count + 1}_Raid{pendingRaidIndex}";
         enemy.transform.parent = transform;  // Organize under spawner
 
         // Track active enemies
@@ -127,7 +117,7 @@ public class EnemySpawner : MonoBehaviour
 
     Vector3 GetRandomSpawnPosition()
     {
-        // Spawn enemies clustered together around the wave's chosen direction
+        // Spawn enemies clustered together around the raid's chosen direction
         float angle = waveBaseAngle + Random.Range(-groupSpreadAngle, groupSpreadAngle);
         // spawnDistance is authored for the 150 m map; scale with the island
         float distance = spawnDistance * TerrainGrid.SizeScale + Random.Range(-groupSpreadDistance, groupSpreadDistance);
@@ -209,17 +199,15 @@ public class EnemySpawner : MonoBehaviour
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
     /// <summary>
-    /// Debug-menu hook: spawn a wave right now, scaled as if it were at
-    /// least night 1. currentNight is restored immediately — StartSpawning
-    /// computes the count synchronously (the Invokes only stagger the
-    /// per-enemy instantiation), so real night scaling is unaffected.
+    /// Debug-menu hook: land a raid right now, sized exactly as the director
+    /// would size one today. Does not count as a scheduled raid, so the
+    /// director's quiet-night streak and tonight's roll are untouched.
     /// </summary>
     public void DebugSpawnWave()
     {
-        int saved = currentNight;
-        currentNight = Mathf.Max(1, currentNight);
-        StartSpawning();
-        currentNight = saved;
+        RaidDirector director = RaidDirector.Instance;
+        int count = director != null ? director.ComputeRaidSize() : 5;
+        SpawnRaid(count, director != null ? director.RaidsSoFar + 1 : 1);
     }
 #endif
 

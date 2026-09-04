@@ -16,7 +16,7 @@ It does **not** replace playtesting. See [What it can't test](#what-it-cant-test
    `islandrts/Build/SimPlayer/islandrts-sim.exe`.
 2. **`.\tools\run-sim.ps1`** — runs `SimSweeps/example.json` and prints a
    win/loss table per strategy.
-3. Read `islandrts/Build/SimPlayer/SimLogs/runs.csv` and `nights.csv`.
+3. Read `islandrts/Build/SimPlayer/SimLogs/runs.csv` and `days.csv`.
 
 To iterate on the harness itself without rebuilding, use
 **`Tools > Island RTS > Simulation > Run Sweep In Editor…`** — it queues a sweep,
@@ -44,8 +44,12 @@ game's own Utility AI, untouched. That is what makes the output worth reading.
 | Strategy | Shape | The question it asks |
 |---|---|---|
 | **Turtle** | 4 workers → wooden wall ring (r9, one gap per side) → 2 gates → tower | Is fortification a viable substitute for an army? Is wall HP vs enemy DPS sane? |
-| **Rush** | 3 workers, 2 huts, everything else into warriors | Does warrior cost/DPS keep pace with `3 + nightNumber` enemies? |
-| **Eco** | Huts to 6, workers to 10 (3:2:1 wood:food:stone), ~1 warrior per night, late tower + partial wall | The baseline the other two are read against |
+| **Rush** | 3 workers, 2 huts, everything else into warriors | Does warrior cost/DPS keep pace with raids that grow with the day and the colony's prosperity? |
+| **Eco** | Huts to 6, workers to 10 (3:2:1 wood:food:stone), ~1 warrior per day (spends the reserve when a raid is announced), late tower + partial wall | The baseline the other two are read against |
+
+Since 2026-09-02 the run is a **30-day calendar** with raids rolled at dawn
+(`RaidDirector`), not a wave every night. Policies read `SimState.RaidTonight`,
+the same verdict the player's HUD shows.
 
 Policies live in `SimPolicy.cs` and take at most one action per tick, so the
 resource curve stays legible instead of the whole bank emptying in one frame.
@@ -79,9 +83,9 @@ point; `Tools > … > Write Example Sweep` regenerates it.
   "captureDeltaTime": 0.0166667,
   "repeats": 3,              // repeat the whole list, seed += 1 each time
   "runs": [
-    { "id": "eco_enemies5", "strategy": "Eco", "seed": 1,
-      "baseEnemiesPerNight": 5,          // the knob under test
-      "enemyIncreasePerNight": -1 }      // -1 = leave the scene/prefab value alone
+    { "id": "eco_raids_big", "strategy": "Eco", "seed": 1,
+      "raidSizePerDay": 0.6,             // the knob under test
+      "raidBaseChance": -1 }             // -1 = leave the code/scene value alone
   ]
 }
 ```
@@ -96,12 +100,13 @@ these. Every field defaults to `-1`, so a run only has to name what it varies.
 | `terrainSeed` | `TerrainGrid` (different island per run; `-1` keeps the inspector seed — a sweep never gets the random per-run island the menu's NEW GAME does) |
 | `startingWood/Food/Stone` | `ResourceManager` |
 | `workerGatherRate`, `workerCarryCapacity` | each `Worker` at spawn |
-| `baseEnemiesPerNight`, `enemyIncreasePerNight` | `EnemySpawner` |
+| `raidFirstDay`, `raidBaseChance`, `raidChancePerQuietDay`, `raidMaxQuietDays` | `RaidDirector` — when raids come (rolled at dawn) |
+| `raidBaseSize`, `raidSizePerDay`, `raidSizePerProsperity` | `RaidDirector` — how big: `base + perDay × day + perProsperity × prosperity` |
 | `enemyHealth/Damage/MoveSpeed` | each `Enemy` at spawn |
 | `warriorHealth/Damage/MoveSpeed` | each `Warrior` at spawn |
 | `warriorCostWood/Food`, `maxWarriors` | the campfire |
 | `dayLengthSeconds`, `nightLengthSeconds` | `DayNightCycle` |
-| `nightsToSurvive`, `maxGameSeconds` | `GameManager` / the run's hard stop |
+| `daysToSurvive`, `maxGameSeconds` | `GameManager` / the run's hard stop (a 30-day run is 4500 s of game time at the shipping clock) |
 
 Unit knobs can't be applied by patching the prefab (a `public float` on a unit
 script is dead data — the prefab wins — and unit `Start`s copy the value into the
@@ -115,25 +120,26 @@ top of its `Start`, guarded by `UNITY_EDITOR || DEVELOPMENT_BUILD`.
 **`runs.csv`** — one row per game. Sort and filter this.
 
 ```
-config_id, strategy, seed, outcome, night_reached, nights_to_survive,
+config_id, strategy, seed, outcome, day_reached, days_to_survive, raids,
 enemies_killed, peak_workers, peak_warriors, final_wood/food/stone,
 game_seconds, wall_seconds, frames, note
 ```
 
 `outcome` is `victory` | `defeat` | `timeout` | `error`.
 
-**`nights.csv`** — one row per night per game. Plot this.
+**`days.csv`** — one row per calendar day per game (dusk to dawn). Plot this.
 
 ```
-… night, survived, wood/food/stone at dusk AND dawn,
+… day, raid, raid_size, survived, wood/food/stone at dusk AND dawn,
 workers/warriors/huts/walls/towers at dusk AND dawn,
 enemies_spawned, enemies_killed_total,
 campfire_hp_dusk, campfire_hp_min, campfire_hp_dawn
 ```
 
-`campfire_hp_min` is the single most useful column: a night survived at 100% is
-a night that never happened, and a night survived at 8% is the knife-edge you're
-tuning toward.
+`campfire_hp_min` is the single most useful column — **on rows where `raid` is
+1**. Quiet nights are still written (that is the economy curve), but their
+campfire HP says nothing. A raid survived at 100% is a raid that never
+happened, and one survived at 8% is the knife-edge you're tuning toward.
 
 Rows are flushed after every run, so a sweep that dies on run 80 of 100 still
 leaves 79 usable rows.

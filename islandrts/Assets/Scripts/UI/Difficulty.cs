@@ -1,9 +1,9 @@
 using UnityEngine;
 
 /// <summary>
-/// The game-rule settings a player picks before a run: how many enemies come,
-/// how hard they hit, how long the nights are, what the colony starts with, and
-/// how many nights win.
+/// The game-rule settings a player picks before a run: how often raids come and
+/// how big they are, how hard raiders hit, how long the nights are, what the
+/// colony starts with, and how many days until rescue.
 ///
 /// Locked for the duration of a run, on purpose. Waves already spawned would not
 /// retroactively change if this were live-editable, and "survived five nights"
@@ -32,21 +32,23 @@ public static class Difficulty
         public string name;
         public string blurb;
 
-        public float enemyCount = 1f;        // multiplies the per-night wave size
+        public float enemyCount = 1f;        // multiplies the raid size
+        public float raidFrequency = 1f;     // multiplies the nightly raid chance (RaidDirector)
         public float enemyHealth = 1f;
         public float enemyDamage = 1f;
         public float nightLength = 1f;       // longer night = more time under attack
         public float startingResources = 1f;
-        public int nightsToSurvive = 5;
+        public int daysToSurvive = 30;       // the rescue ship arrives at the dawn after this day
 
         public Preset Clone()
         {
             return new Preset
             {
                 name = name, blurb = blurb,
-                enemyCount = enemyCount, enemyHealth = enemyHealth, enemyDamage = enemyDamage,
+                enemyCount = enemyCount, raidFrequency = raidFrequency,
+                enemyHealth = enemyHealth, enemyDamage = enemyDamage,
                 nightLength = nightLength, startingResources = startingResources,
-                nightsToSurvive = nightsToSurvive,
+                daysToSurvive = daysToSurvive,
             };
         }
     }
@@ -55,43 +57,48 @@ public static class Difficulty
     //
     // Tuned against the balance harness's Eco baseline rather than guessed:
     // Normal is exactly the shipped numbers (all 1.0), and each step moves
-    // wave size hardest because campfire_hp_min in the sim runs is far more
+    // raid size hardest because campfire_hp_min in the sim runs is far more
     // sensitive to how many enemies arrive at once than to what each one hits
     // for. Peaceful is deliberately winnable while ignoring defence entirely.
+    //
+    // Length is NOT a difficulty lever (2026-09-02): a 50-day Brutal run would
+    // be a chore, not a challenge. Hard and Brutal keep the 30-day calendar and
+    // raid more often instead; the gentle presets are shorter because a player
+    // who picked them wants a lighter evening.
 
     private static readonly Preset[] Presets =
     {
         new Preset
         {
-            name = "Peaceful", nightsToSurvive = 5,
-            blurb = "For building and exploring. Raids are token, and the colony starts flush.",
-            enemyCount = 0.5f, enemyHealth = 0.7f, enemyDamage = 0.55f,
+            name = "Peaceful", daysToSurvive = 20,
+            blurb = "For building and exploring. Raids are rare and token, and the colony starts flush.",
+            enemyCount = 0.5f, raidFrequency = 0.6f, enemyHealth = 0.7f, enemyDamage = 0.55f,
             nightLength = 0.85f, startingResources = 1.5f,
         },
         new Preset
         {
-            name = "Relaxed", nightsToSurvive = 5,
+            name = "Relaxed", daysToSurvive = 20,
             blurb = "A forgiving run. Mistakes cost you a hut, not the colony.",
-            enemyCount = 0.75f, enemyHealth = 0.85f, enemyDamage = 0.8f,
+            enemyCount = 0.75f, raidFrequency = 0.8f, enemyHealth = 0.85f, enemyDamage = 0.8f,
             nightLength = 0.95f, startingResources = 1.25f,
         },
         new Preset
         {
-            name = "Normal", nightsToSurvive = 5,
-            blurb = "The intended balance. Five nights, no handicaps either way.",
+            name = "Normal", daysToSurvive = 30,
+            blurb = "The intended balance. Thirty days to rescue, no handicaps either way.",
         },
         new Preset
         {
-            name = "Hard", nightsToSurvive = 7,
-            blurb = "Bigger waves, tighter resources, and two extra nights to hold.",
-            enemyCount = 1.3f, enemyHealth = 1.15f, enemyDamage = 1.2f,
+            name = "Hard", daysToSurvive = 30,
+            blurb = "Bigger raids, more of them, and tighter resources.",
+            enemyCount = 1.3f, raidFrequency = 1.25f, enemyHealth = 1.15f, enemyDamage = 1.2f,
             nightLength = 1.1f, startingResources = 0.8f,
         },
         new Preset
         {
-            name = "Brutal", nightsToSurvive = 10,
-            blurb = "Walls are not optional. Ten nights, and the last ones are swarms.",
-            enemyCount = 1.7f, enemyHealth = 1.35f, enemyDamage = 1.45f,
+            name = "Brutal", daysToSurvive = 30,
+            blurb = "Walls are not optional. Raids come most nights, and the late ones are swarms.",
+            enemyCount = 1.7f, raidFrequency = 1.5f, enemyHealth = 1.35f, enemyDamage = 1.45f,
             nightLength = 1.25f, startingResources = 0.6f,
         },
     };
@@ -161,11 +168,12 @@ public static class Difficulty
     // ---- convenience accessors (point-of-effect reads) ---------------------
 
     public static float EnemyCountMultiplier => Active.enemyCount;
+    public static float RaidFrequencyMultiplier => Active.raidFrequency;
     public static float EnemyHealthMultiplier => Active.enemyHealth;
     public static float EnemyDamageMultiplier => Active.enemyDamage;
     public static float NightLengthMultiplier => Active.nightLength;
     public static float StartingResourceMultiplier => Active.startingResources;
-    public static int NightsToSurvive => Mathf.Max(1, Active.nightsToSurvive);
+    public static int DaysToSurvive => Mathf.Max(1, Active.daysToSurvive);
 
     // ---- persistence ------------------------------------------------------
     //
@@ -182,11 +190,14 @@ public static class Difficulty
         if (Selected < Level.Peaceful || Selected > Level.Custom) Selected = Level.Normal;
 
         CustomPreset.enemyCount = PlayerPrefs.GetFloat(KeyPrefix + "count", 1f);
+        CustomPreset.raidFrequency = PlayerPrefs.GetFloat(KeyPrefix + "raids", 1f);
         CustomPreset.enemyHealth = PlayerPrefs.GetFloat(KeyPrefix + "hp", 1f);
         CustomPreset.enemyDamage = PlayerPrefs.GetFloat(KeyPrefix + "dmg", 1f);
         CustomPreset.nightLength = PlayerPrefs.GetFloat(KeyPrefix + "night", 1f);
         CustomPreset.startingResources = PlayerPrefs.GetFloat(KeyPrefix + "res", 1f);
-        CustomPreset.nightsToSurvive = PlayerPrefs.GetInt(KeyPrefix + "nights", 5);
+        // New key ("days"), not the old "nights": a Custom preset saved under the
+        // wave rules would otherwise come back as a 5-day run.
+        CustomPreset.daysToSurvive = PlayerPrefs.GetInt(KeyPrefix + "days", 30);
     }
 
     public static void Save()
@@ -194,11 +205,12 @@ public static class Difficulty
         PlayerPrefs.SetInt(KeyLevel, (int)Selected);
 
         PlayerPrefs.SetFloat(KeyPrefix + "count", CustomPreset.enemyCount);
+        PlayerPrefs.SetFloat(KeyPrefix + "raids", CustomPreset.raidFrequency);
         PlayerPrefs.SetFloat(KeyPrefix + "hp", CustomPreset.enemyHealth);
         PlayerPrefs.SetFloat(KeyPrefix + "dmg", CustomPreset.enemyDamage);
         PlayerPrefs.SetFloat(KeyPrefix + "night", CustomPreset.nightLength);
         PlayerPrefs.SetFloat(KeyPrefix + "res", CustomPreset.startingResources);
-        PlayerPrefs.SetInt(KeyPrefix + "nights", CustomPreset.nightsToSurvive);
+        PlayerPrefs.SetInt(KeyPrefix + "days", CustomPreset.daysToSurvive);
 
         PlayerPrefs.Save();
     }

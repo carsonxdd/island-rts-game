@@ -42,6 +42,7 @@ public class AudioManager : MonoBehaviour
     public AudioClip workerAssignedSound;
     public AudioClip victorySound;
     public AudioClip defeatSound;
+    public AudioClip raidWarningSound;   // horn / drums at dawn on a raid day (2026-09-02); optional
 
     [Header("Music (Background Tracks)")]
     public AudioClip dayMusic;
@@ -263,6 +264,13 @@ public class AudioManager : MonoBehaviour
     public void PlayDefeat()
     {
         PlaySFX(defeatSound, 1f);
+    }
+
+    /// <summary>"Raiders sighted" stinger at dawn on a raid day. Silent until a clip is assigned.</summary>
+    public void PlayRaidWarning()
+    {
+        if (raidWarningSound == null) return;
+        PlaySFX(raidWarningSound, 1f);
     }
 
     #endregion

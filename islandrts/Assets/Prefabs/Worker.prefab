@@ -32,7 +32,7 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 1585611259094398787}
+  - {fileID: 5479260978064064727}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!136 &687541554039923862
@@ -94,6 +94,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   showStateText: 1
   textHeightOffset: 2
+  hasJob: 0
   assignedResourceType: 0
   baseBuilding: {fileID: 0}
   gatherRatePerSecond: 0.5
@@ -102,7 +103,7 @@ MonoBehaviour:
   gatherDistance: 0.6
   deliveryDistance: 1
   carryAmount: 0
---- !u!1001 &6595134836560152740
+--- !u!1001 &111930209451491120
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -159,8 +160,8 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 029c2207545ebb24b8b7b4605ed86908, type: 3}
---- !u!4 &1585611259094398787 stripped
+--- !u!4 &5479260978064064727 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 5586602341204148199, guid: 029c2207545ebb24b8b7b4605ed86908, type: 3}
-  m_PrefabInstance: {fileID: 6595134836560152740}
+  m_PrefabInstance: {fileID: 111930209451491120}
   m_PrefabAsset: {fileID: 0}

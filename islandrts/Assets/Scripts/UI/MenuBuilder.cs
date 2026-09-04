@@ -171,10 +171,17 @@ public static class MenuBuilder
                                       float min = 120f, float max = 980f)
     {
         // The layout group only computes its preferred height during a layout
-        // pass, so drive the two input steps directly rather than waiting a
-        // frame (the panel would visibly resize on the frame after it opened).
-        col.CalculateLayoutInputHorizontal();
-        col.CalculateLayoutInputVertical();
+        // pass, so force one now rather than waiting a frame (the panel would
+        // visibly resize on the frame after it opened).
+        //
+        // It has to be a full recursive rebuild, not just this group's two
+        // CalculateLayoutInput calls (2026-09-03): a NESTED layout group — the
+        // campfire panel's tab bodies — reports its preferred height from its
+        // own CalculateLayoutInputVertical, which the outer call never runs, so
+        // the outer group summed the bodies at zero. The panel came out ~130px
+        // tall and the outer group squished every row inside the body to fit:
+        // the "campfire panel is squished with no spacing" bug.
+        LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)col.transform);
 
         float wanted = LayoutUtility.GetPreferredHeight((RectTransform)col.transform);
         panel.sizeDelta = new Vector2(panel.sizeDelta.x, Mathf.Clamp(wanted, min, max));

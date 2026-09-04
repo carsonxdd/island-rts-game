@@ -10,7 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1229999755043846974}
   - component: {fileID: 1388817239708268239}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: Stick
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -47,6 +47,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GroundPickup
   resourceType: 0
   amount: 3
+  allowOverfill: 0
+  itemId: stick
+  itemAmount: 1
 --- !u!1001 &7893999667971210075
 PrefabInstance:
   m_ObjectHideFlags: 0

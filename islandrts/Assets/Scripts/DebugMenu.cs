@@ -160,8 +160,21 @@ public class DebugMenu : MonoBehaviour
         // whatever difficulty was last chosen there. Showing it here is what
         // stops "why is this wave enormous" turning into a bug hunt.
         GUILayout.Label("Difficulty: " + Difficulty.ActiveName
-            + "   (raids " + Difficulty.EnemyCountMultiplier.ToString("0.##") + "x"
-            + ", nights to win " + Difficulty.NightsToSurvive + ")");
+            + "   (raid size " + Difficulty.EnemyCountMultiplier.ToString("0.##") + "x"
+            + ", frequency " + Difficulty.RaidFrequencyMultiplier.ToString("0.##") + "x"
+            + ", rescue after day " + Difficulty.DaysToSurvive + ")");
+        // The calendar is the run's clock now: which day of how many, and what
+        // the dawn roll decided for tonight (with the prosperity that sized it,
+        // so "why is this raid enormous" has an answer on screen).
+        var director = RaidDirector.Instance;
+        if (director != null)
+        {
+            int days = GameManager.Instance != null ? GameManager.Instance.daysToSurvive : Difficulty.DaysToSurvive;
+            GUILayout.Label("Day " + (DayNight != null ? DayNight.GetCurrentDay() : 1) + "/" + days
+                + "   Tonight: " + (director.RaidTonight ? "RAID x" + director.PlannedSize : "quiet")
+                + "   Raids so far " + director.RaidsSoFar
+                + "   Prosperity " + RaidDirector.Prosperity().ToString("0"));
+        }
         // The island seed is what reproduces a layout bug report — restart
         // keeps it, NEW GAME rolls a fresh one
         if (TerrainGrid.Instance != null)
@@ -272,6 +285,24 @@ public class DebugMenu : MonoBehaviour
 
         cycle.clockPaused = GUILayout.Toggle(cycle.clockPaused, " Clock paused");
 
+        // Calendar: jump the day counter (the director re-rolls at the next
+        // dawn, so a jumped day only changes raid SIZE until then) and force or
+        // cancel tonight's raid without waiting for a lucky roll.
+        GUILayout.BeginHorizontal();
+        GUILayout.Label("Day " + cycle.currentDay, GUILayout.Width(60));
+        if (GUILayout.Button("-1", GUILayout.Width(36))) cycle.currentDay = Mathf.Max(1, cycle.currentDay - 1);
+        if (GUILayout.Button("+1", GUILayout.Width(36))) cycle.currentDay++;
+        if (GUILayout.Button("+5", GUILayout.Width(36))) cycle.currentDay += 5;
+        GUILayout.EndHorizontal();
+
+        var director = RaidDirector.Instance;
+        if (director != null)
+        {
+            bool raid = GUILayout.Toggle(director.RaidTonight, " Raid tonight"
+                + (director.RaidTonight ? " (" + director.PlannedSize + " raiders)" : ""));
+            if (raid != director.RaidTonight) director.DebugSetRaidTonight(raid);
+        }
+
         bool gameOver = GameManager.Instance != null && GameManager.Instance.isGameOver;
         GUI.enabled = !gameOver;  // don't fight the game-over timeScale = 0
         GUILayout.BeginHorizontal();
@@ -290,7 +321,7 @@ public class DebugMenu : MonoBehaviour
 
         // Waves need a campfire to march on — no target during the intro
         GUI.enabled = Spawner != null && Campfire != null;
-        if (GUILayout.Button("Spawn Enemy Wave"))
+        if (GUILayout.Button("Spawn Raid Now (today's size)"))
         {
             Spawner.DebugSpawnWave();
         }

@@ -17,8 +17,8 @@ using UnityEngine.Rendering;
 public class DayNightCycle : MonoBehaviour
 {
     [Header("Time Settings")]
-    public float dayLengthInSeconds = 120f;    // 2 minutes for a full day
-    public float nightLengthInSeconds = 60f;   // 1 minute for night
+    public float dayLengthInSeconds = 100f;    // scene: 100. A 30-day run is 75 real minutes (2026-09-02; was 120/60)
+    public float nightLengthInSeconds = 50f;   // scene: 50
     [Range(0f, 1f)]
     public float currentTimeOfDay = 0.25f;     // 0 = midnight, 0.5 = noon, 1 = midnight
 
@@ -190,7 +190,7 @@ public class DayNightCycle : MonoBehaviour
         // Check if we just transitioned to night
         if (isNight && !wasNight)
         {
-            Debug.Log($"DayNightCycle: Night {currentDay} begins! Enemies incoming...");
+            Debug.Log($"DayNightCycle: Night {currentDay} begins.");
 
             // Play night ambience only (no music until combat starts)
             if (AudioManager.Instance != null)
@@ -203,7 +203,7 @@ public class DayNightCycle : MonoBehaviour
         // Check if we just transitioned to day
         else if (!isNight && wasNight)
         {
-            Debug.Log($"DayNightCycle: Day {currentDay} begins! Enemies retreat.");
+            Debug.Log($"DayNightCycle: Day {currentDay} begins.");
 
             // Play day music
             if (AudioManager.Instance != null)

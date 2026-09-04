@@ -33,7 +33,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 682751522091000730}
-  - {fileID: 5904441015864969799}
+  - {fileID: 1847852117910260548}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!65 &4229379961232064540
@@ -90,10 +90,6 @@ MonoBehaviour:
   workerPrefab: {fileID: 5145095557503190049, guid: b05e4fa2fdd5e4945a06462db79a38b5, type: 3}
   maxWorkers: 10
   workerCapacity: 3
-  woodWorkers: 0
-  foodWorkers: 0
-  stoneWorkers: 0
-  metalWorkers: 0
   warriorPrefab: {fileID: 4028577899709980378, guid: c8e31e7c193a9db4dbff2ecbdd343c48, type: 3}
   maxWarriors: 5
   warriorCost_Wood: 10
@@ -218,7 +214,7 @@ CapsuleCollider:
   m_Height: 2
   m_Direction: 1
   m_Center: {x: 0, y: 0, z: 0}
---- !u!1001 &2776631385991059546
+--- !u!1001 &7988464275543611737
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -275,8 +271,8 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 727ed61e467e6e949a46e14d02c2cbb6, type: 3}
---- !u!4 &5904441015864969799 stripped
+--- !u!4 &1847852117910260548 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 8608730034235134493, guid: 727ed61e467e6e949a46e14d02c2cbb6, type: 3}
-  m_PrefabInstance: {fileID: 2776631385991059546}
+  m_PrefabInstance: {fileID: 7988464275543611737}
   m_PrefabAsset: {fileID: 0}

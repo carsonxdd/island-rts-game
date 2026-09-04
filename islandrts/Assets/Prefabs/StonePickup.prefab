@@ -10,7 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 6446492489546879445}
   - component: {fileID: 528306054029890635}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: StonePickup
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -47,6 +47,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GroundPickup
   resourceType: 2
   amount: 3
+  allowOverfill: 0
+  itemId: stone_chunk
+  itemAmount: 1
 --- !u!1001 &4711800617006675004
 PrefabInstance:
   m_ObjectHideFlags: 0

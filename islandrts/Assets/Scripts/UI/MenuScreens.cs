@@ -253,7 +253,7 @@ public class MenuScreens : MonoBehaviour
         title.characterSpacing = 6f;
         title.gameObject.AddComponent<LayoutElement>().preferredHeight = 126f;
 
-        MenuBuilder.Label(col.transform, "survive five nights", MenuStyle.SmallSize, MenuStyle.TextMuted)
+        MenuBuilder.Label(col.transform, "thirty days to rescue", MenuStyle.SmallSize, MenuStyle.TextMuted)
             .gameObject.AddComponent<LayoutElement>().preferredHeight = 24f;
 
         MenuBuilder.Spacer(col.transform, 22f);
@@ -304,7 +304,11 @@ public class MenuScreens : MonoBehaviour
             // through and the summary below it recomputes on the next rebuild.
             MenuBuilder.RangeSliderRow(col.transform, "Raid size", p.enemyCount, 0.25f, 2.5f,
                 Multiplier, v => { p.enemyCount = v; Difficulty.Save(); },
-                "How many enemies arrive each night, against the standard wave.");
+                "How many raiders land when a raid comes, against the standard raid.");
+
+            MenuBuilder.RangeSliderRow(col.transform, "Raid frequency", p.raidFrequency, 0.25f, 2f,
+                Multiplier, v => { p.raidFrequency = v; Difficulty.Save(); },
+                "How likely each night is to bring a raid. Raids are always announced at dawn.");
 
             MenuBuilder.RangeSliderRow(col.transform, "Enemy health", p.enemyHealth, 0.25f, 2.5f,
                 Multiplier, v => { p.enemyHealth = v; Difficulty.Save(); },
@@ -322,10 +326,10 @@ public class MenuScreens : MonoBehaviour
                 Multiplier, v => { p.startingResources = v; Difficulty.Save(); },
                 "What washes ashore with you, against the standard 100 wood / 50 food.");
 
-            MenuBuilder.RangeSliderRow(col.transform, "Nights to survive", p.nightsToSurvive, 1f, 20f,
+            MenuBuilder.RangeSliderRow(col.transform, "Days to rescue", p.daysToSurvive, 5f, 60f,
                 v => Mathf.RoundToInt(v).ToString(),
-                v => { p.nightsToSurvive = Mathf.RoundToInt(v); Difficulty.Save(); },
-                "How long you have to hold out to win.");
+                v => { p.daysToSurvive = Mathf.RoundToInt(v); Difficulty.Save(); },
+                "The rescue ship arrives at dawn after this many days.");
         }
         else
         {
@@ -333,11 +337,12 @@ public class MenuScreens : MonoBehaviour
             // numbers is the difference between picking a label and making an
             // informed choice.
             MenuBuilder.ValueRow(col.transform, "Raid size", Multiplier(p.enemyCount));
+            MenuBuilder.ValueRow(col.transform, "Raid frequency", Multiplier(p.raidFrequency));
             MenuBuilder.ValueRow(col.transform, "Enemy health", Multiplier(p.enemyHealth));
             MenuBuilder.ValueRow(col.transform, "Enemy damage", Multiplier(p.enemyDamage));
             MenuBuilder.ValueRow(col.transform, "Night length", Multiplier(p.nightLength));
             MenuBuilder.ValueRow(col.transform, "Starting resources", Multiplier(p.startingResources));
-            MenuBuilder.ValueRow(col.transform, "Nights to survive", p.nightsToSurvive.ToString());
+            MenuBuilder.ValueRow(col.transform, "Days to rescue", p.daysToSurvive.ToString());
         }
 
         // The world: island size, terrain style, optional seed. Same locking
@@ -689,7 +694,7 @@ public class MenuScreens : MonoBehaviour
         title.gameObject.AddComponent<LayoutElement>().preferredHeight = 62f;
 
         MenuBuilder.Label(col.transform,
-            gameOverVictory ? "You survived the pirate raids." : "Your camp was overrun.",
+            gameOverVictory ? "The rescue ship has arrived." : "Your camp was overrun.",
             MenuStyle.BodySize, MenuStyle.TextMuted)
             .gameObject.AddComponent<LayoutElement>().preferredHeight = 28f;
 
@@ -726,13 +731,13 @@ public class MenuScreens : MonoBehaviour
         GameManager gm = GameManager.Instance;
         if (gm == null) return;
 
-        // Defeat happens DURING the night the player lost, so that night was not
-        // survived; victory is declared on the morning after the last one, so it
-        // was. The old screen encoded this as a bare "nightsSurvived - 1" in the
-        // defeat string with no explanation.
-        int nights = gameOverVictory ? gm.GetNightsSurvived() : gm.GetNightsSurvived() - 1;
-
-        MenuBuilder.ValueRow(parent, "Nights survived", Mathf.Max(0, nights).ToString());
+        // GetDaysSurvived already reads "calendar day - 1": the victory dawn is
+        // day N+1 so it reports N, and a defeat during day D reports D-1 — the
+        // day you lost was not survived.
+        MenuBuilder.ValueRow(parent, "Days survived", gm.GetDaysSurvived() + " / " + gm.daysToSurvive);
+        RaidDirector director = RaidDirector.Instance;
+        if (director != null)
+            MenuBuilder.ValueRow(parent, "Raids weathered", director.RaidsSoFar.ToString());
         MenuBuilder.ValueRow(parent, "Enemies defeated", gm.GetEnemiesKilled().ToString());
         MenuBuilder.ValueRow(parent, "Colony at its peak",
             gm.maxWorkers + " workers  ·  " + gm.maxWarriors + " warriors");

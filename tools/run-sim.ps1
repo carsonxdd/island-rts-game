@@ -66,7 +66,7 @@ New-Item -ItemType Directory -Force -Path $shardDir | Out-Null
 # Clear the merged CSVs up front. They are only rewritten when every shard has
 # exited, so leaving the previous sweep's files in place means anything reading
 # them mid-run silently gets the OLD sweep's results and looks complete.
-foreach ($stale in @("runs.csv", "nights.csv")) {
+foreach ($stale in @("runs.csv", "days.csv")) {
     $p = Join-Path $logDir $stale
     if (Test-Path $p) { Remove-Item $p -Force }
 }
@@ -97,7 +97,7 @@ Write-Host ""
 Write-Host ("Finished in {0:mm\:ss}" -f $elapsed)
 
 # Merge the shards into the canonical pair of CSVs.
-foreach ($name in @("runs.csv", "nights.csv")) {
+foreach ($name in @("runs.csv", "days.csv")) {
     $parts = Get-ChildItem (Join-Path $shardDir "*\$name") -ErrorAction SilentlyContinue
     if (-not $parts) { continue }
     $merged = @(foreach ($p in $parts) { Import-Csv $p.FullName })

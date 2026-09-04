@@ -4,9 +4,12 @@ using UnityEngine.UI;
 using TMPro;
 
 /// <summary>
-/// The colony HUD: one continuous bar along the top-left holding five equal
-/// entries — wood, food, stone, metal (stock + how many workers are on it)
-/// and housing — separated by thin dividers. Built entirely in code on the
+/// The colony HUD: one continuous bar along the top-left holding six equal
+/// entries — wood, food, stone, metal (stock + how many workers are on it),
+/// housing, and the calendar (which day of how many, and whether raiders land
+/// tonight — the run is a 30-day calendar with announced raids, 2026-09-02) —
+/// separated by thin dividers. A one-line banner under the bar flashes
+/// "Raiders sighted" for a few seconds at the dawn roll. Built entirely in code on the
 /// menu system's widgets, so it needs no scene wiring and picks up the UI
 /// Scale setting; the old hand-built ResourcePanel is removed by the legacy
 /// cleanup step.
@@ -44,6 +47,15 @@ public class ResourceUI : MonoBehaviour
     private TextMeshProUGUI popLabel;
     private int lastPopWorkers = -1, lastPopCapacity = -1;
 
+    // Calendar entry + raid banner
+    private TextMeshProUGUI calValue;
+    private TextMeshProUGUI calLabel;
+    private int lastCalKey = -1;
+    private DayNightCycle dayNight;
+    private TextMeshProUGUI banner;
+    private float bannerHideAt = -1f;
+    const float BannerSeconds = 7f;
+
     // ---- metrics (reference pixels) ----
     const float EntryWidth = 150f;      // fits "Stone · 12 workers" at CaptionSize with room to spare
     const float EntryHeight = 54f;
@@ -57,6 +69,7 @@ public class ResourceUI : MonoBehaviour
     private static readonly Color StoneColor = new Color(0.55f, 0.58f, 0.62f);
     private static readonly Color MetalColor = new Color(0.62f, 0.72f, 0.82f);
     private static readonly Color PopColor = new Color(0.92f, 0.80f, 0.45f);
+    private static readonly Color CalColor = new Color(0.55f, 0.75f, 0.90f);
 
     /// <summary>Hex of the dimmer tone used for the worker-count half of a caption.</summary>
     private static readonly string DimHex = ColorUtility.ToHtmlStringRGBA(new Color(0.62f, 0.60f, 0.57f, 0.72f));
@@ -76,7 +89,13 @@ public class ResourceUI : MonoBehaviour
     {
         if (SimHooks.Simulating) { enabled = false; return; }
         Build();
+        RaidDirector.OnRaidRolled += OnRaidRolled;
         UpdateUI();
+    }
+
+    void OnDestroy()
+    {
+        RaidDirector.OnRaidRolled -= OnRaidRolled;
     }
 
     void Update()
@@ -89,6 +108,22 @@ public class ResourceUI : MonoBehaviour
             timeSinceUpdate = 0f;
             UpdateUI();
         }
+
+        if (bannerHideAt >= 0f && Time.unscaledTime >= bannerHideAt)
+        {
+            bannerHideAt = -1f;
+            banner.gameObject.SetActive(false);
+        }
+    }
+
+    /// <summary>The dawn roll came back: flash the warning for a few seconds. The chip carries it all day.</summary>
+    void OnRaidRolled(bool raid)
+    {
+        if (!raid || banner == null) return;
+        banner.gameObject.SetActive(true);
+        bannerHideAt = Time.unscaledTime + BannerSeconds;
+        lastCalKey = -1;   // repaint the chip now rather than on the next tick
+        UpdateUI();
     }
 
     // ------------------------------------------------------------------
@@ -140,6 +175,26 @@ public class ResourceUI : MonoBehaviour
         // Housing entry
         RectTransform pop = Entry(bar.transform, "Housing", PopColor, out popValue, out popLabel, "Housing");
         pop.GetComponent<Button>().onClick.AddListener(OpenCampfire);
+        VerticalDivider(bar.transform);
+
+        // Calendar entry — not a button: nothing to open, so no hover either
+        Entry(bar.transform, "Calendar", CalColor, out calValue, out calLabel, "Day", clickable: false);
+
+        // Raid banner: one bold line centred BELOW the bar (the bar is ~900px
+        // wide from the left edge, so a top-centre banner would sit on top of
+        // its right half), hidden until the dawn roll says raiders are coming.
+        banner = MenuBuilder.Label(canvas.transform, "RAIDERS SIGHTED  —  they land tonight",
+            26f, MenuStyle.TextDanger, TextAlignmentOptions.Center);
+        banner.fontStyle = FontStyles.Bold;
+        banner.textWrappingMode = TextWrappingModes.NoWrap;
+        banner.overflowMode = TextOverflowModes.Overflow;
+        banner.raycastTarget = false;
+        RectTransform brt2 = banner.rectTransform;
+        brt2.anchorMin = brt2.anchorMax = new Vector2(0.5f, 1f);
+        brt2.pivot = new Vector2(0.5f, 1f);
+        brt2.anchoredPosition = new Vector2(0f, -(16f + EntryHeight + 14f));
+        brt2.sizeDelta = new Vector2(900f, 40f);
+        banner.gameObject.SetActive(false);
     }
 
     Chip MakeChip(Transform parent, ResourceNode.ResourceType type, string label)
@@ -168,7 +223,7 @@ public class ResourceUI : MonoBehaviour
     /// opaque white for the hover to show at all).
     /// </summary>
     RectTransform Entry(Transform parent, string name, Color swatch,
-        out TextMeshProUGUI value, out TextMeshProUGUI caption, string captionText)
+        out TextMeshProUGUI value, out TextMeshProUGUI caption, string captionText, bool clickable = true)
     {
         GameObject go = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
         go.transform.SetParent(parent, false);
@@ -190,6 +245,7 @@ public class ResourceUI : MonoBehaviour
         cb.selectedColor = new Color(1f, 1f, 1f, 0f);
         cb.fadeDuration = 0.08f;
         btn.colors = cb;
+        if (!clickable) btn.transition = Selectable.Transition.None;   // no hover on a read-only entry
 
         // Swatch strip on the left edge
         RectTransform sw = MenuBuilder.SimpleImage(go.transform, "Swatch", swatch);
@@ -298,6 +354,55 @@ public class ResourceUI : MonoBehaviour
                     popLabel.text = "Housing";
                 }
             }
+        }
+
+        UpdateCalendar();
+    }
+
+    /// <summary>
+    /// "Day 4" over "of 30 · quiet night ahead", turning red with "Raid tonight · 7"
+    /// once the dawn roll says so, and "Night 4 · raid underway" while it lands.
+    /// Repainted only when day, phase, verdict or size changes.
+    /// </summary>
+    void UpdateCalendar()
+    {
+        if (calValue == null) return;
+        if (dayNight == null)
+        {
+            dayNight = FindAnyObjectByType<DayNightCycle>();
+            if (dayNight == null) return;
+        }
+
+        int day = dayNight.GetCurrentDay();
+        int total = GameManager.Instance != null ? GameManager.Instance.daysToSurvive : Difficulty.DaysToSurvive;
+        RaidDirector rd = RaidDirector.Instance;
+        bool raid = rd != null && rd.RaidTonight;
+        int size = raid ? rd.PlannedSize : 0;
+        bool night = dayNight.IsNightTime();
+
+        int key = (((day * 128 + total) * 2 + (night ? 1 : 0)) * 2 + (raid ? 1 : 0)) * 64 + Mathf.Min(size, 63);
+        if (key == lastCalKey) return;
+        lastCalKey = key;
+
+        calValue.text = (night ? "Night " : "Day ") + day;
+
+        if (raid && night)
+        {
+            calValue.color = MenuStyle.TextDanger;
+            calLabel.color = MenuStyle.TextDanger;
+            calLabel.text = "Raid underway";
+        }
+        else if (raid)
+        {
+            calValue.color = MenuStyle.TextDanger;
+            calLabel.color = MenuStyle.TextDanger;
+            calLabel.text = Caption("Raid tonight", size + " raiders");
+        }
+        else
+        {
+            calValue.color = MenuStyle.TextPrimary;
+            calLabel.color = MenuStyle.TextMuted;
+            calLabel.text = Caption("of " + total, night ? "quiet" : "quiet night ahead");
         }
     }
 

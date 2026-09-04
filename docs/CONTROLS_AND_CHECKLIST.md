@@ -111,8 +111,9 @@ Toggle on, then **click any unit**. Shows:
 
 ### F4 — Debug Menu (left side, IMGUI)
 
-- **Status** — day / time / phase / timescale, population vs housing, warrior and
-  enemy counts
+- **Status** — day / time / phase / timescale, difficulty, the calendar line
+  (day N of M, tonight's verdict and planned raid size, raids so far, current
+  prosperity), population vs housing, warrior and enemy counts
 - **Resources** — +100 / +1000 per type, +1000 all, zero all
 - **Quick-Start Colony** — steppers for huts / wood / food / stone workers /
   warriors (defaults 2 / 4 / 2 / 1 / 3). One button grants +1000 of each resource,
@@ -120,10 +121,12 @@ Toggle on, then **click any unit**. Shows:
   assigns workers and recruits warriors. Fastest route into a working base for
   testing anything that isn't the opening sequence.
 - **Time** — Skip to Night (`t=0.76`) / Skip to Day (`t=0.26`), clock-pause toggle,
+  day counter −1 / +1 / +5, **Raid tonight** toggle (forces or cancels the dawn
+  roll's verdict; a forced raid is sized as a real one would be),
   1× / 2× / 4× timescale (disabled on game over so it can't fight the pause)
-- **Cheats** — Spawn Enemy Wave (disabled until a campfire exists), Kill All
-  Enemies (runs the real death path so stats count), Heal Everything Friendly,
-  Finish All Construction
+- **Cheats** — Spawn Raid Now (today's size; disabled until a campfire exists),
+  Kill All Enemies (runs the real death path so stats count), Heal Everything
+  Friendly, Finish All Construction
 
 Both overlays are wrapped in `#if UNITY_EDITOR || DEVELOPMENT_BUILD`; release
 builds ship without them.
@@ -333,11 +336,11 @@ Run `Setup Everything (In Order)` first: the metal node mesh is regenerated in s
 
 **Difficulty**
 
-- [ ] NEW GAME opens the difficulty screen; Normal is all `1.0x` / 5 nights
-- [ ] Custom turns the rules block into six working sliders
+- [ ] NEW GAME opens the difficulty screen; Normal is all `1.0x` / 30 days
+- [ ] Custom turns the rules block into seven working sliders (raid frequency is new)
 - [ ] Starting resources scale (Peaceful ≈ 150 wood, Brutal ≈ 60)
-- [ ] Wave sizes visibly differ between Peaceful and Brutal on night 1
-- [ ] Nights to survive matches the preset (Hard = 7, Brutal = 10) in the victory message
+- [ ] Raid sizes visibly differ between Peaceful and Brutal on the first raid
+- [ ] Days to rescue matches the preset (Peaceful/Relaxed = 20, the rest 30) on the HUD calendar chip
 - [ ] Nights are longer on Hard/Brutal; **days are not**
 - [ ] The pause menu shows the difficulty as locked, and Options has no way to change it mid-run
 - [ ] RESTART from the pause menu keeps the same difficulty even after changing the menu selection
@@ -345,8 +348,8 @@ Run `Setup Everything (In Order)` first: the metal node mesh is regenerated in s
 **Victory / defeat screens (2026-08-31)**
 
 - [ ] Losing the campfire brings up DEFEAT in the menu style, not the old scene panel
-- [ ] Surviving the required nights brings up VICTORY in accent gold
-- [ ] Stats are right: nights survived (defeat shows one fewer — the night you lost doesn't count), enemies defeated, peak workers/warriors, resources on hand, difficulty
+- [ ] Reaching the dawn after the last day brings up VICTORY in accent gold ("The rescue ship has arrived")
+- [ ] Stats are right: days survived out of the target (defeat shows the day you lost as not survived), raids weathered, enemies defeated, peak workers/warriors, resources on hand, difficulty
 - [ ] **RESTART** replays the scene at the same difficulty
 - [ ] **MAIN MENU** returns to the title screen with the game unfrozen (this never worked before)
 - [ ] **QUIT TO DESKTOP** exits the build / stops Play in the editor
@@ -359,8 +362,30 @@ Run `Setup Everything (In Order)` first: the metal node mesh is regenerated in s
 **Balance harness (regression — difficulty must not leak into sweeps)**
 
 - [ ] A sweep run reports the same numbers with the developer's difficulty set to Brutal as to Normal
-- [ ] `nightsToSurvive` in `runs.csv` matches the sweep config, not the difficulty preset
+- [ ] `days_to_survive` in `runs.csv` matches the sweep config, not the difficulty preset
 - [ ] The `startingWood` / `startingFood` / `startingStone` knobs now actually take effect (they were silently ignored before — `ResourceManager` reads them in `Awake`)
+
+### Calendar & raids (2026-09-02 — Slice 1 of the research-and-days plan)
+
+- [ ] The HUD bar has a sixth entry: "Day 1" over "of 30 · quiet night ahead" (20 on Peaceful/Relaxed); the main-menu tagline reads "thirty days to rescue"
+- [ ] A full day is ~100 s and a night ~50 s (F3/F4 clock)
+- [ ] Nights 1 and 2 are always quiet: no enemies spawn, warriors patrol, workers keep gathering at the usual night penalty
+- [ ] From day 3 on, some dawns turn the chip red — "Raid tonight · N raiders" — with a bold "RAIDERS SIGHTED" banner under the bar for a few seconds; the raid lands ~2 s after dusk from one direction
+- [ ] Never more than 5 quiet nights in a row; the F4 status line shows tonight's verdict, planned size, raids so far and prosperity
+- [ ] The chip reads "Night N · Raid underway" while a raid is on, and goes back to quiet at the next dawn
+- [ ] Raid size grows: a first raid on a bare colony is ~5; after building huts, walls and a garrison it is visibly larger (F4 shows the prosperity that sized it)
+- [ ] F4 "Raid tonight" toggle forces or cancels the verdict; "Spawn Raid Now" lands one sized as today's would be; day −1/+1/+5 moves the calendar and the victory still fires at the dawn after the last day
+- [ ] Victory at the dawn after day 30: "The rescue ship has arrived", stats show "Days survived 30 / 30" and "Raids weathered"
+- [ ] Defeat on day D shows "Days survived D−1 / 30"
+- [ ] Custom difficulty has a "Raid frequency" slider and "Days to rescue" (5–60); a Custom preset saved before this change comes back as 30 days, not 5
+- [ ] A sweep writes `days.csv` (not `nights.csv`) with `raid` / `raid_size` columns and finishes a 30-day run in a few minutes of wall clock
+
+**Playtest fixes (2026-09-03)**
+
+- [ ] In build mode the ghost follows the cursor straight over palms and broadleaf trees — it never snaps to a tree's base; the campfire ghost in the opening does the same
+- [ ] A palm's hover highlight and click only trigger near its trunk (about a metre wide), not across the whole canopy; broadleaf trees, bushes and rocks still highlight and click
+- [ ] Nodes show layer `Nodes` (8) in the Inspector at runtime; ground raycasts still hit terrain under them
+- [ ] The campfire panel opens at full height with normal row spacing on every tab; switching tabs refits it without squashing
 
 **Salvage crates and barrels (2026-09-02)**
 

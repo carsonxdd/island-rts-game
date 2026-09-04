@@ -26,11 +26,16 @@ public class SimConfig
     /// <summary>Island seed. -1 keeps the scene's TerrainGrid seed (fixed-island T1 behaviour).</summary>
     public int terrainSeed = -1;
 
-    /// <summary>Run ends in a win if this many nights are survived.</summary>
-    public int nightsToSurvive = 5;
+    /// <summary>Run ends in a win at the dawn after this many days (the rescue ship).</summary>
+    public int daysToSurvive = 30;
 
-    /// <summary>Hard wall-clock-independent stop: abandon the run after this much game time.</summary>
-    public float maxGameSeconds = 2400f;
+    /// <summary>
+    /// Hard wall-clock-independent stop: abandon the run after this much game
+    /// time. A 30-day run at the shipping 100 s / 50 s clock is 4500 s, so the
+    /// default leaves room for a longer custom clock without ever letting a
+    /// stuck run go on for an hour of game time.
+    /// </summary>
+    public float maxGameSeconds = 6000f;
 
     // --- Balance knobs (-1 = don't override) ------------------------------
 
@@ -41,9 +46,19 @@ public class SimConfig
     public float workerGatherRate = -1f;      // ResourceNode gather units/sec
     public int workerCarryCapacity = -1;
 
+    [Header("Raids")]
+    // Applied to RaidDirector (which rides on the EnemySpawner). Raids are not
+    // nightly any more: a roll at each dawn decides, and size comes from the
+    // day number plus the colony's prosperity — see RaidDirector for the model.
+    public int raidFirstDay = -1;
+    public float raidBaseChance = -1f;
+    public float raidChancePerQuietDay = -1f;
+    public int raidMaxQuietDays = -1;
+    public float raidBaseSize = -1f;
+    public float raidSizePerDay = -1f;
+    public float raidSizePerProsperity = -1f;
+
     [Header("Enemies")]
-    public int baseEnemiesPerNight = -1;
-    public float enemyIncreasePerNight = -1f;
     public float enemyHealth = -1f;
     public float enemyDamage = -1f;
     public float enemyMoveSpeed = -1f;
@@ -106,7 +121,7 @@ public class SimConfig
 [System.Serializable]
 public class SimSweep
 {
-    /// <summary>Directory for runs.csv / nights.csv. Relative paths resolve against the project root.</summary>
+    /// <summary>Directory for runs.csv / days.csv. Relative paths resolve against the project root.</summary>
     public string outputDir = "SimLogs";
 
     /// <summary>
@@ -123,10 +138,10 @@ public class SimSweep
     /// Real-seconds failsafe per run. The per-run <c>maxGameSeconds</c> stop is
     /// measured in GAME time, so anything that freezes the game clock (a stray
     /// Time.timeScale = 0, a paused DayNightCycle) would hang a sweep forever
-    /// without this. A run at ~25x realtime needs well under a minute, so the
-    /// default is loose enough never to fire on a healthy run.
+    /// without this. A 30-day run at ~25x realtime is about three minutes of
+    /// wall clock, so the default is loose enough never to fire on a healthy run.
     /// </summary>
-    public float maxWallSecondsPerRun = 300f;
+    public float maxWallSecondsPerRun = 900f;
 
     public List<SimConfig> runs = new List<SimConfig>();
 
@@ -136,7 +151,7 @@ public class SimSweep
         if (sweep == null || sweep.runs == null || sweep.runs.Count == 0) return null;
         if (sweep.repeats < 1) sweep.repeats = 1;
         if (sweep.captureDeltaTime <= 0f) sweep.captureDeltaTime = 1f / 60f;
-        if (sweep.maxWallSecondsPerRun <= 0f) sweep.maxWallSecondsPerRun = 300f;
+        if (sweep.maxWallSecondsPerRun <= 0f) sweep.maxWallSecondsPerRun = 900f;
         return sweep;
     }
 

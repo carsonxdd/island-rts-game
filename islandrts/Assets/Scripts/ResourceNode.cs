@@ -38,7 +38,24 @@ public class ResourceNode : MonoBehaviour
 
     public static IReadOnlyList<ResourceNode> ActiveList => ActiveRegistry<ResourceNode>.List;
 
-    void Awake() { ActiveRegistry<ResourceNode>.Register(this); }
+    /// <summary>
+    /// The layer every node's click hitbox lives on (2026-09-03). Every ground
+    /// raycast in the game is mask Default (BuildPlacement.groundLayer,
+    /// GameStartController.RaycastGround), so a node collider on Default is hit
+    /// INSTEAD of the terrain and the placement ghost parks at the tree's base —
+    /// the ghost-collider gotcha, wearing bark. Hover and click still work: Unity's
+    /// OnMouse* events use the camera's eventMask, not the ground mask. Same
+    /// pattern as GroundPickup.ClickLayer (7). Set at runtime so prefabs and
+    /// PropScatter nodes alike get it with no editor step.
+    /// </summary>
+    public const int ClickLayer = 8;
+    public const int ClickMask = 1 << ClickLayer;
+
+    void Awake()
+    {
+        ActiveRegistry<ResourceNode>.Register(this);
+        gameObject.layer = ClickLayer;   // root only: the collider lives here, the art child has none
+    }
 
     private Material[] nodeMaterials;
     private Color[] originalColors;

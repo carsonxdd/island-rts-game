@@ -134,19 +134,29 @@ public static class NewContentSetup
 
         SerializedObject tagManager = new SerializedObject(assets[0]);
         SerializedProperty layers = tagManager.FindProperty("layers");
-        if (layers == null || !layers.isArray || layers.arraySize <= GroundPickup.ClickLayer) return;
+        if (layers == null || !layers.isArray) return;
 
-        SerializedProperty slot = layers.GetArrayElementAtIndex(GroundPickup.ClickLayer);
-        if (slot.stringValue == "Pickups") return;
+        bool changed = false;
+        changed |= NameLayer(layers, GroundPickup.ClickLayer, "Pickups", "GroundPickup.ClickLayer", summary);
+        changed |= NameLayer(layers, ResourceNode.ClickLayer, "Nodes", "ResourceNode.ClickLayer", summary);
+        if (changed) tagManager.ApplyModifiedProperties();
+    }
+
+    /// <summary>Names one TagManager layer slot if it is free; warns and leaves it if another name is there.</summary>
+    private static bool NameLayer(SerializedProperty layers, int index, string name, string owner, StringBuilder summary)
+    {
+        if (layers.arraySize <= index) return false;
+        SerializedProperty slot = layers.GetArrayElementAtIndex(index);
+        if (slot.stringValue == name) return false;
         if (!string.IsNullOrEmpty(slot.stringValue))
         {
-            Debug.LogWarning("[Session Content] Layer " + GroundPickup.ClickLayer + " is already named '" + slot.stringValue
-                + "' — leaving it. GroundPickup.ClickLayer expects it to be the pickup click layer.");
-            return;
+            Debug.LogWarning("[Session Content] Layer " + index + " is already named '" + slot.stringValue
+                + "' — leaving it. " + owner + " expects it to be the '" + name + "' click layer.");
+            return false;
         }
-        slot.stringValue = "Pickups";
-        tagManager.ApplyModifiedProperties();
-        summary.AppendLine("    Layer " + GroundPickup.ClickLayer + " named 'Pickups'");
+        slot.stringValue = name;
+        summary.AppendLine("    Layer " + index + " named '" + name + "'");
+        return true;
     }
 
     private static GameObject BuildPickupPrefab(string path, string name,

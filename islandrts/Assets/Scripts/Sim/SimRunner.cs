@@ -26,7 +26,8 @@ using UnityEngine.SceneManagement;
 /// </summary>
 /// <remarks>
 /// Runs very early so run 0's scene knobs land before the components that read
-/// them in their own Start (GameManager reads nightsToSurvive there). Runs 1..n
+/// them in their own Start (GameManager reads daysToSurvive there; RaidDirector
+/// rolls day 1 there). Runs 1..n
 /// get configured from the sceneLoaded callback instead, which is already ahead
 /// of every Start — but NOT ahead of any Awake, which is why ConfigureScene has
 /// to write ResourceManager's live pool rather than just its starting amounts.
@@ -49,7 +50,7 @@ public class SimRunner : MonoBehaviour
 
     private SimPolicy policy;
     private SimMetrics metrics;
-    private SimMetrics.NightRow night;
+    private SimMetrics.DayRow night;   // the row for the night in progress (dusk → dawn)
 
     private bool runActive;
     private float runStartGameTime;
@@ -186,7 +187,7 @@ public class SimRunner : MonoBehaviour
             configId = cfg.Label(index),
             strategy = cfg.strategy,
             seed = cfg.seed,
-            nightsToSurvive = cfg.nightsToSurvive
+            daysToSurvive = cfg.daysToSurvive
         };
         policy = SimPolicy.Create(cfg.strategy);
         metrics.strategy = policy.Name;
@@ -236,11 +237,24 @@ public class SimRunner : MonoBehaviour
         EnemySpawner es = FindAnyObjectByType<EnemySpawner>();
         if (es != null)
         {
-            if (cfg.baseEnemiesPerNight >= 0) es.baseEnemiesPerNight = cfg.baseEnemiesPerNight;
-            if (cfg.enemyIncreasePerNight >= 0f) es.enemyIncreasePerNight = cfg.enemyIncreasePerNight;
             if (cfg.spawnInterval >= 0f) es.spawnInterval = cfg.spawnInterval;
             if (cfg.spawnDelay >= 0f) es.spawnDelay = cfg.spawnDelay;
             if (cfg.spawnDistance > 0f) es.spawnDistance = cfg.spawnDistance;
+
+            // The director is added by EnemySpawner.Awake, so it exists by now
+            // (sceneLoaded is after every Awake; run 0 configures from a Start
+            // that precedes the director's own Start, where day 1 is rolled).
+            RaidDirector rd = es.GetComponent<RaidDirector>();
+            if (rd != null)
+            {
+                if (cfg.raidFirstDay >= 0) rd.firstRaidDay = cfg.raidFirstDay;
+                if (cfg.raidBaseChance >= 0f) rd.baseChance = cfg.raidBaseChance;
+                if (cfg.raidChancePerQuietDay >= 0f) rd.chancePerQuietDay = cfg.raidChancePerQuietDay;
+                if (cfg.raidMaxQuietDays >= 0) rd.maxQuietDays = cfg.raidMaxQuietDays;
+                if (cfg.raidBaseSize >= 0f) rd.baseSize = cfg.raidBaseSize;
+                if (cfg.raidSizePerDay >= 0f) rd.sizePerDay = cfg.raidSizePerDay;
+                if (cfg.raidSizePerProsperity >= 0f) rd.sizePerProsperity = cfg.raidSizePerProsperity;
+            }
         }
 
         DayNightCycle dn = FindAnyObjectByType<DayNightCycle>();
@@ -251,7 +265,7 @@ public class SimRunner : MonoBehaviour
         }
 
         GameManager gm = FindAnyObjectByType<GameManager>();
-        if (gm != null) gm.nightsToSurvive = cfg.nightsToSurvive;
+        if (gm != null) gm.daysToSurvive = cfg.daysToSurvive;
     }
 
     private IEnumerator RunRoutine(SimConfig cfg)
@@ -345,6 +359,7 @@ public class SimRunner : MonoBehaviour
         {
             Campfire = fire,
             Day = dn != null ? dn.GetCurrentDay() : 1,
+            RaidTonight = RaidDirector.Instance != null && RaidDirector.Instance.RaidTonight,
             Workers = fire != null ? fire.GetTotalWorkers() : 0,
             Warriors = fire != null ? fire.GetWarriorCount() : 0,
             Enemies = Enemy.ActiveList.Count,
@@ -385,9 +400,12 @@ public class SimRunner : MonoBehaviour
         ResourceManager rm = ResourceManager.Instance;
         DayNightCycle dn = FindAnyObjectByType<DayNightCycle>();
 
-        night = new SimMetrics.NightRow
+        RaidDirector rd = RaidDirector.Instance;
+        night = new SimMetrics.DayRow
         {
-            night = dn != null ? dn.GetCurrentDay() : metrics.nights.Count + 1,
+            day = dn != null ? dn.GetCurrentDay() : metrics.days.Count + 1,
+            raid = rd != null && rd.RaidTonight,
+            raidSize = rd != null && rd.RaidTonight ? rd.PlannedSize : 0,
             wood = rm != null ? rm.wood : 0,
             food = rm != null ? rm.food : 0,
             stone = rm != null ? rm.stone : 0,
@@ -400,7 +418,8 @@ public class SimRunner : MonoBehaviour
             campfireHpMin = fire != null ? fire.GetCurrentHealth() : 0f
         };
         lastEnemyCount = Enemy.ActiveList.Count;
-        metrics.nightReached = night.night;
+        metrics.dayReached = night.day;
+        if (night.raid) metrics.raids++;
     }
 
     private void OnDayStart()
@@ -410,7 +429,7 @@ public class SimRunner : MonoBehaviour
         CaptureDawn();
         night.survived = SimBuilder.Campfire != null;
 
-        metrics.nights.Add(night);
+        metrics.days.Add(night);
         night = null;
     }
 
@@ -451,7 +470,7 @@ public class SimRunner : MonoBehaviour
         {
             CaptureDawn();
             night.survived = false;
-            metrics.nights.Add(night);
+            metrics.days.Add(night);
             night = null;
         }
 
