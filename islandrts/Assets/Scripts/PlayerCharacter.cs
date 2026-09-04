@@ -51,8 +51,15 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
     const float StallSeconds = 0.5f;         // standing still with no path = arrived as close as we can get
     const float StallReach = 2.5f;           // ...and that counts if the target is within this
 
-    // Command raycast: ground (Default), buildings, and the pickup click layer
-    const int CommandMask = 1 | (1 << 6) | GroundPickup.ClickMask;
+    // Command raycast: ground (Default), buildings, the pickup click layer, and the
+    // resource-node click layer (2026-09-03: hand-harvesting bushes, trees and rocks)
+    const int CommandMask = 1 | (1 << 6) | GroundPickup.ClickMask | ResourceNode.ClickMask;
+
+    // Hand-harvest: slower than a worker with a tool, and generous enough that
+    // clearing one bush is a few seconds rather than a chore.
+    const float HarvestPerSecond = 1.2f;
+    /// <summary>Resource units harvested by hand per material that comes off with them.</summary>
+    const float HarvestByproductEvery = 3f;
 
     // Destination retry: AINavHelper.TrySetDestination returns Unity's real
     // SetDestination result — a false means the NavMesh rejected the point
@@ -62,13 +69,21 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
     private bool hasPendingDestination;
 
     // The one thing the character is walking to do
-    enum TaskKind { None, Collect, Deposit, Work }
+    enum TaskKind { None, Collect, Deposit, Work, Harvest }
     private TaskKind task;
     private GroundPickup taskPickup;
     private BaseBuilding taskFire;
     private Collider taskFireCollider;
     private CraftStation taskStation;
+    private ResourceNode taskNode;
     private float stallTimer;
+
+    // Harvesting a node by hand (standing at it). The node owns its own depletion;
+    // this side owns the fractional accumulators that turn units into whole items.
+    private ResourceNode harvestNode;
+    private float harvestProgress;
+    private float harvestByproduct;
+    private float nextHarvestPulse;
 
     // Working a station's queue (standing at its bench). The station owns the
     // progress and charges costs on completion, so walking away loses nothing.
@@ -180,6 +195,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         if (hasPendingDestination) TryIssueMove();
 
         UpdateTask();
+        UpdateHarvest();
         UpdateWork();
         RegenNearCampfire();
 
@@ -225,12 +241,16 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
     public void CommandAt(Collider hitCollider, Vector3 point)
     {
         if (knockedOut) return;
-        StopWork();   // any new order leaves the bench (nothing has been paid yet)
+        StopWork();      // any new order leaves the bench (nothing has been paid yet)
+        StopHarvest();
 
         if (hitCollider != null)
         {
             GroundPickup pickup = hitCollider.GetComponentInParent<GroundPickup>();
             if (pickup != null) { CommandCollect(pickup); return; }
+
+            ResourceNode node = hitCollider.GetComponentInParent<ResourceNode>();
+            if (node != null) { CommandHarvest(node); return; }
 
             BaseBuilding fire = hitCollider.GetComponentInParent<BaseBuilding>();
             if (fire != null) { CommandDeposit(fire); return; }
@@ -249,6 +269,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
     {
         if (knockedOut || pickup == null) return;
         StopWork();
+        StopHarvest();
         ClearTask();
 
         if (pickup.IsClaimedByOther(this))
@@ -275,6 +296,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
     {
         if (knockedOut || fire == null) return;
         StopWork();
+        StopHarvest();
         ClearTask();
 
         task = TaskKind.Deposit;
@@ -285,6 +307,127 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
 
         // Carve-safe approach point, never the centre (the campfire carves the NavMesh)
         MoveTo(TargetingUtil.GetApproachPoint(transform.position, fire.transform, taskFireCollider));
+    }
+
+    /// <summary>
+    /// Walk to a resource node and work it by hand (2026-09-03). A bush gives food and
+    /// the sticks that come off it, a tree wood and sticks, a rock stone and chunks -
+    /// which is how the character gets crafting materials without waiting for the ground
+    /// to trickle them in. Colonists with jobs are unaffected; this is the player's own
+    /// pair of hands.
+    /// </summary>
+    public void CommandHarvest(ResourceNode node)
+    {
+        if (knockedOut || node == null) return;
+        StopWork();
+        StopHarvest();
+        ClearTask();
+
+        if (!node.HasResources())
+        {
+            SetActivity("Nothing left there", FlashSeconds);
+            return;
+        }
+        if (inventory.SpaceFor(node.PrimaryItem) <= 0)
+        {
+            SetActivity("Hands full - deposit at the fire", FlashSeconds);
+            return;
+        }
+
+        if (WithinHarvestReach(node))
+        {
+            BeginHarvest(node);
+            return;
+        }
+
+        task = TaskKind.Harvest;
+        taskNode = node;
+        stallTimer = 0f;
+        SetActivity("Going to the " + node.PrimaryItem.displayName.ToLowerInvariant());
+        MoveTo(node.GetGatherPoint(transform.position));
+    }
+
+    /// <summary>
+    /// Standing close enough to work a node. Measured to the node centre against its own
+    /// gather ring, not to the collider edge: the node's box is a click hitbox sized off
+    /// the art, while the ring is where the carve actually lets anyone stand.
+    /// </summary>
+    bool WithinHarvestReach(ResourceNode node)
+    {
+        Vector3 d = node.transform.position - transform.position;
+        d.y = 0f;
+        float reach = node.GatherRingRadius + 1.1f;
+        return d.sqrMagnitude <= reach * reach;
+    }
+
+    void BeginHarvest(ResourceNode node)
+    {
+        harvestNode = node;
+        harvestProgress = 0f;
+        harvestByproduct = 0f;
+        nextHarvestPulse = 0f;
+        if (agent != null && agent.isOnNavMesh) agent.ResetPath();
+        hasPendingDestination = false;
+        SetActivity("Gathering " + node.PrimaryItem.displayName.ToLowerInvariant());
+    }
+
+    /// <summary>Stop working a node. The node keeps whatever is left in it.</summary>
+    public void StopHarvest()
+    {
+        if (harvestNode == null) return;
+        harvestNode = null;
+        SetActivity("");
+    }
+
+    void UpdateHarvest()
+    {
+        if (harvestNode == null) return;
+
+        if (!harvestNode.HasResources())
+        {
+            StopHarvest();
+            SetActivity("Nothing left there", FlashSeconds);
+            return;
+        }
+        if (!WithinHarvestReach(harvestNode))
+        {
+            // Knocked back, or the node shrank away from us - walk in again
+            ResourceNode node = harvestNode;
+            StopHarvest();
+            CommandHarvest(node);
+            return;
+        }
+
+        float units = harvestNode.GatherResources(HarvestPerSecond * Time.deltaTime, shedByproducts: false);
+        if (units <= 0f) { StopHarvest(); return; }
+
+        // Feedback on the same beat a worker's chopping gives the node
+        if (Time.time >= nextHarvestPulse)
+        {
+            nextHarvestPulse = Time.time + 0.35f;
+            harvestNode.TriggerShakePulse();
+        }
+
+        harvestProgress += units;
+        harvestByproduct += units;
+
+        while (harvestProgress >= 1f)
+        {
+            harvestProgress -= 1f;
+            if (inventory.Add(harvestNode.PrimaryItem, 1) <= 0)
+            {
+                StopHarvest();
+                SetActivity("Hands full - deposit at the fire", FlashSeconds);
+                return;
+            }
+        }
+
+        if (harvestByproduct >= HarvestByproductEvery)
+        {
+            harvestByproduct -= HarvestByproductEvery;
+            // No room for the material is not a reason to stop taking the resource
+            inventory.Add(harvestNode.ByproductItem, 1);
+        }
     }
 
     void UpdateTask()
@@ -363,6 +506,25 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
                 }
                 break;
             }
+
+            case TaskKind.Harvest:
+            {
+                if (taskNode == null) { ClearTask(); return; }   // depleted while we walked
+
+                bool close = WithinHarvestReach(taskNode);
+                if (close || (Stalled() && Vector3.Distance(transform.position, taskNode.transform.position) <= StallReach + taskNode.GatherRingRadius))
+                {
+                    ResourceNode node = taskNode;
+                    ClearTask();
+                    BeginHarvest(node);
+                }
+                else if (Stalled())
+                {
+                    ClearTask();
+                    SetActivity("Can't reach that", FlashSeconds);
+                }
+                break;
+            }
         }
     }
 
@@ -418,6 +580,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         if (workStation == station) return;
 
         StopWork();
+        StopHarvest();
         ClearTask();
 
         float edge = TargetingUtil.EdgeDistance(transform.position, station.transform, station.ApproachCollider);
@@ -592,6 +755,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         taskFire = null;
         taskFireCollider = null;
         taskStation = null;
+        taskNode = null;
         stallTimer = 0f;
         if (activityExpires < 0f) SetActivity("");   // keep a flash, drop a "Fetching…"
     }
@@ -614,6 +778,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
     {
         if (knockedOut) return;
         StopWork();
+        StopHarvest();
 
         NavMeshHit hit;
         if (NavMesh.SamplePosition(worldPos, out hit, 4f, NavMesh.AllAreas))
@@ -664,6 +829,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         reviveAt = Time.time + knockoutSeconds;
         hasPendingDestination = false;
         StopWork();
+        StopHarvest();
         ClearTask();
         SetActivity("Knocked out");
 

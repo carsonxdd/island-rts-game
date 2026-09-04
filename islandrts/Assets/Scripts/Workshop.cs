@@ -24,10 +24,11 @@ public class Workshop : MonoBehaviour, ITargetable
     public float noBuildRadius = 3.5f;
 
     [Header("Hover Effect")]
-    public Color hoverColor = new Color(1f, 1f, 0.7f, 1f);
+    [Tooltip("Glow strength while the mouse is over the Workshop (see HoverGlow).")]
+    public float hoverGlow = 2.2f;
 
     private Material[] buildingMaterials;
-    private Color[] originalColors;
+    private HoverGlow glow;
 
     /// <summary>The bench (runtime-added, so the prefab never carries a stale copy).</summary>
     public CraftStation Station { get; private set; }
@@ -67,11 +68,11 @@ public class Workshop : MonoBehaviour, ITargetable
         }
 
         buildingMaterials = RendererTint.Collect(GetComponentsInChildren<Renderer>());
-        originalColors = RendererTint.CaptureColors(buildingMaterials);
+        glow = HoverGlow.Attach(gameObject, buildingMaterials, 0f, hoverGlow);
     }
 
-    void OnMouseEnter() { RendererTint.SetColor(buildingMaterials, hoverColor); }
-    void OnMouseExit() { RendererTint.RestoreColors(buildingMaterials, originalColors); }
+    void OnMouseEnter() { if (glow != null) glow.SetHovered(true); }
+    void OnMouseExit() { if (glow != null) glow.SetHovered(false); }
 
     void OnMouseDown()
     {

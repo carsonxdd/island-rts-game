@@ -55,10 +55,23 @@ public sealed class ItemDef
     /// <summary>Only set for <see cref="ItemKind.Equipment"/>.</summary>
     public readonly EquipmentDef equipment;
 
+    /// <summary>
+    /// Which HUD resource chip this item is filed under when the player opens that
+    /// chip's breakdown (2026-09-03) - sticks and spears are wood things, chunks are
+    /// stone things. Only meaningful when <see cref="hudListed"/> is set.
+    /// </summary>
+    public readonly ResourceNode.ResourceType hudCategory;
+    /// <summary>Show this item in its chip's breakdown. Off for the player's own tools.</summary>
+    public readonly bool hudListed;
+
     public ItemDef(string id, string displayName, string glyph, ItemKind kind, int stackMax, Color color,
                    ResourceNode.ResourceType resourceType = ResourceNode.ResourceType.Wood,
-                   EquipmentDef equipment = null)
+                   EquipmentDef equipment = null,
+                   ResourceNode.ResourceType hudCategory = ResourceNode.ResourceType.Wood,
+                   bool hudListed = false)
     {
+        this.hudCategory = hudCategory;
+        this.hudListed = hudListed;
         this.id = id;
         this.displayName = displayName;
         this.glyph = glyph;
@@ -82,9 +95,11 @@ public static class ItemCatalog
 {
     // Materials
     public static readonly ItemDef Stick = new ItemDef("stick", "Stick", "St", ItemKind.Material, 10,
-        new Color(0.66f, 0.48f, 0.30f));
+        new Color(0.66f, 0.48f, 0.30f),
+        hudCategory: ResourceNode.ResourceType.Wood, hudListed: true);
     public static readonly ItemDef StoneChunk = new ItemDef("stone_chunk", "Stone chunk", "Ck", ItemKind.Material, 10,
-        new Color(0.62f, 0.65f, 0.68f));
+        new Color(0.62f, 0.65f, 0.68f),
+        hudCategory: ResourceNode.ResourceType.Stone, hudListed: true);
 
     // Resources in hand
     public static readonly ItemDef Wood = new ItemDef("wood", "Wood", "W", ItemKind.Resource, 10,
@@ -112,7 +127,8 @@ public static class ItemCatalog
     // warrior with one changes nothing about how today's warrior fights.
     static readonly Color WeaponColor = new Color(0.85f, 0.62f, 0.45f);
     public static readonly ItemDef WoodenSpear = new ItemDef("wooden_spear", "Wooden Spear", "Sp", ItemKind.Equipment, 5, WeaponColor,
-        equipment: new EquipmentDef(damage: 25f, range: 2f, attackInterval: 1.2f, ranged: false));
+        equipment: new EquipmentDef(damage: 25f, range: 2f, attackInterval: 1.2f, ranged: false),
+        hudCategory: ResourceNode.ResourceType.Wood, hudListed: true);
 
     /// <summary>Catalog order — also the display order in the stockpile and HUD.</summary>
     public static readonly ItemDef[] All =

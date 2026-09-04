@@ -30,11 +30,18 @@ public class ResourceNode : MonoBehaviour
     public float currentAmount = 10f;   // Current resources remaining (can be fractional)
 
     [Header("Visual Feedback")]
-    public Color highlightColor = Color.yellow;
+    [Tooltip("Glow strength while the mouse is over this node. The colour comes from the node's own materials (see HoverGlow).")]
+    public float hoverGlow = 2.4f;
     public bool scaleWithDepletion = true;  // Shrink as resources deplete
     public float shakeDegrees = 1f;         // Gather-shake pulse amplitude (small tree sway)
     public float shakeFrequency = 7f;       // Wobble speed within a pulse, in Hz
     public float minShakeSpacing = 0.15f;   // Minimum seconds between pulses (stops several workers stacking pulses into a jitter)
+
+    [Header("Byproducts")]
+    [Tooltip("Resource units that must come out of this node before it sheds one ground pickup - a stick from a tree or bush, a chunk from a rock. 0 disables.")]
+    public float byproductEvery = 4f;
+    [Tooltip("How many shed pickups may lie around this node at once, so a well-worked forest litters instead of drowning.")]
+    public int maxLooseByproducts = 2;
 
     public static IReadOnlyList<ResourceNode> ActiveList => ActiveRegistry<ResourceNode>.List;
 
@@ -58,8 +65,8 @@ public class ResourceNode : MonoBehaviour
     }
 
     private Material[] nodeMaterials;
-    private Color[] originalColors;
-    private bool isHighlighted = false;
+    private HoverGlow glow;
+    private float byproductProgress;
     private List<Worker> activeWorkers = new List<Worker>();
     private List<Worker> claimedWorkers = new List<Worker>();
     private Vector3 originalScale;
@@ -115,7 +122,10 @@ public class ResourceNode : MonoBehaviour
             // ALL renderers - the low-poly art meshes are multi-submesh, so tinting only
             // slot 0 would highlight a fraction of the node.
             nodeMaterials = RendererTint.Collect(GetComponentsInChildren<Renderer>());
-            originalColors = RendererTint.CaptureColors(nodeMaterials);
+
+            // Hover feedback is an emissive glow, not a colour tint: the tint fought the
+            // occlusion fade for the same colour channel and washed the node out.
+            glow = HoverGlow.Attach(gameObject, nodeMaterials, 0f, hoverGlow);
         }
         return nodeMaterials;
     }
@@ -253,22 +263,12 @@ public class ResourceNode : MonoBehaviour
 
     void OnMouseEnter()
     {
-        // Highlight all parts when mouse hovers over
-        if (!isHighlighted)
-        {
-            RendererTint.SetColor(nodeMaterials, highlightColor);
-            isHighlighted = true;
-        }
+        if (glow != null) glow.SetHovered(true);
     }
 
     void OnMouseExit()
     {
-        // Remove highlight from all parts when mouse leaves
-        if (isHighlighted)
-        {
-            RendererTint.RestoreColors(nodeMaterials, originalColors);
-            isHighlighted = false;
-        }
+        if (glow != null) glow.SetHovered(false);
     }
 
     // ---- Worker capacity: how many workers physically fit around this node ----
@@ -375,8 +375,10 @@ public class ResourceNode : MonoBehaviour
     }
 
     // Worker attempts to gather resources
-    // Returns amount actually gathered
-    public float GatherResources(float requestedAmount)
+    // Returns amount actually gathered.
+    // shedByproducts=false is the player's hand-harvest: it takes the stick in hand
+    // rather than leaving it on the ground, so the two paths never double up.
+    public float GatherResources(float requestedAmount, bool shedByproducts = true)
     {
         if (currentAmount <= 0)
         {
@@ -389,6 +391,8 @@ public class ResourceNode : MonoBehaviour
 
         // Deplete the node
         currentAmount -= amountGathered;
+
+        if (shedByproducts) ShedByproduct(amountGathered);
 
         // Destroy node if empty
         if (currentAmount <= 0.01f)  // Small threshold for floating point
@@ -403,6 +407,62 @@ public class ResourceNode : MonoBehaviour
         }
 
         return amountGathered;
+    }
+
+    // ---- Byproducts: what falls off a node while it is being worked ----
+
+    /// <summary>
+    /// The pooled resource this node yields, as an item in the hand. Only the player's
+    /// character uses this - workers deliver straight into the pool.
+    /// </summary>
+    public ItemDef PrimaryItem => ItemCatalog.ResourceItem(resourceType);
+
+    /// <summary>
+    /// The crafting material this node also yields: sticks off a tree or a bush, chunks
+    /// off a rock or an ore boulder. Sticks off bushes are deliberate - a bush is a
+    /// meaningful early source of both food and firewood.
+    /// </summary>
+    public ItemDef ByproductItem =>
+        (resourceType == ResourceType.Stone || resourceType == ResourceType.Metal)
+            ? ItemCatalog.StoneChunk
+            : ItemCatalog.Stick;
+
+    /// <summary>
+    /// Count <paramref name="units"/> toward the next shed pickup and drop one on the
+    /// ground when the node has given up enough. This is what puts sticks under a worked
+    /// tree and chunks around a worked rock, so the island stays stocked with the
+    /// materials the player's character crafts from without the spawner having to
+    /// carpet it at start.
+    /// </summary>
+    void ShedByproduct(float units)
+    {
+        if (byproductEvery <= 0f || PickupSpawner.Instance == null) return;
+
+        byproductProgress += units;
+        if (byproductProgress < byproductEvery) return;
+        byproductProgress -= byproductEvery;
+
+        if (CountLooseByproducts() >= maxLooseByproducts) return;
+        PickupSpawner.Instance.DropByproduct(resourceType, transform.position, GatherRingRadius + 1.2f);
+    }
+
+    /// <summary>
+    /// Pickups already lying within arm's reach of this node. Only ever called on a shed
+    /// event (once per <see cref="byproductEvery"/> units), so the linear scan is fine.
+    /// </summary>
+    int CountLooseByproducts()
+    {
+        var list = GroundPickup.ActiveList;
+        float rangeSq = (GatherRingRadius + 2.5f) * (GatherRingRadius + 2.5f);
+        int n = 0;
+        for (int i = 0; i < list.Count; i++)
+        {
+            if (list[i] == null) continue;
+            Vector3 d = list[i].transform.position - transform.position;
+            d.y = 0f;
+            if (d.sqrMagnitude <= rangeSq) n++;
+        }
+        return n;
     }
 
     // Check if node has resources remaining

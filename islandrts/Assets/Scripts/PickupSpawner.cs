@@ -25,8 +25,16 @@ public class PickupSpawner : MonoBehaviour
     public GameObject stonePrefab;
 
     [Header("Counts")]
-    public int stickCount = 26;
-    public int stoneCount = 16;
+    public int stickCount = 44;
+    public int stoneCount = 30;
+
+    [Header("Sizes")]
+    [Tooltip("Chance a placed pickup is a large one - visibly bigger and worth largeMultiplier times as much.")]
+    [Range(0f, 1f)] public float largeChance = 0.28f;
+    [Tooltip("Visual scale of a large pickup. The click collider is on the root, so it grows with it.")]
+    public float largeScale = 1.6f;
+    [Tooltip("Yield multiplier of a large pickup, for both the worker carry and the item in hand.")]
+    public int largeMultiplier = 3;
 
     [Header("Landing beach cluster")]
     [Tooltip("Extra sticks placed within coveRadius of the cove at start (on top of stickCount).")]
@@ -38,7 +46,7 @@ public class PickupSpawner : MonoBehaviour
 
     [Header("Respawn")]
     [Tooltip("One missing pickup respawns per interval (sticks first).")]
-    public float respawnInterval = 18f;
+    public float respawnInterval = 12f;
 
     [Header("Placement")]
     public float minRadius = 8f;
@@ -140,8 +148,31 @@ public class PickupSpawner : MonoBehaviour
         return false;
     }
 
+    /// <summary>
+    /// Drop one shed pickup beside a worked resource node (<see cref="ResourceNode"/>
+    /// sheds sticks off trees and bushes and chunks off rocks). Never counted against
+    /// the respawn budget: these are made by work, not placed by this spawner, so the
+    /// island's trickle must not treat one as a replacement it owes.
+    /// </summary>
+    public bool DropByproduct(ResourceNode.ResourceType type, Vector3 near, float radius)
+    {
+        GameObject prefab = (type == ResourceNode.ResourceType.Stone || type == ResourceNode.ResourceType.Metal)
+            ? stonePrefab : stickPrefab;
+        if (prefab == null) return false;
+
+        for (int attempt = 0; attempt < 6; attempt++)
+        {
+            float angle = Random.value * Mathf.PI * 2f;
+            float r = Mathf.Lerp(radius * 0.6f, radius, Random.value);
+            Vector3 pos = near + new Vector3(Mathf.Cos(angle) * r, 0f, Mathf.Sin(angle) * r);
+            // Tight spacing: a stick right beside the tree it fell from is the point
+            if (TryPlace(prefab, pos, owned: false, spacing: 1.1f)) return true;
+        }
+        return false;
+    }
+
     /// <summary>The shared validity gauntlet: land, gentle, reachable, on the NavMesh, spaced.</summary>
-    bool TryPlace(GameObject prefab, Vector3 pos)
+    bool TryPlace(GameObject prefab, Vector3 pos, bool owned = true, float spacing = -1f)
     {
         if (TerrainGrid.Instance != null)
         {
@@ -158,7 +189,8 @@ public class PickupSpawner : MonoBehaviour
 
         // Spacing vs other pickups
         var list = GroundPickup.ActiveList;
-        float sqrSpacing = minSpacing * minSpacing;
+        float useSpacing = spacing > 0f ? spacing : minSpacing;
+        float sqrSpacing = useSpacing * useSpacing;
         for (int i = 0; i < list.Count; i++)
         {
             if (list[i] == null) continue;
@@ -169,9 +201,27 @@ public class PickupSpawner : MonoBehaviour
 
         GameObject spawned = Instantiate(prefab, pos, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f), transform);
         // Only what this spawner placed counts against its respawn budget —
-        // salvage crates are finite and must not feed the trickle.
+        // salvage crates and shed byproducts are finite and must not feed the trickle.
         GroundPickup pickup = spawned.GetComponent<GroundPickup>();
-        if (pickup != null) pickup.spawnerOwned = true;
+        if (pickup != null)
+        {
+            pickup.spawnerOwned = owned;
+            if (Random.value < largeChance) MakeLarge(pickup);
+        }
         return true;
+    }
+
+    /// <summary>
+    /// Turn a placed pickup into the large variant: bigger on the ground and worth
+    /// several of the small one. Scaling the ROOT is deliberate - the click collider
+    /// GroundPickup adds in Awake lives there, so a big stone is as easy to click as it
+    /// looks.
+    /// </summary>
+    void MakeLarge(GroundPickup pickup)
+    {
+        pickup.transform.localScale *= Mathf.Max(1f, largeScale);
+        int mult = Mathf.Max(1, largeMultiplier);
+        pickup.amount *= mult;
+        pickup.itemAmount *= mult;
     }
 }

@@ -36,6 +36,7 @@ public class ResourceUI : MonoBehaviour
     private class Chip
     {
         public ResourceNode.ResourceType type;
+        public RectTransform entry;
         public TextMeshProUGUI value;
         public TextMeshProUGUI workers;
         public int lastValue = -1;
@@ -53,12 +54,14 @@ public class ResourceUI : MonoBehaviour
     private int lastCalKey = -1;
     private DayNightCycle dayNight;
     private TextMeshProUGUI banner;
+    private RectTransform barRect;
     private float bannerHideAt = -1f;
     const float BannerSeconds = 7f;
 
     // ---- metrics (reference pixels) ----
     const float EntryWidth = 150f;      // fits "Stone · 12 workers" at CaptionSize with room to spare
     const float EntryHeight = 54f;
+    const float DialWidth = 84f;        // the sky dial's slot: an arc, no text
     const float TextInset = 14f;        // shared left edge of amount and caption
     const float AmountSize = 24f;
     const float CaptionSize = 13f;
@@ -107,7 +110,10 @@ public class ResourceUI : MonoBehaviour
         {
             timeSinceUpdate = 0f;
             UpdateUI();
+            if (openPanel != Breakdown.None) RefreshBreakdown();
         }
+
+        CloseBreakdownIfClickedAway();
 
         if (bannerHideAt >= 0f && Time.unscaledTime >= bannerHideAt)
         {
@@ -141,7 +147,7 @@ public class ResourceUI : MonoBehaviour
         GameObject bar = new GameObject("ResourceBar", typeof(RectTransform), typeof(Image),
             typeof(HorizontalLayoutGroup), typeof(ContentSizeFitter));
         bar.transform.SetParent(canvas.transform, false);
-        RectTransform brt = bar.GetComponent<RectTransform>();
+        RectTransform brt = barRect = bar.GetComponent<RectTransform>();
         brt.anchorMin = brt.anchorMax = new Vector2(0f, 1f);
         brt.pivot = new Vector2(0f, 1f);
         brt.anchoredPosition = new Vector2(16f, -16f);
@@ -174,11 +180,15 @@ public class ResourceUI : MonoBehaviour
 
         // Housing entry
         RectTransform pop = Entry(bar.transform, "Housing", PopColor, out popValue, out popLabel, "Housing");
-        pop.GetComponent<Button>().onClick.AddListener(OpenCampfire);
+        pop.GetComponent<Button>().onClick.AddListener(() => ToggleBreakdown(Breakdown.Housing, pop));
         VerticalDivider(bar.transform);
 
         // Calendar entry — not a button: nothing to open, so no hover either
         Entry(bar.transform, "Calendar", CalColor, out calValue, out calLabel, "Day", clickable: false);
+        VerticalDivider(bar.transform);
+
+        // Sky dial: sun across the day, moon across the night
+        BuildDialEntry(bar.transform);
 
         // Raid banner: one bold line centred BELOW the bar (the bar is ~900px
         // wide from the left edge, so a top-centre banner would sit on top of
@@ -201,7 +211,10 @@ public class ResourceUI : MonoBehaviour
     {
         Chip chip = new Chip { type = type };
         RectTransform rt = Entry(parent, label, ColorFor(type), out chip.value, out chip.workers, label);
-        rt.GetComponent<Button>().onClick.AddListener(OpenCampfire);
+        chip.entry = rt;
+        // Clicking a chip drops its breakdown down rather than opening the campfire:
+        // the number the player is reacting to is the number they want split apart.
+        rt.GetComponent<Button>().onClick.AddListener(() => ToggleBreakdown((Breakdown)((int)type + 1), rt));
         return chip;
     }
 
@@ -280,6 +293,213 @@ public class ResourceUI : MonoBehaviour
         caption.richText = true;
 
         return go.GetComponent<RectTransform>();
+    }
+
+    /// <summary>The dial's own slot on the bar: no text, just the sky.</summary>
+    void BuildDialEntry(Transform parent)
+    {
+        GameObject go = new GameObject("Sky", typeof(RectTransform), typeof(LayoutElement));
+        go.transform.SetParent(parent, false);
+        LayoutElement le = go.GetComponent<LayoutElement>();
+        le.preferredWidth = DialWidth;
+        le.minWidth = DialWidth;
+        le.preferredHeight = EntryHeight;
+
+        HudTimeDial.Build(go.GetComponent<RectTransform>(), DialWidth, EntryHeight);
+    }
+
+    // ------------------------------------------------------------------
+    // Breakdown dropdowns (2026-09-03)
+    //
+    // A chip is a total, and a total hides what it is made of. Clicking one
+    // drops a small panel under it listing the pooled amount, everything in the
+    // campfire stockpile filed under that chip (sticks and spears under Wood,
+    // chunks under Stone - see ItemDef.hudCategory), and how many colonists are
+    // on the job. New item types appear here on their own the moment they are
+    // added to the catalog with hudListed set; nothing here needs updating for
+    // planks or fish.
+    //
+    // The panel is parented to the ENTRY, not to the bar, so it follows its chip
+    // wherever the horizontal layout puts it and needs no x arithmetic.
+    // ------------------------------------------------------------------
+
+    enum Breakdown { None, Wood, Food, Stone, Metal, Housing }
+
+    private class BreakRow
+    {
+        public TextMeshProUGUI value;
+        public System.Func<string> compute;
+        public string last;
+    }
+
+    private Breakdown openPanel = Breakdown.None;
+    private RectTransform dropdown;
+    private VerticalLayoutGroup dropColumn;
+    private readonly List<BreakRow> dropRows = new List<BreakRow>();
+
+    const float DropWidth = 236f;
+    const float DropRowHeight = 22f;
+
+    void ToggleBreakdown(Breakdown kind, RectTransform anchor)
+    {
+        if (PauseController.BlockGameplayInput) return;
+
+        if (openPanel == kind) { CloseBreakdown(); return; }
+        openPanel = kind;
+        BuildBreakdown(kind, anchor);
+    }
+
+    void CloseBreakdown()
+    {
+        openPanel = Breakdown.None;
+        dropRows.Clear();
+        if (dropdown != null) { Destroy(dropdown.gameObject); dropdown = null; dropColumn = null; }
+    }
+
+    void BuildBreakdown(Breakdown kind, RectTransform anchor)
+    {
+        if (dropdown != null) Destroy(dropdown.gameObject);
+        dropRows.Clear();
+
+        dropdown = MenuBuilder.Panel(anchor, "Breakdown", DropWidth, 100f);
+        dropdown.anchorMin = dropdown.anchorMax = new Vector2(0f, 0f);
+        dropdown.pivot = new Vector2(0f, 1f);
+        dropdown.anchoredPosition = new Vector2(0f, -6f);
+
+        dropColumn = MenuBuilder.Column(dropdown, 2f, new RectOffset(14, 14, 10, 12));
+
+        if (kind == Breakdown.Housing) BuildHousingRows();
+        else BuildResourceRows((ResourceNode.ResourceType)((int)kind - 1));
+
+        MenuBuilder.Spacer(dropColumn.transform, 6f);
+        MenuBuilder.MenuButton(dropColumn.transform, "Manage colonists", () => { CloseBreakdown(); OpenCampfire(); });
+
+        RefreshBreakdown(true);
+        MenuBuilder.FitPanelHeight(dropdown, dropColumn, 80f, 460f);
+    }
+
+    void BuildResourceRows(ResourceNode.ResourceType type)
+    {
+        Header(type.ToString());
+        AddRow("In the stores", () => ResourceManager.Instance != null
+            ? ResourceManager.Instance.Get(type).ToString() : "0");
+
+        // Everything the campfire stockpile holds under this chip
+        ItemDef[] all = ItemCatalog.All;
+        for (int i = 0; i < all.Length; i++)
+        {
+            ItemDef item = all[i];
+            if (!item.hudListed || item.hudCategory != type) continue;
+            AddRow(item.displayName, () =>
+            {
+                BaseBuilding fire = BaseBuilding.FindAlive();
+                return fire != null ? fire.Stockpile.Count(item).ToString() : "0";
+            });
+        }
+
+        Header("Colonists");
+        AddRow("On this job", () =>
+        {
+            BaseBuilding fire = BaseBuilding.ActiveList.Count > 0 ? BaseBuilding.ActiveList[0] : null;
+            return fire != null ? WorkersOn(fire, type).ToString() : "0";
+        });
+    }
+
+    void BuildHousingRows()
+    {
+        Header("Who sleeps where");
+
+        PopulationManager pm = PopulationManager.Instance;
+        if (pm == null || pm.HousingProviders.Count == 0)
+        {
+            AddRow("No shelter yet", () => "-");
+            return;
+        }
+
+        var providers = pm.HousingProviders;
+        for (int i = 0; i < providers.Count; i++)
+        {
+            IHousing home = providers[i];
+            if (home == null) continue;
+            string name = HousingName(home, i);
+            AddRow(name, () =>
+            {
+                PopulationManager p = PopulationManager.Instance;
+                if (p == null || home == null || !home.HousingAlive) return "-";
+                return p.OccupantsOf(home) + " / " + home.HousingCapacity;
+            });
+        }
+
+        AddRow("Homeless", () => PopulationManager.Instance != null
+            ? PopulationManager.Instance.GetHomelessCount().ToString() : "0");
+    }
+
+    static string HousingName(IHousing home, int index)
+    {
+        if (home is BaseBuilding) return "Campfire";
+        return "Hut " + index;
+    }
+
+    void Header(string text)
+    {
+        TextMeshProUGUI t = MenuBuilder.Label(dropColumn.transform, text.ToUpperInvariant(),
+            MenuStyle.SmallSize, MenuStyle.TextAccent, TextAlignmentOptions.MidlineLeft);
+        t.characterSpacing = 3f;
+        t.textWrappingMode = TextWrappingModes.NoWrap;
+        t.gameObject.AddComponent<LayoutElement>().preferredHeight = 20f;
+    }
+
+    /// <summary>
+    /// One "name .... value" line. The value is refreshed from its closure on the
+    /// normal UI tick and dirty-checked, so an open panel costs nothing while the
+    /// numbers hold still.
+    /// </summary>
+    void AddRow(string label, System.Func<string> compute)
+    {
+        GameObject go = new GameObject("Row", typeof(RectTransform), typeof(LayoutElement));
+        go.transform.SetParent(dropColumn.transform, false);
+        go.GetComponent<LayoutElement>().preferredHeight = DropRowHeight;
+        RectTransform rt = go.GetComponent<RectTransform>();
+
+        TextMeshProUGUI name = MenuBuilder.Label(rt, label, MenuStyle.SmallSize + 1f,
+            MenuStyle.TextMuted, TextAlignmentOptions.MidlineLeft);
+        name.textWrappingMode = TextWrappingModes.NoWrap;
+        name.overflowMode = TextOverflowModes.Ellipsis;
+        MenuBuilder.Stretch(name.rectTransform);
+
+        TextMeshProUGUI value = MenuBuilder.Label(rt, "0", MenuStyle.SmallSize + 2f,
+            MenuStyle.TextPrimary, TextAlignmentOptions.MidlineRight);
+        value.textWrappingMode = TextWrappingModes.NoWrap;
+        MenuBuilder.Stretch(value.rectTransform);
+
+        dropRows.Add(new BreakRow { value = value, compute = compute, last = null });
+    }
+
+    void RefreshBreakdown(bool force = false)
+    {
+        for (int i = 0; i < dropRows.Count; i++)
+        {
+            BreakRow row = dropRows[i];
+            string text = row.compute();
+            if (force || text != row.last)
+            {
+                row.last = text;
+                row.value.text = text;
+            }
+        }
+    }
+
+    /// <summary>Clicking anywhere that is not the bar or the open panel closes it.</summary>
+    void CloseBreakdownIfClickedAway()
+    {
+        if (openPanel == Breakdown.None || dropdown == null) return;
+        if (!Input.GetMouseButtonDown(0) && !Input.GetMouseButtonDown(1)) return;
+
+        Vector2 p = Input.mousePosition;
+        if (RectTransformUtility.RectangleContainsScreenPoint(dropdown, p, null)) return;
+        if (barRect != null && RectTransformUtility.RectangleContainsScreenPoint(barRect, p, null)) return;
+
+        CloseBreakdown();
     }
 
     void OpenCampfire()

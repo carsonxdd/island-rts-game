@@ -59,6 +59,7 @@ public class GroundPickup : MonoBehaviour
     [System.NonSerialized] public bool spawnerOwned;
 
     private ItemDef cachedItem;
+    private HoverGlow glow;
 
     /// <summary>What the player's character gets from this pickup.</summary>
     public ItemDef Item
@@ -88,6 +89,18 @@ public class GroundPickup : MonoBehaviour
             click.center = new Vector3(0f, 0.25f, 0f);
         }
     }
+
+    void Start()
+    {
+        // A stick lying in grass at RTS zoom is invisible, so everything the player's
+        // character can pick up carries a low constant shimmer and lights up properly
+        // under the cursor. Collected here rather than in Awake: scatter and salvage
+        // mount their art as a child in the same frame the object is created.
+        glow = HoverGlow.Attach(gameObject, RendererTint.Collect(GetComponentsInChildren<Renderer>()), 0.6f, 2.8f);
+    }
+
+    void OnMouseEnter() { if (glow != null) glow.SetHovered(true); }
+    void OnMouseExit() { if (glow != null) glow.SetHovered(false); }
 
     void OnDestroy() { ActiveRegistry<GroundPickup>.Unregister(this); }
 

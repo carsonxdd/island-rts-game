@@ -105,6 +105,12 @@ public class PopulationManager : MonoBehaviour
         RehomeHomeless();
     }
 
+    /// <summary>
+    /// Every registered housing provider, in the order they were built. The HUD's
+    /// housing breakdown walks this to show who sleeps where.
+    /// </summary>
+    public System.Collections.Generic.IReadOnlyList<IHousing> HousingProviders => housing;
+
     public int GetHousingCapacity()
     {
         int cap = 0;

@@ -120,14 +120,14 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
     public float visualNoBuildRadius = 2.5f;
 
     [Header("Hover Effect")]
-    public Color normalColor = Color.white;
-    public Color hoverColor = new Color(1f, 1f, 0.7f, 1f);  // Slight yellow tint
+    [Tooltip("Glow strength while the mouse is over the campfire (see HoverGlow).")]
+    public float hoverGlow = 2.2f;
 
     // Track all spawned workers and warriors
     private List<Worker> activeWorkers = new List<Worker>();
     private List<Warrior> activeWarriors = new List<Warrior>();
     private Material[] buildingMaterials;  // Every material slot across every renderer
-    private Color[] originalColors;        // Original color per material slot
+    private HoverGlow glow;                // Hover feedback is an emissive glow, not a tint
 
     void Start()
     {
@@ -161,7 +161,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         if (buildingRenderers.Length > 0)
         {
             buildingMaterials = RendererTint.Collect(buildingRenderers);
-            originalColors = RendererTint.CaptureColors(buildingMaterials);
+            glow = HoverGlow.Attach(gameObject, buildingMaterials, 0f, hoverGlow);
         }
         else
         {
@@ -189,14 +189,12 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
 
     void OnMouseEnter()
     {
-        // Mouse is hovering over the building - tint every slot of every part
-        RendererTint.SetColor(buildingMaterials, hoverColor);
+        if (glow != null) glow.SetHovered(true);
     }
 
     void OnMouseExit()
     {
-        // Mouse left the building - restore every slot
-        RendererTint.RestoreColors(buildingMaterials, originalColors);
+        if (glow != null) glow.SetHovered(false);
     }
 
     void OnMouseDown()

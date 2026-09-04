@@ -28,9 +28,25 @@ public class OcclusionFadeManager : MonoBehaviour
 {
     private const float TickInterval = 0.1f;
     /// <summary>Half-width of a unit on screen, in world units - roughly a meeple's shoulders.</summary>
-    private const float UnitHalfWidth = 0.5f;
+    private const float UnitHalfWidth = 0.22f;
     /// <summary>Chest height: where a unit's silhouette actually is, rather than its feet.</summary>
     private const float UnitChestHeight = 0.9f;
+
+    /// <summary>
+    /// Fraction of a tree's measured half-width that counts as "behind it" (2026-09-03).
+    /// The renderer bounds of a palm are the CANOPY, several metres wide, so the full
+    /// half-width faded a tree for any unit walking anywhere near it and half the forest
+    /// blinked as a worker crossed a clearing. Only the trunk and the canopy directly
+    /// over it actually hide anything worth seeing at this camera angle.
+    /// </summary>
+    private const float SilhouetteTightness = 0.42f;
+
+    /// <summary>
+    /// How far behind the tree a unit must be, in view depth, before the tree fades.
+    /// Without it a unit standing level with a trunk flickered the tree on and off as
+    /// the depth compare crossed zero.
+    /// </summary>
+    private const float DepthMargin = 0.6f;
 
     private static OcclusionFadeManager instance;
 
@@ -110,16 +126,16 @@ public class OcclusionFadeManager : MonoBehaviour
                 continue;
             }
 
-            float reach = tree.SilhouetteRadius * pixelsPerUnit + unitPixels;
+            float reach = tree.SilhouetteRadius * SilhouetteTightness * pixelsPerUnit + unitPixels;
             float reachSq = reach * reach;
             // Nearest point of the tree to the camera, so a unit behind ANY part of it counts.
-            float treeDepth = Mathf.Min(baseScreen.z, topScreen.z);
+            float treeDepth = Mathf.Min(baseScreen.z, topScreen.z) + DepthMargin;
 
             bool occluding = false;
             for (int u = 0; u < unitPoints.Count; u++)
             {
                 Vector3 p = unitPoints[u];
-                if (p.z <= treeDepth) continue;  // unit is in front of the tree
+                if (p.z <= treeDepth) continue;  // unit is in front of, or level with, the tree
                 if (SqrDistanceToSegment(p.x, p.y, baseScreen.x, baseScreen.y, topScreen.x, topScreen.y) < reachSq)
                 {
                     occluding = true;

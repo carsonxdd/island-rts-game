@@ -72,7 +72,7 @@ and the debug keys F3 / F4 / F6 / F7.
 | Input | Action |
 |---|---|
 | Name popup | Names your character (Enter or BEGIN confirms; no Esc — the run cannot start unnamed) |
-| Right click | Smart command for your character, for the whole run: on a stick / stone / crate → fetch it; on the campfire → deposit everything and open the panel; anywhere else → walk there |
+| Right click | Smart command for your character, for the whole run: on a stick / stone / crate → fetch it; on a tree, bush, rock or ore boulder → work it by hand; on the campfire → deposit everything and open the panel; on a Workshop → work its queue; anywhere else → walk there |
 | Space | Centre the camera on your character |
 | B | Show the campfire ghost (free, one-time; must be ≤6u from your character, on buildable ground) |
 | Left click | Place the campfire |
@@ -548,3 +548,54 @@ The "Unlocks" block of the previous section is superseded: research opens jobs n
 
 - [ ] F4 "Research Everything" marks every entry Done and un-greys every job, build mode and the warriors row; "+5 Wooden Spears (stockpile)" lets warriors be armed at once
 - [ ] A headless sweep (`tools/run-sim.ps1`) gets past research on its own: `runs.csv` shows workers hired and warriors recruited without any F4 help (the policies research and queue spears; the character fetches sticks and stands at the bench)
+
+### Glow, hand-harvest, HUD breakdowns & sky dial (2026-09-03 — feedback polish pass)
+
+No editor setup step, no scene or prefab edit: just Play.
+
+**Glow**
+
+- [ ] Hovering the campfire, the Workshop or any tree, bush, rock or ore boulder warms the whole object with a soft breathing glow — no flat yellow anywhere
+- [ ] The glow covers every part of a multi-part building, not one panel
+- [ ] A tree that is both hovered and faded (a worker walking behind it) glows AND fades, with neither cancelling the other
+- [ ] Sticks, stone chunks, crates and barrels shimmer faintly on the ground at rest and light up brightly under the cursor
+- [ ] Nothing is left glowing after it is collected, depleted or demolished
+
+**Hand-harvest**
+
+- [ ] Right-clicking a bush walks the character over and fills the hand slots with food, plus a stick every few units
+- [ ] A tree gives wood and sticks; a rock gives stone and chunks; an ore boulder gives metal and chunks
+- [ ] The node shakes on the beat and shrinks as it empties, and disappears when emptied
+- [ ] Right-clicking anything else, moving, or being knocked out stops harvesting cleanly and the activity line clears
+- [ ] "Hands full — deposit at the fire" appears when the six slots fill, and depositing lets harvesting resume
+- [ ] A node the character cannot reach reports "Can't reach that" rather than hanging on "Going to the…"
+
+**Ground pickups**
+
+- [ ] The island and the landing beach have noticeably more sticks and stones than before
+- [ ] Some are visibly larger and give three times as much (check the "+3 Stick" flash)
+- [ ] A tree or rock that workers have been on for a while has one or two fresh sticks or chunks lying around it, and never a pile
+- [ ] Collecting a shed byproduct does not make the spawner trickle in a replacement (the island-wide count settles at its authored total)
+
+**HUD breakdowns**
+
+- [ ] Clicking the Wood chip drops a panel under it listing the stored amount, sticks, wooden spears and the worker count
+- [ ] Food, Stone and Metal do the same; clicking the same chip again closes it; clicking another switches to it
+- [ ] Clicking anywhere in the world closes the panel; clicking inside it does not
+- [ ] "Manage colonists" opens the campfire panel
+- [ ] Housing lists the campfire and each hut with its occupancy, plus a homeless count
+- [ ] The numbers track live as resources come in
+
+**Sky dial and hints**
+
+- [ ] The bar's last slot shows a horizon arc with the sun crossing left to right over the day
+- [ ] At dusk it becomes a moon that crosses the same arc over the night, and the arc tints cool
+- [ ] The old "Day 1 - DAY (Time: 0.30)" line at the top of the screen is gone
+- [ ] The opening instructions sit fully above the inventory strip and are never behind it
+
+**Tree fade**
+
+- [ ] A tree fades only when a unit is genuinely behind its trunk, not when one passes several metres to the side
+- [ ] Walking a worker across a clearing no longer blinks a row of trees
+- [ ] A unit standing level with a trunk does not make it flicker
+- [ ] Trees still come back to full opacity promptly once the unit clears them

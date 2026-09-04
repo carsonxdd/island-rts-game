@@ -615,7 +615,10 @@ public class GameStartController : MonoBehaviour
         hintCanvasObj = new GameObject("IntroHintCanvas");
         Canvas canvas = hintCanvasObj.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 40;
+        // Above the player's inventory strip (PlayerHUD builds its canvas at 45) - the
+        // hint used to sort under it AND sit at the same height, so the opening
+        // instructions were half-hidden behind the hotbar.
+        canvas.sortingOrder = 70;
 
         CanvasScaler scaler = hintCanvasObj.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
@@ -634,7 +637,9 @@ public class GameStartController : MonoBehaviour
         rt.anchorMin = new Vector2(0.5f, 0f);
         rt.anchorMax = new Vector2(0.5f, 0f);
         rt.pivot = new Vector2(0.5f, 0f);
-        rt.anchoredPosition = new Vector2(0f, 40f);
+        // Clear of the inventory strip: that bar is ~100 reference px tall sitting 14 up
+        // from the bottom edge, so the hint starts above it rather than behind it.
+        rt.anchoredPosition = new Vector2(0f, 150f);
         rt.sizeDelta = new Vector2(1400f, 110f);
     }
 
