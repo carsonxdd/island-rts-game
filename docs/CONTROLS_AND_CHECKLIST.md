@@ -644,3 +644,17 @@ big boulders come back quarryable, step 6 rewrites the resource-spawner counts.
 - [ ] The big scattered boulders can be quarried for 70 stone each, and medium rocks for 30; small rocks stay scenery
 - [ ] Stone is common and ore is rare on a fresh island (roughly 70 rock nodes to 9 ore nodes at 150 m)
 - [ ] Working a rock sheds mostly big chunks and the odd small one; working a tree sheds mostly small sticks
+
+### In-game changelog (2026-09-04)
+
+No editor step. Notes live in `Assets/Resources/Changelog.txt`; Unity generates the
+`Resources.meta` and `Changelog.txt.meta` on first focus.
+
+- [ ] The main menu has a CHANGELOG button between OPTIONS and CREDITS, and the version line at the bottom reads "v0.1 · pre-alpha · updated 2026-09-04"
+- [ ] The screen lists every entry newest first, each with a dated gold heading over a divider and bulleted lines beneath
+- [ ] Long bullets wrap with the second line aligned under the first word, not under the bullet glyph
+- [ ] The list scrolls by wheel, by drag and by the scrollbar, and the panel itself never grows past the screen
+- [ ] BACK returns to the main menu; Esc does the same
+- [ ] In a run, the pause menu has CHANGELOG after CONTROLS; it opens the same screen over the frozen game, and BACK returns to the pause menu with the game still paused
+- [ ] Leaving and reopening the screen restores the scroll position
+- [ ] Adding a line to `Changelog.txt` and re-entering Play shows it without a code change; a stray line that is not a heading or bullet is ignored rather than breaking the screen

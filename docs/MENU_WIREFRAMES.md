@@ -47,9 +47,9 @@ menu shows it as a read-only line so a player doesn't go hunting for it.
 canvas as everything above, have no Back, and lead to Restart / Main Menu /
 Quit (plus Keep Playing on victory). See the Victory / Defeat section below.
 
-**Options and Credits are shared** — reachable from the main menu and the pause
-menu, and Back returns to wherever you came from. They must read correctly both
-on a title backdrop and over a frozen game.
+**Options, Credits and Changelog are shared** — reachable from the main menu and
+the pause menu, and Back returns to wherever you came from. They must read
+correctly both on a title backdrop and over a frozen game.
 
 **Esc is contextual.** In game it first cancels whatever is active — a building
 ghost, a wall line, demolish mode, the crafting panel, campfire placement during
@@ -365,6 +365,47 @@ widths below and to the row rhythm; don't design to a fixed panel height.
 Confirm is the only screen with a destructive action, and the only place the
 danger colour appears besides Quit. Cancel should be the visually safer of the
 two without being hard to find.
+
+---
+
+## Changelog — 720 wide, shared
+
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║                              CHANGELOG                               ║
+║                     What changed, newest first.                      ║
+║  ──────────────────────────────────────────────────────────────────  ║
+║ ┌──────────────────────────────────────────────────────────────────┬┐║
+║ │ 2026-09-04 — Changelog                                           ││║
+║ │ ──────────────────────────────────────────────────────────────── ││║
+║ │ •  What's new, in the game itself. Reach it from the main menu   ││║
+║ │    or the pause menu; newest first.                              ││║
+║ │                                                                  ││║
+║ │ 2026-09-03 — Byproducts get collected, campfire clicks split     ││║
+║ │ ──────────────────────────────────────────────────────────────── ││║
+║ │ •  Idle colonists now fetch the sticks and chunks that workers   ││║
+║ │    shed at forests and quarries, island-wide by day and close    ││║
+║ │    to home after dusk.                                           ││║
+║ │ •  Working a rock or tree with full hands leaves the extra …     ││║
+║ │                                     ⋮        (480 tall, scrolls) ││║
+║ └──────────────────────────────────────────────────────────────────┴┘║
+║   ┌──────────────────────────────────────────────────────────────┐   ║
+║   │                            BACK                              │   ║
+║   └──────────────────────────────────────────────────────────────┘   ║
+╚══════════════════════════════════════════════════════════════════════╝
+```
+
+Content comes from `Assets/Resources/Changelog.txt` (`## date — title` headings,
+`- ` bullets, newest first) parsed by `Changelog.cs`; the screen never contains
+text of its own. Entry headings are accent-coloured body text over a divider;
+bullets are one size up from Small with a hanging indent (`<indent>` rich text),
+so a wrapped line lines up under the first word, not under the glyph. The date
+of the newest entry is also appended to the main menu's version line
+("v0.1 · pre-alpha · updated 2026-09-04").
+
+Reached from **CHANGELOG** on the main menu (between Options and Credits) and on
+the pause menu (after Controls). Scroll position is remembered per screen like
+Options and Controls.
 
 ---
 

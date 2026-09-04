@@ -9,13 +9,14 @@ using UnityEngine.UI;
 /// time, a back-stack so Esc/Back always unwinds correctly.
 ///
 /// Screens: Main (title), NewGame (difficulty), Pause, Options (4 tabs),
-/// Controls (rebinding), Credits, Confirm. The layouts these produce are
+/// Controls (rebinding), Credits, Changelog (patch notes from
+/// Resources/Changelog.txt), Confirm. The layouts these produce are
 /// documented in docs/MENU_WIREFRAMES.md — keep the two in sync, that file is
 /// what the artist works from.
 /// </summary>
 public class MenuScreens : MonoBehaviour
 {
-    public enum Screen { None, Main, NewGame, Pause, Options, Controls, Credits, Confirm, GameOver, NameEntry }
+    public enum Screen { None, Main, NewGame, Pause, Options, Controls, Credits, Confirm, GameOver, NameEntry, Changelog }
 
     private static MenuScreens instance;
     public static MenuScreens Instance => instance;
@@ -209,6 +210,7 @@ public class MenuScreens : MonoBehaviour
             case Screen.Confirm: BuildConfirm(); break;
             case Screen.GameOver: BuildGameOver(); break;
             case Screen.NameEntry: BuildNameEntry(); break;
+            case Screen.Changelog: BuildChangelog(); break;
         }
 
         // The height passed to Panel() is only a starting value — the panel is
@@ -262,12 +264,17 @@ public class MenuScreens : MonoBehaviour
         // No save system yet — shown disabled so the artist knows the slot exists.
         MenuBuilder.MenuButton(col.transform, "CONTINUE", null, enabled: false);
         MenuBuilder.MenuButton(col.transform, "OPTIONS", () => Show(Screen.Options));
+        MenuBuilder.MenuButton(col.transform, "CHANGELOG", () => Show(Screen.Changelog));
         MenuBuilder.MenuButton(col.transform, "CREDITS", () => Show(Screen.Credits));
         MenuBuilder.MenuButton(col.transform, "QUIT", () =>
             AskConfirm("Quit to desktop?", MenuFlow.QuitGame), textColor: MenuStyle.TextDanger);
 
         MenuBuilder.Spacer(col.transform, 8f);
-        MenuBuilder.Label(col.transform, "v0.1 · pre-alpha", MenuStyle.SmallSize, MenuStyle.TextMuted)
+        // The date of the newest changelog entry doubles as the build date, so
+        // the version line is never stale and never has to be edited by hand.
+        string latest = Changelog.LatestDate;
+        string version = latest != null ? "v0.1 · pre-alpha · updated " + latest : "v0.1 · pre-alpha";
+        MenuBuilder.Label(col.transform, version, MenuStyle.SmallSize, MenuStyle.TextMuted)
             .gameObject.AddComponent<LayoutElement>().preferredHeight = 20f;
     }
 
@@ -400,6 +407,7 @@ public class MenuScreens : MonoBehaviour
         MenuBuilder.MenuButton(col.transform, "RESUME", Close);
         MenuBuilder.MenuButton(col.transform, "OPTIONS", () => Show(Screen.Options));
         MenuBuilder.MenuButton(col.transform, "CONTROLS", () => Show(Screen.Controls));
+        MenuBuilder.MenuButton(col.transform, "CHANGELOG", () => Show(Screen.Changelog));
         MenuBuilder.MenuButton(col.transform, "RESTART", () =>
             AskConfirm("Restart? Current progress is lost.", MenuFlow.Restart));
         MenuBuilder.MenuButton(col.transform, "MAIN MENU", () =>
@@ -668,6 +676,64 @@ public class MenuScreens : MonoBehaviour
             MenuStyle.BodySize, MenuStyle.TextPrimary).gameObject
             .AddComponent<LayoutElement>().preferredHeight = 260f;
 
+        MenuBuilder.MenuButton(col.transform, "BACK", () => Back());
+    }
+
+    /// <summary>
+    /// Patch notes, newest first, from Resources/Changelog.txt (see
+    /// <see cref="Changelog"/> for the format). Shared by the main menu and the
+    /// pause menu like Credits, so it must read correctly over a frozen game too.
+    ///
+    /// Bullets are ordinary wrapping labels with no fixed height: inside a
+    /// ScrollColumn the ContentSizeFitter re-measures every layout pass, so TMP's
+    /// wrapped height is picked up without the one-line rule the Options
+    /// descriptions need (those are sized on the same frame the panel is).
+    /// </summary>
+    private void BuildChangelog()
+    {
+        panel = MenuBuilder.Panel(canvas.transform, "Changelog", MenuStyle.OptionsWidth, 720f);
+        VerticalLayoutGroup col = activeColumn = MenuBuilder.Column(panel, 6f);
+
+        MenuBuilder.Label(col.transform, "CHANGELOG", MenuStyle.HeadingSize, MenuStyle.TextAccent)
+            .gameObject.AddComponent<LayoutElement>().preferredHeight = 38f;
+        MenuBuilder.Label(col.transform, "What changed, newest first.", MenuStyle.SmallSize, MenuStyle.TextMuted)
+            .gameObject.AddComponent<LayoutElement>().preferredHeight = 22f;
+        MenuBuilder.Divider(col.transform);
+
+        VerticalLayoutGroup body = MenuBuilder.ScrollColumn(col.transform, 4f, 480f);
+        activeScroll = body.GetComponentInParent<ScrollRect>();
+        Transform t = body.transform;
+
+        IReadOnlyList<Changelog.Entry> entries = Changelog.Entries;
+        if (entries.Count == 0)
+        {
+            MenuBuilder.Label(t, "No notes yet.", MenuStyle.BodySize, MenuStyle.TextMuted)
+                .gameObject.AddComponent<LayoutElement>().preferredHeight = 40f;
+        }
+
+        for (int i = 0; i < entries.Count; i++)
+        {
+            Changelog.Entry e = entries[i];
+
+            MenuBuilder.Spacer(t, i == 0 ? 4f : 14f);
+            TextMeshProUGUI heading = MenuBuilder.Label(t, e.heading, MenuStyle.BodySize,
+                MenuStyle.TextAccent, TextAlignmentOptions.MidlineLeft);
+            heading.gameObject.name = "EntryHeading";
+            MenuBuilder.Divider(t);
+            MenuBuilder.Spacer(t, 2f);
+
+            for (int b = 0; b < e.bullets.Count; b++)
+            {
+                // <indent> holds every wrapped line at the bullet text's left
+                // edge — a hanging indent — while the glyph sits in the gutter.
+                TextMeshProUGUI line = MenuBuilder.Label(t, "•  <indent=1.2em>" + e.bullets[b] + "</indent>",
+                    MenuStyle.SmallSize + 1f, MenuStyle.TextPrimary, TextAlignmentOptions.TopLeft);
+                line.gameObject.name = "Bullet";
+                line.margin = new Vector4(6f, 0f, 0f, 0f);
+            }
+        }
+
+        MenuBuilder.Spacer(col.transform, 6f);
         MenuBuilder.MenuButton(col.transform, "BACK", () => Back());
     }
 

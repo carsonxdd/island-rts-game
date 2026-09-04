@@ -1,0 +1,163 @@
+# Castaway Colony — player-facing changelog.
+# Shown on the CHANGELOG screen (main menu and pause menu). Newest entry first.
+#
+#   ## yyyy-mm-dd — Title
+#   - one bullet per change, written for a player, not a programmer
+#   - a bullet may continue on an indented line
+#
+# Lines starting with a single # are comments. Anything else that is not a
+# heading, a bullet or an indented continuation is ignored.
+
+## 2026-09-04 — Changelog
+- What's new, in the game itself. Reach it from the main menu or the pause menu; newest first.
+
+## 2026-09-03 — Byproducts get collected, campfire clicks split
+- Idle colonists now fetch the sticks and chunks that workers shed at forests and quarries, island-wide by day and close to home after dusk.
+- Working a rock or tree with full hands leaves the extra chunks and sticks on the ground instead of losing them (at most two per node).
+- Right-click on the fire deposits and starts the queue; left-click opens the campfire panel. Depositing no longer pops the panel open.
+
+## 2026-09-03 — Research hands you its tool; stockpile caps; stone and metal
+- Finishing a research puts its tool straight in your hands: Woodcutting gives the Stone Axe, Quarrying the Stone Pick, Construction the Mallet, Foraging the Fishing Spear, Mining the Metal Pick. The separate tool recipes are gone.
+- The campfire stockpile holds 60 items. Storage Pits raises it to 100 and Racks and Baskets at the Workshop to 180. The Stockpile tab shows held / cap and turns red when full.
+- Colonists hauling sticks and chunks home now add them to the stockpile as well as the pool, so research and spears can be paid for by the colony, not only by your own hands.
+- Rock nodes hold 40 stone and ore nodes 25 metal. The big scattered boulders can be quarried for 70 stone, medium rocks for 30.
+- Right-clicking the ground a step from the fire deposits; your character stops close and the deposit lands at once.
+
+## 2026-09-03 — Glow, hand-harvest, HUD breakdowns and a sky dial
+- Hovering the campfire, the Workshop or any tree, bush or rock warms it with a soft golden glow instead of a flat yellow tint. Sticks, chunks and crates light up under the cursor.
+- Your character can work nodes by hand: right-click a bush for food, a tree for wood once you have the axe, a rock for stone once you have the pick. Working a node also yields sticks and chunks.
+- Workers shed the odd stick or chunk around the nodes they work, and the shore has more loose pickups, including big ones worth three.
+- Click a resource on the HUD to see where it comes from and who is gathering it. Housing lists every building and who sleeps there.
+- A sun and moon dial replaced the debug clock: the sun crosses the sky by day, the moon by night, so you can see how long until the raiders land.
+- Trees only fade when a unit is genuinely behind the trunk, not anywhere under the canopy.
+- Scrolling the wheel over a list scrolls the list instead of zooming the camera, and every list has a scrollbar.
+- Idle colonists tidy the clearing around the fire, carrying loose pickups home.
+
+## 2026-09-03 — Research and crafting split; benches; spears
+- Research teaches, crafting supplies. The campfire panel has Colonists, Stockpile, Craft, Research and Queue tabs; the Workshop opens the same panel with its own Craft, Research and Queue.
+- A bench only works while someone stands at it. Right-click the fire or the Workshop to put your character to work on the queue.
+- Wooden Spears are a repeatable craft, and a warrior now costs a spear, 15 food and an idle colonist. Dismissing a warrior returns the spear.
+- Costs are paid when an item finishes. A queue short of materials waits rather than failing.
+- The Workshop unlocks with the Crafting research. Sharpened Tools, Sturdy Scaffolds and the storage upgrades are Workshop research.
+
+## 2026-09-02 — A thirty-day calendar and announced raids
+- The run is thirty days to rescue instead of a wave every night. Raiders can land from day 3; the odds climb with every quiet night and a raid is certain after five.
+- The roll happens at dawn and is announced for the whole day on the calendar chip and a banner, so you know when to arm up.
+- Raid size scales with the day and with how prosperous the colony looks: people, warriors, buildings and stock on hand.
+- Days last 100 seconds and nights 50. Peaceful and Relaxed are 20 days; Hard and Brutal raid more often instead of lasting longer.
+- Victory is the dawn after the final day. The end screens show days survived.
+
+## 2026-09-02 — Your castaway, hands and the campfire stockpile
+- Name your castaway at the start of a run. They are your character for the whole run and no longer turn into the first colonist when the fire is lit.
+- Right-click to fetch sticks, stone chunks and salvage into a six-slot inventory on a strip at the bottom of the screen, and deposit at the fire.
+- Materials go into the campfire stockpile and resources into the pool. Crafting at the campfire is what unlocks the colony's jobs, construction and militia.
+- Your character can be knocked out but not killed, and recovers at the fire. Space centres the camera on them.
+- Locked buttons say what to craft to unlock them.
+
+## 2026-09-02 — Colonists arrive by housing; builders
+- Survivors come ashore at the cove on their own while there is room to sleep, and walk to their home. Colonists are free; housing is the only limit.
+- The campfire panel assigns jobs to idle colonists instead of spawning workers. Colonists without a job build and repair.
+- Construction needs a builder: one finishes a site in about ten seconds, up to three work together, and an untouched site reads "Awaiting builder".
+- Warriors are armed from the idle pool and sleep in the huts. Dismissing a warrior returns them to the pool.
+- Repairs cost a quarter of the build price for a full repair, paid as the health ticks up.
+
+## 2026-09-02 — Salvage: crates and barrels
+- The shipwreck's cargo and the crates and barrels along the shore can be hauled home. A crate is 6 food, a barrel 5 wood.
+- Salvage is finite: sticks and stones keep washing up, crates do not.
+
+## 2026-09-02 — Trees fade, palms can be chopped, plain ore
+- Trees between the camera and a unit fade to about 30%, so nobody vanishes behind a canopy.
+- Every scattered palm can be chopped and shrinks as it depletes.
+- Ore nodes are plain boulders; stone nodes keep their crystals, so the two read apart at a glance.
+
+## 2026-09-01 — World options, metal, a new HUD and real water
+- New Game asks for island size (Small, Medium, Large), terrain style (Rolling, Terraced, Rugged) and a seed.
+- Metal is a fourth resource, mined from ore boulders by miners.
+- The resource bar and the campfire panel were rebuilt. The panel can be dragged by its title.
+- Nodes sit where they belong: forests in dark lowland, bushes on meadows, stone on high ground, ore on plateaus and at cliff feet. There are fewer of them, spread with purpose.
+- Stylized water: depth-tinted shallows, shoreline foam, a gentle swell and sparkle, no more grey mirror.
+- Terrain colours flow with the land: dark grass in valleys, dry grass on plateau tops, wet sand at the shore.
+
+## 2026-09-01 — Random islands with terraces, cliffs and ponds
+- Every new game is a different island: terraced plateaus, cliffs climbable only by ramps, ponds, rocky and sandy shores. Restart keeps the same island.
+- Every island is checked so the whole landmass is reachable from the campfire, with ramps carved where a plateau would otherwise be cut off.
+- Trees, ferns, grass, rocks and flotsam are scattered by terrain rules at the start of each run.
+
+## 2026-08-31 — Settings with depth, key rebinding and difficulty
+- Options grew to four tabs. Audio: mute when unfocused. Video: display mode, resolution, frame cap. Camera: zoom and rotation speed, invert tilt, screen shake amount. Interface: UI scale, health-bar mode, unit labels, pause when unfocused.
+- Every gameplay key can be rebound, with two slots per action. Escape and the mouse buttons stay fixed.
+- Difficulty is chosen on the New Game screen and locked for the run: Peaceful, Relaxed, Normal, Hard, Brutal or Custom.
+- Victory and defeat use the menu system, show the run's stats and can return to the main menu.
+- Trees shake in time with the chopping sound.
+
+## 2026-08-28 — Main menu, pause menu and a balance pass
+- A main menu (New Game, Options, Credits, Quit) and a pause menu on Esc.
+- Esc first cancels whatever is active, such as a building ghost, a wall line or an open panel, and only pauses when nothing is.
+- Balance retuned from hundreds of simulated runs.
+
+## 2026-08-27 — Movement and placement feel
+- Units accelerate three times faster. Warrior and enemy speeds were swapped and are fixed: warriors had been the slowest thing on the field.
+- Placement ghosts sit exactly under the cursor instead of a building-height off.
+
+## 2026-08-26 — Camera and pathing
+- Middle-mouse drag tilts the camera (30 to 60 degrees) and rotates it around the point you are looking at.
+- Units are no longer sliced open at the bottom of the screen when zoomed out.
+- The grid overlay is F2 (G clashed with gate conversion), drapes on the terrain, shows only buildable cells, and appears automatically in build mode.
+- The AI keeps up with bigger colonies. Decisions no longer slow down past about ninety units.
+
+## 2026-08-26 — A bigger island, ground pickups and the Workshop
+- The island is 150 metres across, up from 100. Trees are taller, in five shapes and shades.
+- Units path around trees and rocks instead of rubbing along them, and enemies no longer freeze behind trunks.
+- Buildings flatten a pad and sit flush on slopes; the ghost previews at the exact placed height. Red no-build lines hug the hills.
+- Workers shelter in the nearest hut when enemies are near and come out when it is safe.
+- Sticks and stone chunks lie around the island, and wood and stone workers pick them up on the way.
+- The Workshop (build key 5) with three one-time upgrades: Sharpened Tools, Sturdy Scaffolds, Forged Blades.
+
+## 2026-08-25 — The opening, a shaped island and a debug menu
+- The game opens with a lone survivor in the shallows beside the wreck. Right-click them ashore and press B to place the campfire.
+- The world is a shaped island with beaches, a rolling interior and rock facets, surrounded by ocean. Units can wade but not swim.
+- Camera smoothing: eased pan, zoom and rotation, with pan speed scaling with zoom.
+- The day and night clock had been ignoring its configured lengths; fixed, with a gentler dawn.
+- F4 opens a debug menu in the editor and development builds.
+
+## 2026-08-24 — Low-poly art, moonlight and tighter crowds
+- Every unit, building and resource is low-poly art instead of primitive shapes.
+- Nights are moonlit blue with soft shadows instead of black.
+- Workers stand next to what they gather, pack tighter around nodes, give way to each other and spring back to their spot when bumped.
+- Workers walk right up to the campfire to deliver.
+
+## 2026-08-22 — Engine upgrade
+- Upgraded to Unity 6000.5, with large internal refactors behind the scenes.
+
+## 2026-07-03 — Code health pass
+- Dead workers free their housing, and so do demolished huts. Warriors no longer get stuck healing at the fire. Many performance fixes.
+
+## 2026-05-01 — Post-processing and lighting
+- Bloom, colour grading, tonemapping and vignette. A warm gold sun with separate day and night lighting. The campfire glows.
+
+## 2026-04-30 — Enemy targeting rewrite
+- Enemies chew through huts on the way to the campfire instead of jogging past, retarget the moment a target dies, and no longer freeze at building edges.
+
+## 2026-03-26 — Gates, demolish, screen shake and healing
+- G converts a wall to a gate reliably. Delete or X demolishes for a 50% refund. Combat shakes the screen. Warriors heal at the campfire between fights.
+
+## 2026-03-24 — Workers flee
+- Workers run from enemies, day or night.
+
+## 2026-03-03 — Smarter units
+- Every unit decides what to do by weighing its options rather than following a fixed script: workers, warriors and enemies alike.
+
+## 2026-02-04 — Stutter-free
+- The periodic stutter is gone: no per-frame garbage, staggered AI, preloaded audio.
+
+## 2026-01-29 — Walls, gates and watchtowers
+- Wall lines drawn click to click, L-shaped or a staircase with Shift, with wall pieces that connect to their neighbours. Gates, watchtowers and housing.
+
+## 2025-12-10 — Audio
+- 3D spatial audio: music, gathering, combat and ambience, crossfading between day and night.
+
+## 2025-11-24 — Combat alpha
+- Warriors, enemy waves at night, combat effects, victory and defeat.
+
+## 2025-11-16 — First alpha
+- An island, a campfire, workers gathering wood, food and stone, huts, and a day and night cycle.
