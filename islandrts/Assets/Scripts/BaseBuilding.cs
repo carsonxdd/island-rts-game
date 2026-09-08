@@ -106,19 +106,24 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
     public int stoneWorkers => CountJob(ResourceNode.ResourceType.Stone);
     public int metalWorkers => CountJob(ResourceNode.ResourceType.Metal);
 
-    /// <summary>Colonists on the Crafter job (2026-09-04): they work benches, not nodes.</summary>
-    public int crafterWorkers
+    /// <summary>Colonists pinned to crafting (2026-09-04; a specialty since 2026-09-07): they work benches only.</summary>
+    public int crafterWorkers => CountSpecialty(Worker.Specialty.Crafter);
+    /// <summary>Colonists pinned to building sites only (2026-09-07).</summary>
+    public int builderWorkers => CountSpecialty(Worker.Specialty.Builder);
+    /// <summary>Colonists pinned to repairs only (2026-09-07).</summary>
+    public int repairerWorkers => CountSpecialty(Worker.Specialty.Repairer);
+
+    /// <summary>Jobless colonists pinned to one trade. Utility colonists (Specialty.Any) are the idle pool, not counted here.</summary>
+    public int CountSpecialty(Worker.Specialty s)
     {
-        get
+        if (s == Worker.Specialty.Any) return 0;
+        int n = 0;
+        for (int i = 0; i < activeWorkers.Count; i++)
         {
-            int n = 0;
-            for (int i = 0; i < activeWorkers.Count; i++)
-            {
-                Worker w = activeWorkers[i];
-                if (w != null && w.hasJob && w.isCrafter) n++;
-            }
-            return n;
+            Worker w = activeWorkers[i];
+            if (w != null && !w.hasJob && !w.leaving && w.specialty == s) n++;
         }
+        return n;
     }
 
     int CountJob(ResourceNode.ResourceType type)
@@ -127,7 +132,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         for (int i = 0; i < activeWorkers.Count; i++)
         {
             Worker w = activeWorkers[i];
-            if (w != null && w.hasJob && !w.isCrafter && w.assignedResourceType == type) n++;
+            if (w != null && w.hasJob && w.assignedResourceType == type) n++;
         }
         return n;
     }
@@ -266,7 +271,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         for (int i = 0; i < activeWorkers.Count; i++)
         {
             Worker worker = activeWorkers[i];
-            if (worker != null && worker.hasJob && !worker.isCrafter && worker.assignedResourceType == resourceType)
+            if (worker != null && worker.hasJob && worker.assignedResourceType == resourceType)
             {
                 worker.ClearJob();
                 return true;
@@ -276,28 +281,38 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
     }
 
     /// <summary>
-    /// Give the idle colonist nearest the fire the Crafter job (2026-09-04): they
-    /// work whichever bench has a queue. Needs the Crafting research, like the
-    /// Workshop itself. False when nobody is idle.
+    /// The research a specialty needs (2026-09-07): building and repairing are
+    /// Construction knowledge, bench work is Crafting. The same gates the AI scans
+    /// read, so a specialist can never be pinned to a trade nobody knows yet.
     /// </summary>
-    public bool AssignCrafter()
+    public static Unlocks.Kind UnlockFor(Worker.Specialty s) =>
+        s == Worker.Specialty.Crafter ? Unlocks.Kind.Crafting : Unlocks.Kind.Construction;
+
+    /// <summary>
+    /// Pin the idle colonist nearest the fire to one trade (2026-09-07; the Crafter
+    /// job of 2026-09-04 became one of these). They leave the idle pool and do
+    /// nothing but that trade. False when nobody is idle or the trade is unresearched.
+    /// </summary>
+    public bool AssignSpecialist(Worker.Specialty s)
     {
-        if (!Unlocks.Has(Unlocks.Kind.Crafting)) return false;
+        if (s == Worker.Specialty.Any) return false;
+        if (!Unlocks.Has(UnlockFor(s))) return false;
         if (PopulationManager.Instance == null) return false;
         Worker idle = PopulationManager.Instance.FindIdleColonist(transform.position);
         if (idle == null) return false;
 
-        idle.SetCrafter();
+        idle.SetSpecialty(s);
+        DevQuests.Signal("specialist:" + s.ToString().ToLowerInvariant());
         return true;
     }
 
-    /// <summary>Send one crafter back to the idle pool.</summary>
-    public bool UnassignCrafter()
+    /// <summary>Send one specialist of this trade back to the idle pool.</summary>
+    public bool UnassignSpecialist(Worker.Specialty s)
     {
         for (int i = 0; i < activeWorkers.Count; i++)
         {
             Worker worker = activeWorkers[i];
-            if (worker != null && worker.hasJob && worker.isCrafter)
+            if (worker != null && !worker.hasJob && worker.specialty == s)
             {
                 worker.ClearJob();
                 return true;
@@ -428,10 +443,10 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         return fallback;
     }
 
-    /// <summary>Everyone with a job: the four gathering jobs plus crafters.</summary>
+    /// <summary>Everyone assigned: the four gathering jobs plus the three specialties. Utility colonists are the idle count.</summary>
     public int GetTotalWorkers()
     {
-        return woodWorkers + foodWorkers + stoneWorkers + metalWorkers + crafterWorkers;
+        return woodWorkers + foodWorkers + stoneWorkers + metalWorkers + builderWorkers + crafterWorkers + repairerWorkers;
     }
 
     // ------------------------------------------------------------------
@@ -541,6 +556,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
 
         warrior.baseBuilding = this;
         warrior.weapon = weapon;   // before Start, which copies its stats into the unit
+        DevQuests.Signal(archer ? "archer" : "warrior");
         activeWarriors.Add(warrior);
         currentWarriors++;
 

@@ -158,6 +158,7 @@ public class GameManager : MonoBehaviour
 
         isGameOver = true;
         isVictory = false;
+        DevQuests.Signal("defeat");
 
         // Play defeat sound
         if (AudioManager.Instance != null)
@@ -184,6 +185,7 @@ public class GameManager : MonoBehaviour
 
         isGameOver = true;
         isVictory = true;
+        DevQuests.Signal(isEscape ? "escape" : "victory");
 
         // Play victory sound
         if (AudioManager.Instance != null)

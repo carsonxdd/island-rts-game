@@ -144,7 +144,7 @@ public abstract class SimPolicy
         if (fire.crafterWorkers > 0) return false;
         PopulationManager pm = PopulationManager.Instance;
         if (pm == null || pm.GetIdleCount() < 2) return false;   // keep a builder
-        return fire.AssignCrafter();
+        return fire.AssignSpecialist(Worker.Specialty.Crafter);
     }
 
     /// <summary>Assigns one worker to whichever type the ratio is shortest on, among the jobs the colony knows.</summary>

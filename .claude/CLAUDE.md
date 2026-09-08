@@ -6,6 +6,7 @@
 - Utility AI considerations are **multiplicative** (any 0.3 kills the action); momentum is **additive** after. With the 20% switch threshold, small momentum can make an action impossible to exit, and `yShift > 0` prevents early-out so momentum keeps dead actions alive. Test exit conditions and the full transition table.
 - **Session log goes in `docs/PHASE_HISTORY.md`, not here.** Rules it produces go in the matching gotcha section below, one dated rule-shaped bullet. Keep this file under ~280 lines.
 - **Anything a player can see gets an `Assets/Resources/Changelog.txt` entry** (`## yyyy-mm-dd — Title` + `- bullet`, newest first, player-facing). Its newest date is the main menu's "updated" line.
+- **Every feature also gets a batch in `Assets/Resources/DevQuests.txt`** (2026-09-07): `## yyyy-mm-dd Feature` + `- @signal Quest` / `- Quest`, ≤ 70 chars each, newest first; add a `DevQuests.Signal("key")` at the point of effect where no signal fits. That is the playtest checklist now (tracker + Esc → Information → DEV → SUBMIT REPORT → `Playtests/*.md` comes back). Delete a batch once its report is in. `docs/CONTROLS_AND_CHECKLIST.md` keeps controls only.
 
 ## Tech Stack
 
@@ -41,7 +42,7 @@ No state machines. Per unit: `AIBrain` holds `ActionOption[]`, each with `Consid
 
 Every 0.25–0.35s (randomized per unit) the brain scores `basePriority × Π(considerations) + momentum (if current)`. Early-out at 0.001; best must beat current by 20% to switch. Per-frame budget `Clamp(activeBrains × dt / MinEvalInterval, 5, 64)`; throttled evals are deferred, never dropped, and `ForceReeval()` is budgeted, not a bypass.
 
-**Worker:** Gather, Return, Pickup, Forage (jobless), Build (jobless), Repair (jobless), Idle, Flee (garrison in nearest hut). **Warrior:** Engage, Intercept, DefendWall, Patrol, Retreat, Heal. **Enemy:** one `EnemyAttack` action with an imperative priority target function (gate override → warrior in range → campfire-proximity commit → reachable hut/tower/workshop → wall/gate at 0.3× → campfire).
+**Worker:** Gather, Return, Pickup, then the jobless ladder Build 1.0 > Craft 0.95 > Repair 0.9 > Forage 0.85 (each gated by `IsJobless` + `SpecialtyAllows`), Idle, Flee (garrison in nearest hut), Leave. **Warrior:** Engage, Intercept, DefendWall, Patrol, Retreat, Heal. **Enemy:** one `EnemyAttack` action with an imperative priority target function (gate override → warrior in range → campfire-proximity commit → reachable hut/tower/workshop → wall/gate at 0.3× → campfire).
 
 ### Patterns
 
@@ -115,6 +116,7 @@ Every 0.25–0.35s (randomized per unit) the brain scores `basePriority × Π(co
 - HUD chip breakdown rows come from `ItemCatalog` (`hudListed` + `hudCategory`), so a new item appears under its category with no UI change. The panel is parented to the ENTRY so it follows its chip. Activity strings are composed only on change; slots repaint only on `Inventory.OnChanged`.
 - Bottom-of-screen overlays must clear `PlayerHUD` (sort 45, strip height): `IntroHintCanvas` is sort 70 at y 150. The raid banner sits BELOW the resource bar (~900px wide from the left).
 - **Right-click never opens a panel.** Right-click on the fire deposits and works the queue; left-click on its collider opens the panel via `BaseBuilding.OnMouseDown` (left button only). Keep the gestures apart.
+- **Text-asset screens (Changelog, Information) never type a catalog number (2026-09-07).** Prose in `Resources/*.txt`; `@name` lines in `Information.txt` ask `MenuScreens.RenderInfoTable` for a live table (`BuildingDatabase.Instance` is null on the main menu — say so, don't crash). A screen with sub-tabs must bank the old tab's scroll itself and null `activeScroll` before `Rebuild()`, which banks under the SCREEN key. Six `TabRow` captions across `OptionsWidth` wrap at `ButtonSize` — drop them to `SmallSize + 2`, `NoWrap`.
 
 ---
 
@@ -159,7 +161,7 @@ Every 0.25–0.35s (randomized per unit) the brain scores `basePriority × Π(co
 - `ItemKind` says which layer an item lives in: resources exist only in hand (deposit → pool), materials go to the campfire `Stockpile`, tools stay in the player's hands, equipment is consumed per warrior. `ItemCatalog.Stockpiled` = materials only. One colony store: the Workshop resolves to `BaseBuilding.FindAlive().Stockpile`.
 - Stockpile capacity is a delegate (`Inventory.totalCapacity`): base 60 + `CraftedUpgrades.StockpileRoom`; `Add` / `SpaceFor` clamp, overflow is lost.
 - **A queue nobody stands at does not move** (`CraftStation.AddLabor`; `IsWorked` = labor in the last 0.5s; one laborer holds the bench). The player's `TaskKind.Work` walks to the approach point; any other command leaves via `StopWork`. **Costs are paid on completion; a short entry WAITS at 100%** ("Waiting for 2 Stick"), never fails. Research is de-duplicated across stations.
-- **A crafter is `Worker.hasJob && isCrafter`, not a Job enum (2026-09-04).** The two node scans gate on `bb.isCrafter` first; `CountJob` skips crafters, `GetTotalWorkers` adds `crafterWorkers`. The bench has two "mine"s: `CraftStation.Claim/Release` is who WALKS there (two crafters spread over two benches), `AddLabor`'s laborer is who WORKS it — the player never claims and always preempts (`AddLabor` refuses a busy bench to everyone but a `PlayerCharacter`; the crafter waits beside it). Workshop speeds `{2, 2, 1, 1}`: making is fast, research is 1× everywhere.
+- **Jobless = utility labor; a specialist is jobless but NOT idle (2026-09-07).** `Worker.specialty` (`Any` / `Builder` / `Crafter` / `Repairer`) replaces the Crafter job; `Worker.IsIdle` (`!hasJob && Any && !leaving`) is the ONLY idle test (idle count, `FindIdleColonist`, recruits). `SpecialtyAllows(trade)` is a zero-cost gate beside `IsJobless` on Build / Craft / Repair, `SpecialtyAllows(Any)` on Forage (specialists never tidy); the research gates stay inside the scans and `BaseBuilding.UnlockFor` mirrors them for `AssignSpecialist`. The order is `LaborPriorities` (colony-wide 1.0 / 0.95 / 0.9 / 0.85 statics, four sliders on the Colonists tab, read live by the `LaborPriority` consideration; base priorities are 1.0 and a weight of 0 is the off switch) and it only breaks distance ties (every scan floors at 0.15). Left-click on a jobless colonist opens the panel there. The bench has two "mine"s: `CraftStation.Claim/Release` is who WALKS there (any jobless colonist; two spread over two benches), `AddLabor`'s laborer is who WORKS it — the player never claims and always preempts (`AddLabor` refuses a busy bench to everyone but a `PlayerCharacter`; the colonist waits beside it). Workshop speeds `{2, 2, 1, 1}`: making is fast, research is 1× everywhere.
 - Stations and `RaidDirector` are **runtime-added in `Awake`**, so their `public` fields are the LIVE values — never add them to a scene or prefab by hand (the inspector copy would silently win).
 - **Every gate is one `Unlocks.Has(...)` at the site that already decides the action** (`AssignWorker`, `CanRecruitWarrior`, `StartPlacement`, `SelectBuilding` for the Workshop, first line of `ConstructionAvailable` / `RepairAvailable`). Locked UI names its research via `Unlocks.ResearchTitleFor` → `ResearchCatalog.TitleGranting`. `Unlocks.Has` is NOT true under the sim — policies research like a player.
 - **A research hands over its tool** (`ResearchDef.tool`, delivered by `CraftStation.TryComplete` to whoever stood at the bench); there are no tool recipes. A new tool = a `tool =` line on a research entry.
@@ -235,7 +237,8 @@ Console kept quiet on purpose (212 → 65 calls). **Before adding any `Debug.Log
 | G / R / Shift | Wall → gate · L-path toggle or rotate · Bresenham staircase |
 | Delete / X | Demolish (50% refund) |
 | F2 / F3 / F4 / F6 | Grid overlay · AI overlay · Debug menu (cheats) · Perf logger |
-| Left-click campfire / Workshop | Panel: Colonists · Stockpile · Craft · Research · Queue |
+| Left-click campfire / Workshop | Panel: Colonists (jobs, Specialists, warriors) · Stockpile · Craft · Research · Queue |
+| Esc → INFORMATION | Field guide from `Resources/Information.txt` + live catalog tables (also on the main menu) |
 | Right-click | Character smart command: fetch · hand-harvest · deposit + work the queue · work a bench · walk |
 | Space | Centre camera on the character |
 
@@ -243,15 +246,15 @@ All rebindable in *Options → Controls*. Esc, mouse buttons and F3/F4/F6/F7 are
 
 ---
 
-## Current State (2026-09-04)
+## Current State (2026-09-07)
 
-Branch `feature/balance-sim-and-menus`. Slices 3–6 of `RESEARCH_AND_DAYS_PLAN.md` are being delivered one commit each (2026-09-04).
+Branch `feature/balance-sim-and-menus`. Slices 3–6 of `RESEARCH_AND_DAYS_PLAN.md` landed one commit each (2026-09-04); the utility-colonist fold and the Information screen are uncommitted (2026-09-07).
 
-**Shipped:** four-resource economy with a colonist pool (arrivals by housing, jobs from the idle pool, jobless colonists forage/build/repair); player character with hand-harvest and campfire deposit; research → craft split with stations (campfire + Workshop), a Crafter job, spears as per-warrior equipment with a recruit picker and the Iron Spear; 30-day calendar with dawn-rolled, prosperity-scaled raids; walls/gates/towers/demolish; Utility AI for every unit; random islands (size/style/seed) with terraces, cliffs, ponds, stylized water, runtime scatter; tree occlusion fade; code-built menus, end screens and an in-game changelog; F4 debug menu; headless balance sim.
+**Shipped:** four-resource economy with a colonist pool (arrivals by housing, jobs from the idle pool, jobless colonists build/craft/repair/forage with Builder/Crafter/Repairer specialists); player character with hand-harvest and campfire deposit; research → craft split with stations (campfire + Workshop), spears as per-warrior equipment with a recruit picker and the Iron Spear; 30-day calendar with dawn-rolled, prosperity-scaled raids; walls/gates/towers/demolish; Utility AI for every unit; random islands (size/style/seed) with terraces, cliffs, ponds, stylized water, runtime scatter; tree occlusion fade; code-built menus, end screens, an in-game changelog and an Information field guide (story tab empty); F4 debug menu; headless balance sim.
 
-**Pending playtest:** Slice 2 research/stations, the 09-03 polish and byproduct passes, the changelog screen, Slices 3–6 (run Setup Everything first: the archer body, the Shipyard prefab/ghost/data). A raid tuning pass is pending.
+**Pending playtest:** everything in `DevQuests.txt` (Slices 3–6 need Setup Everything first for the archer body and the Shipyard assets; utility colonists, priorities, Information and the dev quests themselves are 09-07). `DevQuests` is editor/dev-build only (`const Enabled`, `#pragma 0162`); quest ids are batch-slug + index, so append rather than insert. A raid tuning pass is pending.
 
-**Next:** playtest slices 3–6, then `COLONY_EXPANSION_PLAN.md` (collector radius, settlement tiers, processing chains, families, farming). Then `COLONY_EXPANSION_PLAN.md` (collector radius, settlement tiers, processing chains, families, farming). Phase 10 Stages 3–4 (water polish, lighting bake) remain open.
+**Next:** playtest the above; write the Story tab; a tutorial (agreed shape: a reactive step list over a normal run, built on the intro hint canvas, not started because the game is still moving); then `COLONY_EXPANSION_PLAN.md` (collector radius, settlement tiers, processing chains, families, farming). Phase 10 Stages 3–4 (water polish, lighting bake) remain open.
 
 ---
 

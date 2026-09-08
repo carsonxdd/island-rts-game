@@ -753,6 +753,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
     /// </summary>
     public void DepositAll(BaseBuilding fire)
     {
+        DevQuests.Signal("deposit");
         if (fire == null) return;
 
         int deposited = 0;

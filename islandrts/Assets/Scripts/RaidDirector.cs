@@ -27,21 +27,33 @@ public class RaidDirector : MonoBehaviour
 {
     public static RaidDirector Instance { get; private set; }
 
+    // The code defaults, named so the Information screen can quote them on the
+    // main menu where no director exists (2026-09-07). The fields below are the
+    // live values in a game; the sim writes them.
+    public const int DefaultFirstRaidDay = 3;
+    public const float DefaultBaseChance = 0.15f;
+    public const float DefaultChancePerQuietDay = 0.2f;
+    public const int DefaultMaxQuietDays = 5;
+    public const float DefaultBaseSize = 2f;
+    public const float DefaultSizePerDay = 0.4f;
+    public const float DefaultSizePerProsperity = 0.08f;
+    public const int DefaultMinSize = 2;
+
     [Header("Schedule")]
     [Tooltip("No raid lands before this day. The first days are for getting the colony standing.")]
-    public int firstRaidDay = 3;
+    public int firstRaidDay = DefaultFirstRaidDay;
     [Tooltip("Chance of a raid on the first eligible night after a raid (or after firstRaidDay).")]
-    public float baseChance = 0.15f;
+    public float baseChance = DefaultBaseChance;
     [Tooltip("Added to the chance for every quiet night since the last raid.")]
-    public float chancePerQuietDay = 0.2f;
+    public float chancePerQuietDay = DefaultChancePerQuietDay;
     [Tooltip("A raid is guaranteed once this many nights have passed without one.")]
-    public int maxQuietDays = 5;
+    public int maxQuietDays = DefaultMaxQuietDays;
 
     [Header("Size")]
-    public float baseSize = 2f;
-    public float sizePerDay = 0.4f;
-    public float sizePerProsperity = 0.08f;
-    public int minSize = 2;
+    public float baseSize = DefaultBaseSize;
+    public float sizePerDay = DefaultSizePerDay;
+    public float sizePerProsperity = DefaultSizePerProsperity;
+    public int minSize = DefaultMinSize;
 
     /// <summary>True from the dawn roll until the following dawn when raiders land tonight.</summary>
     public bool RaidTonight { get; private set; }
@@ -96,6 +108,7 @@ public class RaidDirector : MonoBehaviour
 
     void HandleDayStart()
     {
+        if (LastRaidDay > 0 && CurrentDay() - LastRaidDay <= 1 && BaseBuilding.FindAlive() != null) DevQuests.Signal("raid_survived");
         RollForTonight();
     }
 

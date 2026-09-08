@@ -92,7 +92,7 @@ public static class ResearchCatalog
         new ResearchDef
         {
             id = "crafting", title = "Crafting", tier = 3, station = Station.Campfire,
-            description = "The Workshop can be built; it researches upgrades and crafts faster",
+            description = "Idle colonists work the benches; the Workshop can be built and crafts faster",
             woodCost = 10, stoneCost = 5,
             seconds = 10f,
             prerequisites = new[] { "construction" },
@@ -251,6 +251,7 @@ public static class ResearchCatalog
     {
         if (d == null || d.done) return;
         d.done = true;
+        DevQuests.Signal("research:" + d.id);
         for (int i = 0; i < d.grants.Length; i++) Unlocks.Grant(d.grants[i]);
         d.apply?.Invoke();
         OnChanged?.Invoke();

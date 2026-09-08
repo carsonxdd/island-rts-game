@@ -18,14 +18,13 @@ public class AIBlackboard
     // Worker fields
     public Worker worker;
     public ResourceNode.ResourceType assignedResourceType;
-    // False for an idle colonist (the builders). Gather/Pickup score 0 without a job;
-    // Build/Repair score 0 with one. Kept in sync by Worker.SetJob / ClearJob.
+    // False for a jobless colonist (the utility labor). Gather/Pickup score 0 without
+    // a job; Build/Craft/Repair/Forage score 0 with one. Kept in sync by Worker.SetJob / ClearJob.
     public bool hasJob;
-    // The Crafter job (2026-09-04): hasJob is true (never idle, never a builder) but
-    // Gather/Pickup score 0 — a crafter's work is a bench, not a node. Kept in sync
-    // by Worker.SetCrafter / SetJob / ClearJob.
-    public bool isCrafter;
-    // The bench a crafter is walking to or standing at (refreshed by StationWorkAvailable).
+    // What a jobless colonist may do (2026-09-07): Any = everything, else one trade.
+    // Read by SpecialtyAllows. Kept in sync by Worker.SetSpecialty / SetJob / ClearJob.
+    public Worker.Specialty specialty;
+    // The bench a colonist is walking to or standing at (refreshed by StationWorkAvailable).
     public CraftStation targetStation;
     // A starving colonist walking out on the colony (2026-09-04). Set once by
     // Worker.Leave; the Leave action outranks everything and ends in Destroy.

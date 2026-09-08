@@ -16,7 +16,7 @@ public class ResourceAvailability : Consideration
         // worker whose hands hold a different type (job changed mid-trip) must
         // deliver before gathering the new one — ReturnUrgency's "no node
         // available" branch sends them home.
-        if (!bb.hasJob || bb.isCrafter || (bb.carryAmount > 0.01f && bb.carryType != bb.assignedResourceType))
+        if (!bb.hasJob || (bb.carryAmount > 0.01f && bb.carryType != bb.assignedResourceType))
         {
             bb.bestResource = null;
             return 0f;

@@ -8,6 +8,13 @@
 # Lines starting with a single # are comments. Anything else that is not a
 # heading, a bullet or an indented continuation is ignored.
 
+## 2026-09-07 — Utility colonists and the Information screen
+- Idle colonists now do everything the colony needs on their own: they build a waiting site first, then work any bench with a queue, then repair damaged buildings, then tidy the beach. Crafting research opens the bench work; Construction opens building and repair, as before.
+- The Crafters row on the campfire panel became a Specialists section: Builders, Crafters and Repairers. A specialist is pinned to that one trade and does nothing else, for when you want a hand on the bench no matter what is being built. Idle colonists stay the flexible pool.
+- INFORMATION on the main menu and the pause menu: a field guide to the castaway, the day, resources, colonists, hunger, research, building, raids and the endings, with the research tree, the recipes, the weapons, the difficulty presets and the raid roll listed from the game's own numbers. Building costs appear in the pause-menu copy during a game. The Story tab is empty for now.
+- Priorities on the Colonists tab: four sliders (Build, Craft, Repair, Tidy the beach) set what an idle colonist reaches for first. Zero switches that work off. Left-click an idle colonist in the world to open the panel there.
+- Playtest quests (editor and development builds): a PLAYTEST tracker top-right lists the next things to try, some tick themselves as you play, and Esc > Information > DEV holds the full list with PASS / FAIL, notes and SUBMIT REPORT, which copies a markdown report to the clipboard and saves it under Playtests/.
+
 ## 2026-09-04 — The escape ship
 - Shipwright, researched at the Workshop after Iron Work, opens the Shipyard: press 6 in build mode. It only stands on a beach, within a few steps of the water, and costs 200 wood, 120 stone and 30 metal. It is a slow build: about a minute and a half for one builder, half a minute with three.
 - Click a finished Shipyard and choose to set sail. The colony's ship slides out to sea while the camera follows, and the run ends as an escape, with the day you left on the end screen. You can keep playing from there if you like.

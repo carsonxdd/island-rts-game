@@ -68,6 +68,7 @@ public class EnemySpawner : MonoBehaviour
     /// </summary>
     public void SpawnRaid(int count, int raidIndex)
     {
+        DevQuests.Signal("raid");
         pendingCount = Mathf.Max(1, count);
         pendingRaidIndex = raidIndex;
         Invoke(nameof(StartSpawning), spawnDelay);

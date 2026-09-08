@@ -175,6 +175,7 @@ public class ConstructionSite : MonoBehaviour
     void Complete()
     {
         isComplete = true;
+        DevQuests.Signal("build:" + buildingType.ToString().ToLowerInvariant());
 
         // Unregister from WallGrid before destroying (the finished Wall will re-register)
         UnregisterFromGrid();

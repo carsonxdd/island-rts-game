@@ -22,7 +22,7 @@ public class PickupAvailability : Consideration
         // Idle colonists build rather than forage, crafters work a bench, and a
         // worker already carrying a different type (job changed mid-trip) delivers
         // first — never mix types.
-        if (!bb.hasJob || bb.isCrafter || (bb.carryAmount > 0.01f && bb.carryType != bb.assignedResourceType))
+        if (!bb.hasJob || (bb.carryAmount > 0.01f && bb.carryType != bb.assignedResourceType))
             return 0f;
 
         GroundPickup best = null;

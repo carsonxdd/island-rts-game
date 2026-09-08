@@ -16,7 +16,7 @@ using UnityEngine.UI;
 /// </summary>
 public class MenuScreens : MonoBehaviour
 {
-    public enum Screen { None, Main, NewGame, Pause, Options, Controls, Credits, Confirm, GameOver, NameEntry, Changelog }
+    public enum Screen { None, Main, NewGame, Pause, Options, Controls, Credits, Confirm, GameOver, NameEntry, Changelog, Information }
 
     private static MenuScreens instance;
     public static MenuScreens Instance => instance;
@@ -211,6 +211,7 @@ public class MenuScreens : MonoBehaviour
             case Screen.GameOver: BuildGameOver(); break;
             case Screen.NameEntry: BuildNameEntry(); break;
             case Screen.Changelog: BuildChangelog(); break;
+            case Screen.Information: BuildInformation(); break;
         }
 
         // The height passed to Panel() is only a starting value — the panel is
@@ -264,6 +265,7 @@ public class MenuScreens : MonoBehaviour
         // No save system yet — shown disabled so the artist knows the slot exists.
         MenuBuilder.MenuButton(col.transform, "CONTINUE", null, enabled: false);
         MenuBuilder.MenuButton(col.transform, "OPTIONS", () => Show(Screen.Options));
+        MenuBuilder.MenuButton(col.transform, "INFORMATION", () => Show(Screen.Information));
         MenuBuilder.MenuButton(col.transform, "CHANGELOG", () => Show(Screen.Changelog));
         MenuBuilder.MenuButton(col.transform, "CREDITS", () => Show(Screen.Credits));
         MenuBuilder.MenuButton(col.transform, "QUIT", () =>
@@ -412,6 +414,7 @@ public class MenuScreens : MonoBehaviour
         MenuBuilder.MenuButton(col.transform, "RESUME", Close);
         MenuBuilder.MenuButton(col.transform, "OPTIONS", () => Show(Screen.Options));
         MenuBuilder.MenuButton(col.transform, "CONTROLS", () => Show(Screen.Controls));
+        MenuBuilder.MenuButton(col.transform, "INFORMATION", () => Show(Screen.Information));
         MenuBuilder.MenuButton(col.transform, "CHANGELOG", () => Show(Screen.Changelog));
         MenuBuilder.MenuButton(col.transform, "RESTART", () =>
             AskConfirm("Restart? Current progress is lost.", MenuFlow.Restart));
@@ -740,6 +743,424 @@ public class MenuScreens : MonoBehaviour
 
         MenuBuilder.Spacer(col.transform, 6f);
         MenuBuilder.MenuButton(col.transform, "BACK", () => Back());
+    }
+
+    // ---- Information --------------------------------------------------------
+    //
+    // The field guide (2026-09-07): prose from Resources/Information.txt
+    // (GameInfo) in sub-tabs, with the numbers built from the live catalogs
+    // where the text asks for a table. Shared by the main menu and the pause
+    // menu like the changelog. The sub-tab and each sub-tab's scroll position
+    // are static so they survive a rebuild and a trip back to the game.
+
+    private static int infoTab;
+    private static float[] infoScroll;
+    private static readonly string MutedHex = ColorUtility.ToHtmlStringRGBA(MenuStyle.TextMuted);
+
+    private void BuildInformation()
+    {
+        panel = MenuBuilder.Panel(canvas.transform, "Information", MenuStyle.OptionsWidth, 720f);
+        VerticalLayoutGroup col = activeColumn = MenuBuilder.Column(panel, 6f);
+
+        MenuBuilder.Label(col.transform, "INFORMATION", MenuStyle.HeadingSize, MenuStyle.TextAccent)
+            .gameObject.AddComponent<LayoutElement>().preferredHeight = 38f;
+        MenuBuilder.Label(col.transform, "How the island works.", MenuStyle.SmallSize, MenuStyle.TextMuted)
+            .gameObject.AddComponent<LayoutElement>().preferredHeight = 22f;
+        MenuBuilder.Divider(col.transform);
+
+        DevQuests.Signal("info");
+
+        // The DEV tab (playtest quests) is synthetic: appended after the text
+        // asset's tabs in editor and development builds only.
+        IReadOnlyList<GameInfo.Tab> tabsList = GameInfo.Tabs;
+        int devIndex = DevQuests.Enabled ? tabsList.Count : -1;
+        int tabCount = tabsList.Count + (DevQuests.Enabled ? 1 : 0);
+        if (tabCount == 0)
+        {
+            MenuBuilder.Label(col.transform, "No information yet.", MenuStyle.BodySize, MenuStyle.TextMuted)
+                .gameObject.AddComponent<LayoutElement>().preferredHeight = 40f;
+        }
+        else
+        {
+            if (infoScroll == null || infoScroll.Length != tabCount)
+            {
+                infoScroll = new float[tabCount];
+                for (int i = 0; i < infoScroll.Length; i++) infoScroll[i] = 1f;   // 1 = the top
+            }
+            infoTab = Mathf.Clamp(infoTab, 0, tabCount - 1);
+
+            string[] names = new string[tabCount];
+            for (int i = 0; i < tabsList.Count; i++) names[i] = tabsList[i].title;
+            if (devIndex >= 0) names[devIndex] = "DEV";
+            Button[] tabButtons = MenuBuilder.TabRow(col.transform, names, infoTab, SwitchInfoTab);
+            for (int i = 0; i < tabButtons.Length; i++)
+            {
+                // Six tabs across the panel: the button-size caption would wrap on
+                // RESEARCH and BUILDING, so the tab captions are one size down.
+                TextMeshProUGUI caption = tabButtons[i].GetComponentInChildren<TextMeshProUGUI>();
+                if (caption == null) continue;
+                caption.fontSize = MenuStyle.SmallSize + 2f;
+                caption.textWrappingMode = TextWrappingModes.NoWrap;
+            }
+            MenuBuilder.Spacer(col.transform, 2f);
+
+            VerticalLayoutGroup body = MenuBuilder.ScrollColumn(col.transform, 4f, 470f);
+            activeScroll = body.GetComponentInParent<ScrollRect>();
+            if (infoTab == devIndex) RenderDevTab(body.transform);
+            else RenderInfoTab(body.transform, tabsList[infoTab]);
+        }
+
+        MenuBuilder.Spacer(col.transform, 6f);
+        MenuBuilder.MenuButton(col.transform, "BACK", () => Back());
+    }
+
+    // ---- DEV: playtest quests ---------------------------------------------
+
+    private static string devReportStatus;
+
+    /// <summary>
+    /// The playtest log (2026-09-07): every quest with a done toggle, PASS /
+    /// FAIL and a note, the tracker toggle, the report notes and SUBMIT REPORT.
+    /// Every click rebuilds the screen (the Options pattern); the scroll memory
+    /// puts the list back where it was.
+    /// </summary>
+    private void RenderDevTab(Transform t)
+    {
+        DevQuests.Signal("info:dev");
+
+        InfoParagraph(t, "Playtest quests for what changed recently. Quests marked auto tick themselves as you play; "
+            + "tick the rest once you have checked them. PASS or FAIL each, add a note where something was off, "
+            + "and SUBMIT REPORT copies a markdown report to the clipboard and saves it under Playtests/.", MenuStyle.TextMuted);
+
+        MenuBuilder.ToggleRow(t, "HUD tracker", DevQuests.ShowTracker,
+            v => { DevQuests.ShowTracker = v; DevQuests.Signal("tracker"); });
+        MenuBuilder.ValueRow(t, "Done", DevQuests.DoneCount + " / " + DevQuests.TotalCount);
+
+        IReadOnlyList<DevQuests.Batch> batches = DevQuests.Batches;
+        if (batches.Count == 0)
+            InfoParagraph(t, "No quests. Add a batch to Resources/DevQuests.txt.", MenuStyle.TextMuted);
+
+        for (int b = 0; b < batches.Count; b++)
+        {
+            DevQuests.Batch batch = batches[b];
+            MenuBuilder.SectionHeader(t, batch.title);
+            for (int i = 0; i < batch.quests.Count; i++) DevQuestRow(t, batch.quests[i]);
+        }
+
+        MenuBuilder.SectionHeader(t, "Report");
+        TMP_InputField notes = MenuBuilder.InputRow(t, "Notes", DevQuests.Notes, "anything else you noticed",
+            v => DevQuests.Notes = v);
+        notes.characterLimit = 600;
+
+        if (!string.IsNullOrEmpty(devReportStatus))
+            InfoParagraph(t, devReportStatus, MenuStyle.TextAccent);
+
+        MenuBuilder.MenuButton(t, "SUBMIT REPORT", () =>
+        {
+            string path = DevQuests.Submit();
+            devReportStatus = path != null
+                ? "Copied to the clipboard and saved to " + path
+                : "Copied to the clipboard; the file could not be written (see the console).";
+            Rebuild();
+        });
+        MenuBuilder.MenuButton(t, "RESET QUESTS", () =>
+            AskConfirm("Clear every result and note?", () => { DevQuests.Reset(); devReportStatus = null; }),
+            textColor: MenuStyle.TextDanger);
+    }
+
+    /// <summary>One quest: the text (ellipsised), [done] PASS FAIL in the slot, a note field beneath.</summary>
+    private void DevQuestRow(Transform t, DevQuests.Quest q)
+    {
+        string caption = (q.IsAuto ? "<color=#" + MutedHex + "><size=70%>auto</size></color> " : "") + q.text;
+        RectTransform row = MenuBuilder.SettingRow(t, caption, out RectTransform slot, 40f);
+
+        TextMeshProUGUI label = row.GetComponentInChildren<TextMeshProUGUI>();
+        label.fontSize = MenuStyle.SmallSize + 1f;
+        label.textWrappingMode = TextWrappingModes.NoWrap;
+        label.overflowMode = TextOverflowModes.Ellipsis;
+        label.color = q.done ? MenuStyle.TextMuted : MenuStyle.TextPrimary;
+        label.rectTransform.anchorMax = new Vector2(0.64f, 1f);
+        slot.anchorMin = new Vector2(0.66f, 0f);
+
+        Button done = MenuBuilder.SlotButton(slot, q.done ? "done" : "todo",
+            () => { DevQuests.SetDone(q, !q.done); Rebuild(); }, new Vector2(0f, 0.08f), new Vector2(0.32f, 0.92f));
+        Button pass = MenuBuilder.SlotButton(slot, "PASS",
+            () => { DevQuests.SetResult(q, q.result == DevQuests.Result.Pass ? DevQuests.Result.Untested : DevQuests.Result.Pass); Rebuild(); },
+            new Vector2(0.34f, 0.08f), new Vector2(0.66f, 0.92f));
+        Button fail = MenuBuilder.SlotButton(slot, "FAIL",
+            () => { DevQuests.SetResult(q, q.result == DevQuests.Result.Fail ? DevQuests.Result.Untested : DevQuests.Result.Fail); Rebuild(); },
+            new Vector2(0.68f, 0.08f), new Vector2(1f, 0.92f));
+
+        TintVerdict(done, q.done, MenuStyle.TextAccent);
+        TintVerdict(pass, q.result == DevQuests.Result.Pass, MenuStyle.TextAccent);
+        TintVerdict(fail, q.result == DevQuests.Result.Fail, MenuStyle.TextDanger);
+
+        // The note only takes a row once there is a verdict to explain, or a note already.
+        if (q.result != DevQuests.Result.Untested || !string.IsNullOrEmpty(q.note))
+        {
+            TMP_InputField note = MenuBuilder.InputRow(t, "    note", q.note, "what happened", v => DevQuests.SetNote(q, v));
+            note.characterLimit = 200;
+        }
+    }
+
+    private static void TintVerdict(Button b, bool on, Color onColor)
+    {
+        b.targetGraphic.color = on ? MenuStyle.ButtonPressed : MenuStyle.ButtonFill;
+        TextMeshProUGUI caption = b.GetComponentInChildren<TextMeshProUGUI>();
+        if (caption != null)
+        {
+            caption.fontSize = MenuStyle.SmallSize;
+            caption.color = on ? onColor : MenuStyle.TextMuted;
+        }
+    }
+
+    /// <summary>
+    /// Sub-tab switch. Rebuild() would save the OLD tab's scroll position under
+    /// this screen and RestoreScroll would then apply it to the new tab, so the
+    /// old position is banked per sub-tab here, the screen memory is pointed at
+    /// the new tab's, and the live scroll is dropped before the rebuild.
+    /// </summary>
+    private void SwitchInfoTab(int i)
+    {
+        if (i == infoTab) return;
+        if (activeScroll != null) infoScroll[infoTab] = activeScroll.verticalNormalizedPosition;
+        activeScroll = null;
+        infoTab = i;
+        scrollMemory[Screen.Information] = infoScroll[i];
+        Rebuild();
+    }
+
+    private void RenderInfoTab(Transform t, GameInfo.Tab tab)
+    {
+        for (int i = 0; i < tab.blocks.Count; i++)
+        {
+            GameInfo.Block b = tab.blocks[i];
+            switch (b.kind)
+            {
+                case GameInfo.BlockKind.Heading:
+                    MenuBuilder.SectionHeader(t, b.text);
+                    MenuBuilder.Spacer(t, 2f);
+                    break;
+
+                case GameInfo.BlockKind.Paragraph:
+                    InfoParagraph(t, b.text, MenuStyle.TextPrimary);
+                    break;
+
+                case GameInfo.BlockKind.Bullet:
+                    // The changelog's hanging indent: wrapped lines hold the text's left edge.
+                    TextMeshProUGUI line = MenuBuilder.Label(t, "•  <indent=1.2em>" + b.text + "</indent>",
+                        MenuStyle.SmallSize + 1f, MenuStyle.TextPrimary, TextAlignmentOptions.TopLeft);
+                    line.gameObject.name = "Bullet";
+                    line.margin = new Vector4(6f, 0f, 0f, 0f);
+                    break;
+
+                case GameInfo.BlockKind.Table:
+                    RenderInfoTable(t, b.text);
+                    break;
+            }
+        }
+        MenuBuilder.Spacer(t, 8f);
+    }
+
+    private static TextMeshProUGUI InfoParagraph(Transform t, string text, Color color)
+    {
+        TextMeshProUGUI p = MenuBuilder.Label(t, text, MenuStyle.SmallSize + 1f, color, TextAlignmentOptions.TopLeft);
+        p.gameObject.name = "Paragraph";
+        p.margin = new Vector4(6f, 0f, 0f, 4f);
+        return p;
+    }
+
+    /// <summary>
+    /// One catalog entry: an accent title with a muted tag on the same line, an
+    /// optional one-line detail (costs, timings), and an optional wrapping note.
+    /// </summary>
+    private static void InfoEntry(Transform t, string title, string tag, string detail, string note)
+    {
+        MenuBuilder.Spacer(t, 4f);
+        string head = string.IsNullOrEmpty(tag)
+            ? title
+            : title + "  <size=78%><color=#" + MutedHex + ">" + tag + "</color></size>";
+        TextMeshProUGUI h = MenuBuilder.Label(t, head, MenuStyle.BodySize, MenuStyle.TextAccent, TextAlignmentOptions.MidlineLeft);
+        h.gameObject.name = "EntryTitle";
+        h.textWrappingMode = TextWrappingModes.NoWrap;
+        h.margin = new Vector4(6f, 0f, 0f, 0f);
+        h.gameObject.AddComponent<LayoutElement>().preferredHeight = 24f;
+        if (!string.IsNullOrEmpty(detail))
+        {
+            TextMeshProUGUI d = MenuBuilder.RowDescription(t, detail);
+            d.margin = new Vector4(6f, 0f, 0f, 0f);
+        }
+        if (!string.IsNullOrEmpty(note)) InfoParagraph(t, note, MenuStyle.TextPrimary);
+    }
+
+    private void RenderInfoTable(Transform t, string name)
+    {
+        switch (name)
+        {
+            case "research": RenderResearchTable(t); break;
+            case "recipes": RenderRecipeTable(t); break;
+            case "weapons": RenderWeaponTable(t); break;
+            case "buildings": RenderBuildingTable(t); break;
+            case "difficulty": RenderDifficultyTable(t); break;
+            case "colony": RenderColonyTable(t); break;
+            case "raids": RenderRaidTable(t); break;
+            default:
+                // A typo in the text asset shows as a muted marker, never an error.
+                InfoParagraph(t, "[" + name + "]", MenuStyle.TextMuted);
+                break;
+        }
+    }
+
+    private void RenderResearchTable(Transform t)
+    {
+        var all = ResearchCatalog.All;
+        for (int s = 0; s < 2; s++)
+        {
+            ResearchCatalog.Station station = (ResearchCatalog.Station)s;
+            MenuBuilder.SectionHeader(t, station == ResearchCatalog.Station.Campfire ? "Researched at the campfire" : "Researched at the Workshop");
+            for (int i = 0; i < all.Length; i++)
+            {
+                ResearchCatalog.ResearchDef d = all[i];
+                if (d.station != station) continue;
+
+                string detail = d.CostText + "  ·  " + Mathf.RoundToInt(d.seconds) + "s";
+                if (d.prerequisites.Length > 0)
+                {
+                    detail += "  ·  after ";
+                    for (int p = 0; p < d.prerequisites.Length; p++)
+                    {
+                        ResearchCatalog.ResearchDef pre = ResearchCatalog.Find(d.prerequisites[p]);
+                        if (p > 0) detail += ", ";
+                        detail += pre != null ? pre.title : d.prerequisites[p];
+                    }
+                }
+                string note = d.description;
+                if (d.tool != null) note += ". Puts the " + d.tool.displayName + " in your hands";
+                InfoEntry(t, d.title, "tier " + d.tier, detail, note + ".");
+            }
+        }
+    }
+
+    private void RenderRecipeTable(Transform t)
+    {
+        MenuBuilder.SectionHeader(t, "Recipes");
+        var all = CraftingCatalog.All;
+        for (int i = 0; i < all.Length; i++)
+        {
+            CraftingCatalog.Recipe r = all[i];
+            string detail = r.CostText + "  ·  " + Mathf.RoundToInt(r.seconds) + "s";
+            string req = r.RequiredTitle;
+            if (!string.IsNullOrEmpty(req)) detail += "  ·  needs " + req;
+            InfoEntry(t, r.title, r.category.ToString().ToLowerInvariant(), detail, r.description + ".");
+        }
+    }
+
+    private void RenderWeaponTable(Transform t)
+    {
+        MenuBuilder.SectionHeader(t, "Weapons");
+        var weapons = ItemCatalog.Weapons;
+        for (int i = 0; i < weapons.Length; i++)
+        {
+            ItemDef w = weapons[i];
+            EquipmentDef e = w.equipment;
+            if (e == null) continue;
+            float dps = e.attackInterval > 0f ? e.damage / e.attackInterval : 0f;
+            string detail = e.damage.ToString("0") + " damage every " + e.attackInterval.ToString("0.#") + "s  ·  "
+                + dps.ToString("0.#") + " a second";
+            if (e.ranged) detail += "  ·  range " + e.range.ToString("0");
+            InfoEntry(t, w.displayName, e.ranged ? "ranged, an archer" : "melee", detail, null);
+        }
+    }
+
+    private void RenderBuildingTable(Transform t)
+    {
+        MenuBuilder.SectionHeader(t, "Buildings");
+        BuildingDatabase db = BuildingDatabase.Instance;
+        if (db == null || db.buildings == null)
+        {
+            // The database lives in the game scene; the main menu has none.
+            InfoParagraph(t, "Costs and health are listed here during a game (pause menu).", MenuStyle.TextMuted);
+            return;
+        }
+        for (int i = 0; i < db.buildings.Length; i++)
+        {
+            BuildingData d = db.buildings[i];
+            if (d == null) continue;
+            string cost = "";
+            if (d.woodCost > 0) cost += d.woodCost + " wood";
+            if (d.foodCost > 0) cost += (cost.Length > 0 ? " · " : "") + d.foodCost + " food";
+            if (d.stoneCost > 0) cost += (cost.Length > 0 ? " · " : "") + d.stoneCost + " stone";
+            if (d.metalCost > 0) cost += (cost.Length > 0 ? " · " : "") + d.metalCost + " metal";
+            if (cost.Length == 0) cost = "free";
+            string tag = d.isWall ? "wall, drawn as a line" : d.requiresShore ? "beach only" : null;
+            InfoEntry(t, d.buildingName, tag, cost + "  ·  " + Mathf.RoundToInt(d.maxHealth) + " health", null);
+        }
+    }
+
+    private void RenderDifficultyTable(Transform t)
+    {
+        MenuBuilder.SectionHeader(t, "Difficulty");
+        for (int i = 0; i < (int)Difficulty.Level.Custom; i++)
+        {
+            Difficulty.Preset p = Difficulty.Get((Difficulty.Level)i);
+            string detail = "raids ×" + p.enemyCount.ToString("0.##") + " size, ×" + p.raidFrequency.ToString("0.##") + " often"
+                + "  ·  food ×" + p.foodConsumption.ToString("0.##")
+                + "  ·  start ×" + p.startingResources.ToString("0.##")
+                + "  ·  night ×" + p.nightLength.ToString("0.##");
+            InfoEntry(t, p.name, p.daysToSurvive + " days", detail, p.blurb);
+        }
+    }
+
+    private void RenderColonyTable(Transform t)
+    {
+        string[] lines =
+        {
+            "A survivor lands every " + PopulationManager.DefaultArrivalInterval.ToString("0") + " seconds by day while there is housing and the colony is fed.",
+            "Each colonist eats " + PopulationManager.DefaultFoodPerDay.ToString("0.#") + " food per day, times the difficulty's food multiplier.",
+            "Hungry after " + PopulationManager.DefaultHungryAfterDays.ToString("0.##") + " of a day without food: work at "
+                + Mathf.RoundToInt(PopulationManager.HungryLaborMultiplier * 100f) + "%, and nobody new lands.",
+            "Starving after " + PopulationManager.DefaultStarvingAfterDays.ToString("0.#") + " day without food: one colonist leaves each day it lasts.",
+        };
+        for (int i = 0; i < lines.Length; i++)
+        {
+            TextMeshProUGUI line = MenuBuilder.Label(t, "•  <indent=1.2em>" + lines[i] + "</indent>",
+                MenuStyle.SmallSize + 1f, MenuStyle.TextPrimary, TextAlignmentOptions.TopLeft);
+            line.margin = new Vector4(6f, 0f, 0f, 0f);
+        }
+    }
+
+    private void RenderRaidTable(Transform t)
+    {
+        // Live values in a game, the code defaults on the main menu — the director
+        // is runtime-added, so there is no scene copy to disagree with either.
+        RaidDirector rd = RaidDirector.Instance;
+        int firstDay = rd != null ? rd.firstRaidDay : RaidDirector.DefaultFirstRaidDay;
+        float baseChance = rd != null ? rd.baseChance : RaidDirector.DefaultBaseChance;
+        float perQuiet = rd != null ? rd.chancePerQuietDay : RaidDirector.DefaultChancePerQuietDay;
+        int maxQuiet = rd != null ? rd.maxQuietDays : RaidDirector.DefaultMaxQuietDays;
+        float baseSize = rd != null ? rd.baseSize : RaidDirector.DefaultBaseSize;
+        float perDay = rd != null ? rd.sizePerDay : RaidDirector.DefaultSizePerDay;
+        float perProsperity = rd != null ? rd.sizePerProsperity : RaidDirector.DefaultSizePerProsperity;
+        int minSize = rd != null ? rd.minSize : RaidDirector.DefaultMinSize;
+
+        int Size(int day) => Mathf.Max(minSize, Mathf.RoundToInt(baseSize + perDay * day));
+
+        MenuBuilder.SectionHeader(t, "The raid roll");
+        string[] lines =
+        {
+            "Nothing lands before day " + firstDay + ".",
+            "Each dawn after that: " + Mathf.RoundToInt(baseChance * 100f) + "% chance, plus " + Mathf.RoundToInt(perQuiet * 100f)
+                + "% for every quiet night since the last raid, times the difficulty. Certain after " + maxQuiet + " quiet nights.",
+            "Raiders: " + baseSize.ToString("0.#") + " + " + perDay.ToString("0.##") + " per day + " + perProsperity.ToString("0.##")
+                + " per point of prosperity, times the difficulty, never fewer than " + minSize + ". Every colonist, hut, tower, the Workshop and the Shipyard add prosperity.",
+            "With nothing built: day " + Mathf.Max(firstDay, 5) + " brings " + Size(Mathf.Max(firstDay, 5)) + ", day 20 brings " + Size(20) + ", day 30 brings " + Size(30) + ".",
+        };
+        for (int i = 0; i < lines.Length; i++)
+        {
+            TextMeshProUGUI line = MenuBuilder.Label(t, "•  <indent=1.2em>" + lines[i] + "</indent>",
+                MenuStyle.SmallSize + 1f, MenuStyle.TextPrimary, TextAlignmentOptions.TopLeft);
+            line.margin = new Vector4(6f, 0f, 0f, 0f);
+        }
     }
 
     /// <summary>

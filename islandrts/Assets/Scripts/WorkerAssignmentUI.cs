@@ -109,10 +109,20 @@ public class WorkerAssignmentUI : MonoBehaviour
 
     private TextMeshProUGUI warriorCount, warriorCost, housingText, colonistText;
     private Button warriorMinus, warriorPlus;
-    // The Crafter job row (2026-09-04): same controls as a gathering job, no swatch
-    private TextMeshProUGUI crafterLabel, crafterCount;
-    private Button crafterMinus, crafterPlus;
-    private int crafterLast = -1, crafterLockedLast = -1;
+    // The specialist rows (2026-09-07; the Crafter row of 2026-09-04 became one of
+    // three): same controls as a gathering job, no swatch. Idle colonists do all
+    // three trades on their own; a row pins one colonist to that trade alone.
+    private class SpecialtyRow
+    {
+        public Worker.Specialty specialty;
+        public string name;
+        public TextMeshProUGUI label;
+        public TextMeshProUGUI count;
+        public Button minus, plus;
+        public int last = -1;
+        public int lockedLast = -1;
+    }
+    private readonly List<SpecialtyRow> specialties = new List<SpecialtyRow>();
     // The recruit picker: which weapon the next warrior takes
     private TextMeshProUGUI weaponLabel;
     private Button weaponPrev, weaponNext;
@@ -166,6 +176,18 @@ public class WorkerAssignmentUI : MonoBehaviour
     }
 
     /// <summary>
+    /// Opens the campfire panel on the Colonists tab (2026-09-07): a left-click
+    /// on an idle colonist lands here, where the specialist rows and the
+    /// priority sliders are.
+    /// </summary>
+    public void OpenColonists(BaseBuilding fire)
+    {
+        if (fire == null) return;
+        OpenPanel(fire);
+        SwitchTab(TabColonists, silent: true);
+    }
+
+    /// <summary>
     /// Opens the panel for a bench. The campfire's own bench opens the full
     /// panel; any other station (the Workshop) shows only Craft · Research · Queue.
     /// </summary>
@@ -201,7 +223,7 @@ public class WorkerAssignmentUI : MonoBehaviour
         lastWarriors = lastHousingUsed = lastHousingCap = -1;
         lastColonists = lastIdle = lastArrival = -1;
         warriorLineLast = int.MinValue;
-        crafterLast = crafterLockedLast = -1;
+        for (int i = 0; i < specialties.Count; i++) { specialties[i].last = -1; specialties[i].lockedLast = -1; }
         weaponShown = null;
         weaponStockShown = -1;
         craftStatusLast = researchStatusLast = queueStatusLast = null;
@@ -324,12 +346,24 @@ public class WorkerAssignmentUI : MonoBehaviour
         jobs.Add(MakeJobRow(body, ResourceNode.ResourceType.Stone, "Quarriers"));
         jobs.Add(MakeJobRow(body, ResourceNode.ResourceType.Metal, "Miners"));
 
-        // Crafters (2026-09-04): they work whichever bench has a queue
-        RectTransform crt = MenuBuilder.SettingRow(body, "Crafters", out RectTransform cslot);
-        crafterLabel = crt.GetComponentInChildren<TextMeshProUGUI>();
-        CounterControls(cslot, OnCrafterMinusClicked, OnCrafterPlusClicked, out crafterCount, out crafterMinus, out crafterPlus);
+        MenuBuilder.RowDescription(body, "+ gives an idle colonist the job, − sends them back to idle.");
 
-        MenuBuilder.RowDescription(body, "Idle colonists build and repair. + gives one a job, − sends them back.");
+        // Specialists (2026-09-07): idle colonists build, craft and repair on their
+        // own, in that order; a row here pins one of them to a single trade.
+        MenuBuilder.SectionHeader(body, "Specialists");
+        specialties.Add(MakeSpecialtyRow(body, Worker.Specialty.Builder, "Builders"));
+        specialties.Add(MakeSpecialtyRow(body, Worker.Specialty.Crafter, "Crafters"));
+        specialties.Add(MakeSpecialtyRow(body, Worker.Specialty.Repairer, "Repairers"));
+        MenuBuilder.RowDescription(body, "Idle colonists build, then craft, then repair, then tidy. A specialist does only their trade.");
+
+        // Priorities (2026-09-07): the colony-wide weights behind that order. Live
+        // statics read by every idle colonist's next decision; nothing to refresh.
+        MenuBuilder.SectionHeader(body, "Priorities");
+        MenuBuilder.SliderRow(body, "Build", LaborPriorities.Build, v => { LaborPriorities.Build = v; DevQuests.Signal("priority"); });
+        MenuBuilder.SliderRow(body, "Craft", LaborPriorities.Craft, v => { LaborPriorities.Craft = v; DevQuests.Signal("priority"); });
+        MenuBuilder.SliderRow(body, "Repair", LaborPriorities.Repair, v => { LaborPriorities.Repair = v; DevQuests.Signal("priority"); });
+        MenuBuilder.SliderRow(body, "Tidy the beach", LaborPriorities.Forage, v => { LaborPriorities.Forage = v; DevQuests.Signal("priority"); });
+        MenuBuilder.RowDescription(body, "What an idle colonist reaches for first, all else equal. Zero switches that work off.");
 
         MenuBuilder.SectionHeader(body, "Defence");
         MenuBuilder.SettingRow(body, "Warriors", out RectTransform wslot);
@@ -516,6 +550,17 @@ public class WorkerAssignmentUI : MonoBehaviour
         return row;
     }
 
+    /// <summary>A specialist row (2026-09-07): the job-row controls without the colour swatch.</summary>
+    SpecialtyRow MakeSpecialtyRow(Transform parent, Worker.Specialty specialty, string label)
+    {
+        SpecialtyRow row = new SpecialtyRow { specialty = specialty, name = label };
+        RectTransform rt = MenuBuilder.SettingRow(parent, label, out RectTransform slot);
+        row.label = rt.GetComponentInChildren<TextMeshProUGUI>();
+        CounterControls(slot, () => OnSpecialtyMinusClicked(specialty), () => OnSpecialtyPlusClicked(specialty),
+            out row.count, out row.minus, out row.plus);
+        return row;
+    }
+
     /// <summary>[ − ]  count  [ + ] inside a row's control slot.</summary>
     static void CounterControls(RectTransform slot, Action onMinus, Action onPlus,
         out TextMeshProUGUI count, out Button minus, out Button plus)
@@ -622,24 +667,31 @@ public class WorkerAssignmentUI : MonoBehaviour
             row.plus.interactable = canAssign && !locked;
         }
 
-        // Crafters (2026-09-04): open once Crafting is researched
-        int crafters = baseBuilding.crafterWorkers;
-        if (crafters != crafterLast)
+        // Specialists (2026-09-07): each trade opens with its research
+        for (int i = 0; i < specialties.Count; i++)
         {
-            crafterLast = crafters;
-            crafterCount.text = crafters.ToString();
+            SpecialtyRow row = specialties[i];
+            int n = baseBuilding.CountSpecialty(row.specialty);
+            if (n != row.last)
+            {
+                row.last = n;
+                row.count.text = n.ToString();
+            }
+
+            Unlocks.Kind gate = BaseBuilding.UnlockFor(row.specialty);
+            bool locked = !Unlocks.Has(gate);
+            int lockState = locked ? 1 : 0;
+            if (lockState != row.lockedLast && row.label != null)
+            {
+                row.lockedLast = lockState;
+                row.label.text = locked
+                    ? row.name + "  <size=78%><color=#" + LockHex + ">research " + Unlocks.ResearchTitleFor(gate) + "</color></size>"
+                    : row.name;
+            }
+
+            row.minus.interactable = n > 0;
+            row.plus.interactable = canAssign && !locked;
         }
-        bool crafting = Unlocks.Has(Unlocks.Kind.Crafting);
-        int crafterLock = crafting ? 0 : 1;
-        if (crafterLock != crafterLockedLast && crafterLabel != null)
-        {
-            crafterLockedLast = crafterLock;
-            crafterLabel.text = crafting
-                ? "Crafters"
-                : "Crafters  <size=78%><color=#" + LockHex + ">research " + Unlocks.ResearchTitleFor(Unlocks.Kind.Crafting) + "</color></size>";
-        }
-        crafterMinus.interactable = crafters > 0;
-        crafterPlus.interactable = canAssign && crafting;
 
         // Warriors need Spearcraft, then the chosen weapon in the stockpile
         bool militia = Unlocks.Has(Unlocks.Kind.Militia);
@@ -922,7 +974,7 @@ public class WorkerAssignmentUI : MonoBehaviour
         }
         else
         {
-            status = "No one at the bench — assign a Crafter, or send your character.";
+            status = "No one at the bench — an idle colonist will come, or send your character.";
             color = MenuStyle.TextAccent;
             showSend = pc != null;
         }
@@ -1069,17 +1121,17 @@ public class WorkerAssignmentUI : MonoBehaviour
         UpdateDisplay();
     }
 
-    void OnCrafterPlusClicked()
+    void OnSpecialtyPlusClicked(Worker.Specialty s)
     {
         if (baseBuilding == null) return;
-        if (baseBuilding.AssignCrafter() && AudioManager.Instance != null) AudioManager.Instance.PlayWorkerAssigned();
+        if (baseBuilding.AssignSpecialist(s) && AudioManager.Instance != null) AudioManager.Instance.PlayWorkerAssigned();
         UpdateDisplay();
     }
 
-    void OnCrafterMinusClicked()
+    void OnSpecialtyMinusClicked(Worker.Specialty s)
     {
         if (baseBuilding == null) return;
-        baseBuilding.UnassignCrafter();
+        baseBuilding.UnassignSpecialist(s);
         if (AudioManager.Instance != null) AudioManager.Instance.PlayButtonClick();
         UpdateDisplay();
     }

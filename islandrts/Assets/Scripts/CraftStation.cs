@@ -282,6 +282,8 @@ public class CraftStation : MonoBehaviour
         {
             CraftingCatalog.Recipe r = e.recipe;
             Deliver(r.output, r.outputCount, who, stock);
+            DevQuests.Signal("craft:" + r.id);
+            DevQuests.Signal(who is Worker ? "craft_by_colonist" : "craft_by_player");
             if (r.oncePerRun) r.made = true;
 
             e.remaining--;

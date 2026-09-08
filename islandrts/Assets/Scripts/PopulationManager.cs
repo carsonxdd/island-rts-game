@@ -72,13 +72,13 @@ public class PopulationManager : MonoBehaviour
 
     // The scene object predates these fields; a missing key can deserialize as 0,
     // so a non-positive interval falls back to this instead of spawning every frame.
-    private const float DefaultArrivalInterval = 20f;
+    public const float DefaultArrivalInterval = 20f;
     private const float PruneInterval = 1f;
-    private const float DefaultFoodPerDay = 1f;
-    private const float DefaultHungryAfterDays = 0.25f;
-    private const float DefaultStarvingAfterDays = 1f;
+    public const float DefaultFoodPerDay = 1f;
+    public const float DefaultHungryAfterDays = 0.25f;
+    public const float DefaultStarvingAfterDays = 1f;
     /// <summary>Gathering and construction speed while Hungry or worse.</summary>
-    private const float HungryLaborMultiplier = 0.6f;
+    public const float HungryLaborMultiplier = 0.6f;
 
     void Awake()
     {
@@ -247,14 +247,14 @@ public class PopulationManager : MonoBehaviour
         return n;
     }
 
-    /// <summary>Colonists with no job — the builders, and the pool the campfire panel assigns from.</summary>
+    /// <summary>Utility colonists (no job, no specialty): the pool the campfire panel assigns from.</summary>
     public int GetIdleCount()
     {
         int n = 0;
         for (int i = 0; i < roster.Count; i++)
         {
             Worker w = roster[i].unit as Worker;
-            if (w != null && !w.hasJob && !w.leaving) n++;
+            if (w != null && w.IsIdle) n++;
         }
         return n;
     }
@@ -267,7 +267,7 @@ public class PopulationManager : MonoBehaviour
         for (int i = 0; i < roster.Count; i++)
         {
             Worker w = roster[i].unit as Worker;
-            if (w == null || w.hasJob || w.leaving) continue;
+            if (w == null || !w.IsIdle) continue;
             float sqr = (w.transform.position - near).sqrMagnitude;
             if (sqr < bestSqr) { bestSqr = sqr; best = w; }
         }
@@ -439,6 +439,7 @@ public class PopulationManager : MonoBehaviour
         {
             hungerShown = now;
             OnHungerChanged?.Invoke(now);
+            DevQuests.Signal(now == HungerState.Hungry ? "hungry" : now == HungerState.Starving ? "starving" : "fed");
         }
     }
 
@@ -463,6 +464,7 @@ public class PopulationManager : MonoBehaviour
         pick.Leave();
         ColonistsLeft++;
         OnColonistLeft?.Invoke();
+        DevQuests.Signal("colonist_left");
     }
 
     /// <summary>F4 cheat: jump straight to Starving (the next departure is due at once).</summary>

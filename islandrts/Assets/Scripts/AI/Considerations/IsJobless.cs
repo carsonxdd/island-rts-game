@@ -1,7 +1,8 @@
 /// <summary>
-/// 1 for a colonist with no job, 0 for a worker with one. Gates the Build and
-/// Repair actions: idle colonists are the colony's builders, and a worker with a
-/// job never downs tools to build (the player can unassign them if they want to).
+/// 1 for a colonist with no job, 0 for a worker with one. Gates the Build, Craft,
+/// Repair and Forage actions: jobless colonists are the colony's utility labor,
+/// and a worker with a job never downs tools to build (the player can unassign
+/// them if they want to). Pair with <see cref="SpecialtyAllows"/> for the trade.
 /// Zero-cost, so it sits first in the consideration list and early-outs the
 /// whole action for job holders before any scan runs.
 /// </summary>

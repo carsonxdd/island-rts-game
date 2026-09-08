@@ -730,3 +730,32 @@ BuildingDatabase). Setup Everything (In Order) covers both.
 - [ ] Demolishing the Shipyard refunds 100W 60S 15M; a damaged one is repaired by idle colonists with metal drawn one unit at a time
 - [ ] Options → Controls lists "Select shipyard" under Building and it rebinds like the others
 - [ ] Headless sim: an Eco run past day 12 researches Shipwright, places the yard on the beach and ends with outcome `escape` in `runs.csv`
+
+### Utility colonists, specialists & the Information screen (2026-09-07)
+
+No editor step. Script-only; `Worker.isCrafter` is gone (a prefab still carrying the key is harmless).
+
+- [ ] Campfire panel → Colonists: the Crafters row is now a **Specialists** section with Builders, Crafters, Repairers; Builders and Repairers say "research Construction" and Crafters "research Crafting" until each is done; + is disabled with nobody idle
+- [ ] With Crafting researched and NO crafter assigned, queue a spear at the fire and walk your character away: an idle colonist walks to the bench ("Heading to the bench" / "Crafting") and the queue advances; "N idle" does not change
+- [ ] Place a hut site while that colonist crafts: they leave the bench for the site (Build beats Craft) and come back to the bench when it is done
+- [ ] Pin one colonist as a Crafter: they leave the idle count, walk to the bench and stay there through a hut site appearing; a pinned Builder ignores a queued bench; a pinned Repairer stands at home until something is damaged and never tidies the beach
+- [ ] − on a specialist row returns them to idle; assigning a gathering job to the colony pulls from idle, never from a specialist (the specialist count holds)
+- [ ] Recruiting a warrior with only specialists and no idle colonists is refused (the button disables)
+- [ ] Two idle colonists and two benches with work: one goes to each (the claim); the player at a bench still preempts and the colonist waits beside it
+- [ ] Starvation with idle colonists AND specialists: an idle one leaves first
+- [ ] Main menu → INFORMATION: six tabs (STORY · BASICS · COLONY · RESEARCH · BUILDING · RAIDS), captions on one line, BACK returns to the main menu; the Story tab reads "Nothing written yet."
+- [ ] RESEARCH tab: every research entry under its station with tier, cost, seconds and prerequisites; recipes below with their research; the weapons on COLONY show damage, interval, a-second figure and range for the Bow
+- [ ] BUILDING tab from the main menu says costs are listed during a game; from the pause menu it lists every building in the database with cost and health, the Shipyard tagged "beach only"
+- [ ] RAIDS tab: the roll numbers match F4 (first day 3, 15% + 20% per quiet night, certain after 5; day 5 / 20 / 30 examples of 4 / 10 / 14 with nothing built) and the five difficulty presets match the New Game screen
+- [ ] Scroll a tab, switch to another, switch back: the position is remembered per tab; leave the screen and reopen it: the last tab and its position are restored
+- [ ] Pause menu → INFORMATION works over a frozen game and BACK returns to the pause menu
+- [ ] Edit `Assets/Resources/Information.txt`, save, press Play again: the change shows (a `#` line is ignored, an unknown `@name` shows as a muted `[name]`)
+
+### From here on: playtest quests (2026-09-07)
+
+New features are no longer written up as checklists here. Each one adds a batch to
+`Assets/Resources/DevQuests.txt`; the game shows the open quests on a PLAYTEST tracker
+(top-right, editor and development builds) and the full list under Esc → Information → DEV,
+where each quest takes done / PASS / FAIL and a note. SUBMIT REPORT there copies a markdown
+report to the clipboard and writes `Playtests/playtest_<date>.md` at the repo root — paste that
+back into the session. The sections above stay as reference for the older features.

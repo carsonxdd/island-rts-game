@@ -20,13 +20,28 @@ public class Worker : UnitBase<Worker>
     [Header("Assignment")]
     // A colonist arrives jobless and becomes a worker when the campfire panel hands
     // them a job (2026-09-02). assignedResourceType only means anything while hasJob;
-    // an idle colonist builds and repairs instead. Only SetJob / ClearJob change these.
+    // an idle colonist builds, crafts and repairs instead. Only SetJob / ClearJob change these.
     public bool hasJob = false;
-    // The Crafter job (2026-09-04, Slice 3): hasJob is true AND this is set. Only
-    // SetCrafter / SetJob / ClearJob change it. Serialized for the same dead-data
-    // reason as hasJob: the prefab value (false) is what a fresh colonist gets.
-    public bool isCrafter = false;
+
+    /// <summary>
+    /// What a jobless colonist is allowed to do (2026-09-07). <see cref="Any"/> is
+    /// the utility colonist: builds, then crafts, then repairs, then forages, whatever
+    /// the colony needs. The other three are specialists the panel pins to one trade;
+    /// a specialist never does the other two and never forages. Meaningless while
+    /// <see cref="hasJob"/>. Only SetSpecialty / SetJob / ClearJob change it.
+    /// Serialized for the same dead-data reason as hasJob: the prefab value (Any)
+    /// is what a fresh colonist gets.
+    /// </summary>
+    public enum Specialty { Any, Builder, Crafter, Repairer }
+    public Specialty specialty = Specialty.Any;
     public ResourceNode.ResourceType assignedResourceType = ResourceNode.ResourceType.Wood;
+
+    /// <summary>
+    /// In the idle pool: no job, no specialty, not leaving. This is who the panel
+    /// assigns jobs and specialties from, who becomes a warrior, and who
+    /// "N idle" counts. A specialist is jobless but NOT idle.
+    /// </summary>
+    public bool IsIdle => !hasJob && specialty == Specialty.Any && !leaving;
     public BaseBuilding baseBuilding;  // Reference to campfire
 
     [Header("Gathering Settings")]
@@ -73,34 +88,35 @@ public class Worker : UnitBase<Worker>
     // there under bb.carryType and is delivered as that type — Gather/Pickup refuse
     // to mix a second type on top, so the worker heads home first.
 
-    /// <summary>Give this colonist a gathering job (or change the one they have).</summary>
+    /// <summary>Give this colonist a gathering job (or change the one they have). Drops any specialty.</summary>
     public void SetJob(ResourceNode.ResourceType type)
     {
-        bool changed = !hasJob || isCrafter || assignedResourceType != type;
+        bool changed = !hasJob || assignedResourceType != type || specialty != Specialty.Any;
         hasJob = true;
-        isCrafter = false;
+        specialty = Specialty.Any;
         assignedResourceType = type;
         if (changed) OnJobChanged();
     }
 
     /// <summary>
-    /// The Crafter job (2026-09-04): a job like any other for the idle pool and the
-    /// warrior count, but its work is whichever bench has a queue, not a node.
+    /// Pin a jobless colonist to one trade (2026-09-07), or hand them back to the
+    /// utility pool with <see cref="Specialty.Any"/>. Takes a job holder off their
+    /// job first: a specialist is jobless by definition.
     /// </summary>
-    public void SetCrafter()
+    public void SetSpecialty(Specialty s)
     {
-        if (hasJob && isCrafter) return;
-        hasJob = true;
-        isCrafter = true;
-        OnJobChanged();
+        bool changed = hasJob || specialty != s;
+        hasJob = false;
+        specialty = s;
+        if (changed) OnJobChanged();
     }
 
-    /// <summary>Back to the idle pool: builder, repairer, and the next candidate for a job or the militia.</summary>
+    /// <summary>Back to the idle pool: utility colonist, and the next candidate for a job or the militia.</summary>
     public void ClearJob()
     {
-        if (!hasJob) return;
+        if (!hasJob && specialty == Specialty.Any) return;
         hasJob = false;
-        isCrafter = false;
+        specialty = Specialty.Any;
         OnJobChanged();
     }
 
@@ -128,7 +144,7 @@ public class Worker : UnitBase<Worker>
         if (aiBrain == null || aiBrain.blackboard == null) return;   // brain not built yet — Initialize copies the fields
         AIBlackboard bb = aiBrain.blackboard;
         bb.hasJob = hasJob;
-        bb.isCrafter = isCrafter;
+        bb.specialty = specialty;
         bb.assignedResourceType = assignedResourceType;
         if (bb.carryAmount <= 0.01f) bb.carryType = assignedResourceType;
 
@@ -238,7 +254,7 @@ public class Worker : UnitBase<Worker>
         bb.worker = this;
         bb.assignedResourceType = assignedResourceType;
         bb.hasJob = hasJob;
-        bb.isCrafter = isCrafter;
+        bb.specialty = specialty;
         bb.leaving = leaving;
         bb.carryType = assignedResourceType;
         bb.carryCapacity = carryCapacity;
@@ -326,51 +342,68 @@ public class Worker : UnitBase<Worker>
                 new ThreatNearby(1f, ResponseCurve.InverseLinear(1f, 0f))      // 1 enemy nearby → 0, hard suppression
             }, new CollectPickupExecutor(), basePriority: 1.1f, momentumBonus: 0.15f),
 
-            // Build — idle colonists are the builders (2026-09-02). IsJobless is a
-            // zero-cost gate so job holders early-out before the site scan; the site
-            // scan is 0 with nothing to build (no yShift anywhere, so momentum cannot
-            // keep a finished site alive); ThreatNearby hard-suppresses like Gather.
+            // --- Jobless labor (2026-09-07): Build > Craft > Repair > Forage by LaborPriorities ---
+            // A utility colonist (Specialty.Any) may take all four; a specialist only
+            // their own trade (SpecialtyAllows, zero-cost, beside IsJobless so both
+            // early-out before any scan). The order comes from LaborPriority, the
+            // colony-wide weights the campfire panel's sliders set (defaults 1.0 /
+            // 0.95 / 0.9 / 0.85), read live; base priorities are all 1.0. The weights
+            // are the tie-break: each scan scores by distance with a 0.15 floor, so a
+            // bench next door still beats a site across the island. Every scan is 0
+            // with nothing to do and none has a yShift, so momentum cannot keep a
+            // finished site or a dry bench alive.
+
+            // Build — the site scan (Construction research gates it inside).
+            // ThreatNearby hard-suppresses like Gather.
             new ActionOption("Build", new Consideration[]
             {
                 new IsJobless(ResponseCurve.Linear(1f, 0f)),
+                new SpecialtyAllows(Specialty.Builder, ResponseCurve.Linear(1f, 0f)),
+                new LaborPriority(Specialty.Builder, ResponseCurve.Linear(1f, 0f)),
                 new ConstructionAvailable(ResponseCurve.Linear(1f, 0f)),   // Caches bb.bestSite; 0 when none
                 new ThreatNearby(1f, ResponseCurve.InverseLinear(1f, 0f))
             }, new BuildExecutor(), basePriority: 1.0f, momentumBonus: 0.15f),
 
-            // Craft — the Crafter job (2026-09-04, Slice 3). IsCrafter is the zero-cost
-            // gate (everyone else early-outs before the station scan); the scan is 0
-            // with no queue anywhere, and there is no yShift, so a bench that ran
-            // dry cannot be kept alive by momentum. ThreatNearby hard-suppresses so a
-            // crafter flees with the other civilians.
+            // Craft — a bench with a queue (2026-09-04, Slice 3; opened to every
+            // jobless colonist 2026-09-07). The station scan gates on the Crafting
+            // research inside and claims one colonist per bench.
             new ActionOption("Craft", new Consideration[]
             {
-                new IsCrafter(ResponseCurve.Linear(1f, 0f)),
+                new IsJobless(ResponseCurve.Linear(1f, 0f)),
+                new SpecialtyAllows(Specialty.Crafter, ResponseCurve.Linear(1f, 0f)),
+                new LaborPriority(Specialty.Crafter, ResponseCurve.Linear(1f, 0f)),
                 new StationWorkAvailable(ResponseCurve.Linear(1f, 0f)),   // Caches bb.targetStation; 0 when none
                 new ThreatNearby(1f, ResponseCurve.InverseLinear(1f, 0f))
             }, new CraftExecutor(), basePriority: 1.0f, momentumBonus: 0.15f),
 
-            // Repair — below Build so a colonist finishes new construction before
-            // patching. RepairAvailable is 0 when nothing is damaged OR the pool
-            // cannot cover the next unit of the repair.
+            // Repair — weighted below Build and Craft so a colonist finishes new
+            // construction and the queue before patching. RepairAvailable is 0 when
+            // nothing is damaged OR the pool cannot cover the next unit of the repair.
             new ActionOption("Repair", new Consideration[]
             {
                 new IsJobless(ResponseCurve.Linear(1f, 0f)),
+                new SpecialtyAllows(Specialty.Repairer, ResponseCurve.Linear(1f, 0f)),
+                new LaborPriority(Specialty.Repairer, ResponseCurve.Linear(1f, 0f)),
                 new RepairAvailable(ResponseCurve.Linear(1f, 0f)),         // Caches bb.bestRepair; 0 when none
                 new ThreatNearby(1f, ResponseCurve.InverseLinear(1f, 0f))
-            }, new RepairExecutor(), basePriority: 0.9f, momentumBonus: 0.15f),
+            }, new RepairExecutor(), basePriority: 1.0f, momentumBonus: 0.15f),
 
-            // Forage — an idle colonist carries loose sticks, chunks and salvage near
-            // the fire home (2026-09-03). Below Build and Repair on purpose: real work
-            // first, tidying second, and well above Idle so nobody stands next to a
-            // stick doing nothing. Same executor as the job version; only the scan
-            // differs (ForageAvailability: any type, but only within 35u of the fire).
+            // Forage — a utility colonist carries loose sticks, chunks and salvage near
+            // the fire home (2026-09-03). Weighted below the three trades on purpose:
+            // real work first, tidying second, and well above Idle so nobody stands
+            // next to a stick doing nothing. Specialists never forage (SpecialtyAllows(Any)
+            // is 1 only for a utility colonist; LaborPriority(Any) is the Forage weight).
+            // Same executor as the job version; only the scan differs
+            // (ForageAvailability: any type, but only within 35u of the fire).
             new ActionOption("Forage", new Consideration[]
             {
                 new IsJobless(ResponseCurve.Linear(1f, 0f)),
+                new SpecialtyAllows(Specialty.Any, ResponseCurve.Linear(1f, 0f)),
+                new LaborPriority(Specialty.Any, ResponseCurve.Linear(1f, 0f)),
                 new ForageAvailability(ResponseCurve.Linear(1f, 0f)),        // Caches bb.bestPickup; 0 when none
                 new ResourceCarry(ResponseCurve.InverseLinear(0.9f, 0.1f)),  // Full hands head home instead
                 new ThreatNearby(1f, ResponseCurve.InverseLinear(1f, 0f))    // Civilians flee, they don't forage
-            }, new CollectPickupExecutor(), basePriority: 0.85f, momentumBonus: 0.15f),
+            }, new CollectPickupExecutor(), basePriority: 1.0f, momentumBonus: 0.15f),
 
             // Idle at home (walks to the hut or campfire it is homed to, then waits)
             new ActionOption("Idle", new Consideration[]
@@ -403,6 +436,24 @@ public class Worker : UnitBase<Worker>
         };
 
         aiBrain.Initialize(actions, bb);
+    }
+
+    /// <summary>
+    /// Left-click on a jobless colonist opens the campfire panel on the Colonists
+    /// tab (2026-09-07), where the specialist rows and the priority sliders are —
+    /// the natural place to ask "what should my idle people be doing?". The click
+    /// collider is the capsule (a hitbox only); job holders ignore the click so a
+    /// worker in a crowd does not pop the panel. Left button only, like the fire.
+    /// </summary>
+    void OnMouseDown()
+    {
+        if (hasJob || leaving) return;
+        if (PauseController.BlockGameplayInput) return;
+        WorkerAssignmentUI ui = WorkerAssignmentUI.Instance;
+        BaseBuilding fire = baseBuilding != null ? baseBuilding : BaseBuilding.FindAlive();
+        if (ui == null || fire == null) return;
+        ui.OpenColonists(fire);
+        DevQuests.Signal("worker_click");
     }
 
     void Update()

@@ -761,6 +761,23 @@ public static class MenuBuilder
         }
     }
 
+    /// <summary>
+    /// A small button anchored inside a row's control slot (anchors are
+    /// fractions of the slot), not laid out — the campfire panel's [−] [+] and
+    /// the DEV tab's verdict buttons.
+    /// </summary>
+    public static Button SlotButton(RectTransform slot, string text, Action onClick, Vector2 anchorMin, Vector2 anchorMax)
+    {
+        Button b = MenuButton(slot, text, onClick);
+        UnityEngine.Object.Destroy(b.GetComponent<LayoutElement>());
+        RectTransform rt = b.GetComponent<RectTransform>();
+        rt.anchorMin = anchorMin;
+        rt.anchorMax = anchorMax;
+        rt.offsetMin = Vector2.zero;
+        rt.offsetMax = Vector2.zero;
+        return b;
+    }
+
     /// <summary>Fills the parent rect exactly. Code-created RectTransforms do not do this by default.</summary>
     public static RectTransform Stretch(RectTransform rt)
     {

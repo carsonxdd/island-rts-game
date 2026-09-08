@@ -1,0 +1,77 @@
+# Castaway Colony — playtest quests (editor and development builds only).
+# Shown on the HUD tracker and on Esc > Information > DEV. Newest batch first.
+#
+#   ## yyyy-mm-dd Feature          a batch: one recent change to test
+#   - @signal Short quest text     ticks itself when the game raises that signal
+#   - Short quest text             the tester ticks it after checking
+#
+# Keep a quest under ~70 characters — it is one line on the panel. Signals
+# come from DevQuests.Signal(...) at the point of effect; the set in use:
+#   research:<id>  craft:<id>  build:<buildingtype>  specialist:<trade>
+#   warrior  archer  hungry  starving  colonist_left  raid  raid_survived
+#   victory  escape  defeat  deposit  info  info:dev  tracker  report
+#   priority  worker_click  craft_by_colonist  craft_by_player
+# A finished batch is deleted from here once its report is in; it stays in the
+# changelog and the phase history.
+
+## 2026-09-07 Dev quests
+- @info:dev Open Esc > Information > DEV
+- @tracker Toggle the HUD tracker off and on from the DEV tab
+- An auto quest ticks itself and flashes gold on the tracker
+- @report SUBMIT REPORT: clipboard holds it, Playtests/ has the file
+- Results survive Restart and a fresh launch; RESET clears them
+
+## 2026-09-07 Priorities
+- @priority Move a priority slider on the Colonists tab
+- @worker_click Left-click an idle colonist: the panel opens on Colonists
+- Craft 100 / Build 50: idle colonist picks a bench over a nearby site
+- Forage at 0: nobody tidies the beach; back up and they do
+- Left-click on a working colonist (with a job) does nothing
+
+## 2026-09-07 Utility colonists
+- @craft_by_colonist An idle colonist (no Crafter pinned) works a queued bench
+- @specialist:builder Pin a Builder from the Specialists rows
+- @specialist:crafter Pin a Crafter
+- @specialist:repairer Pin a Repairer
+- Pinned Crafter stays at the bench while a hut site waits
+- Pinned Builder ignores a queued bench; Repairer never tidies the beach
+- Unpinned colonist leaves the bench for a new site, then returns
+- Recruit button disables with only specialists and nobody idle
+- Locked specialist rows name Construction / Crafting
+
+## 2026-09-07 Information screen
+- @info Open INFORMATION from the main menu or the pause menu
+- Six tabs plus DEV, captions on one line, BACK returns where you came from
+- RESEARCH lists every entry with tier, cost, seconds, prerequisites
+- BUILDING lists costs and health from the pause menu; a note from the main menu
+- RAIDS numbers match F4: day 3, 15% + 20% per quiet night, certain after 5
+- Scroll position remembered per tab and across leaving the screen
+
+## 2026-09-04 Slice 3 Crafters and iron
+- @research:crafting Research Crafting at the fire
+- @build:workshop Build a Workshop (about 10 s per builder)
+- @research:iron_work Research Iron Work at the Workshop
+- @craft:iron_spear Craft an Iron Spear; the Workshop is twice as fast
+- Arm-with picker cycles weapons; the in-stock count updates
+- @warrior Recruit a warrior with the picked weapon
+- A spearman fetches an Iron Spear from the stockpile in peacetime
+
+## 2026-09-04 Slice 4 Food
+- @hungry Let food run out: HUNGRY banner, work slows, no arrivals
+- @starving A full day without food: STARVING banner
+- @colonist_left A colonist walks to the cove and leaves
+- Food chip breakdown shows the daily drain
+
+## 2026-09-04 Slice 5 Archers
+- @research:bowyery Research Bowyery
+- @craft:bow Craft a Bow
+- @archer Recruit an archer (Bow picked)
+- Archer holds range, shoots over a wall; arrows hit and vanish
+- Archer body differs from the spearman (after Setup Everything)
+
+## 2026-09-04 Slice 6 Escape
+- @research:shipwright Research Shipwright
+- @build:shipyard Build the Shipyard: red inland, green on the beach
+- @escape Click the finished Shipyard, YES: ship sails, ESCAPED shows
+- KEEP PLAYING after ESCAPED resumes the game
+- @raid_survived Survive a raid night with the campfire standing
