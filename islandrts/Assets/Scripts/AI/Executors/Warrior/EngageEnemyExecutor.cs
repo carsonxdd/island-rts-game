@@ -10,11 +10,41 @@ using UnityEngine.AI;
 /// agent lookups use Enemy.CachedAgent (no more local dictionary), and every
 /// TrySetDestination return is honored (a rejected set retries via the
 /// !hasPath branch in MoveTowardTarget instead of being silently dropped).
+///
+/// 2026-09-07: the target scan honours <see cref="GuardStance.Allows"/> (the
+/// same filter the StanceTargetAvailable consideration scored with), and the
+/// warrior walks to its own ATTACK SLOT on the enemy — one of
+/// <see cref="Enemy.AttackSlotCount"/> bearings, claimed through
+/// <see cref="Enemy.ClaimAttackSlot"/> — instead of the enemy's centre, so
+/// three warriors on one raider come in from three sides on three paths rather
+/// than queueing on the same line. The stopping distance drops to 0.5 for the
+/// duration (the warrior's default, attackRange - 1, would park it a full
+/// reach short of a slot point); the edge-distance range check still decides
+/// when to stop and swing.
 /// </summary>
 public class EngageEnemyExecutor : ActionExecutor
 {
     public override string DisplayName => displayName;
     private string displayName = "Engaging";
+
+    private const float SlotStoppingDistance = 0.5f;
+
+    // The attack slot on the current target (2026-09-07)
+    private Enemy slotEnemy;
+    private int slotIndex = -1;
+    private float originalStoppingDistance;
+    private bool stoppingDistanceSwapped;
+
+    // Archer kiting (2026-09-07). Offensive: back off to GuardStance.KiteRange
+    // whenever a raider is inside KiteTrigger. Defensive / Follow: hold the spot
+    // and shoot; one BackStep toward the fire (or the castaway) when a raider is
+    // inside HoldTrigger, never further than HoldLeash from where the fight
+    // started, so an archer never walks out of the wall line with a raider on
+    // its heels. Arrows keep flying while backing off.
+    private bool kiting;
+    private float kiteTimer;
+    private Vector3 engageAnchor;
+    private const float KiteMaxSeconds = 2.5f;   // a kite leg that has not arrived by now is abandoned
 
     // Target-switching hysteresis (ported from Warrior)
     private float targetAcquiredTime = 0f;
@@ -34,6 +64,15 @@ public class EngageEnemyExecutor : ActionExecutor
 
     public override void OnEnter(AIBlackboard bb)
     {
+        if (bb.agent != null && bb.agent.isOnNavMesh && !stoppingDistanceSwapped)
+        {
+            originalStoppingDistance = bb.agent.stoppingDistance;
+            bb.agent.stoppingDistance = SlotStoppingDistance;
+            stoppingDistanceSwapped = true;
+        }
+        kiting = false;
+        engageAnchor = bb.transform.position;
+
         // Don't reset isInAttackRange if we already had a target — preserve state for smooth re-entry
         if (bb.currentTarget == null || !bb.IsTargetAlive())
         {
@@ -44,7 +83,7 @@ public class EngageEnemyExecutor : ActionExecutor
         if (bb.currentTarget != null)
         {
             bb.agent.isStopped = false;
-            if (AINavHelper.TrySetDestination(bb.agent, bb.currentTarget.position))
+            if (AINavHelper.TrySetDestination(bb.agent, ApproachPoint(bb)))
                 lastTargetPosition = bb.currentTarget.position;
             // On rejection MoveTowardTarget's !hasPath branch retries next frame.
             targetAcquiredTime = Time.time;
@@ -64,7 +103,7 @@ public class EngageEnemyExecutor : ActionExecutor
             if (bb.currentTarget == null) return; // No enemies, brain will switch action
 
             bb.agent.isStopped = false;
-            if (AINavHelper.TrySetDestination(bb.agent, bb.currentTarget.position))
+            if (AINavHelper.TrySetDestination(bb.agent, ApproachPoint(bb)))
                 lastTargetPosition = bb.currentTarget.position;
             targetAcquiredTime = Time.time;
         }
@@ -86,6 +125,14 @@ public class EngageEnemyExecutor : ActionExecutor
         // the 2026-08-24 playtest log). Bail out; the callback ForceReeval'd.
         if (bb.stuckResolver != null && !bb.isInAttackRange && bb.stuckResolver.UpdateMoving())
             return;
+
+        // --- Archer kiting (2026-09-07): backing off wins over closing in ---
+        if (bb.isRanged && KiteStep(bb))
+        {
+            if (bb.TargetEdgeDistance() <= bb.attackRange) AttemptAttack(bb);   // shoot on the move
+            displayName = "Falling back from " + bb.currentTargetName;
+            return;
+        }
 
         // --- Movement ---
         MoveTowardTarget(bb);
@@ -141,8 +188,9 @@ public class EngageEnemyExecutor : ActionExecutor
             return;
         }
 
-        Transform nearestEnemy = null;
-        float nearestDistance = bb.warriorSearchRadius;
+        Vector3 from = bb.transform.position;
+        Enemy nearest = null;
+        float nearestDistance = float.MaxValue;   // the stance decides reach, not warriorSearchRadius
 
         for (int i = 0; i < Enemy.ActiveList.Count; i++)
         {
@@ -152,58 +200,163 @@ public class EngageEnemyExecutor : ActionExecutor
             Health enemyHealth = enemy.CachedHealth;
             if (enemyHealth == null || !enemyHealth.IsAlive) continue;
 
-            float distance = Vector3.Distance(bb.transform.position, enemy.transform.position);
+            float distance = Vector3.Distance(from, enemy.transform.position);
+            bool headingForWall = enemy.IsHeadingForWall();
 
             // Wall-attack bonus: enemies attacking walls treated as closer
-            if (IsEnemyAttackingWall(enemy))
-            {
-                distance *= 0.5f;
-            }
+            if (headingForWall) distance *= 0.5f;
+            if (distance >= nearestDistance) continue;
 
-            if (distance < nearestDistance)
-            {
-                nearestDistance = distance;
-                nearestEnemy = enemy.transform;
-            }
+            // The stance's filter, after the cheap distance cull (2026-09-07)
+            if (!GuardStance.Allows(enemy, from, bb.baseBuilding)) continue;
+
+            nearestDistance = distance;
+            nearest = enemy;
         }
 
         // Also update bb.nearestEnemy for considerations to read
-        bb.nearestEnemy = nearestEnemy;
-        bb.nearestEnemyDistance = nearestEnemy != null ? nearestDistance : float.MaxValue;
+        bb.nearestEnemy = nearest != null ? nearest.transform : null;
+        bb.nearestEnemyDistance = nearest != null ? nearestDistance : float.MaxValue;
 
-        if (nearestEnemy != null)
+        if (nearest != null)
         {
-            // Hysteresis: don't switch if we have a valid living target
-            if (bb.currentTarget != null && bb.IsTargetAlive())
+            // Hysteresis: don't switch if we have a valid living target — unless the
+            // stance no longer allows the one we have (the player changed orders).
+            if (bb.currentTarget != null && bb.IsTargetAlive()
+                && (slotEnemy == null || GuardStance.Allows(slotEnemy, from, bb.baseBuilding)))
             {
                 if (Time.time - targetAcquiredTime < minTargetLockDuration)
                     return;
 
-                float currentDist = Vector3.Distance(bb.transform.position, bb.currentTarget.position);
+                float currentDist = Vector3.Distance(from, bb.currentTarget.position);
                 if (nearestDistance > currentDist * targetSwitchThreshold)
                     return;
             }
 
-            if (bb.SetTarget(nearestEnemy, nearestEnemy.gameObject.name))
+            if (bb.SetTarget(nearest.transform, nearest.gameObject.name))
+            {
                 targetAcquiredTime = Time.time;
+                TakeSlot(bb, nearest);
+            }
         }
         else
         {
             bb.ClearTarget();
+            ReleaseSlot(bb);
         }
     }
 
-    bool IsEnemyAttackingWall(Enemy enemy)
-    {
-        NavMeshAgent enemyAgent = enemy.CachedAgent;
-        if (enemyAgent == null || !enemyAgent.hasPath) return false;
+    // --- Archer kiting (2026-09-07) ---
 
-        if (WallGrid.Instance != null)
+    /// <summary>
+    /// Runs the kite state; true while the archer is backing off (the caller
+    /// skips the approach for that tick). Starts a leg when the nearest raider —
+    /// not necessarily the target — is inside the stance's trigger; ends it on
+    /// arrival, on a timeout, or once the raider has dropped back.
+    /// </summary>
+    bool KiteStep(AIBlackboard bb)
+    {
+        bool offensive = GuardStance.Effective == GuardStance.Mode.Offensive;
+        float trigger = offensive ? GuardStance.KiteTrigger : GuardStance.HoldTrigger;
+
+        float threatDist;
+        Enemy threat = TargetingUtil.FindNearest(Enemy.ActiveList, bb.transform.position, trigger + 1.5f, out threatDist);
+
+        if (kiting)
         {
-            Vector2Int destGrid = WallGrid.Instance.WorldToGrid(enemyAgent.destination);
-            return WallGrid.Instance.HasWallAt(destGrid);
+            kiteTimer += Time.deltaTime;
+            bool arrived = bb.agent.isOnNavMesh && !bb.agent.pathPending
+                && (!bb.agent.hasPath || bb.agent.remainingDistance <= bb.agent.stoppingDistance + 0.3f);
+            bool clear = threat == null || threatDist >= trigger + 1.5f;
+            if (arrived || clear || kiteTimer > KiteMaxSeconds)
+            {
+                kiting = false;
+                // MoveTowardTarget re-paths to the slot: a finished kite leg has no path
+                return false;
+            }
+            return true;
         }
-        return false;
+
+        if (threat == null || threatDist > trigger) return false;
+        if (bb.agent == null || !bb.agent.enabled || !bb.agent.isOnNavMesh) return false;
+
+        Vector3 pos = bb.transform.position;
+        Vector3 away = pos - threat.transform.position;
+        away.y = 0f;
+        if (away.sqrMagnitude < 0.01f) away = -bb.transform.forward;
+        away.Normalize();
+
+        float step;
+        if (offensive)
+        {
+            step = GuardStance.KiteRange - threatDist;
+        }
+        else
+        {
+            // Hold stances: a short step, bent toward home, and only inside the leash
+            if ((pos - engageAnchor).sqrMagnitude >= GuardStance.HoldLeash * GuardStance.HoldLeash)
+                return false;   // stand and shoot; the spearmen have it
+            Vector3 home = Vector3.zero;
+            if (GuardStance.Effective == GuardStance.Mode.Follow && PlayerCharacter.Instance != null)
+                home = PlayerCharacter.Instance.transform.position - pos;
+            else if (bb.baseBuilding != null)
+                home = bb.baseBuilding.transform.position - pos;
+            home.y = 0f;
+            if (home.sqrMagnitude > 0.01f) away = (away + home.normalized * 0.6f).normalized;
+            step = GuardStance.BackStep;
+        }
+
+        NavMeshHit hit;
+        Vector3 dest = pos + away * step;
+        if (!NavMesh.SamplePosition(dest, out hit, 2.5f, NavMesh.AllAreas)) return false;
+        if (!AINavHelper.TrySetDestination(bb.agent, hit.position)) return false;   // throttled: try again next tick
+
+        kiting = true;
+        kiteTimer = 0f;
+        bb.isInAttackRange = false;   // moving again; the range hold re-trips on arrival
+        bb.agent.isStopped = false;
+        return true;
+    }
+
+    // --- Attack slots (2026-09-07) ---
+
+    /// <summary>Claim a bearing on the new target and drop the one on the old.</summary>
+    void TakeSlot(AIBlackboard bb, Enemy enemy)
+    {
+        ReleaseSlot(bb);
+        slotEnemy = enemy;
+        slotIndex = enemy.ClaimAttackSlot(bb.warrior, bb.transform.position);
+    }
+
+    void ReleaseSlot(AIBlackboard bb)
+    {
+        if (slotEnemy != null) slotEnemy.ReleaseAttackSlot(bb.warrior);
+        slotEnemy = null;
+        slotIndex = -1;
+    }
+
+    /// <summary>
+    /// Where to walk: this warrior's slot on the target, one weapon reach short
+    /// of the centre and snapped to the NavMesh, or the centre itself when the
+    /// slot is stale (target changed under us) or off the mesh.
+    /// </summary>
+    Vector3 ApproachPoint(AIBlackboard bb)
+    {
+        if (bb.currentTarget == null) return bb.transform.position;
+
+        if (slotEnemy == null || slotEnemy.transform != bb.currentTarget)
+        {
+            Enemy e = bb.currentTarget.GetComponent<Enemy>();
+            if (e != null) TakeSlot(bb, e);
+        }
+        if (slotEnemy == null || slotIndex < 0) return bb.currentTarget.position;
+
+        float reach = Mathf.Max(1f, bb.attackRange - 1f);
+        Vector3 want = slotEnemy.AttackSlotPoint(slotIndex, reach);
+        NavMeshHit hit;
+        if (NavMesh.SamplePosition(want, out hit, 2f, NavMesh.AllAreas))
+            return hit.position;
+        return bb.currentTarget.position;
     }
 
     void MoveTowardTarget(AIBlackboard bb)
@@ -217,7 +370,7 @@ public class EngageEnemyExecutor : ActionExecutor
 
         if (distanceMoved > destinationUpdateThreshold || needsNewPath)
         {
-            if (AINavHelper.TrySetDestination(bb.agent, bb.currentTarget.position))
+            if (AINavHelper.TrySetDestination(bb.agent, ApproachPoint(bb)))
             {
                 lastTargetPosition = bb.currentTarget.position;
             }
@@ -282,9 +435,16 @@ public class EngageEnemyExecutor : ActionExecutor
 
     public override void OnExit(AIBlackboard bb)
     {
-        // Don't clear target — keep it so re-entering this action is seamless
+        // Don't clear target — keep it so re-entering this action is seamless.
+        // The slot stays claimed with it; Enemy treats a slot whose owner is no
+        // longer targeting it as free, so nothing leaks if we never come back.
         bb.isInAttackRange = false;
+        kiting = false;
         if (bb.agent.isOnNavMesh)
+        {
             bb.agent.isStopped = false;
+            if (stoppingDistanceSwapped) bb.agent.stoppingDistance = originalStoppingDistance;
+        }
+        stoppingDistanceSwapped = false;
     }
 }

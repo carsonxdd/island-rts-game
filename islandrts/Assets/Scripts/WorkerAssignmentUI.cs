@@ -340,32 +340,34 @@ public class WorkerAssignmentUI : MonoBehaviour
         colonistText = MenuBuilder.RowDescription(body, "");
         housingText = MenuBuilder.RowDescription(body, "Housing 0 / 0");
 
-        MenuBuilder.SectionHeader(body, "Jobs");
-        jobs.Add(MakeJobRow(body, ResourceNode.ResourceType.Wood, "Wood cutters"));
-        jobs.Add(MakeJobRow(body, ResourceNode.ResourceType.Food, "Foragers"));
-        jobs.Add(MakeJobRow(body, ResourceNode.ResourceType.Stone, "Quarriers"));
-        jobs.Add(MakeJobRow(body, ResourceNode.ResourceType.Metal, "Miners"));
+        // Every section below folds (2026-09-07): its rows live in the column the
+        // header returns, and a fold refits the panel through OnSectionToggled.
+        Transform sec = MenuBuilder.CollapsibleSection(body, "Jobs", "ui.campfire.jobs", OnSectionToggled).transform;
+        jobs.Add(MakeJobRow(sec, ResourceNode.ResourceType.Wood, "Wood cutters"));
+        jobs.Add(MakeJobRow(sec, ResourceNode.ResourceType.Food, "Foragers"));
+        jobs.Add(MakeJobRow(sec, ResourceNode.ResourceType.Stone, "Quarriers"));
+        jobs.Add(MakeJobRow(sec, ResourceNode.ResourceType.Metal, "Miners"));
 
-        MenuBuilder.RowDescription(body, "+ gives an idle colonist the job, − sends them back to idle.");
+        MenuBuilder.RowDescription(sec, "+ gives an idle colonist the job, − sends them back to idle.");
 
         // Specialists (2026-09-07): idle colonists build, craft and repair on their
         // own, in that order; a row here pins one of them to a single trade.
-        MenuBuilder.SectionHeader(body, "Specialists");
-        specialties.Add(MakeSpecialtyRow(body, Worker.Specialty.Builder, "Builders"));
-        specialties.Add(MakeSpecialtyRow(body, Worker.Specialty.Crafter, "Crafters"));
-        specialties.Add(MakeSpecialtyRow(body, Worker.Specialty.Repairer, "Repairers"));
-        MenuBuilder.RowDescription(body, "Idle colonists build, then craft, then repair, then tidy. A specialist does only their trade.");
+        sec = MenuBuilder.CollapsibleSection(body, "Specialists", "ui.campfire.specialists", OnSectionToggled).transform;
+        specialties.Add(MakeSpecialtyRow(sec, Worker.Specialty.Builder, "Builders"));
+        specialties.Add(MakeSpecialtyRow(sec, Worker.Specialty.Crafter, "Crafters"));
+        specialties.Add(MakeSpecialtyRow(sec, Worker.Specialty.Repairer, "Repairers"));
+        MenuBuilder.RowDescription(sec, "Idle colonists build, then craft, then repair, then tidy. A specialist does only their trade.");
 
         // Priorities (2026-09-07): the colony-wide weights behind that order. Live
         // statics read by every idle colonist's next decision; nothing to refresh.
-        MenuBuilder.SectionHeader(body, "Priorities");
-        MenuBuilder.SliderRow(body, "Build", LaborPriorities.Build, v => { LaborPriorities.Build = v; DevQuests.Signal("priority"); });
-        MenuBuilder.SliderRow(body, "Craft", LaborPriorities.Craft, v => { LaborPriorities.Craft = v; DevQuests.Signal("priority"); });
-        MenuBuilder.SliderRow(body, "Repair", LaborPriorities.Repair, v => { LaborPriorities.Repair = v; DevQuests.Signal("priority"); });
-        MenuBuilder.SliderRow(body, "Tidy the beach", LaborPriorities.Forage, v => { LaborPriorities.Forage = v; DevQuests.Signal("priority"); });
-        MenuBuilder.RowDescription(body, "What an idle colonist reaches for first, all else equal. Zero switches that work off.");
+        sec = MenuBuilder.CollapsibleSection(body, "Priorities", "ui.campfire.priorities", OnSectionToggled).transform;
+        MenuBuilder.SliderRow(sec, "Build", LaborPriorities.Build, v => { LaborPriorities.Build = v; DevQuests.Signal("priority"); });
+        MenuBuilder.SliderRow(sec, "Craft", LaborPriorities.Craft, v => { LaborPriorities.Craft = v; DevQuests.Signal("priority"); });
+        MenuBuilder.SliderRow(sec, "Repair", LaborPriorities.Repair, v => { LaborPriorities.Repair = v; DevQuests.Signal("priority"); });
+        MenuBuilder.SliderRow(sec, "Tidy the beach", LaborPriorities.Forage, v => { LaborPriorities.Forage = v; DevQuests.Signal("priority"); });
+        MenuBuilder.RowDescription(sec, "What an idle colonist reaches for first, all else equal. Zero switches that work off.");
 
-        MenuBuilder.SectionHeader(body, "Defence");
+        body = MenuBuilder.CollapsibleSection(body, "Defence", "ui.campfire.defence", OnSectionToggled).transform;
         MenuBuilder.SettingRow(body, "Warriors", out RectTransform wslot);
         CounterControls(wslot, OnWarriorMinusClicked, OnWarriorPlusClicked, out warriorCount, out warriorMinus, out warriorPlus);
 
@@ -382,6 +384,30 @@ public class WorkerAssignmentUI : MonoBehaviour
         wl.offsetMax = Vector2.zero;
 
         warriorCost = MenuBuilder.RowDescription(body, "");
+
+        // Stance (2026-09-07): the colony-wide order every warrior reads live
+        // (GuardStance.Active), like the priority sliders. The combat HUD and its
+        // hotkeys set the same static, so UpdateDisplay keeps the stepper in step.
+        stanceSetter = MenuBuilder.StepperRow(body, "Stance", GuardStance.Names, (int)GuardStance.Active,
+            i => GuardStance.Set((GuardStance.Mode)i));
+        MenuBuilder.RowDescription(body, "Defensive holds the colony. Offensive hunts raiders anywhere. Follow escorts your castaway.");
+
+        // Formation (2026-09-07): how the group stands when it rallies or escorts.
+        // Auto follows the stance (Line / Wedge / Ring); the rest force one.
+        formationSetter = MenuBuilder.StepperRow(body, "Formation", Formation.Names, (int)Formation.Active,
+            i => Formation.Set((Formation.Kind)i));
+        MenuBuilder.RowDescription(body, "Auto: Line on Defensive, Wedge on Offensive, Ring on Follow. Spearmen in front, archers behind.");
+    }
+
+    private Action<int> stanceSetter, formationSetter;
+    private int stanceShown = -1, formationShown = -1;
+
+    /// <summary>A section folded or unfolded: the column changed height under the panel.</summary>
+    void OnSectionToggled()
+    {
+        MenuBuilder.FitPanelHeight(panel, mainColumn);
+        drag.Clamp();
+        DevQuests.Signal("collapse");
     }
 
     /// <summary>One count row per stockpiled item, in catalog order.</summary>
@@ -594,6 +620,18 @@ public class WorkerAssignmentUI : MonoBehaviour
 
     void UpdateDisplay()
     {
+        // The stance / formation steppers mirror statics the combat HUD also sets
+        if (stanceSetter != null && stanceShown != (int)GuardStance.Active)
+        {
+            stanceShown = (int)GuardStance.Active;
+            stanceSetter(stanceShown);
+        }
+        if (formationSetter != null && formationShown != (int)Formation.Active)
+        {
+            formationShown = (int)Formation.Active;
+            formationSetter(formationShown);
+        }
+
         if (baseBuilding == null || station == null) return;
 
         switch (activeTab)
@@ -756,7 +794,10 @@ public class WorkerAssignmentUI : MonoBehaviour
         if (warriors != lastWarriors)
         {
             lastWarriors = warriors;
-            warriorCount.text = warriors + " / " + baseBuilding.maxWarriors;
+            // No cap by default (2026-09-07): housing is the limit, shown on its own line
+            warriorCount.text = baseBuilding.maxWarriors > 0
+                ? warriors + " / " + baseBuilding.maxWarriors
+                : warriors.ToString();
         }
 
         bool canRecruit = baseBuilding.CanRecruitWarrior();

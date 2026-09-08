@@ -44,6 +44,38 @@ public class Worker : UnitBase<Worker>
     public bool IsIdle => !hasJob && specialty == Specialty.Any && !leaving;
     public BaseBuilding baseBuilding;  // Reference to campfire
 
+    /// <summary>
+    /// Owes the campfire a visit (2026-09-07): every job, specialty or back-to-idle
+    /// change sets this, and the GearUp action walks the colonist to the fire,
+    /// delivers what they carry and holds them a moment before they go out as the
+    /// new unit. Cleared only by GearUpExecutor. The panel's counts read the job
+    /// fields, which change at once; this is the body catching up.
+    /// </summary>
+    [System.NonSerialized] public bool gearingUp;
+
+    /// <summary>The unit a colonist is about to become, for the gear-up label.</summary>
+    public string RoleTitle()
+    {
+        if (hasJob)
+        {
+            switch (assignedResourceType)
+            {
+                case ResourceNode.ResourceType.Wood: return "Wood cutter";
+                case ResourceNode.ResourceType.Food: return "Forager";
+                case ResourceNode.ResourceType.Stone: return "Quarrier";
+                case ResourceNode.ResourceType.Metal: return "Miner";
+                default: return assignedResourceType.ToString();
+            }
+        }
+        switch (specialty)
+        {
+            case Specialty.Builder: return "Builder";
+            case Specialty.Crafter: return "Crafter";
+            case Specialty.Repairer: return "Repairer";
+            default: return "Colonist";
+        }
+    }
+
     [Header("Gathering Settings")]
     public float gatherRatePerSecond = 1f;  // How fast worker gathers (resources/sec)
     public float carryCapacity = 5.01f;  // Maximum resources worker can carry (slightly over 5 to avoid floating point issues)
@@ -132,20 +164,24 @@ public class Worker : UnitBase<Worker>
         if (leaving) return;
         ClearJob();
         leaving = true;
+        gearingUp = false;   // ClearJob flagged a trip to the fire; a leaver owes nobody that
         if (aiBrain != null && aiBrain.blackboard != null)
         {
             aiBrain.blackboard.leaving = true;
+            aiBrain.blackboard.gearingUp = false;
             aiBrain.ForceReeval();
         }
     }
 
     void OnJobChanged()
     {
+        gearingUp = !leaving;   // a leaver has no trade to gear up for
         if (aiBrain == null || aiBrain.blackboard == null) return;   // brain not built yet — Initialize copies the fields
         AIBlackboard bb = aiBrain.blackboard;
         bb.hasJob = hasJob;
         bb.specialty = specialty;
         bb.assignedResourceType = assignedResourceType;
+        bb.gearingUp = gearingUp;
         if (bb.carryAmount <= 0.01f) bb.carryType = assignedResourceType;
 
         if (bb.targetResource != null)
@@ -256,6 +292,7 @@ public class Worker : UnitBase<Worker>
         bb.hasJob = hasJob;
         bb.specialty = specialty;
         bb.leaving = leaving;
+        bb.gearingUp = gearingUp;
         bb.carryType = assignedResourceType;
         bb.carryCapacity = carryCapacity;
         bb.gatherDistance = gatherDistance;
@@ -317,6 +354,19 @@ public class Worker : UnitBase<Worker>
                 new TimeOfDay(false, ResponseCurve.Linear(0.3f, 0.7f)),  // Slight daytime preference, not crippled at night
                 new ThreatNearby(1f, ResponseCurve.InverseLinear(1f, 0f))  // 1 enemy nearby → score 0, hard suppression
             }, new GatherExecutor(), basePriority: 1.0f, momentumBonus: 0.15f),
+
+            // Gear Up (2026-09-07) — a job change owes the fire a visit: deliver the
+            // old load, pause, then go out as the new unit. 1.5 outranks every
+            // errand (Gather/Return/Pickup peak at ~1.15 with momentum, which the
+            // 20% switch bar turns into 1.38) but ThreatNearby zeroes it the moment
+            // an enemy is in the grid, so Flee (1.2) still wins a raid; the flag
+            // survives the flight and the trip resumes. Leave (2.0) beats it. Zero
+            // momentum, no yShift: the executor's Finish ends it at once.
+            new ActionOption("GearUp", new Consideration[]
+            {
+                new IsGearingUp(ResponseCurve.Linear(1f, 0f)),                 // Zero-cost gate
+                new ThreatNearby(1f, ResponseCurve.InverseLinear(1f, 0f))     // 1 enemy nearby → 0, flee first
+            }, new GearUpExecutor(), basePriority: 1.5f, momentumBonus: 0f),
 
             // Return to Base — compound urgency score:
             //   No pressure: only returns near-full (carry^15: 0.9→0.21, 0.95→0.46, 1.0→1.0)
@@ -639,6 +689,8 @@ public class Worker : UnitBase<Worker>
             color = new Color(1f, 0.65f, 0.2f);   // orange: labour
         else if (displayName.Contains("Heading"))
             color = Color.yellow;
+        else if (displayName.Contains("Gearing up"))
+            color = new Color(0.3f, 0.8f, 1f);   // the warriors' guard blue: kitting out
         else
             color = Color.gray;
 

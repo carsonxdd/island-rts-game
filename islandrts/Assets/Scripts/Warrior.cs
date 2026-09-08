@@ -74,6 +74,9 @@ public class Warrior : UnitBase<Warrior>
     /// <summary>Armed with a bow: Engage looses arrows and the archer body is shown (2026-09-04).</summary>
     public bool IsRanged => weapon != null && weapon.equipment != null && weapon.equipment.ranged;
 
+    /// <summary>What this warrior is going for, or null. Read by <see cref="Enemy"/>'s attack slots (2026-09-07).</summary>
+    public Transform CurrentTarget => aiBrain != null && aiBrain.blackboard != null ? aiBrain.blackboard.currentTarget : null;
+
     // The Warrior prefab carries two art children (LowPolyPlumber, 2026-09-04):
     // "Model" (the spearman) and "Model_Archer", inactive. Whichever the weapon
     // says is shown; a prefab without the archer body simply keeps the spearman.
@@ -170,38 +173,58 @@ public class Warrior : UnitBase<Warrior>
         // so bb.nearestEnemy is always populated before other considerations read it.
         var enemyScanner = new EnemyPresence(0f, ResponseCurve.Linear(1f, 0f));
 
+        // The colony-wide stance (GuardStance, 2026-09-07) decides which of these
+        // run and which enemies count: StanceAllows is a zero-cost gate first in
+        // Intercept / DefendWall / Patrol / Follow, and StanceTargetAvailable is
+        // Engage's "is there something I am allowed to fight" — Defensive: within
+        // HoldRadius of the fire, heading for a wall, or on top of us; Offensive:
+        // anything; Follow: within reach of the character. No yShift anywhere, so
+        // a change of orders kills the running action despite its momentum.
         var actions = new ActionOption[]
         {
-            // Engage Enemy — enemies are CLOSE (within ~20m), charge in and fight
-            // EnemyProximity returns high when enemies are close, low when far
+            // Engage Enemy — something the stance lets us fight exists: go and fight it
             new ActionOption("Engage", new Consideration[]
             {
-                enemyScanner,  // Populates bb.nearestEnemy, returns 1 if any enemy alive
-                new EnemyProximity(searchRadius, ResponseCurve.Logistic(8f, 0.4f)),  // Close = high
+                enemyScanner,  // Frame-cached: 0 with nothing alive at all, before the stance scan
+                new StanceTargetAvailable(ResponseCurve.Linear(1f, 0f)),  // Nearest ALLOWED enemy → bb.nearestEnemy
                 new HealthPercent(ResponseCurve.Linear(0.7f, 0.3f))  // Healthy = more willing
             }, new EngageEnemyExecutor(), basePriority: 1.0f, momentumBonus: 0.25f),
 
-            // Intercept — enemies detected but FAR, rally at colony edge as a group
+            // Intercept (not while following) — enemies detected but FAR: rally at the
+            // colony edge (Defensive) or advance on them as a group (Offensive)
             // EnemyProximity inverted: high when enemies are far, drops as they get close
             new ActionOption("Intercept", new Consideration[]
             {
+                new StanceAllows(GuardStance.Role.Intercept, ResponseCurve.Linear(1f, 0f)),
                 enemyScanner,  // Enemies must exist
                 new EnemyProximity(searchRadius, ResponseCurve.InverseLinear(0.6f, 0.3f))  // Far = high
             }, new InterceptExecutor(), basePriority: 0.7f, momentumBonus: 0.15f),
 
-            // Defend Wall — walls under attack, rush to defend
+            // Defend Wall (not while following) — walls under attack, rush to defend
             new ActionOption("DefendWall", new Consideration[]
             {
+                new StanceAllows(GuardStance.Role.DefendWall, ResponseCurve.Linear(1f, 0f)),
                 new WallIntegrity(ResponseCurve.Linear(1f, 0f)),
                 new DistanceTo(DistanceTo.TargetType.WallUnderAttack, searchRadius, ResponseCurve.Linear(0.5f, 0.3f))
             }, new DefendWallExecutor(), basePriority: 0.9f, momentumBonus: 0.15f),
 
-            // Patrol — no enemies at all, peacetime
+            // Patrol (not while following) — no enemies at all, peacetime
             // InverseLinear on EnemyPresence: 1 when no enemies, 0 when enemies exist
             new ActionOption("Patrol", new Consideration[]
             {
+                new StanceAllows(GuardStance.Role.Patrol, ResponseCurve.Linear(1f, 0f)),
                 new EnemyPresence(0f, ResponseCurve.InverseLinear(0.8f, 0.2f))
             }, new PatrolExecutor(), basePriority: 0.3f, momentumBonus: 0.1f),
+
+            // Follow (Follow stance only) — shadow the character. 0.35 + 0.05 momentum
+            // = 0.40: Rearm's 0.5 still clears the 20% switch bar (0.48) so a
+            // peacetime escort fetches a better spear, and Heal (0.9 × damage
+            // curve) takes over below ~73% HP so a badly hurt escort walks home.
+            // Engage's 1.0 beats it the moment something reaches the character.
+            new ActionOption("Follow", new Consideration[]
+            {
+                new StanceAllows(GuardStance.Role.Follow, ResponseCurve.Linear(1f, 0f))
+            }, new FollowPlayerExecutor(), basePriority: 0.35f, momentumBonus: 0.05f),
 
             // Retreat — low health + enemies nearby, fall back to base
             // ThreatNearby yShift=0 so Retreat zeroes out when enemies are gone
@@ -324,6 +347,10 @@ public class Warrior : UnitBase<Warrior>
             color = new Color(0.3f, 0.8f, 1f);
         else if (displayName.Contains("Intercepting"))
             color = new Color(1f, 0.6f, 0f);  // Orange for intercept/rally
+        else if (displayName.Contains("Falling back"))
+            color = new Color(1f, 0.75f, 0.3f);  // an archer giving ground, still shooting
+        else if (displayName.Contains("Escorting") || displayName.Contains("Guarding you"))
+            color = new Color(1f, 0.85f, 0.4f);  // The character's own gold: this one is yours
         else if (displayName.Contains("Retreating"))
             color = new Color(1f, 0.4f, 0.4f);
         else if (displayName.Contains("Healing"))

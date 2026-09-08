@@ -173,6 +173,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         mainCam = Camera.main;
         heldItem = GetComponent<HeldItem>();
         PlayerHUD.Ensure();
+        CombatHUD.Ensure();   // shows itself once the first warrior exists
     }
 
     protected override void OnDestroy()

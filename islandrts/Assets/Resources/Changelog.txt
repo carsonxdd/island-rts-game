@@ -8,6 +8,20 @@
 # Lines starting with a single # are comments. Anything else that is not a
 # heading, a bullet or an indented continuation is ignored.
 
+## 2026-09-07 — Warrior stances and the trip to the fire
+- A Stance row on the campfire panel's Defence section gives every warrior one order. Defensive holds the colony: patrol, hold the walls, and fight only what comes within reach of the fire or the walls. Offensive hunts: warriors go for any raider anywhere on the island. Follow escorts your castaway: warriors keep a loose ring around you and fight whatever comes near you. A badly hurt escort still walks home to heal, and the militia falls back to Defensive while you are knocked out.
+- Warriors going for the same raider now spread out around it, each coming in from its own side on its own path, instead of queueing up behind one another on the same line.
+- Formations. When the militia rallies or escorts, each warrior takes a place in a Line (spearmen in front, archers a few steps behind), a Wedge (a point man, edges fanning back, archers inside the V) or a Ring (spearmen around, archers inside). A Formation row under Stance picks one; Auto uses Line on Defensive, Wedge on Offensive and Ring on Follow, and Loose is the old every-warrior-for-themselves spread.
+- Offensive now advances as a group: the militia walks toward the raiders in formation and breaks into the charge once a raider is within about twenty paces, instead of everyone sprinting off alone.
+- A raid night now lasts until the last raider is dead. The sky holds just short of dawn while any are still on the island, and the calendar chip says so. Raiders no longer vanish at sunrise.
+- Fixed idle warriors freezing on the spot and crowding the campfire. A warrior that could not quite reach its guard post used to stand there for good, and the posts themselves sat right on the fire's delivery edge. Posts now ring the fire and the huts a few paces further out, a warrior that cannot reach one picks another, and the group no longer changes posts in step.
+- Militia orders on the main screen: once you have a warrior, a small box appears bottom-right with the three stance buttons and the five formation buttons, the active ones lit. The stances are also on keys, F5, F8 and F9 by default, rebindable under Options > Controls in a new Militia group.
+- The campfire panel's Jobs, Specialists, Priorities and Defence sections fold: click a heading to collapse it, click again to open it. The game remembers which you left closed.
+- The five-warrior limit is gone. A warrior still needs a bed and an idle colonist, so how big a militia you can field is now down to your housing. The Warriors row shows the count on its own.
+- Fixed a bright shallow-water stripe running from the cove out to the horizon on some islands.
+- Archers move again. On Offensive an archer keeps its distance, backing off whenever a raider gets close and shooting as it goes. On Defensive and Follow it holds its place in the formation and shoots, taking a short step back toward the fire or toward you if a raider gets on top of it, but never leaving the line behind.
+- Changing a colonist's job (or making them a specialist, or sending them back to idle) now sends them to the campfire first. They hand in whatever they were carrying, spend a moment gearing up for the new trade, and only then head out as that unit. A raid interrupts the trip and it resumes afterwards.
+
 ## 2026-09-07 — Utility colonists and the Information screen
 - Idle colonists now do everything the colony needs on their own: they build a waiting site first, then work any bench with a queue, then repair damaged buildings, then tidy the beach. Crafting research opens the bench work; Construction opens building and repair, as before.
 - The Crafters row on the campfire panel became a Specialists section: Builders, Crafters and Repairers. A specialist is pinned to that one trade and does nothing else, for when you want a hand on the bench no matter what is being built. Idle colonists stay the flexible pool.

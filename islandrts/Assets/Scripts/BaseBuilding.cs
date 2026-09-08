@@ -139,7 +139,8 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
 
     [Header("Warrior Management")]
     public GameObject warriorPrefab;
-    public int maxWarriors = 5;
+    [Tooltip("0 = no cap (2026-09-07): a warrior already needs a bed and an idle colonist, so housing bounds the militia. A positive value is a hard cap on top — the balance sim's knob.")]
+    public int maxWarriors = 0;
     [Tooltip("Food per recruit. The rest of the price is a weapon from the stockpile (2026-09-03) — the old 10 wood is gone.")]
     public int warriorCost_Food = 15;
     public int currentWarriors = 0;
@@ -502,11 +503,11 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         selectedWeapon = weapons[index];
     }
 
-    /// <summary>True when a recruit could happen right now: Spearcraft known, under the cap, the chosen weapon in stock, the food, and someone idle.</summary>
+    /// <summary>True when a recruit could happen right now: Spearcraft known, under the cap if there is one, the chosen weapon in stock, the food, and someone idle.</summary>
     public bool CanRecruitWarrior()
     {
         if (!Unlocks.Has(Unlocks.Kind.Militia)) return false;   // Spearcraft not researched
-        if (currentWarriors >= maxWarriors) return false;
+        if (maxWarriors > 0 && currentWarriors >= maxWarriors) return false;
         if (Stockpile.Count(SelectedWeapon) <= 0) return false; // nothing to arm them with
         if (ResourceManager.Instance == null
             || ResourceManager.Instance.food < warriorCost_Food) return false;

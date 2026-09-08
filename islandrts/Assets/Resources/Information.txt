@@ -65,7 +65,7 @@ then tidy the beach of loose sticks and salvage. Building and repairing need
 Construction to be researched; bench work needs Crafting.
 - Give a colonist a job on the campfire panel: wood cutters, foragers, quarriers, miners. Each job opens with its research.
 - Pin a colonist to one trade with the Specialists rows: Builders, Crafters, Repairers. A specialist does only that trade and never tidies.
-- A job change delivers whatever the colonist is carrying first.
+- A job change sends the colonist back to the fire first: they hand in whatever they carry, gear up for the new trade, and only then head out.
 - Workers spread themselves across nearby trees and rocks; a crowded node is skipped for a quieter one.
 - An unreachable node is left alone for a while; a worker never stands stuck.
 
@@ -74,9 +74,15 @@ A warrior is an idle colonist armed from the stockpile, for a weapon and some fo
 They patrol, hold the walls, intercept raiders and heal slowly at the fire. Dismiss
 one and the weapon comes back; lose one and it is gone.
 - Pick the weapon on the panel before recruiting. The best in stock is the default.
+- There is no fixed limit on warriors. Each one keeps their bed and comes from the idle pool, so housing and spare hands are what bound the militia.
 - A colonist armed with a bow is an archer: they shoot over walls from a distance and never charge in.
 - A warrior with a wooden spear fetches a better spear from the stockpile on their own when there is one and no raid is near.
 - A watchtower makes warriors around it hit harder.
+- Once you have a warrior, a militia box in the bottom-right corner carries the stance and formation buttons, and the stances are on keys (F5, F8, F9 by default; rebindable).
+- The Stance row on the panel gives every warrior one order. Defensive: hold the colony and fight only what comes near it. Offensive: hunt raiders anywhere on the island. Follow: escort your castaway and fight what comes near them. A hurt escort still walks home to heal.
+- Warriors going for the same raider come at it from different sides instead of queueing up on one path.
+- The Formation row sets how the militia stands when it rallies or escorts: Line (spearmen in front, archers behind), Wedge (a point and two edges, archers inside) or Ring. Auto picks Line, Wedge and Ring for the three stances; Loose is no formation at all.
+- On Offensive the militia advances on the raiders together and charges when one is close. Archers keep their distance on Offensive, backing off and shooting; on Defensive and Follow they hold their rank and only step back a pace or two.
 @weapons
 
 ### Hunger
@@ -123,7 +129,7 @@ that night. The chance climbs with every quiet night and a raid is certain after
 five of them. The size of a raid is set at the roll: it grows with the day and with
 how much you have built, so a rich colony draws a bigger crowd. A banner and the
 calendar chip tell you at dawn what is coming.
-- Raiders land after dusk and walk in from the far side of the island.
+- Raiders land after dusk and walk in from the far side of the island. The night lasts until the last of them is dead: dawn waits on the raid.
 - They go for a gate first, then any warrior in reach, then huts, towers and the Workshop, and break through walls when that is the shorter way. The campfire is the prize; losing it ends the run.
 - Colonists hide in the nearest hut while raiders are near and come back out when it is over.
 - Warriors heal at the fire, slowly, so a beaten militia needs a quiet night.

@@ -116,7 +116,7 @@ these. Every field defaults to `-1`, so a run only has to name what it varies.
 | `raidBaseSize`, `raidSizePerDay`, `raidSizePerProsperity` | `RaidDirector` — how big: `base + perDay × day + perProsperity × prosperity` |
 | `enemyHealth/Damage/MoveSpeed` | each `Enemy` at spawn |
 | `warriorHealth/Damage/MoveSpeed` | each `Warrior` at spawn |
-| `warriorCostFood`, `maxWarriors` | the campfire (a warrior also costs a Wooden Spear from the stockpile since 2026-09-03; the old `warriorCostWood` key is ignored) |
+| `warriorCostFood`, `maxWarriors` | the campfire (a warrior also costs a Wooden Spear from the stockpile since 2026-09-03; the old `warriorCostWood` key is ignored; `maxWarriors` 0 = no cap, the shipping value since 2026-09-07 — housing is the limit) |
 | `dayLengthSeconds`, `nightLengthSeconds` | `DayNightCycle` |
 | `foodPerDay` | `PopulationManager` — food each colonist eats per calendar day (2026-09-04); `0` switches eating off, `-1` keeps the shipping 1 |
 | `daysToSurvive`, `maxGameSeconds` | `GameManager` / the run's hard stop (a 30-day run is 4500 s of game time at the shipping clock) |

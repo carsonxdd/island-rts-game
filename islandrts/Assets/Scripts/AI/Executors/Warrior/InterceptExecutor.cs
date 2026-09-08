@@ -6,6 +6,8 @@ using UnityEngine.AI;
 /// Warriors rally at the building edge between base and enemy cluster,
 /// waiting for enemies to close in before the brain switches to EngageEnemy.
 /// Produces natural grouping behavior — all warriors converge to the same intercept point.
+/// 2026-09-07: each warrior takes its Formation slot around that point (Line /
+/// Wedge / Ring), and on Offensive the point advances on the raiders instead.
 /// Phase 6.25: TrySetDestination's return is honored — a rejected set retries
 /// next frame instead of leaving the warrior standing until the next recalc tick.
 /// </summary>
@@ -119,8 +121,21 @@ public class InterceptExecutor : ActionExecutor
         Vector3 basePos = bb.baseBuilding.transform.position;
         Vector3 dirToEnemies = (enemyCentroid - basePos).normalized;
 
-        // Calculate colony perimeter radius — use campfire noBuildRadius + buffer
-        float perimeterRadius = bb.baseBuilding.noBuildRadius + 2f;
+        // Offensive (2026-09-07): the rally is not a line to hold but the group
+        // advancing on the raiders — a point AdvanceStandoff short of their
+        // centroid, on the colony side, recomputed as they move. Engage takes
+        // over for each warrior once a raider is inside OffensiveEngageRadius, so
+        // the wedge walks up as one body and breaks into the charge together.
+        if (GuardStance.Effective == GuardStance.Mode.Offensive)
+        {
+            Vector3 advance = enemyCentroid - dirToEnemies * GuardStance.AdvanceStandoff;
+            PlaceRally(bb, advance, dirToEnemies, basePos);
+            return;
+        }
+
+        // Colony perimeter with no walls: well clear of the fire, so a Line's second
+        // rank (4 u behind the centre) still leaves the delivery edge open
+        float perimeterRadius = bb.baseBuilding.noBuildRadius + 8f;
 
         // Check for walls — if walls exist, position just inside the wall line
         if (Wall.ActiveList.Count > 0 || Gate.ActiveList.Count > 0)
@@ -150,31 +165,35 @@ public class InterceptExecutor : ActionExecutor
         }
 
         // Rally point: base + direction_to_enemies * perimeterRadius
-        Vector3 interceptPoint = basePos + dirToEnemies * perimeterRadius;
+        PlaceRally(bb, basePos + dirToEnemies * perimeterRadius, dirToEnemies, basePos);
+    }
 
-        // Add lateral spread so warriors form a line, not a stack
-        Vector3 lateral = Vector3.Cross(dirToEnemies, Vector3.up).normalized;
-        interceptPoint += lateral * spreadOffset;
+    /// <summary>
+    /// Turn the group's rally centre into this warrior's own spot: its
+    /// <see cref="Formation"/> slot facing the enemy, or the old lateral spread
+    /// when the formation is Loose. Snapped to the NavMesh; falls back halfway
+    /// to the base, then to the base itself.
+    /// </summary>
+    void PlaceRally(AIBlackboard bb, Vector3 center, Vector3 dirToEnemies, Vector3 basePos)
+    {
+        Vector3 interceptPoint;
+        if (!Formation.TrySlot(bb.warrior, center, dirToEnemies, out interceptPoint))
+        {
+            // Loose: lateral spread so warriors form a line, not a stack
+            Vector3 lateral = Vector3.Cross(dirToEnemies, Vector3.up).normalized;
+            interceptPoint = center + lateral * spreadOffset;
+        }
 
-        // Validate on NavMesh
         NavMeshHit hit;
         if (NavMesh.SamplePosition(interceptPoint, out hit, 5f, NavMesh.AllAreas))
         {
             rallyPoint = hit.position;
+            return;
         }
-        else
-        {
-            // Fallback: just get close to base on the enemy side
-            interceptPoint = basePos + dirToEnemies * (perimeterRadius * 0.5f);
-            if (NavMesh.SamplePosition(interceptPoint, out hit, 5f, NavMesh.AllAreas))
-            {
-                rallyPoint = hit.position;
-            }
-            else
-            {
-                rallyPoint = basePos;
-            }
-        }
+
+        // Fallback: just get close to base on the enemy side
+        interceptPoint = Vector3.Lerp(basePos, center, 0.5f);
+        rallyPoint = NavMesh.SamplePosition(interceptPoint, out hit, 5f, NavMesh.AllAreas) ? hit.position : basePos;
     }
 
     void MoveToRally(AIBlackboard bb)

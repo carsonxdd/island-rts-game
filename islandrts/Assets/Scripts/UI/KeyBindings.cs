@@ -32,6 +32,8 @@ public static class KeyBindings
         ConvertToGate, RotateBuilding, StaircaseWalls,
         Demolish, ToggleGrid,
         CenterOnCharacter,
+        // Militia stance (2026-09-07): the combat HUD's three buttons, on keys
+        StanceDefensive, StanceOffensive, StanceFollow,
     }
 
     /// <summary>
@@ -71,6 +73,10 @@ public static class KeyBindings
         ("Building", Action.ToggleGrid,       "Toggle build grid"),
 
         ("Character", Action.CenterOnCharacter, "Centre camera on your character"),
+
+        ("Militia", Action.StanceDefensive,   "Stance: Defensive"),
+        ("Militia", Action.StanceOffensive,   "Stance: Offensive"),
+        ("Militia", Action.StanceFollow,      "Stance: Follow"),
     };
 
     private static readonly Dictionary<Action, Binding> Defaults = new Dictionary<Action, Binding>
@@ -94,6 +100,10 @@ public static class KeyBindings
         { Action.Demolish,           new Binding(KeyCode.Delete, KeyCode.X) },
         { Action.ToggleGrid,         new Binding(KeyCode.F2) },
         { Action.CenterOnCharacter,  new Binding(KeyCode.Space) },
+        // F5 / F8 / F9: the free function keys (F2 grid, F3 / F4 / F6 / F7 reserved for debug)
+        { Action.StanceDefensive,    new Binding(KeyCode.F5) },
+        { Action.StanceOffensive,    new Binding(KeyCode.F8) },
+        { Action.StanceFollow,       new Binding(KeyCode.F9) },
     };
 
     private static readonly Dictionary<Action, Binding> current = new Dictionary<Action, Binding>();

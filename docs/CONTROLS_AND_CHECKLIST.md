@@ -86,6 +86,8 @@ and the debug keys F3 / F4 / F6 / F7.
 | Left-click campfire | Campfire panel: Colonists · Stockpile · Craft · Research · Queue tabs. Left-click is the only gesture that opens it; a right-click deposit never does |
 | Click workshop | Crafting panel (Esc closes) |
 | Space | Centre the camera on your character (rebindable, "Character" group) |
+| F5 / F8 / F9 | Militia stance: Defensive / Offensive / Follow (rebindable, "Militia" group). The same three buttons, plus the formation buttons, sit in the bottom-right box once you have a warrior |
+| Click a section header | Campfire panel, Colonists tab: Jobs / Specialists / Priorities / Defence fold and unfold (remembered) |
 | Esc | Cancels the active mode; pauses when nothing is active (not rebindable) |
 | F2 | Build grid overlay — also auto-shows while build mode is active |
 | F3 | AI debug overlay (editor only) |

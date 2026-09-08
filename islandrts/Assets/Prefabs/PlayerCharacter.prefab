@@ -125,6 +125,8 @@ MonoBehaviour:
     prefab: {fileID: 457716965109008458, guid: 50006948ee13edc4fa858891742f68f8, type: 3}
   - itemId: metal_pick
     prefab: {fileID: 2953931295482295259, guid: 12c9703d8b6c2494da8dcc0d2ca9db97, type: 3}
+  - itemId: iron_spear
+    prefab: {fileID: 6224758325039772519, guid: 6709b76f180f56645bea361fc2ed70fe, type: 3}
 --- !u!1 &9203925153327530487
 GameObject:
   m_ObjectHideFlags: 0

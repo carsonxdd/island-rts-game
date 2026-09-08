@@ -124,8 +124,23 @@ public class ReturnToBaseExecutor : ActionExecutor
     void DeliverResources(AIBlackboard bb)
     {
         if (bb.carryAmount <= 0) return;
+        Deliver(bb);
+    }
 
+    /// <summary>
+    /// Hand in everything in the colonist's hands: the pooled resource under
+    /// bb.carryType and the hauled materials on bb.carryItem. The ONE delivery
+    /// path (2026-09-07: GearUpExecutor banks through here too). Safe with
+    /// empty hands. Ends in a ForceReeval so the brain moves on at once.
+    /// </summary>
+    public static void Deliver(AIBlackboard bb)
+    {
         BankMaterials(bb);
+        if (bb.carryAmount <= 0f)
+        {
+            if (bb.brain != null) bb.brain.ForceReeval();
+            return;
+        }
 
         if (ResourceManager.Instance == null)
         {
@@ -157,7 +172,7 @@ public class ReturnToBaseExecutor : ActionExecutor
     /// the stockpile only ever filled by the player's own hands. Whatever does
     /// not fit is lost, which is the stockpile cap doing its job.
     /// </summary>
-    void BankMaterials(AIBlackboard bb)
+    static void BankMaterials(AIBlackboard bb)
     {
         if (bb.carryItem == null || bb.carryItemCount <= 0) return;
 

@@ -52,6 +52,16 @@ public class DayNightCycle : MonoBehaviour
     [Tooltip("While true, time of day is frozen (lighting still updates every frame). The opening sequence holds this until the campfire is placed.")]
     public bool clockPaused = false;
 
+    [Tooltip("A raid night lasts until the last raider is dead (2026-09-07): the clock holds just short of dawn while any is alive. This caps the hold so a raider stuck on a NavMesh seam cannot freeze the run; <= 0 means the 180 s default (the scene predates the field).")]
+    public float maxDawnHoldSeconds = 180f;
+    const float DefaultMaxDawnHold = 180f;
+    const float DawnT = 0.25f;
+
+    /// <summary>True while the clock is being held short of dawn for living raiders (HUD reads it).</summary>
+    public bool DawnHeld { get; private set; }
+    private float dawnHoldTimer;
+    private bool dawnHoldCapLogged;
+
     private bool wasNight = false;  // Edge detection for the night/day start events
 
     // Events for other systems to subscribe to
@@ -98,7 +108,35 @@ public class DayNightCycle : MonoBehaviour
             float phaseLength = nightNow
                 ? nightLengthInSeconds * Difficulty.NightLengthMultiplier
                 : dayLengthInSeconds;
-            currentTimeOfDay += (0.5f / Mathf.Max(phaseLength, 1f)) * Time.deltaTime;
+            float next = currentTimeOfDay + (0.5f / Mathf.Max(phaseLength, 1f)) * Time.deltaTime;
+
+            // The night ends when the raid does (2026-09-07): with raiders still alive
+            // the clock holds a hair short of dawn — the sky stays dark, the spawner's
+            // dawn despawn does not fire, and the day only breaks over their bodies.
+            // Capped so a raider that can never be reached cannot hold the run hostage.
+            bool crossingDawn = nightNow && currentTimeOfDay < DawnT && next >= DawnT;
+            if (crossingDawn && RaidersAlive())
+            {
+                float cap = maxDawnHoldSeconds > 0f ? maxDawnHoldSeconds : DefaultMaxDawnHold;
+                dawnHoldTimer += Time.deltaTime;
+                if (dawnHoldTimer < cap)
+                {
+                    DawnHeld = true;
+                    next = DawnT - 0.0005f;
+                }
+                else if (!dawnHoldCapLogged)
+                {
+                    dawnHoldCapLogged = true;
+                    Debug.LogWarning("DayNightCycle: dawn held " + Mathf.RoundToInt(cap) + "s with raiders still alive — releasing the day.");
+                }
+            }
+            if (next >= DawnT && DawnHeld)
+            {
+                DawnHeld = false;   // the last raider fell (or the cap released the day)
+                dawnHoldTimer = 0f;
+                dawnHoldCapLogged = false;
+            }
+            currentTimeOfDay = next;
 
             // Wrap around at end of day
             if (currentTimeOfDay >= 1f)
@@ -113,6 +151,20 @@ public class DayNightCycle : MonoBehaviour
 
         // Check for day/night transitions
         CheckDayNightTransition();
+    }
+
+    /// <summary>Any living raider on the field. Registry walk, no allocation.</summary>
+    static bool RaidersAlive()
+    {
+        var list = Enemy.ActiveList;
+        for (int i = 0; i < list.Count; i++)
+        {
+            Enemy e = list[i];
+            if (e == null) continue;
+            Health h = e.CachedHealth;
+            if (h != null && h.IsAlive) return true;
+        }
+        return false;
     }
 
     void UpdateSunLighting()

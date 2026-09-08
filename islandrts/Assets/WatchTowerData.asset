@@ -17,6 +17,7 @@ MonoBehaviour:
   woodCost: 25
   foodCost: 0
   stoneCost: 15
+  metalCost: 0
   ghostPrefab: {fileID: 3971485318021736461, guid: 27f7c27801af83648a02827032ff4980, type: 3}
   constructionSitePrefab: {fileID: 1713934267972723311, guid: 70d8b501cbfdcc645b9cbba0d90a5f01, type: 3}
   finishedBuildingPrefab: {fileID: 5222481416697825286, guid: b118dc7c578e0f04e974615acefd46b3, type: 3}
@@ -24,6 +25,8 @@ MonoBehaviour:
   noBuildRadius: 3.5
   visualNoBuildRadius: 3.5
   placementHeight: 0
+  requiresShore: 0
+  buildTimeOverride: 0
   maxHealth: 200
   blocksNavMesh: 0
   isWall: 0

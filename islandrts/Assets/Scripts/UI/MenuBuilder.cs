@@ -378,9 +378,14 @@ public static class MenuBuilder
         return toggle;
     }
 
-    /// <summary>Left/right stepper over a list of choices — avoids TMP_Dropdown's prefab requirements.</summary>
-    public static void StepperRow(Transform parent, string label, string[] choices, int index,
-                                  Action<int> onChange, string description = null)
+    /// <summary>
+    /// Left/right stepper over a list of choices — avoids TMP_Dropdown's prefab
+    /// requirements. Returns a setter that moves the stepper WITHOUT firing
+    /// <paramref name="onChange"/>, for a value that can also change elsewhere
+    /// (the stance, which the combat HUD and its hotkeys set too, 2026-09-07).
+    /// </summary>
+    public static Action<int> StepperRow(Transform parent, string label, string[] choices, int index,
+                                         Action<int> onChange, string description = null)
     {
         SettingRow(parent, label, out RectTransform slot);
 
@@ -405,6 +410,63 @@ public static class MenuBuilder
         Arrow(slot, ">", new Vector2(0.84f, 0f), new Vector2(1f, 1f), () => step(1));
 
         if (description != null) RowDescription(parent, description);
+
+        return i =>
+        {
+            if (choices.Length == 0) return;
+            current = ((i % choices.Length) + choices.Length) % choices.Length;
+            value.text = choices[current];
+        };
+    }
+
+    /// <summary>
+    /// A section header the player can fold (2026-09-07): the heading is a click
+    /// surface with a − / + in front of it, and the rows built into the returned
+    /// column hide with it. Open/closed is remembered under <paramref name="prefsKey"/>
+    /// (open on first run). The caller refits its panel in <paramref name="onToggled"/>
+    /// — the header cannot know which panel it lives in.
+    /// </summary>
+    public static VerticalLayoutGroup CollapsibleSection(Transform parent, string title, string prefsKey, Action onToggled)
+    {
+        Spacer(parent, 8f);
+
+        // The whole heading line is the button; the image is invisible but MUST be a
+        // raycast target or the click never lands (same rule as every other surface)
+        GameObject go = new GameObject("SectionToggle", typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
+        go.transform.SetParent(parent, false);
+        go.GetComponent<LayoutElement>().preferredHeight = 22f;
+        Image img = go.GetComponent<Image>();
+        img.color = new Color(1f, 1f, 1f, 0.004f);
+        img.raycastTarget = true;
+        Button btn = go.GetComponent<Button>();
+        btn.targetGraphic = img;
+        btn.transition = Selectable.Transition.None;   // the − / + is the feedback
+
+        TextMeshProUGUI t = Label(go.transform, "", MenuStyle.SmallSize, MenuStyle.TextAccent, TextAlignmentOptions.MidlineLeft);
+        Stretch(t.rectTransform);
+        t.characterSpacing = 4f;
+        t.textWrappingMode = TextWrappingModes.NoWrap;
+
+        Divider(parent);
+        VerticalLayoutGroup body = Column(parent, 4f, new RectOffset(0, 0, 0, 0));
+
+        bool open = PlayerPrefs.GetInt(prefsKey, 1) == 1;
+        string caption = title.ToUpperInvariant();
+        Action apply = () =>
+        {
+            body.gameObject.SetActive(open);
+            t.text = (open ? "−  " : "+  ") + caption;
+        };
+        apply();
+
+        btn.onClick.AddListener(() =>
+        {
+            open = !open;
+            PlayerPrefs.SetInt(prefsKey, open ? 1 : 0);
+            apply();
+            onToggled?.Invoke();
+        });
+        return body;
     }
 
     /// <summary>

@@ -84,6 +84,7 @@ public class SimConfig
     public float warriorAttackCooldown = -1f;
     /// <summary>Food per recruit. The old wood cost is gone: a warrior costs a spear from the stockpile instead (2026-09-03).</summary>
     public int warriorCostFood = -1;
+    /// <summary>Hard cap on warriors. The game ships with none (0: housing is the limit, 2026-09-07); set a positive value to test one.</summary>
     public int maxWarriors = -1;
     /// <summary>
     /// How far a warrior ranges to intercept. The shipping 50 means fights

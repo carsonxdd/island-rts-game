@@ -29,6 +29,10 @@ public class AIBlackboard
     // A starving colonist walking out on the colony (2026-09-04). Set once by
     // Worker.Leave; the Leave action outranks everything and ends in Destroy.
     public bool leaving;
+    // A job change owes the campfire a visit (2026-09-07). Set by Worker.OnJobChanged,
+    // read by IsGearingUp, cleared by GearUpExecutor once the colonist has delivered
+    // and stood the gear-up beat.
+    public bool gearingUp;
     // What is actually in the worker's hands. Normally the assigned type, but a job
     // change mid-trip must still deliver what was picked up under the old job.
     public ResourceNode.ResourceType carryType;

@@ -640,11 +640,31 @@ public class TerrainGrid : MonoBehaviour
             for (int x = 0; x < n; x++)
                 depthPixels[z * n + x] = Mathf.Clamp01(-heights[x, z] / DepthEncodeRange);
 
+        // The border ring is open ocean by fiat (2026-09-07). Clamp sampling
+        // repeats the edge texel across the whole ocean beyond the map, so one
+        // shallow texel on the border becomes a cyan stripe to the horizon —
+        // which the cove shelf disc produced on seeds where its blend reached the
+        // last column. Two texels deep so bilinear filtering from the ring
+        // inward is already fully deep at the map edge.
+        for (int i = 0; i < n; i++)
+        {
+            for (int r = 0; r < BorderDeepTexels && r < n; r++)
+            {
+                depthPixels[r * n + i] = 1f;               // south rows
+                depthPixels[(n - 1 - r) * n + i] = 1f;     // north rows
+                depthPixels[i * n + r] = 1f;               // west columns
+                depthPixels[i * n + (n - 1 - r)] = 1f;     // east columns
+            }
+        }
+
         depthMap.SetPixelData(depthPixels, 0);
         depthMap.Apply(false, false);
     }
 
     float[] depthPixels;
+
+    /// <summary>Outer ring of depth-map texels forced to open-ocean depth, whatever the heightfield says.</summary>
+    const int BorderDeepTexels = 2;
 
     /// <summary>
     /// Water grid spacing in metres. The shader's wavelengths must stay ≥ ~6× this

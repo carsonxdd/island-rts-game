@@ -656,14 +656,21 @@ public class ResourceUI : MonoBehaviour
         bool raid = rd != null && rd.RaidTonight;
         int size = raid ? rd.PlannedSize : 0;
         bool night = dayNight.IsNightTime();
+        bool held = dayNight.DawnHeld;   // the night is waiting on the last raider (2026-09-07)
 
-        int key = (((day * 128 + total) * 2 + (night ? 1 : 0)) * 2 + (raid ? 1 : 0)) * 64 + Mathf.Min(size, 63);
+        int key = ((((day * 128 + total) * 2 + (night ? 1 : 0)) * 2 + (raid ? 1 : 0)) * 2 + (held ? 1 : 0)) * 64 + Mathf.Min(size, 63);
         if (key == lastCalKey) return;
         lastCalKey = key;
 
         calValue.text = (night ? "Night " : "Day ") + day;
 
-        if (raid && night)
+        if (held)
+        {
+            calValue.color = MenuStyle.TextDanger;
+            calLabel.color = MenuStyle.TextDanger;
+            calLabel.text = "Dawn waits on the raiders";
+        }
+        else if (raid && night)
         {
             calValue.color = MenuStyle.TextDanger;
             calLabel.color = MenuStyle.TextDanger;

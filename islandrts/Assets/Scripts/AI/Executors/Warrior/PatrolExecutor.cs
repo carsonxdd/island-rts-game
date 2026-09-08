@@ -23,11 +23,33 @@ public class PatrolExecutor : ActionExecutor
     private Vector3 currentPatrolPoint;
     private bool isWaitingAtPatrol = false;
     private float patrolWaitTimer = 0f;
-    private float patrolWaitTime = 3f;   // Seconds spent standing at a post before picking the next one.
+    private float patrolWaitTime = 3f;   // Seconds at this post; re-rolled per post so a group never moves in step.
     // TrySetDestination can be throttled or rejected by Unity, so the move is retried
     // every frame until it takes rather than assumed to have happened.
     private bool patrolDestinationSet = false;
     private bool hasWalls = false;       // Re-checked on enter and at every post; walls get built mid-run.
+
+    // 2026-09-07: the "standing still, blocking everyone" freeze. A warrior that
+    // could not get within ArriveRadius of its post (an archer's 8 u stopping
+    // distance, a post on the far side of a carve, five others already standing
+    // on it) was reset by the stuck resolver — which ResetPaths and ForceReevals —
+    // but Patrol stayed the best action, so no OnEnter ran, patrolDestinationSet
+    // stayed true, and the warrior stood on "Patrolling" forever. With more
+    // warriors and archers the majority ended up frozen on the fire's ring.
+    // Now: the stopping distance is dropped to PostStoppingDistance for the walk,
+    // a finished path counts as arrival, a walk that takes too long counts as
+    // arrival, and a stuck reset picks a fresh post.
+    private const float ArriveRadius = 1.5f;
+    private const float PostStoppingDistance = 0.5f;
+    private const float MaxWalkSeconds = 15f;
+    // Guard posts keep this far off the campfire's collider edge so idle warriors
+    // never stand on the delivery edge the workers need.
+    private const float FireClearance = 4f;
+    // Ring radius around the fire and the huts: their no-build radius plus this.
+    private const float PerimeterPadding = 4f;
+    private float walkTimer;
+    private float originalStoppingDistance;
+    private bool stoppingSwapped;
 
     // Campfire, looked up once: it only supplies an "which way is inward" direction,
     // and the null check below covers it being destroyed later.
@@ -41,54 +63,86 @@ public class PatrolExecutor : ActionExecutor
     {
         isWaitingAtPatrol = false;
         patrolWaitTimer = 0f;
-        patrolDestinationSet = false;
 
-        hasWalls = WallGrid.Instance != null && (Wall.ActiveList.Count > 0 || Gate.ActiveList.Count > 0);
-        currentPatrolPoint = GetRandomPatrolPoint(bb);
+        if (bb.agent != null && bb.agent.isOnNavMesh && !stoppingSwapped)
+        {
+            // The warrior default (attackRange - 1: 8 u for a bow) parks an archer
+            // outside ArriveRadius of every post it is ever given.
+            originalStoppingDistance = bb.agent.stoppingDistance;
+            bb.agent.stoppingDistance = PostStoppingDistance;
+            stoppingSwapped = true;
+        }
+
+        NextPost(bb);
     }
 
     public override void OnUpdate(AIBlackboard bb)
     {
-        float distanceToPatrolPoint = Vector3.Distance(bb.transform.position, currentPatrolPoint);
-
-        // Patrol has no target to null out, so unlike Gather/Engage/EnemyAttack it can
-        // ignore UpdateMoving's reset return and keep going in the same tick.
-        if (!isWaitingAtPatrol && bb.stuckResolver != null)
-        {
-            bb.stuckResolver.UpdateMoving();
-        }
-
         if (isWaitingAtPatrol)
         {
             bb.agent.isStopped = true;
             patrolWaitTimer += Time.deltaTime;
-
-            if (patrolWaitTimer >= patrolWaitTime)
-            {
-                hasWalls = WallGrid.Instance != null && (Wall.ActiveList.Count > 0 || Gate.ActiveList.Count > 0);
-                currentPatrolPoint = GetRandomPatrolPoint(bb);
-                isWaitingAtPatrol = false;
-                patrolDestinationSet = false;
-                patrolWaitTimer = 0f;
-            }
+            if (patrolWaitTimer >= patrolWaitTime) NextPost(bb);
+            return;
         }
-        else if (distanceToPatrolPoint < 1.5f)
+
+        // A stuck reset has ResetPath'd the agent: the old destination is gone, so
+        // this post is abandoned for a fresh one rather than waited on forever.
+        if (bb.stuckResolver != null && bb.stuckResolver.UpdateMoving())
         {
+            NextPost(bb);
+            return;
+        }
+
+        walkTimer += Time.deltaTime;
+        float distanceToPatrolPoint = Vector3.Distance(bb.transform.position, currentPatrolPoint);
+        bool pathDone = patrolDestinationSet && bb.agent.isOnNavMesh && !bb.agent.pathPending
+            && (!bb.agent.hasPath || bb.agent.remainingDistance <= bb.agent.stoppingDistance + 0.3f);
+
+        if (distanceToPatrolPoint < ArriveRadius || pathDone || walkTimer > MaxWalkSeconds)
+        {
+            // As close as the crowd and the mesh allow: stand here
             isWaitingAtPatrol = true;
             patrolDestinationSet = false;
             patrolWaitTimer = 0f;
+            return;
         }
-        else
+
+        bb.agent.isStopped = false;
+        if (!patrolDestinationSet)
         {
-            bb.agent.isStopped = false;
-            if (!patrolDestinationSet)
+            if (AINavHelper.TrySetDestination(bb.agent, currentPatrolPoint))
             {
-                if (AINavHelper.TrySetDestination(bb.agent, currentPatrolPoint))
-                {
-                    patrolDestinationSet = true;
-                }
+                patrolDestinationSet = true;
             }
         }
+    }
+
+    /// <summary>Pick the next post and start walking; the wait at it is re-rolled so posts never change in step.</summary>
+    void NextPost(AIBlackboard bb)
+    {
+        hasWalls = WallGrid.Instance != null && (Wall.ActiveList.Count > 0 || Gate.ActiveList.Count > 0);
+        currentPatrolPoint = GetRandomPatrolPoint(bb);
+        isWaitingAtPatrol = false;
+        patrolDestinationSet = false;
+        patrolWaitTimer = 0f;
+        patrolWaitTime = Random.Range(2f, 5f);
+        walkTimer = 0f;
+        if (bb.agent != null && bb.agent.isOnNavMesh) bb.agent.isStopped = false;
+        if (bb.stuckResolver != null) bb.stuckResolver.ResetStuckDetection();
+    }
+
+    /// <summary>A post this close to the fire's collider edge would stand on the delivery edge.</summary>
+    static bool TooCloseToFire(Vector3 point)
+    {
+        for (int i = 0; i < BaseBuilding.ActiveList.Count; i++)
+        {
+            BaseBuilding fire = BaseBuilding.ActiveList[i];
+            if (fire == null) continue;
+            Collider col = fire.GetComponent<Collider>();
+            if (TargetingUtil.EdgeDistance(point, fire.transform, col) < FireClearance) return true;
+        }
+        return false;
     }
 
     /// <summary>Picks the next guard post, walls first and the spawn-area wander last.</summary>
@@ -154,7 +208,7 @@ public class PatrolExecutor : ActionExecutor
             Vector3 patrolPos = wallPos + interiorDir * offset;
 
             NavMeshHit hit;
-            if (NavMesh.SamplePosition(patrolPos, out hit, 3f, NavMesh.AllAreas))
+            if (NavMesh.SamplePosition(patrolPos, out hit, 3f, NavMesh.AllAreas) && !TooCloseToFire(hit.position))
             {
                 point = hit.position;
                 return true;
@@ -164,9 +218,12 @@ public class PatrolExecutor : ActionExecutor
     }
 
     /// <summary>
-    /// Fallback post for a colony with no walls: a point on the no-build ring of a random
-    /// campfire or hut. Points that land inside another building's ring are rejected, which
-    /// keeps the patrol on the colony's outer edge instead of in the gaps between buildings.
+    /// Fallback post for a colony with no walls: a point on a ring PerimeterPadding
+    /// outside the no-build radius of a random campfire or hut. Points that land inside
+    /// another building's ring are rejected, which keeps the patrol on the colony's
+    /// outer edge instead of in the gaps between buildings — and anything on the
+    /// fire's delivery edge is rejected too. The old ring WAS the no-build radius
+    /// (2.5 u at the fire), which put every idle warrior on the workers' drop-off.
     /// </summary>
     Vector3 GetBuildingPerimeterPatrolPoint(AIBlackboard bb)
     {
@@ -176,14 +233,14 @@ public class PatrolExecutor : ActionExecutor
         {
             var campfire = BaseBuilding.ActiveList[i];
             if (campfire != null)
-                buildingBuffer.Add((campfire.transform, campfire.noBuildRadius));
+                buildingBuffer.Add((campfire.transform, campfire.noBuildRadius + PerimeterPadding));
         }
 
         for (int i = 0; i < Hut.ActiveList.Count; i++)
         {
             var hut = Hut.ActiveList[i];
             if (hut != null)
-                buildingBuffer.Add((hut.transform, hut.noBuildRadius));
+                buildingBuffer.Add((hut.transform, hut.noBuildRadius + PerimeterPadding));
         }
 
         if (buildingBuffer.Count > 0)
@@ -217,7 +274,7 @@ public class PatrolExecutor : ActionExecutor
                 if (!isOuterPerimeter) continue;
 
                 NavMeshHit hit;
-                if (NavMesh.SamplePosition(perimeterPoint, out hit, 3f, NavMesh.AllAreas))
+                if (NavMesh.SamplePosition(perimeterPoint, out hit, 3f, NavMesh.AllAreas) && !TooCloseToFire(hit.position))
                 {
                     return hit.position;
                 }
@@ -251,6 +308,11 @@ public class PatrolExecutor : ActionExecutor
     {
         isWaitingAtPatrol = false;
         patrolDestinationSet = false;
-        bb.agent.isStopped = false;
+        if (bb.agent != null && bb.agent.isOnNavMesh)
+        {
+            bb.agent.isStopped = false;
+            if (stoppingSwapped) bb.agent.stoppingDistance = originalStoppingDistance;
+        }
+        stoppingSwapped = false;
     }
 }

@@ -11,8 +11,66 @@
 #   warrior  archer  hungry  starving  colonist_left  raid  raid_survived
 #   victory  escape  defeat  deposit  info  info:dev  tracker  report
 #   priority  worker_click  craft_by_colonist  craft_by_player
+#   stance:<defensive|offensive|follow>  formation:<line|wedge|ring|loose|auto>  collapse
 # A finished batch is deleted from here once its report is in; it stays in the
 # changelog and the phase history.
+
+## 2026-09-07 Warrior stances
+- @stance:offensive Set Offensive: warriors run at raiders across the island
+- @stance:defensive Set Defensive: they wait until raiders near the fire or walls
+- @stance:follow Set Follow: warriors ring your castaway and keep up
+- Follow: walk into a raider, warriors engage it, then come back to you
+- Get knocked out on Follow: warriors go back to holding the colony
+- Three warriors on one raider come in from different sides
+- Archer on Follow stops a few steps off you, not a bow-length away
+
+## 2026-09-07 Night lasts the raid
+- Leave one raider alive at sunrise: the sky stays dark, chip says dawn waits
+- Kill the last raider: day breaks within a few seconds
+- No raider ever vanishes at sunrise
+- A quiet night still ends on time
+
+## 2026-09-07 Patrol freeze
+- Six warriors, no walls: none stands within 4u of the fire's edge
+- Every idle warrior moves to a new post within ~20s; none frozen
+- An archer walks up to its post like a spearman does
+- Workers deliver to the fire without shoving through warriors
+
+## 2026-09-07 Combat box and folding sections
+- Recruit a warrior: the militia box appears bottom-right
+- Click Offensive in the box: the panel's Stance stepper follows
+- Press F9: Follow lights up in the box and warriors come to you
+- Rebind a stance key in Options > Controls, Militia group; the hint updates
+- Dismiss the last warrior: the box hides
+- @collapse Fold a section on the Colonists tab: the panel shrinks to fit
+- Folded sections stay folded after closing and reopening the panel
+
+## 2026-09-07 No warrior cap
+- Recruit a sixth warrior with spare beds, idle hands, spears and food
+- Warriors row reads a plain count, no '/ 5'
+- With every bed full, + on Warriors stays greyed (housing is the cap)
+
+## 2026-09-07 Water stripe
+- No cyan band from the cove to the horizon on the seed that showed one
+- Water at the very map edge reads deep, no seam on any size
+
+## 2026-09-07 Formations and archers
+- @formation:line Force Line: spearmen in a row, archers a rank behind
+- @formation:wedge Force Wedge: a point man, edges fan back, archers inside
+- @formation:ring Force Ring: warriors circle the centre, archers inside
+- @formation:loose Force Loose: back to the old spread
+- Auto on Defensive rallies in a Line facing the raiders
+- Offensive: the group walks at the raiders together, charges at ~20u
+- Offensive archer backs off when a raider closes, still shooting
+- Defensive archer holds its rank, steps back once, never leaves the line
+- An archer never stands idle with a raider in bow range
+
+## 2026-09-07 Gear-up trip
+- Give a wood cutter the quarry job mid-trip: they walk to the fire first
+- Their old load lands in the pool before they head for a rock
+- 'Gearing up: Quarrier' shows over their head at the fire
+- Send a worker back to idle: same trip, label 'Gearing up: Colonist'
+- Change a job during a raid: they flee first, gear up after
 
 ## 2026-09-07 Dev quests
 - @info:dev Open Esc > Information > DEV

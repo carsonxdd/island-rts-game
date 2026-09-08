@@ -192,6 +192,85 @@ public class Enemy : UnitBase<Enemy>
         if (isNew) aiBrain.ForceReeval();
     }
 
+    /// <summary>
+    /// Walking toward a wall or gate cell (its agent destination lands on one).
+    /// The warrior scan treats such an enemy as half as far away, and the
+    /// Defensive stance counts it as the colony's business wherever it stands.
+    /// </summary>
+    public bool IsHeadingForWall()
+    {
+        if (agent == null || !agent.hasPath || WallGrid.Instance == null) return false;
+        return WallGrid.Instance.HasWallAt(WallGrid.Instance.WorldToGrid(agent.destination));
+    }
+
+    // --- Attack slots (2026-09-07) ---
+    // Six bearings around this enemy, 60 degrees apart, that warriors claim so
+    // they come at it from different sides on different paths instead of
+    // queueing on one line. A slot is free when its owner is gone, dead, or no
+    // longer targeting this enemy — so a warrior that switches, retreats or
+    // dies without releasing frees its slot on the next claim, and there is
+    // nothing to leak. With every slot taken the nearest one is shared: an
+    // outnumbered raider still gets mobbed, it just gets mobbed from six sides.
+
+    public const int AttackSlotCount = 6;
+    private Warrior[] slotOwners;   // allocated on first claim; most enemies never get one
+
+    /// <summary>
+    /// The slot this warrior should attack from: the one it already holds, else
+    /// the free bearing closest to its own line of approach, else the closest
+    /// bearing regardless. Returns the slot index for <see cref="AttackSlotPoint"/>.
+    /// </summary>
+    public int ClaimAttackSlot(Warrior warrior, Vector3 from)
+    {
+        if (slotOwners == null) slotOwners = new Warrior[AttackSlotCount];
+
+        for (int i = 0; i < AttackSlotCount; i++)
+            if (slotOwners[i] == warrior) return i;
+
+        Vector3 dir = from - transform.position;
+        dir.y = 0f;
+        float wanted = dir.sqrMagnitude > 0.001f ? Mathf.Atan2(dir.z, dir.x) * Mathf.Rad2Deg : 0f;
+
+        int bestFree = -1, bestAny = -1;
+        float bestFreeDelta = float.MaxValue, bestAnyDelta = float.MaxValue;
+        for (int i = 0; i < AttackSlotCount; i++)
+        {
+            float delta = Mathf.Abs(Mathf.DeltaAngle(wanted, SlotAngle(i)));
+            if (delta < bestAnyDelta) { bestAnyDelta = delta; bestAny = i; }
+            if (SlotFree(i) && delta < bestFreeDelta) { bestFreeDelta = delta; bestFree = i; }
+        }
+
+        int slot = bestFree >= 0 ? bestFree : bestAny;
+        if (bestFree >= 0) slotOwners[slot] = warrior;
+        return slot;
+    }
+
+    /// <summary>Give the slot back (target switch). Not required for correctness, see above.</summary>
+    public void ReleaseAttackSlot(Warrior warrior)
+    {
+        if (slotOwners == null) return;
+        for (int i = 0; i < AttackSlotCount; i++)
+            if (slotOwners[i] == warrior) slotOwners[i] = null;
+    }
+
+    /// <summary>World point <paramref name="radius"/> out from this enemy along the slot's bearing.</summary>
+    public Vector3 AttackSlotPoint(int slot, float radius)
+    {
+        float a = SlotAngle(slot) * Mathf.Deg2Rad;
+        return transform.position + new Vector3(Mathf.Cos(a) * radius, 0f, Mathf.Sin(a) * radius);
+    }
+
+    static float SlotAngle(int slot) => slot * (360f / AttackSlotCount);
+
+    bool SlotFree(int i)
+    {
+        Warrior owner = slotOwners[i];
+        if (owner == null) return true;                       // destroyed, or never claimed
+        Health h = owner.CachedHealth;
+        if (h == null || !h.IsAlive) return true;
+        return owner.CurrentTarget != transform;              // moved on without releasing
+    }
+
     // --- Public sound methods for Utility AI executors ---
     public void PlayAttackSoundPublic() { PlayAttackSound(); }
     public void PlayDeathSoundPublic() { PlayDeathSound(); }
