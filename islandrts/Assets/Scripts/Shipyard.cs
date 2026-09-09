@@ -71,7 +71,7 @@ public class Shipyard : MonoBehaviour, ITargetable, IMaterialSet
             LaunchDirection = TerrainGrid.Instance.DirectionToWater(transform.position, GhostPlacer.ShoreRadius + 2f);
 
         EnsureMaterials();
-        OcclusionFade.AttachTo(gameObject, Workshop.BuildingTightness);
+        OccluderCutout.AttachTo(gameObject);
     }
 
     /// <summary>

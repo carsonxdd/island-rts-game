@@ -6,10 +6,10 @@ using UnityEngine;
 /// up" shimmer on ground pickups (2026-09-03).
 ///
 /// This replaced flat colour tinting. Writing <c>material.color</c> yellow washed the
-/// object out, fought <see cref="OcclusionFade"/> (which writes the alpha of the same
+/// object out, fought the old whole-object fade (which wrote the alpha of the same
 /// colour), and read as a bug rather than as feedback. Emission is a separate property,
-/// so the fade and the glow can both be live on one tree without either restoring the
-/// other's value, and it costs nothing extra to draw: the campfire already proved that
+/// so the <see cref="OccluderCutout"/> shader and the glow can both be live on one tree
+/// without either touching the other's value, and it costs nothing extra to draw: the campfire already proved that
 /// an HDR emissive above the Bloom threshold of 1.0 blooms on its own.
 /// </summary>
 /// <remarks>

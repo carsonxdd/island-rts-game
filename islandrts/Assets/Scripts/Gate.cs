@@ -42,6 +42,12 @@ public class Gate : MonoBehaviour, ITargetable
 
     void Start()
     {
+        // A wall hides a unit's legs from the tilted RTS camera, so it opens a window
+        // for any unit behind it like every other occluder (2026-09-08). The old fade
+        // excluded walls because a line of ghosting cells read worse than the problem; a
+        // cutout has no such cost.
+        OccluderCutout.AttachTo(gameObject);
+
         // Setup Health component
         healthComponent = GetComponent<Health>();
         if (healthComponent == null)

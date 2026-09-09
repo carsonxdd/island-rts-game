@@ -8,6 +8,14 @@
 # Lines starting with a single # are comments. Anything else that is not a
 # heading, a bullet or an indented continuation is ignored.
 
+## 2026-09-08 — Trees and buildings open a window instead of fading
+- A tree, hut, tower, workshop, shipyard or wall standing between the camera and
+  one of your people now stays solid and opens a soft round window right where
+  they are, instead of the whole object going see-through.
+- Walls join in: a colonist behind a wall line is visible through it.
+- Fixes trees that never faded at all: some tree variants swapped their materials
+  after the fade had taken hold of the old ones.
+
 ## 2026-09-08 — Stone chunks look like stone chunks
 - Loose stone you can pick up is now a small pile of chunks instead of a single
   small rock, so it no longer looks the same as the scenery rocks. Small rocks

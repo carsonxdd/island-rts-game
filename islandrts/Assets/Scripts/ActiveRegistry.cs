@@ -44,6 +44,5 @@ public static class ActiveRegistryReset
         ActiveRegistry<ConstructionSite>.Clear();
         ActiveRegistry<Workshop>.Clear();
         ActiveRegistry<GroundPickup>.Clear();
-        ActiveRegistry<OcclusionFade>.Clear();
     }
 }

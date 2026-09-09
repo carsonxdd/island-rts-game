@@ -27,7 +27,15 @@ public class TreeVariance : MonoBehaviour
     public float minScale = 0.9f;
     public float maxScale = 1.12f;
 
-    void Start()
+    /// <summary>
+    /// Awake, not Start (2026-09-08): ResourceNode.Start collects INSTANCED copies of the
+    /// Model's materials for the hover glow and the occluder cutout, and Start order between
+    /// components on one object is undefined. When this ran after it, the swap below
+    /// replaced the renderer's materials with fresh shared ones and both systems kept
+    /// writing to copies nothing drew - the "some trees never fade" bug. Awake runs for
+    /// every component before any Start, so the collectors now see the final art.
+    /// </summary>
+    void Awake()
     {
         Transform model = transform.Find("Model");
         if (model == null) return;

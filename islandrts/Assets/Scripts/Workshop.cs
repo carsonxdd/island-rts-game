@@ -70,11 +70,8 @@ public class Workshop : MonoBehaviour, ITargetable, IMaterialSet
         }
 
         EnsureMaterials();
-        OcclusionFade.AttachTo(gameObject, BuildingTightness);
+        OccluderCutout.AttachTo(gameObject);
     }
-
-    /// <summary>How much of a building's half-width hides a unit: nearly all of it, unlike a canopy.</summary>
-    public const float BuildingTightness = 0.9f;
 
     /// <summary>
     /// The instanced material copies for every renderer slot, created on first use and

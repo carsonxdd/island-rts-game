@@ -93,17 +93,14 @@ public class ResourceNode : MonoBehaviour, IMaterialSet
         SetupNavMeshObstacle();
         cachedObstacle = GetComponent<NavMeshObstacle>();
 
-        // Instanced material copies for hover feedback and the occlusion fade.
+        // Instanced material copies for hover feedback and the occluder cutout.
         EnsureNodeMaterials();
 
-        // Anything tall enough to hide a unit from the RTS camera fades while one is
-        // behind it. Every node type gets the component now (2026-09-08, was trees
-        // only) and OcclusionFade retires itself on the first measure if the silhouette
-        // is too short — which is what keeps bushes and low rocks out of it without a
-        // type list here that would go stale the next time a node is added. Added in
-        // code rather than on the prefab so it also covers nodes PropScatter builds.
-        if (GetComponent<OcclusionFade>() == null)
-            gameObject.AddComponent<OcclusionFade>();
+        // Every node opens a window for a unit standing behind it (2026-09-08). No
+        // height gate: the cutout shader only ever cuts where a surface is nearer the
+        // camera than a unit, so a bush or a low rock that hides nothing cuts nothing.
+        // Added in code rather than on the prefab so it also covers nodes PropScatter builds.
+        OccluderCutout.AttachTo(gameObject);
 
         // Save original scale for depletion visual
         originalScale = transform.localScale;
@@ -114,9 +111,9 @@ public class ResourceNode : MonoBehaviour, IMaterialSet
 
     /// <summary>
     /// The instanced material copies for every renderer slot on this node, created on
-    /// first use. Shared with <see cref="OcclusionFade"/>: reading renderer.materials
+    /// first use. Shared with <see cref="OccluderCutout"/>: reading renderer.materials
     /// instantiates, so two collectors would end up writing to different copies of the
-    /// same material and the hover highlight and the fade would fight.
+    /// same material and the hover highlight and the cutout would fight.
     /// </summary>
     /// <summary>The <see cref="IMaterialSet"/> face of <see cref="EnsureNodeMaterials"/>.</summary>
     public Material[] EnsureMaterials() => EnsureNodeMaterials();
@@ -130,7 +127,7 @@ public class ResourceNode : MonoBehaviour, IMaterialSet
             nodeMaterials = RendererTint.Collect(GetComponentsInChildren<Renderer>());
 
             // Hover feedback is an emissive glow, not a colour tint: the tint fought the
-            // occlusion fade for the same colour channel and washed the node out.
+            // old occlusion fade for the same colour channel and washed the node out.
             glow = HoverGlow.Attach(gameObject, nodeMaterials, 0f, hoverGlow, 0.4f);
         }
         return nodeMaterials;

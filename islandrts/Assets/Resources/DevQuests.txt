@@ -16,6 +16,18 @@
 # A finished batch is deleted from here once its report is in; it stays in the
 # changelog and the phase history.
 
+## 2026-09-08 Occluder cutout
+- Walk a colonist behind a palm: a round window opens on them, tree stays solid
+- Same behind a round tree, a hut, the Watchtower, the Workshop, a wall line
+- Stand a colonist in FRONT of a tall palm: no window, palm untouched
+- The window follows a walking colonist with no lag or flicker
+- Two colonists behind one tree: both visible
+- Hover a tree with a window in it: gold glow still works
+- Bushes and low rocks never cut when a colonist stands beside them
+- The window does not show in the tree shadow on the ground
+- The window edge is a fine stipple, not a hard jagged ring
+- No magenta on any tree, building or wall (shader failed to compile)
+
 ## 2026-09-08 Stone pile pickup
 - Loose stone on the ground is a low pile of chunks, not a single rock
 - A pile and a scenery small rock are told apart at a glance from RTS zoom
@@ -36,18 +48,6 @@
 - Main menu bottom line reads v0.2.0-alpha.1 · updated 2026-09-08
 - @report The submitted report's Build line starts with v0.2.0-alpha.1
 - Sky: no magenta anywhere on the clouds, no console format warning
-
-## 2026-09-08 Occluders fade
-- Walk a colonist behind a hut: the hut goes see-through, not the worker
-- Same behind the Watchtower and the Workshop
-- Bushes and small rocks never fade, even with a worker behind them
-- The campfire never fades while colonists crowd it
-- Walk the edge of a tree: it does not flicker in and out
-- Step out from behind a tree: it comes back gently, not with a snap
-- A tree hiding only a colonist's head still fades
-- Hover a faded tree: the gold glow still works on it
-- Stand a colonist in front of a tall palm: the palm stays solid
-- Walk one behind that same palm: it fades as soon as it covers them
 
 ## 2026-09-08 Reachable rocks
 - Walk the cliff feet: no big or medium boulder sits in a rock face
