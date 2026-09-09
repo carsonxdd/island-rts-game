@@ -136,7 +136,17 @@ public class UnitHoleMask : MonoBehaviour
 
         AddUnits(Worker.ActiveList);
         AddUnits(Warrior.ActiveList);
-        AddUnits(Enemy.ActiveList);
+
+        // A raider the fog hides must not open a window either — the window would give
+        // it away (2026-09-09).
+        IReadOnlyList<Enemy> enemies = Enemy.ActiveList;
+        for (int i = 0; i < enemies.Count && count < MaxUnits; i++)
+        {
+            Enemy e = enemies[i];
+            if (e == null || !e.gameObject.activeInHierarchy) continue;
+            if (e.fog != null && e.fog.Hidden) continue;
+            Add(e.transform.position);
+        }
     }
 
     void AddUnits<T>(IReadOnlyList<T> list) where T : MonoBehaviour

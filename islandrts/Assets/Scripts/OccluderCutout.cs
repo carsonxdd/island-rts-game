@@ -27,6 +27,13 @@ public class OccluderCutout : MonoBehaviour
     private const string CutoutShaderPath = "Shaders/OccluderCutout";
     private const string LitShaderName = "Universal Render Pipeline/Lit";
 
+    /// <summary>
+    /// Shader keyword that turns the unit windows on for a material. The same shader
+    /// also carries the fog of war, and the ground uses it with this OFF (see
+    /// <see cref="FogMaterials"/>) so terrain never cuts a hole around anyone.
+    /// </summary>
+    public const string UnitCutoutKeyword = "_UNIT_CUTOUT";
+
     private static Shader cutoutShader;
     private static bool shaderLooked;
 
@@ -82,6 +89,7 @@ public class OccluderCutout : MonoBehaviour
             Material m = materials[i];
             if (m == null || m.shader == null || m.shader.name != LitShaderName) continue;
             m.shader = cutoutShader;
+            m.EnableKeyword(UnitCutoutKeyword);
         }
     }
 }

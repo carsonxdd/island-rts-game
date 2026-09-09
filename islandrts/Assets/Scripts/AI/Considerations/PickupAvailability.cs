@@ -35,8 +35,13 @@ public class PickupAvailability : Consideration
             if (pickup == null) continue;
             if (pickup.resourceType != bb.assignedResourceType) continue;
             if (pickup.IsClaimedByOther(bb.worker)) continue;
+            if (bb.IsPickupUnreachable(pickup)) continue;   // dead-ended on it recently (2026-09-09)
 
-            float sqr = (pickup.transform.position - bb.transform.position).sqrMagnitude;
+            Vector3 pos = pickup.transform.position;
+            // Fog of war: the colony only fetches what it has found (2026-09-09).
+            if (FogOfWar.Instance != null && !FogOfWar.Instance.IsExplored(pos)) continue;
+
+            float sqr = (pos - bb.transform.position).sqrMagnitude;
             if (sqr < bestSqr)
             {
                 bestSqr = sqr;

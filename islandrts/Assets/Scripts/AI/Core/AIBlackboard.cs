@@ -148,6 +148,34 @@ public class AIBlackboard
         return false;
     }
 
+    // --- Unreachable-pickup memory (workers, 2026-09-09) ---
+    // Same ring for ground pickups. Before it existed, a pickup the agent could not get
+    // within reach of (inside a bush's carve, on a ledge lip) was dropped by the stuck
+    // reset and re-acquired the next tick, forever: the "metre forward, metre back" forage
+    // stutter. Both pickup considerations skip these until they expire.
+    public readonly GroundPickup[] unreachablePickups = new GroundPickup[4];
+    public readonly float[] unreachablePickupExpiry = new float[4];
+    private int unreachablePickupRing;
+
+    public void MarkPickupUnreachable(GroundPickup pickup, float duration = 15f)
+    {
+        if (pickup == null) return;
+        unreachablePickups[unreachablePickupRing] = pickup;
+        unreachablePickupExpiry[unreachablePickupRing] = Time.time + duration;
+        unreachablePickupRing = (unreachablePickupRing + 1) % unreachablePickups.Length;
+    }
+
+    public bool IsPickupUnreachable(GroundPickup pickup)
+    {
+        if (pickup == null) return false;
+        for (int i = 0; i < unreachablePickups.Length; i++)
+        {
+            if (unreachablePickups[i] == pickup && Time.time < unreachablePickupExpiry[i])
+                return true;
+        }
+        return false;
+    }
+
     // --- Shared target bookkeeping (Phase 6.25) ---
     // One implementation of set/clear/alive-check for every executor. Executors
     // decide what extra state to reset when SetTarget reports a change.

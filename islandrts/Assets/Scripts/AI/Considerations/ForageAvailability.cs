@@ -65,9 +65,12 @@ public class ForageAvailability : Consideration
             if (pickup == null) continue;
             if (carrying && pickup.resourceType != bb.carryType) continue;
             if (pickup.IsClaimedByOther(bb.worker)) continue;
+            if (bb.IsPickupUnreachable(pickup)) continue;   // dead-ended on it recently (2026-09-09)
 
             Vector3 pos = pickup.transform.position;
             if ((pos - home).sqrMagnitude > homeSqr) continue;
+            // Fog of war: the colony only fetches what it has found (2026-09-09).
+            if (FogOfWar.Instance != null && !FogOfWar.Instance.IsExplored(pos)) continue;
 
             float sqr = (pos - bb.transform.position).sqrMagnitude;
             if (sqr < bestSqr)

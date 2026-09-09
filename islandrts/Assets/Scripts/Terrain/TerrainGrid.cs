@@ -61,7 +61,8 @@ public class TerrainGrid : MonoBehaviour
     /// </summary>
     public static int VertsPerSide { get; private set; } = 151;
     public const float Spacing = 1f;
-    private static float Half => (VertsPerSide - 1) * Spacing * 0.5f;
+    /// <summary>Map half-extent in metres: the island spans [-Half, Half] on x and z.</summary>
+    public static float Half => (VertsPerSide - 1) * Spacing * 0.5f;
 
     /// <summary>Map half-extent divided by the standard 75 m: the factor every 150 m-map distance scales by.</summary>
     public static float SizeScale => Half / 75f;
@@ -142,6 +143,10 @@ public class TerrainGrid : MonoBehaviour
         CreateDeepWaterVolume();
         BuildNavMesh();
         PlaceShipwreck();
+
+        // The colony's knowledge of this island (2026-09-09). Created here so it sizes
+        // itself to the finished map and exists before any unit's Start registers sight.
+        FogOfWar.EnsureExists();
 
         Debug.Log("TerrainGrid: " + run.size + " " + run.style + " island " + field.Report + " + NavMesh built in "
             + $"{(Time.realtimeSinceStartup - startTime) * 1000f:F0} ms");
@@ -426,7 +431,8 @@ public class TerrainGrid : MonoBehaviour
         {
             Material m = surfaceMaterials != null && i < surfaceMaterials.Length ? surfaceMaterials[i] : null;
             if (m == null) { missing = true; m = any; }
-            resolvedMaterials[i] = m;
+            // Fog-aware instance of the band material (2026-09-09); the asset stays untouched.
+            resolvedMaterials[i] = FogMaterials.For(m);
         }
         if (missing)
         {

@@ -51,6 +51,11 @@ void ApplyOccluderCutout(float4 positionCS)
     clip(OccluderDither(positionCS.xy) - cut);
 }
 
+// Fog of war (2026-09-09): the same fragment darkens whatever the colony has not seen.
+// The terrain chunks and the scatter decor are on this shader too, with _UNIT_CUTOUT
+// off (FogMaterials), so the ground reads the fog without cutting holes.
+#include "FogOfWar.hlsl"
+
 void OccluderCutoutFragment(
     Varyings input
     , out half4 outColor : SV_Target0
@@ -59,12 +64,15 @@ void OccluderCutoutFragment(
 #endif
 )
 {
+#if defined(_UNIT_CUTOUT)
     ApplyOccluderCutout(input.positionCS);
+#endif
     LitPassFragment(input, outColor
 #ifdef _WRITE_RENDERING_LAYERS
         , outRenderingLayers
 #endif
     );
+    outColor.rgb = ApplyFogOfWar(outColor.rgb, input.positionWS);
 }
 
 #endif

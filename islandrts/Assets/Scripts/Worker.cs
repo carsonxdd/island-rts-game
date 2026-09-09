@@ -254,6 +254,8 @@ public class Worker : UnitBase<Worker>
         // values are copied into the AI blackboard below.
         SimOverrides.Apply(this);
 #endif
+        VisionSource.Attach(gameObject, VisionSource.UnitRadius);
+
         if (FetchAgent())
         {
             // Configure NavMeshAgent for smooth navigation around obstacles

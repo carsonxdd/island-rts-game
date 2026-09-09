@@ -103,6 +103,8 @@ public class Warrior : UnitBase<Warrior>
         // values are copied into the AI blackboard below.
         SimOverrides.Apply(this);
 #endif
+        VisionSource.Attach(gameObject, VisionSource.UnitRadius);
+
         // Get NavMeshAgent component
         if (!FetchAgent())
         {

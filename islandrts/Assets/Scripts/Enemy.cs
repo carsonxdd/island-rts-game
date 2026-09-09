@@ -36,8 +36,15 @@ public class Enemy : UnitBase<Enemy>
     [Header("Targeting")]
     public float warriorDetectionRange = 15f;  // Only engage warriors within this range
 
+    /// <summary>The fog hider on this raider (2026-09-09): shown only while something of the colony's sees it.</summary>
+    [System.NonSerialized] public FogVisibility fog;
+
     void Start()
     {
+        // Raiders are hidden until seen. Attached before anything else so the very first
+        // check runs this frame and a fresh landing never flashes on screen.
+        fog = FogVisibility.Attach(gameObject, FogVisibility.Rule.Visible);
+
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         // Balance-sim knobs, if a sweep is running. Must land before these
         // values are copied into the AI blackboard below.

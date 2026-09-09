@@ -180,6 +180,8 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         healthComponent.hideWhenFull = true;
         healthComponent.onDeath.AddListener(OnCampfireDestroyed);
 
+        VisionSource.Attach(gameObject, VisionSource.CampfireRadius);
+
         // Register the campfire as housing (the starting crew's slots)
         housingCollider = GetComponent<Collider>();
         if (PopulationManager.Instance != null)

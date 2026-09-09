@@ -158,6 +158,10 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
     {
         if (!FetchAgent()) return;
 
+        // The castaway sees from the first frame of the landing: the cove is the first
+        // patch of the island the fog gives up (2026-09-09).
+        VisionSource.Attach(gameObject, VisionSource.PlayerRadius);
+
         // Same locomotion feel as a Worker (see Worker.Start)
         agent.speed = moveSpeed;
         agent.acceleration = 18f;

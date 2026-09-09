@@ -131,6 +131,14 @@ Shader "IslandRTS/OccluderCutout"
             #pragma fragment OccluderCutoutFragment
 
             // -------------------------------------
+            // Island keyword (2026-09-09): unit windows are per material (on for
+            // nodes, buildings and walls; off for the ground). multi_compile, not
+            // shader_feature: every material on this shader is made at runtime, so a
+            // build has no material to keep the ON variant alive. The fog sampling reads
+            // input.positionWS, which Shadows.hlsl always makes Lit interpolate.
+            #pragma multi_compile_local_fragment _ _UNIT_CUTOUT
+
+            // -------------------------------------
             // Material Keywords
             #pragma shader_feature_local _NORMALMAP
             #pragma shader_feature_local _PARALLAXMAP

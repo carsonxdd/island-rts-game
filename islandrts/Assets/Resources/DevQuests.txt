@@ -16,6 +16,28 @@
 # A finished batch is deleted from here once its report is in; it stays in the
 # changelog and the phase history.
 
+## 2026-09-09 Forage stutter
+- Let workers shed sticks at a bush/tree: a jobless colonist collects them cleanly
+- No colonist shuffles a metre forward/back at a pickup for more than ~2 s
+- A pickup nobody can reach is left alone; that colonist finds other work
+- A colonist walking into a group at a pickup does not catch the shuffle
+- Drop a pickup on unexplored ground (F4 reveal off): nobody goes for it
+
+## 2026-09-09 Fog of war
+- Press Play: island dark except a circle around the castaway; nothing magenta
+- Walk ashore: ground clears ahead in a soft-edged circle, no popping cells
+- Walk away: the ground behind you goes grey, not black, and stays grey
+- Sea near the cove is bright, sea past unexplored coast is dark
+- Trees and rocks appear when their ground clears and stay when you leave
+- A stick or crate on unexplored ground cannot be hovered or right-clicked
+- Place the campfire: a wide circle around it lights up and stays lit
+- Build a Watchtower: it lights a much bigger circle than a hut does
+- A raid lands out of sight; raiders show only when they enter a lit circle
+- Raiders in the shroud open no window through trees (no give-away hole)
+- Flee to a hut: the garrisoned worker's own circle goes dark, hut still sees
+- F4 "Reveal map": whole island lit and every raider shown; toggle off again
+- Esc > main menu: menu island is NOT dark; New Game starts dark again
+
 ## 2026-09-08 Crowding fixes
 - Assign 4 wood cutters near one forest: they split over 2+ trees
 - Send them home together: they arrive on different sides of the fire

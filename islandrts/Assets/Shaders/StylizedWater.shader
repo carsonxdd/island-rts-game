@@ -90,6 +90,8 @@ Shader "Island RTS/Stylized Water"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            // Fog of war (2026-09-09): the sea darkens with the shore it laps.
+            #include "Assets/Resources/Shaders/FogOfWar.hlsl"
 
             // Water column per terrain vertex, baked by TerrainGrid. White = the
             // full encode range (deep). Its default is "white", so a scene with no
@@ -244,6 +246,7 @@ Shader "Island RTS/Stylized Water"
 
                 float alpha = lerp(water.a, 1.0, foamMask);
                 alpha = saturate(alpha + glintAmount * 0.5);
+                rgb = ApplyFogOfWar(rgb, i.positionWS);
                 return half4(rgb, alpha);
             }
             ENDHLSL

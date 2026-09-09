@@ -47,6 +47,8 @@ public class Watchtower : MonoBehaviour, ITargetable
         // The tallest thing the colony builds, so it hides more than anything else and
         // opens a window for any unit behind it (2026-09-08).
         OccluderCutout.AttachTo(gameObject);
+        // The tower's second job (2026-09-09): it sees far further than anything else.
+        VisionSource.Attach(gameObject, VisionSource.WatchtowerRadius);
 
         healthComponent.destroyOnDeath = true;
         healthComponent.destroyDelay = 1f;

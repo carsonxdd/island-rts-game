@@ -8,6 +8,28 @@
 # Lines starting with a single # are comments. Anything else that is not a
 # heading, a bullet or an indented continuation is ignored.
 
+## 2026-09-09 — Foraging colonists no longer stutter at a pickup
+- A colonist who cannot quite reach a stick or chunk (one lying under a bush or
+  at the edge of a ledge) now picks it up from a step away if that is as close
+  as the ground allows, and otherwise leaves it alone for a while and finds
+  other work. Before, they shuffled a metre forward and back at it forever, and
+  anyone who walked into the pile caught the same shuffle.
+- Colonists only fetch sticks, chunks and crates lying on ground the colony has
+  explored.
+
+## 2026-09-09 — Fog of war
+- The island starts in the dark. Ground clears for good once one of your people
+  or buildings has seen it, and ground nobody is watching right now sits in a
+  dim grey shroud. Explore to find trees, rocks, ore and the wreck's cargo.
+- Raiders are hidden until something of yours can see them, so a raid can be an
+  ambush. Every colonist, warrior and building keeps watch around itself; the
+  Watchtower sees far further than anything else.
+- Your castaway sees a little further than a colonist, and the campfire lights a
+  wide circle. The sea darkens with the shore it laps.
+- Not yet: colonists still gather from trees you have not found, building is
+  still allowed anywhere, the dawn raid warning still says how many are coming,
+  and there is no minimap. Those follow in the next updates.
+
 ## 2026-09-08 — Colonists spread out at the fire and in the forest
 - Colonists bringing resources home now fan out around the campfire instead of
   queueing on one side of it, and one stuck behind another hands over after a

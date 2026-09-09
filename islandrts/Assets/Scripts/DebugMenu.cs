@@ -296,6 +296,10 @@ public class DebugMenu : MonoBehaviour
 
         cycle.clockPaused = GUILayout.Toggle(cycle.clockPaused, " Clock paused");
 
+        // Fog of war off: every cell explored and visible, raiders and nodes all shown.
+        FogOfWar fog = FogOfWar.Instance;
+        if (fog != null) fog.revealAll = GUILayout.Toggle(fog.revealAll, " Reveal map (no fog)");
+
         // Calendar: jump the day counter (the director re-rolls at the next
         // dawn, so a jumped day only changes raid SIZE until then) and force or
         // cancel tonight's raid without waiting for a lucky roll.

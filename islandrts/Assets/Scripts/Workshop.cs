@@ -71,6 +71,7 @@ public class Workshop : MonoBehaviour, ITargetable, IMaterialSet
 
         EnsureMaterials();
         OccluderCutout.AttachTo(gameObject);
+        VisionSource.Attach(gameObject, VisionSource.HutRadius);
     }
 
     /// <summary>

@@ -136,8 +136,13 @@ public class PropScatter : MonoBehaviour
                         if (!SpawnSalvage(rule, group, p, yaw, scale)) continue;
                     }
                     else
-                        Instantiate(rule.prefab, p, Quaternion.Euler(0f, yaw, 0f), group)
-                            .transform.localScale = new Vector3(scale, scale, scale);
+                    {
+                        GameObject decor = Instantiate(rule.prefab, p, Quaternion.Euler(0f, yaw, 0f), group);
+                        decor.transform.localScale = new Vector3(scale, scale, scale);
+                        // Decor draws the fog too (2026-09-09); swapped BEFORE the static batch below
+                        // combines by material, so the batches are built from the fog-aware copies.
+                        FogMaterials.Apply(decor);
+                    }
 
                     placed.Add(p);
                     total++;

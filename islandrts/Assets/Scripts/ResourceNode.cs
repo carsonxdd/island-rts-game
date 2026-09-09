@@ -102,6 +102,11 @@ public class ResourceNode : MonoBehaviour, IMaterialSet
         // Added in code rather than on the prefab so it also covers nodes PropScatter builds.
         OccluderCutout.AttachTo(gameObject);
 
+        // Hidden until the colony has explored this ground, then shown for good (2026-09-09).
+        // While hidden the root leaves the click layer so it cannot be hovered or harvested
+        // through the dark; the collider itself stays live for approach points.
+        FogVisibility.Attach(gameObject, FogVisibility.Rule.Explored, ClickLayer);
+
         // Save original scale for depletion visual
         originalScale = transform.localScale;
 

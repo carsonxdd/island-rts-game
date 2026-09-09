@@ -26,7 +26,7 @@ using System.Collections.Generic;
 /// Default-layer placement raycasts (a collider on Default would park ghosts
 /// on top of sticks).
 /// </summary>
-public class GroundPickup : MonoBehaviour
+public class GroundPickup : MonoBehaviour, IMaterialSet
 {
     public static IReadOnlyList<GroundPickup> ActiveList => ActiveRegistry<GroundPickup>.List;
 
@@ -97,7 +97,22 @@ public class GroundPickup : MonoBehaviour
         // is high, so a hovered pickup glows paler and brighter than a node and stays the
         // easier of the two to pick out. Collected here rather than in Awake: scatter and
         // salvage mount their art as a child in the frame the object is created.
-        glow = HoverGlow.Attach(gameObject, RendererTint.Collect(GetComponentsInChildren<Renderer>()), 0f, 3.1f, 0.85f);
+        glow = HoverGlow.Attach(gameObject, EnsureMaterials(), 0f, 3.1f, 0.85f);
+
+        // Pickups draw the fog the way nodes do — the cutout shader on the SAME instances
+        // the glow writes to (IMaterialSet) — and stay hidden until their ground is
+        // explored (2026-09-09).
+        OccluderCutout.AttachTo(gameObject);
+        FogVisibility.Attach(gameObject, FogVisibility.Rule.Explored, ClickLayer);
+    }
+
+    private Material[] materials;
+
+    /// <summary>The one set of instanced materials on this pickup: the glow and the cutout share it.</summary>
+    public Material[] EnsureMaterials()
+    {
+        if (materials == null) materials = RendererTint.Collect(GetComponentsInChildren<Renderer>());
+        return materials;
     }
 
     void OnMouseEnter() { if (glow != null) glow.SetHovered(true); }
