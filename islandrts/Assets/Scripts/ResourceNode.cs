@@ -17,7 +17,7 @@ using System.Collections.Generic;
 /// around it and tracks both claims (on the way) and registrations (arrived), so the rest
 /// spill over to the next node instead of orbiting a full one.
 /// </remarks>
-public class ResourceNode : MonoBehaviour
+public class ResourceNode : MonoBehaviour, IMaterialSet
 {
     /// <summary>Order is serialized (prefabs store the int) — append, never reorder.</summary>
     public enum ResourceType { Wood, Food, Stone, Metal }
@@ -96,10 +96,13 @@ public class ResourceNode : MonoBehaviour
         // Instanced material copies for hover feedback and the occlusion fade.
         EnsureNodeMaterials();
 
-        // Trees are tall enough to hide a unit from the RTS camera, so they fade while
-        // one is behind them. Added here rather than on the prefab so it also covers
-        // trees built at runtime by PropScatter.
-        if (resourceType == ResourceType.Wood && GetComponent<OcclusionFade>() == null)
+        // Anything tall enough to hide a unit from the RTS camera fades while one is
+        // behind it. Every node type gets the component now (2026-09-08, was trees
+        // only) and OcclusionFade retires itself on the first measure if the silhouette
+        // is too short — which is what keeps bushes and low rocks out of it without a
+        // type list here that would go stale the next time a node is added. Added in
+        // code rather than on the prefab so it also covers nodes PropScatter builds.
+        if (GetComponent<OcclusionFade>() == null)
             gameObject.AddComponent<OcclusionFade>();
 
         // Save original scale for depletion visual
@@ -115,6 +118,9 @@ public class ResourceNode : MonoBehaviour
     /// instantiates, so two collectors would end up writing to different copies of the
     /// same material and the hover highlight and the fade would fight.
     /// </summary>
+    /// <summary>The <see cref="IMaterialSet"/> face of <see cref="EnsureNodeMaterials"/>.</summary>
+    public Material[] EnsureMaterials() => EnsureNodeMaterials();
+
     public Material[] EnsureNodeMaterials()
     {
         if (nodeMaterials == null)

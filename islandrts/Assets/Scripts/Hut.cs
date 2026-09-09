@@ -59,6 +59,11 @@ public class Hut : MonoBehaviour, ITargetable, IHousing
         }
         healthComponent.maxHealth = maxHealth;
         healthComponent.currentHealth = maxHealth;
+        // A hut is a solid box at the RTS camera angle, so it fades while a unit stands
+        // behind it, same as a tree (2026-09-08). It owns no material set of its own, so
+        // the fade is this object's single collector.
+        OcclusionFade.AttachTo(gameObject, Workshop.BuildingTightness);
+
         healthComponent.destroyOnDeath = true;  // Huts are destroyed when killed
         healthComponent.destroyDelay = 1f;  // Small delay before destruction
         healthComponent.showHealthText = true;

@@ -14,7 +14,7 @@ using System.Collections.Generic;
 /// Raiders target it like a hut or a Workshop, and it counts eight prosperity —
 /// a colony that can afford a ship is a colony worth raiding.
 /// </remarks>
-public class Shipyard : MonoBehaviour, ITargetable
+public class Shipyard : MonoBehaviour, ITargetable, IMaterialSet
 {
     public static IReadOnlyList<Shipyard> ActiveList => ActiveRegistry<Shipyard>.List;
 
@@ -70,8 +70,23 @@ public class Shipyard : MonoBehaviour, ITargetable
         if (TerrainGrid.Instance != null)
             LaunchDirection = TerrainGrid.Instance.DirectionToWater(transform.position, GhostPlacer.ShoreRadius + 2f);
 
-        buildingMaterials = RendererTint.Collect(GetComponentsInChildren<Renderer>());
-        glow = HoverGlow.Attach(gameObject, buildingMaterials, 0f, hoverGlow);
+        EnsureMaterials();
+        OcclusionFade.AttachTo(gameObject, Workshop.BuildingTightness);
+    }
+
+    /// <summary>
+    /// The instanced material copies for every renderer slot, created on first use and
+    /// shared with the occlusion fade so the hover glow and the fade write to the same
+    /// instances.
+    /// </summary>
+    public Material[] EnsureMaterials()
+    {
+        if (buildingMaterials == null)
+        {
+            buildingMaterials = RendererTint.Collect(GetComponentsInChildren<Renderer>());
+            glow = HoverGlow.Attach(gameObject, buildingMaterials, 0f, hoverGlow);
+        }
+        return buildingMaterials;
     }
 
     void OnMouseEnter() { if (glow != null) glow.SetHovered(true); }

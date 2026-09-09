@@ -144,7 +144,7 @@ The console is intentionally quiet — about 65 calls in the whole project. Only
 
 **Right now: feature freeze, then an alpha.** The scope is closed. What remains is playtesting the pile of built-but-unplayed work, a tutorial, a shorter run length for testers, a feedback path, and a build that actually ships the game scene. The full list, in order, with a definition of done: **[`ALPHA_PLAN.md`](ALPHA_PLAN.md)**.
 
-**After it ships: the architecture lap** — factions, then a spatial hash and AI level of detail, then a colony governor, then save/load, then multiple islands. Sequenced and argued in the alpha plan's section H, with the reasoning in [`docs/SCALING_NOTES.md`](docs/SCALING_NOTES.md). Months of work with nothing player-visible until the end of it, which is why testers come first.
+**After it ships: the architecture lap** — factions, then a spatial hash and AI level of detail, then a colony governor, then save/load, then multiple islands. Sequenced and argued in the alpha plan's section J, with the reasoning in [`docs/SCALING_NOTES.md`](docs/SCALING_NOTES.md). Months of work with nothing player-visible until the end of it, which is why testers come first.
 
 Parked with no committed order:
 

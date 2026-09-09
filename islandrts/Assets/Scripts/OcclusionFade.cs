@@ -28,10 +28,30 @@ public class OcclusionFade : MonoBehaviour
     public static System.Collections.Generic.IReadOnlyList<OcclusionFade> ActiveList
         => ActiveRegistry<OcclusionFade>.List;
 
-    [Tooltip("Alpha to fade to while the tree is hiding a unit.")]
-    public float fadedAlpha = 0.3f;
-    [Tooltip("Alpha units per second - the same rate both ways, so fading out and back feel symmetric.")]
+    [Tooltip("Alpha to fade to while this object is hiding a unit.")]
+    public float fadedAlpha = 0.35f;
+    [Tooltip("Alpha units per second while fading BACK in. Slower than fading out on purpose — a unit stepping clear should not snap the object back.")]
     public float fadeSpeed = 4f;
+    [Tooltip("Alpha units per second while fading OUT. Fast, because every frame of this is a frame the unit is hidden (2026-09-08).")]
+    public float fadeOutSpeed = 9f;
+
+    /// <summary>
+    /// Fraction of the measured half-width that counts as "behind this object" (2026-09-08).
+    /// A palm's renderer bounds are its CANOPY, several metres of fronds you can see
+    /// through, so a tree uses well under half of it or every unit near a tree fades it.
+    /// A hut is a solid box and hides everything inside its footprint, so a building
+    /// wants nearly all of its width. One constant could never serve both, which is why
+    /// this moved off the manager and onto the object.
+    /// </summary>
+    [Tooltip("How much of the measured half-width counts as hiding a unit. Low for see-through canopies, near 1 for solid buildings.")]
+    public float silhouetteTightness = 0.42f;
+
+    /// <summary>
+    /// Below this the object cannot hide a standing unit from the RTS camera, so it never
+    /// fades and drops out of the manager's list entirely. Keeps bushes, rock nodes, low
+    /// walls and the campfire out of a test they would only ever cost time in.
+    /// </summary>
+    private const float MinSilhouetteHeight = 1.6f;
 
     /// <summary>World-space height of the silhouette, measured from the renderer bounds.</summary>
     public float SilhouetteHeight { get; private set; } = 4f;
@@ -44,6 +64,21 @@ public class OcclusionFade : MonoBehaviour
     private float target = 1f;
     private bool transparentMode = false;
     private bool measured = false;
+
+    /// <summary>
+    /// Buildings fade too (2026-09-08). A worker behind a hut was simply gone, which is
+    /// the same defect the trees had, and the fix is the same component with a different
+    /// tightness: a hut hides everything inside its footprint, a canopy does not.
+    /// Anything shorter than the silhouette floor retires itself on first measure, so
+    /// this is safe to call on a building whose art might be low.
+    /// </summary>
+    public static void AttachTo(GameObject go, float tightness)
+    {
+        if (go == null || go.GetComponent<OcclusionFade>() != null) return;
+        OcclusionFade fade = go.AddComponent<OcclusionFade>();
+        fade.silhouetteTightness = tightness;
+        fade.fadedAlpha = 0.45f;   // a solid building reads worse at tree alpha
+    }
 
     void Awake()
     {
@@ -75,11 +110,28 @@ public class OcclusionFade : MonoBehaviour
 
         SilhouetteHeight = Mathf.Max(0.5f, b.max.y - transform.position.y);
         SilhouetteRadius = Mathf.Max(0.3f, Mathf.Max(b.extents.x, b.extents.z));
+
+        // Too short to hide anyone: leave the registry so the manager never looks at it
+        // again. Measuring is lazy, so this is the first frame the height is knowable.
+        if (SilhouetteHeight < MinSilhouetteHeight) Retire();
     }
 
-    /// <summary>Called by the manager each tick with whether this tree is currently hiding a unit.</summary>
+    /// <summary>Stop fading and drop out of the manager's list, permanently.</summary>
+    void Retire()
+    {
+        target = 1f;
+        if (current < 1f) current = 1f;
+        ActiveRegistry<OcclusionFade>.Unregister(this);
+        enabled = false;
+    }
+
+    /// <summary>True while the manager's last tick found a unit hidden behind this object.</summary>
+    public bool IsOccluding { get; private set; }
+
+    /// <summary>Called by the manager each tick with whether this object is currently hiding a unit.</summary>
     public void SetOccluding(bool occluding)
     {
+        IsOccluding = occluding;
         target = occluding ? Mathf.Clamp01(fadedAlpha) : 1f;
     }
 
@@ -87,7 +139,10 @@ public class OcclusionFade : MonoBehaviour
     {
         if (current >= 1f && target >= 1f) return;
 
-        current = Mathf.MoveTowards(current, target, fadeSpeed * Time.deltaTime);
+        // Out fast, back in gently: every frame spent fading out is a frame the unit is
+        // still hidden, but a snap back the instant it steps clear reads as a flicker.
+        float rate = target < current ? fadeOutSpeed : fadeSpeed;
+        current = Mathf.MoveTowards(current, target, rate * Time.deltaTime);
 
         if (materials == null) FetchMaterials();
         if (materials == null) return;
@@ -111,11 +166,12 @@ public class OcclusionFade : MonoBehaviour
 
     void FetchMaterials()
     {
-        // Share the ResourceNode's instances so the hover highlight and the fade write
-        // to the same materials.
-        ResourceNode node = GetComponent<ResourceNode>();
-        materials = node != null
-            ? node.EnsureNodeMaterials()
+        // Share whatever this object already collected — a node's hover materials, a
+        // building's — so the highlight and the fade write to the same instances. Only
+        // an object with no collector of its own (the hut, the watchtower) gets one here.
+        IMaterialSet owner = GetComponent<IMaterialSet>();
+        materials = owner != null
+            ? owner.EnsureMaterials()
             : RendererTint.Collect(GetComponentsInChildren<Renderer>());
 
         baseAlpha = new float[materials.Length];

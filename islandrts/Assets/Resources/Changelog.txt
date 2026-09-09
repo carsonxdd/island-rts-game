@@ -8,6 +8,10 @@
 # Lines starting with a single # are comments. Anything else that is not a
 # heading, a bullet or an indented continuation is ignored.
 
+## 2026-09-08 — Nothing hides your people
+- Buildings fade now too. A worker standing behind a hut, the Watchtower, the Workshop or the Shipyard used to simply vanish; those buildings go see-through while someone is behind them, the way trees already did. Rocks and bushes are left alone, because nothing short enough to see over needs to move out of your way.
+- The fade is quicker and more accurate. It checks twice as often, fades out more than twice as fast as it fades back, and looks at your whole colonist rather than one point at their chest, so a head behind a canopy or a body under a roofline no longer goes unnoticed. Walking along the edge of a tree cannot make it flicker any more.
+
 ## 2026-09-08 — Boulders you can actually quarry
 - Stone boulders no longer appear halfway up cliff faces, where there was nowhere for a colonist to stand and no amount of waiting would get one mined. Quarryable rocks now settle on ground a colonist can walk on, and the steep faces keep their scenery rocks.
 - The same rule covers every resource the island places: if nothing can stand around it, it is not put there. A node that gets closed in later is passed over instead of drawing workers to a spot they cannot reach.

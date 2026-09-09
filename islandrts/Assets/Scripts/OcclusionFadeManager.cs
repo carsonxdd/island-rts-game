@@ -26,27 +26,38 @@ using UnityEngine;
 /// </remarks>
 public class OcclusionFadeManager : MonoBehaviour
 {
-    private const float TickInterval = 0.1f;
+    /// <summary>
+    /// 20 Hz (2026-09-08, was 10). At 10 Hz the decision could lag a tenth of a second
+    /// behind a walking unit, and with the old symmetric quarter-second fade on top of
+    /// it the object was still solid for a third of a second after the unit went behind
+    /// it — which is exactly the "fades too late" complaint.
+    /// </summary>
+    private const float TickInterval = 0.05f;
     /// <summary>Half-width of a unit on screen, in world units - roughly a meeple's shoulders.</summary>
     private const float UnitHalfWidth = 0.22f;
-    /// <summary>Chest height: where a unit's silhouette actually is, rather than its feet.</summary>
-    private const float UnitChestHeight = 0.9f;
 
     /// <summary>
-    /// Fraction of a tree's measured half-width that counts as "behind it" (2026-09-03).
-    /// The renderer bounds of a palm are the CANOPY, several metres wide, so the full
-    /// half-width faded a tree for any unit walking anywhere near it and half the forest
-    /// blinked as a worker crossed a clearing. Only the trunk and the canopy directly
-    /// over it actually hide anything worth seeing at this camera angle.
+    /// A unit is tested as its whole standing silhouette, not one point (2026-09-08). A
+    /// single chest point missed a unit whose head was behind a canopy while its chest
+    /// was clear of it, and missed the reverse under a hut roof — both read as the fade
+    /// simply not working. Two points down the body cost one extra distance test each
+    /// and catch both.
     /// </summary>
-    private const float SilhouetteTightness = 0.42f;
+    private static readonly float[] UnitSampleHeights = { 0.35f, 1.35f };
 
     /// <summary>
-    /// How far behind the tree a unit must be, in view depth, before the tree fades.
+    /// How far behind the object a unit must be, in view depth, before it fades.
     /// Without it a unit standing level with a trunk flickered the tree on and off as
     /// the depth compare crossed zero.
     /// </summary>
     private const float DepthMargin = 0.6f;
+
+    /// <summary>
+    /// Once faded, an object stays faded until the unit is this much further out than it
+    /// took to start (2026-09-08). Pure hysteresis: without it a unit walking the edge of
+    /// the silhouette sat on the threshold and the object chattered in and out.
+    /// </summary>
+    private const float ReleaseSlack = 1.2f;
 
     private static OcclusionFadeManager instance;
 
@@ -109,7 +120,11 @@ public class OcclusionFadeManager : MonoBehaviour
             OcclusionFade tree = trees[i];
             if (tree == null) continue;
 
+            // Measuring is lazy and can retire an object too short to hide anyone, which
+            // unregisters it mid-loop. The bound is re-read each iteration so that is
+            // safe; it costs one skipped entry for one tick, once, ever.
             tree.EnsureMeasured();
+            if (!tree.enabled) continue;
 
             Vector3 basePos = tree.transform.position;
             Vector3 baseScreen = cam.WorldToScreenPoint(basePos);
@@ -126,7 +141,9 @@ public class OcclusionFadeManager : MonoBehaviour
                 continue;
             }
 
-            float reach = tree.SilhouetteRadius * SilhouetteTightness * pixelsPerUnit + unitPixels;
+            // Tightness is per object: a canopy is mostly gaps, a hut is a solid box.
+            float reach = tree.SilhouetteRadius * tree.silhouetteTightness * pixelsPerUnit + unitPixels;
+            if (tree.IsOccluding) reach *= ReleaseSlack;   // hysteresis: harder to let go than to grab
             float reachSq = reach * reach;
             // Nearest point of the tree to the camera, so a unit behind ANY part of it counts.
             float treeDepth = Mathf.Min(baseScreen.z, topScreen.z) + DepthMargin;
@@ -172,8 +189,8 @@ public class OcclusionFadeManager : MonoBehaviour
 
     void AddPoint(Vector3 worldPos)
     {
-        Vector3 sp = cam.WorldToScreenPoint(worldPos + Vector3.up * UnitChestHeight);
-        unitPoints.Add(sp);
+        for (int h = 0; h < UnitSampleHeights.Length; h++)
+            unitPoints.Add(cam.WorldToScreenPoint(worldPos + Vector3.up * UnitSampleHeights[h]));
     }
 
     static float SqrDistanceToSegment(float px, float py, float ax, float ay, float bx, float by)

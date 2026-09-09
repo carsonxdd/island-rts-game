@@ -28,7 +28,9 @@ That is the bar. Not "polished", not "balanced", not "content-complete".
 
 **In:** the six items below, in order.
 
-**Also in, after the alpha ships:** the architecture lap in section H — factions, spatial hash and AI level of detail, a colony governor, save/load, multiple islands. Added deliberately, months of work, and sequenced behind the release rather than in front of it.
+**Two accepted exceptions, both requested on 2026-09-08 and both before the alpha:** the occluder polish in section H, and fog of war with a minimap in section I. Fog is the larger of the two by a wide margin and the freeze should hold against everything else.
+
+**Also in, after the alpha ships:** the architecture lap in section J — factions, spatial hash and AI level of detail, a colony governor, save/load, multiple islands. Added deliberately, months of work, and sequenced behind the release rather than in front of it.
 
 **Out, explicitly:** new buildings, new units, new resources, the story, processing chains, families, farming, the Warehouse, building upgrades, enemies wading ashore, the lighting bake. All of it is real and none of it is alpha.
 
@@ -120,7 +122,43 @@ Decided: **direct file share** — a zip to people you know. No storefront, no p
 
 **Worth knowing for later:** when the alpha outgrows a handful of people, itch.io is the next step and takes about five minutes — free, password-protectable, with a devlog and comments. Steam only becomes worth its 100 dollars and its review queue when there is a store page worth having.
 
-## H. The architecture lap
+## H. Occluder polish
+
+The tree fade works but has three faults, all reported from play on 2026-09-08. **Partly built the same day; the rest is one session.**
+
+- **Only trees faded.** Huts, the Watchtower, the Workshop and the Shipyard never did, so a worker behind a building was simply gone. *Done:* every resource node and those four buildings now carry the fade, and anything too short to hide a standing unit retires itself on first measure rather than being listed by type.
+- **It missed cases and fired late.** A unit was tested as one point at chest height, so a head behind a canopy or a body under a roofline read as clear; the decision ran at 10 Hz and the fade took a quarter second on top of it. *Done:* a unit is tested as two points down its body, the tick is 20 Hz, fading out is more than twice as fast as fading back, one shared tightness constant became a per-object one because a canopy is mostly gaps and a hut is a solid box, and hysteresis stops an object chattering when a unit walks its edge.
+- **The whole object ghosts out.** Still open, and the one that needs a shader. The fix is the standard modern one: the occluder stays solid except for a soft round cutout where the unit is. A screen-space hole mask, blitted the way `CloudCookie` already blits its coverage field, sampled by a shader that replaces URP Lit on occluders. It must keep emission, because the hover glow writes `_EmissionColor` on the same materials.
+
+Two things to settle while writing it: walls are excluded today because a line of individually ghosting wall cells looks worse than the problem, and a faded object still casts a solid shadow. Both are better with a cutout than with a fade, so both wait for the same session.
+
+## I. Fog of war and a minimap
+
+Requested for the alpha on 2026-09-08 and accepted as a scope exception. **This is the biggest item on the page — several sessions, not one.**
+
+**Decisions taken:**
+
+- Explored memory fog: unseen island starts dark and clears permanently as your people move.
+- It **gates colonists**: workers only gather nodes the colony has discovered, so exploring is a real act rather than a visual filter.
+- It **hides raiders** until something of yours sees them. This is the expensive half. It turns a raid into an ambush and gives the Watchtower a second job.
+- Vision comes from units and buildings, with the Watchtower seeing much further.
+- Unexplored ground is **not placeable**, consistent with colonists refusing to gather what they have not found.
+- A simple minimap ships with it. Without one, fog makes the map unreadable and reads as a bug rather than a feature.
+
+**Why it is not the easy feature it looks like.** The rendering is the cheap part. The cost is that the AI reads global registries: workers scan every node on the island, enemies path to `BaseBuilding.ActiveList[0]`, and the raid warning tells you the size of tonight's raid at dawn. Making sight matter means a knowledge layer that sits between those scans and the world — which is a large piece of the faction work in section J, brought forward. Expect it to touch `ResourceAvailability`, the enemy target function, the warrior engage filter, the raid banner, `GhostPlacer` and the terrain material.
+
+**Shape to build to:**
+
+1. A visibility grid over the island, coarse (2 m cells is plenty), owned by one manager, with two bits per cell: ever-explored, and currently-visible. Update at a few hertz from a source list, not per frame per unit.
+2. Vision sources register the way housing providers already do: a component with a radius, added by units and buildings, so nothing rescans the scene.
+3. Terrain reads the grid as a texture. The precedent is the water depth map, which already feeds a heightfield texture to a material property block — the same pattern applies here.
+4. Anything the player should not see checks the grid before it renders: enemies, undiscovered nodes, their health bars and state labels.
+5. Gameplay gates last, in exactly three places to start: the resource scan, the enemy's visibility to warrior AI, and placement validity.
+6. The minimap draws the explored mask plus friendly markers. It is also the answer to "where did that raid land".
+
+**The one thing to resist:** making enemy AI fog-aware too. Raiders knowing where the campfire is remains fine, and a symmetric fog is a strategy game, not this one.
+
+## J. The architecture lap
 
 Added at the user's request on 2026-09-08, knowingly pushing the schedule out. This is the sequence from [`docs/SCALING_NOTES.md`](docs/SCALING_NOTES.md), promoted from "someday" into the plan:
 
@@ -140,13 +178,13 @@ Added at the user's request on 2026-09-08, knowingly pushing the schedule out. T
 
 ## Order and rough shape
 
-**A → B → C → D and E together → F → G → H.**
+**A → B → H → I → C → D and E together → F → G → J.**
 
-A is small and blocks everything. B is the long one and the one most likely to change the plan. C wants B's fixes first. D and E are the two things that make a stranger's run useful and can be built side by side. F and G are the release lap. H is the long architecture lap that runs while the alpha is in testers' hands.
+A is small and blocks everything. B is the long one and the one most likely to change the plan. H and I are the two accepted scope exceptions and go in before the tuning, because fog changes how a night plays and there is no point tuning raids twice. C wants B's fixes and I's changes behind it. D and E are what make a stranger's run useful and can be built side by side. F and G are the release lap. J runs for months afterwards while the alpha is in testers' hands.
 
-Do not start D before B is finished. Building a tutorial for a build that is about to change is how the tutorial ends up wrong.
+Do not start D before B and I are finished. Building a tutorial for a build that is about to change is how the tutorial ends up wrong, and fog changes the first five minutes more than anything else on this page.
 
-A through G is the alpha and should be measured in sessions. H is measured in months and has no shipping date attached to it.
+A through G is the alpha and should be measured in sessions, with I as the one item likely to take several. J is measured in months and has no shipping date attached to it.
 
 ---
 

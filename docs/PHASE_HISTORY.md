@@ -981,3 +981,29 @@ Mid-session the user asked to add the scaling order — factions, spatial hash a
 Housekeeping: two stray note files in `Assets/Scripts` (`enemies spawn.txt` and a personal note) deleted rather than committed.
 
 **New:** `ALPHA_PLAN.md`, `docs/SCALING_NOTES.md`. **Edited:** `README.md`, `.claude/CLAUDE.md` (the Next line is now the freeze).
+
+### Occluders that are not trees (2026-09-08 — ⚠️ PENDING PLAYTEST)
+
+User: "we also need to polish the feature where when workers walk behind trees and what not they go opaque", and separately asked for fog of war before the alpha. Three faults named from play: only trees fade, the whole tree ghosts out, and it misses cases or fires late. Two of the three are fixed here; the third needs a shader and was deliberately deferred to a session with Unity open, since a shader cannot be compile-checked from outside the editor and the project already carries one set of never-compiled cloud shaders.
+
+**Only trees faded.** `OcclusionFade` was added by `ResourceNode.Start` for Wood nodes alone, so a worker behind a hut was gone. It now goes on every node type and on Hut / Watchtower / Workshop / Shipyard, and the thing that keeps bushes, low rocks and the campfire out is not a type list — it is `MinSilhouetteHeight` 1.6: measurement is lazy, and an object that measures shorter **retires itself**, unregistering from the manager's list so it is never tested again. A type list would have gone stale the next time a node or building was added. The campfire is not attached at all, since colonists crowd it all day.
+
+**Sharing materials.** `Workshop`, `Shipyard` and `BaseBuilding` already collect their own instanced materials for the hover glow, and `renderer.materials` INSTANTIATES — a second collector would leave the glow and the fade writing to different copies. New `IMaterialSet` interface (`EnsureMaterials()`), implemented by `ResourceNode`, `Workshop` and `Shipyard`; `OcclusionFade.FetchMaterials` asks for it and only collects its own when nobody answers, which is what lets it ride on a hut (no collector) and a Workshop (one already) with the same code.
+
+**Missed and late.** A unit was one point at chest height, so a head behind a canopy or a body under a roofline read as clear — the unit is now two points down its body. The manager ticks at 20 Hz (was 10) and fading out runs at 9 alpha/s against 4 coming back, so worst-case response went from about a third of a second to under a sixth. `SilhouetteTightness` was one constant on the manager at 0.42, tuned for canopies that are mostly gaps; it is now `silhouetteTightness` per object, 0.42 on nodes and 0.9 on buildings, because a hut hides everything inside its footprint. `ReleaseSlack` 1.2 widens the test once an object is already faded, so a unit walking the silhouette edge cannot chatter it.
+
+**Still open, in `ALPHA_PLAN.md` section H:** the whole-object ghosting. The fix is a soft screen-space cutout — a hole mask blitted the way `CloudCookie` blits its coverage field, sampled by a shader that replaces URP Lit on occluders and must keep emission, because the hover glow writes `_EmissionColor` on the same materials. Walls are excluded until then (a line of individually ghosting cells looks worse than the problem) and a faded object still casts a solid shadow.
+
+Compile-verified (editor + release player): 0 errors. Quest batch "Occluders fade".
+
+**New:** `IMaterialSet.cs`. **Edited:** `OcclusionFade.cs`, `OcclusionFadeManager.cs`, `ResourceNode.cs`, `Hut.cs`, `WatchTower.cs`, `Workshop.cs`, `Shipyard.cs`, `Changelog.txt`, `DevQuests.txt`, `ALPHA_PLAN.md`.
+
+**Gotcha this encodes:** see CLAUDE.md Visual / Art (retire-by-height, per-object tightness, `IMaterialSet`).
+
+### Fog of war accepted into the alpha (2026-09-08 — NOT BUILT)
+
+User: "i also want to add fog of war to a new feature soon before alpha. should be easy." It is not easy here, and the reason is not rendering: the AI reads global registries, so workers already know every node on the island and enemies already know where the campfire is. Fog that units ignore erases itself as colonists wander; fog that units respect is a knowledge layer between those scans and the world, which is a large piece of the faction work brought forward.
+
+Decisions taken with the user: explored memory fog that **gates colonist gathering**, raiders **hidden until seen**, vision from units and buildings with a much larger radius on the Watchtower, unexplored ground not placeable, and a simple minimap shipping alongside it because fog without one reads as a bug. Enemy AI stays fog-blind on purpose — a symmetric fog is a different game.
+
+Written up as `ALPHA_PLAN.md` section I with the build shape (a coarse visibility grid with ever-explored and currently-visible bits, vision sources registering like housing providers, the terrain reading the grid as a texture the way the water depth map already does, and gameplay gates in exactly three places to start). Sequenced before the tuning pass, because tuning raids twice would be waste.

@@ -11,7 +11,7 @@ using System.Collections.Generic;
 /// BuildingData are created by Tools &gt; Island RTS &gt; Session Content &gt;
 /// Setup Pickups + Workshop.
 /// </summary>
-public class Workshop : MonoBehaviour, ITargetable
+public class Workshop : MonoBehaviour, ITargetable, IMaterialSet
 {
     public static IReadOnlyList<Workshop> ActiveList => ActiveRegistry<Workshop>.List;
 
@@ -69,8 +69,26 @@ public class Workshop : MonoBehaviour, ITargetable
             obstacle.carveOnlyStationary = true;
         }
 
-        buildingMaterials = RendererTint.Collect(GetComponentsInChildren<Renderer>());
-        glow = HoverGlow.Attach(gameObject, buildingMaterials, 0f, hoverGlow);
+        EnsureMaterials();
+        OcclusionFade.AttachTo(gameObject, BuildingTightness);
+    }
+
+    /// <summary>How much of a building's half-width hides a unit: nearly all of it, unlike a canopy.</summary>
+    public const float BuildingTightness = 0.9f;
+
+    /// <summary>
+    /// The instanced material copies for every renderer slot, created on first use and
+    /// shared with the occlusion fade — two collectors on one object would write to
+    /// different copies and the hover glow and the fade would fight.
+    /// </summary>
+    public Material[] EnsureMaterials()
+    {
+        if (buildingMaterials == null)
+        {
+            buildingMaterials = RendererTint.Collect(GetComponentsInChildren<Renderer>());
+            glow = HoverGlow.Attach(gameObject, buildingMaterials, 0f, hoverGlow);
+        }
+        return buildingMaterials;
     }
 
     void OnMouseEnter() { if (glow != null) glow.SetHovered(true); }

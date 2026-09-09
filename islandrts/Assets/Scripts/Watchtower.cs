@@ -43,6 +43,11 @@ public class Watchtower : MonoBehaviour, ITargetable
         }
         healthComponent.maxHealth = maxHealth;
         healthComponent.currentHealth = maxHealth;
+
+        // The tallest thing the colony builds, so it hides more than anything else and
+        // fades while a unit is behind it (2026-09-08).
+        OcclusionFade.AttachTo(gameObject, Workshop.BuildingTightness);
+
         healthComponent.destroyOnDeath = true;
         healthComponent.destroyDelay = 1f;
         healthComponent.showHealthText = true;

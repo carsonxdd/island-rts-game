@@ -16,6 +16,16 @@
 # A finished batch is deleted from here once its report is in; it stays in the
 # changelog and the phase history.
 
+## 2026-09-08 Occluders fade
+- Walk a colonist behind a hut: the hut goes see-through, not the worker
+- Same behind the Watchtower and the Workshop
+- Bushes and small rocks never fade, even with a worker behind them
+- The campfire never fades while colonists crowd it
+- Walk the edge of a tree: it does not flicker in and out
+- Step out from behind a tree: it comes back gently, not with a snap
+- A tree hiding only a colonist's head still fades
+- Hover a faded tree: the gold glow still works on it
+
 ## 2026-09-08 Reachable rocks
 - Walk the cliff feet: no big or medium boulder sits in a rock face
 - Assign a stone worker, then watch: no rock is queued and abandoned
