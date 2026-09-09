@@ -1031,3 +1031,21 @@ The review found the plan already stale on its first section. `Setup Everything`
 **Plan edits:** A1/A2/A3/A5 struck through with what closed them; A4 reduced to "make one release build and play the opening". Section B corrected: twenty batches, not ten, `Playtests/` is empty so the loop itself has never closed — the **"Dev quests" batch is played first** — and five batches (stances, formations and archers, night lasts the raid, slices 3 and 5) are marked for a second pass after fog, since section I changes what they test.
 
 **Edited:** `CloudSystem.cs`, `MenuScreens.cs`, `DevQuests.cs`, `ProjectSettings.asset`, `ALPHA_PLAN.md`, `README.md`, `CLAUDE.md`, `Changelog.txt`, `DevQuests.txt`.
+
+
+### Idle colonists stroll the village (2026-09-08 — ⚠️ PENDING PLAYTEST)
+
+User: "when the idle workers have nothing to do we need to find them something to do. like walk around the village." Choices taken with the user: stroll between colony buildings (campfire, huts, Workshop, Watchtower, Shipyard), mostly standing with an occasional walk, no strolling at night, label "Wandering" on the walk and "Idle" while standing.
+
+`IdleExecutor` is now a three-mode executor (Home / Standing / Strolling) instead of walk-home-and-freeze. Standing runs a 6–15 s timer by day, then picks a spot 1.5–3.5 u outside a random building's `noBuildRadius`, NavMesh-sampled, rejected within `FireClearance` 4 of the fire's collider edge (the same clearance Patrol keeps off the delivery edge) and outside 4–30 u of the colonist. Stroll legs honor `TrySetDestination`, re-issue after a `StuckResolver` reset, and give up into Standing after 20 s. Dusk mid-stroll turns the colonist for home. Nothing about scoring changed: Idle is still the 0.1 floor, so any job, site, bench, pickup or threat still outscores it, and `Worker.IsIdle` / the roster counts are untouched. Accepted as a feature-freeze exception because it is a one-file behaviour change with no new systems.
+
+**Edited:** `IdleExecutor.cs`, `Changelog.txt`, `DevQuests.txt`, `CLAUDE.md`.
+
+
+### Stone chunk pickup gets its own art (2026-09-08 — ⚠️ NEEDS SETUP EVERYTHING + PLAYTEST)
+
+User: "there are still small stones colonists cant pickup are these meant to be mined?" They are not: `Rock_Small` in the scatter table is decor only (26 per island, static-batched, no component), by design so the island does not become a quarry. The confusion was an art clash — `NewContentSetup` built `StonePickup.prefab` from the SAME `Rock_Small` art at 0.9, so a collectable chunk and a scenery rock were one silhouette at one size. User chose a small pile over shrinking the decor or making it collectable.
+
+New `Stone_Pile` `AssetDef` in `Shapes_Environment` (a low dark slab, a ring of five fist-sized lumps in alternating rock shades, two lopsided on top; 0.75 wide × 0.30 tall so it never reads as a boulder). `NewContentSetup` now mounts it at scale 1 as the stone pickup's Model. Shed byproducts and large ×3 pickups follow automatically because they are the same prefab. Both assemblies compile clean under Roslyn; the art does not exist until `Setup Everything` runs (Generate All Assets → Setup Pickups + Workshop).
+
+**Edited:** `Shapes_Environment.cs`, `NewContentSetup.cs`, `Changelog.txt`, `DevQuests.txt`.

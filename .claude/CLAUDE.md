@@ -81,7 +81,7 @@ Every 0.25–0.35s (randomized per unit) the brain scores `basePriority × Π(co
 - **What is in the hands is `bb.carryType`, not the job.** Availability scores 0 while carrying a different type; a job change delivers the old load first. `Worker.OnJobChanged` releases the node claim, nulls the target, `ForceReeval`s.
 - Worker spacing knobs: `Worker.AgentRadius` (0.3, what actually spaces workers), `GatherStopDistance`, `ResourceNode.GatherRingRadius`, `gatherDistance` (floored at `AgentRadius + 0.25`). Per-node capacity is `ResourceNode.GetMaxWorkers()` from ring circumference and open NavMesh samples.
 - Unreachable-node fallback: `bb.MarkNodeUnreachable` ring (15s), set by `GatherExecutor` after 0.6s of dead-end path.
-- **Idle walks home** (to the home provider's approach point, stopping 3.5u out so idlers never block the delivery edge) — that is what walks a fresh arrival in from the cove.
+- **Idle walks home, then strolls by day (2026-09-08):** far from home → the home provider's approach point, stopping 3.5u out (that is what walks a fresh arrival in from the cove); then stand 6–15 s / walk to a spot just outside a random building's `noBuildRadius` (campfire, huts, Workshop, Watchtower, Shipyard; `FireClearance` 4 off the fire's edge, 4–30 u away, 20 s walk cap). Night = stand at home. Display only — `Worker.IsIdle` and the 0.1 floor are unchanged, so any work still outscores it.
 
 ### Bookkeeping Gotchas (single owner)
 

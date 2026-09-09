@@ -8,6 +8,17 @@
 # Lines starting with a single # are comments. Anything else that is not a
 # heading, a bullet or an indented continuation is ignored.
 
+## 2026-09-08 — Stone chunks look like stone chunks
+- Loose stone you can pick up is now a small pile of chunks instead of a single
+  small rock, so it no longer looks the same as the scenery rocks. Small rocks
+  are decoration: nobody can mine or collect them.
+
+## 2026-09-08 — Idle colonists stroll the village
+- A colonist with nothing to do now wanders between the campfire, huts and
+  workshops by day instead of standing at the door: a short stand, a stroll to
+  another building, another stand. Their label reads "Wandering" on the walk.
+- At night they walk home and stay there, as before.
+
 ## 2026-09-08 — A version number
 - The main menu now shows the build's version (v0.2.0-alpha.1 to start) next to the
   updated date, and every playtest report opens with it, so a report can always be

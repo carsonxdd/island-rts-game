@@ -9,7 +9,7 @@ using System.Text;
 ///
 ///  1. Ground pickups — builds Stick.prefab (GroundPickup: wood) and
 ///     StonePickup.prefab (GroundPickup: stone) from the environment art
-///     (DriftwoodLog / Rock_Small as scaled Model children), and creates a
+///     (DriftwoodLog / Stone_Pile as scaled Model children), and creates a
 ///     wired "_PickupSpawner" object in MainIsland.
 ///  2. Workshop — builds Workshop.prefab (Workshop + Health-ready collider +
 ///     carving NavMeshObstacle + art Model child), WorkshopGhost.prefab (art
@@ -27,7 +27,10 @@ public static class NewContentSetup
     private const string ScenePath = "Assets/MainIsland.unity";
 
     private const string DriftwoodArtPath = "Assets/Art/Prefabs/Environment/DriftwoodLog.prefab";
-    private const string RockSmallArtPath = "Assets/Art/Prefabs/Environment/Rock_Small.prefab";
+    // The stone chunk is a Stone_Pile, not a Rock_Small (2026-09-08): the decor small
+    // rocks use Rock_Small, and a pickup that shares the scenery's silhouette gets
+    // clicked on by everyone and collected by no one.
+    private const string StonePileArtPath = "Assets/Art/Prefabs/Environment/Stone_Pile.prefab";
     private const string WorkshopArtPath = "Assets/Art/Prefabs/Buildings/Workshop.prefab";
     private const string WorkshopMeshPath = "Assets/Art/Meshes/Workshop.asset";
     private const string GhostMaterialPath = "Assets/Materials/Mat_Ghostbuilding.mat";
@@ -56,7 +59,7 @@ public static class NewContentSetup
         GameObject stickPrefab = BuildPickupPrefab(StickPrefabPath, "Stick",
             ResourceNode.ResourceType.Wood, 3, "stick", DriftwoodArtPath, 0.45f, summary);
         GameObject stonePrefab = BuildPickupPrefab(StonePickupPrefabPath, "StonePickup",
-            ResourceNode.ResourceType.Stone, 3, "stone_chunk", RockSmallArtPath, 0.9f, summary);
+            ResourceNode.ResourceType.Stone, 3, "stone_chunk", StonePileArtPath, 1f, summary);
 
         GameObject workshopPrefab = BuildWorkshopPrefab(summary);
         GameObject workshopGhost = BuildWorkshopGhost(summary);

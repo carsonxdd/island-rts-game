@@ -16,6 +16,22 @@
 # A finished batch is deleted from here once its report is in; it stays in the
 # changelog and the phase history.
 
+## 2026-09-08 Stone pile pickup
+- Loose stone on the ground is a low pile of chunks, not a single rock
+- A pile and a scenery small rock are told apart at a glance from RTS zoom
+- Hover a pile: gold glow; hover a scenery rock: nothing
+- Right-click a pile: the character walks over and takes a stone chunk
+- A rock worker's shed chunks are piles too
+- Large (x3) piles still fit their click box
+
+## 2026-09-08 Idle stroll
+- An idle colonist stands 6-15 s, then walks to another building and stops
+- Label reads Wandering on the walk, Idle again when they stop
+- Nobody strolls onto the campfire's drop-off edge or blocks deliveries
+- Assign a job mid-stroll: they leave for it at once
+- At dusk strollers head home and stay put until morning
+- With only the campfire built they still stroll around it
+
 ## 2026-09-08 Version string
 - Main menu bottom line reads v0.2.0-alpha.1 · updated 2026-09-08
 - @report The submitted report's Build line starts with v0.2.0-alpha.1

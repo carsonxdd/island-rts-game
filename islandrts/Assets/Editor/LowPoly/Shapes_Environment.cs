@@ -28,6 +28,14 @@ namespace IslandRTS.ArtGen
                 () => Boulder(1201, new Vector3(0.55f, 0.38f, 0.5f), 1),
                 "0.55 x 0.38"));
 
+            // The stone chunk pickup's art (2026-09-08). It used to be Rock_Small at 0.9,
+            // which made a collectable chunk and a scenery small rock the same shape at
+            // the same size — testers kept trying to pick up the decor. A low pile of
+            // fist-sized lumps reads as "loose stone, take it" next to a single boulder.
+            list.Add(new AssetDef("Stone_Pile", AssetCategory.Environment,
+                () => StonePile(1204, 0.75f, 0.30f),
+                "0.75 wide, 0.30 tall — loose chunks, the stone pickup"));
+
             list.Add(new AssetDef("Rock_Medium", AssetCategory.Environment,
                 () => Boulder(1202, new Vector3(1.1f, 0.8f, 1.0f), 2),
                 "1.1 x 0.8"));
@@ -257,6 +265,47 @@ namespace IslandRTS.ArtGen
                 Vector3 offset = new Vector3(Mathf.Cos(a) * size.x * dist, 0f, Mathf.Sin(a) * size.z * dist);
                 Vector3 lumpSize = size * b.Rand(0.38f, 0.62f);
                 b.Rock(offset, lumpSize, 0.25f, 2, 6);
+            }
+
+            return b;
+        }
+
+        /// <summary>
+        /// A low heap of loose chunks: one flat base lump the whole width, a ring of
+        /// fist-sized lumps half-sunk into it, and two on top. Wider than it is tall so
+        /// it never reads as a boulder, and every lump is a different rock shade so the
+        /// heap looks like pieces, not a single stone.
+        /// </summary>
+        private static MeshBuilder StonePile(int seed, float width, float height)
+        {
+            MeshBuilder b = new MeshBuilder(seed);
+
+            // Base slab: the heap's footprint, low and wide
+            b.Use("RockDark");
+            b.Rock(Vector3.zero, new Vector3(width, height * 0.45f, width * 0.85f), 0.18f, 2, 7);
+
+            // Ring of chunks sitting on and into the slab
+            const int ringCount = 5;
+            float chunk = width * 0.36f;
+            for (int i = 0; i < ringCount; i++)
+            {
+                b.Use(i % 2 == 0 ? "RockMid" : "RockLight");
+                float a = ((360f / ringCount) * i + b.Rand(-18f, 18f)) * Mathf.Deg2Rad;
+                float dist = width * b.Rand(0.24f, 0.32f);
+                Vector3 p = new Vector3(Mathf.Cos(a) * dist, height * 0.12f, Mathf.Sin(a) * dist);
+                Vector3 size = new Vector3(chunk * b.Rand(0.85f, 1.15f), height * b.Rand(0.55f, 0.7f), chunk * b.Rand(0.85f, 1.15f));
+                b.Rock(p, size, 0.26f, 2, 6);
+            }
+
+            // Two on top, offset from centre so the crown is lopsided
+            for (int i = 0; i < 2; i++)
+            {
+                b.Use(i == 0 ? "RockLight" : "RockMid");
+                float a = b.Rand(0f, 360f) * Mathf.Deg2Rad;
+                float dist = width * b.Rand(0.05f, 0.14f);
+                Vector3 p = new Vector3(Mathf.Cos(a) * dist, height * 0.42f, Mathf.Sin(a) * dist);
+                Vector3 size = new Vector3(chunk * 0.9f, height * 0.58f, chunk * 0.9f);
+                b.Rock(p, size, 0.26f, 2, 6);
             }
 
             return b;
