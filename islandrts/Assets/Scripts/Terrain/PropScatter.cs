@@ -118,6 +118,14 @@ public class PropScatter : MonoBehaviour
                     if (placed.TooClose(p, rule.spacing)) continue;
 
                     p.y = h;
+
+                    // A node needs somewhere to STAND, not just a reachable centre
+                    // (2026-09-08). The rock rules reach up cliff faces on purpose,
+                    // and the reachability mask (0.9 m steps between 1 m cells) says
+                    // yes there, but the bake leaves no walkable ground within a
+                    // worker's reach — those boulders looked quarryable and never
+                    // were. Last check in the chain: it is the expensive one.
+                    if (rule.gatherable && !ResourceNode.HasStandingRoom(p, rule.resourceType)) continue;
                     float yaw = (float)(rng.NextDouble() * 360.0);
                     float scale = Mathf.Lerp(rule.minScale, rule.maxScale, (float)rng.NextDouble());
 
@@ -233,6 +241,9 @@ public class PropScatter : MonoBehaviour
     {
         NavMeshHit hit;
         if (!NavMesh.SamplePosition(pos, out hit, 2f, NavMesh.AllAreas)) return false;
+        // The snap can travel two metres — far enough to land on a sandbar the flood
+        // fill never joined to the mainland, so re-test the point we actually got.
+        if (TerrainGrid.Instance != null && !TerrainGrid.Instance.IsReachable(hit.position)) return false;
         pos = hit.position;
 
         GameObject salvage = new GameObject(rule.prefab.name + "Salvage");

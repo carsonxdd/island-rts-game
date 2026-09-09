@@ -418,10 +418,16 @@ public class ResourceSpawner : MonoBehaviour
     {
         if (TerrainGrid.Instance == null) return true;
         // Dry, gentle, and reachable from the campfire — a node on a cut-off
-        // outcrop would only ever feed the unreachable-node fallback
-        return TerrainGrid.Instance.SampleHeight(pos) > 0.15f
-            && TerrainGrid.Instance.SlopeAt(pos) < 0.55f
-            && TerrainGrid.Instance.IsReachable(pos);
+        // outcrop would only ever feed the unreachable-node fallback.
+        if (!(TerrainGrid.Instance.SampleHeight(pos) > 0.15f
+              && TerrainGrid.Instance.SlopeAt(pos) < 0.55f
+              && TerrainGrid.Instance.IsReachable(pos)))
+            return false;
+
+        // And somewhere on the standing ring a worker can actually stand (2026-09-08):
+        // gentle-and-reachable still admits a shelf in a cliff nook the bake eroded
+        // away. Last, because it is the eight-NavMesh-sample one.
+        return ResourceNode.HasStandingRoom(pos, ResourceNode.ResourceType.Stone);
     }
 
     bool HabitatOk(Habitat habitat, Vector3 pos)

@@ -8,6 +8,16 @@
 # Lines starting with a single # are comments. Anything else that is not a
 # heading, a bullet or an indented continuation is ignored.
 
+## 2026-09-08 — Boulders you can actually quarry
+- Stone boulders no longer appear halfway up cliff faces, where there was nowhere for a colonist to stand and no amount of waiting would get one mined. Quarryable rocks now settle on ground a colonist can walk on, and the steep faces keep their scenery rocks.
+- The same rule covers every resource the island places: if nothing can stand around it, it is not put there. A node that gets closed in later is passed over instead of drawing workers to a spot they cannot reach.
+
+## 2026-09-08 — Clouds, softer shadows and graphics options
+- Weather, part one: each dawn the sky rolls sunny, slightly cloudy, partly cloudy or cloudy. Clouds drift over the island as soft, see-through puffs, and their shade slides across the ground, the huts and everyone under them with no hard edge. A cloudy day dims the whole island and softens every shadow, but light still gets through the thin parts.
+- Shadows are sharper close up and no longer crawl while you pan: the camera fits its shadow range to what is on screen instead of a fixed box, and far trees keep their shadows at full zoom-out. Daylight shadows are a little lighter.
+- Options > Video has a GRAPHICS preset (Low, Medium, High, Ultra) and the rows it sets: shadow detail, shadow distance, soft shadows, anti-aliasing, resolution scale and clouds. Change any row and the preset reads Custom. The old Quality stepper is gone.
+- F4 debug menu: a Sky row forces any cloud condition.
+
 ## 2026-09-07 — Warrior stances and the trip to the fire
 - A Stance row on the campfire panel's Defence section gives every warrior one order. Defensive holds the colony: patrol, hold the walls, and fight only what comes within reach of the fire or the walls. Offensive hunts: warriors go for any raider anywhere on the island. Follow escorts your castaway: warriors keep a loose ring around you and fight whatever comes near you. A badly hurt escort still walks home to heal, and the militia falls back to Defensive while you are knocked out.
 - Warriors going for the same raider now spread out around it, each coming in from its own side on its own path, instead of queueing up behind one another on the same line.

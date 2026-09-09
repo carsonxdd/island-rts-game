@@ -68,7 +68,7 @@ MonoBehaviour:
     minHeight: 0.6
     maxHeight: 7.5
     minSlope: 0.3
-    maxSlope: 1.5
+    maxSlope: 0.6
     minTone: 0
     maxTone: 1
     gatherable: 1
@@ -98,7 +98,7 @@ MonoBehaviour:
     minHeight: 0.5
     maxHeight: 7.5
     minSlope: 0.15
-    maxSlope: 1.5
+    maxSlope: 0.6
     minTone: 0
     maxTone: 1
     gatherable: 1

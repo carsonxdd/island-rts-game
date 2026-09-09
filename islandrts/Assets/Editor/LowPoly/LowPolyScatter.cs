@@ -78,11 +78,17 @@ namespace IslandRTS.ArtGen
             // rock node does — a boulder that looks like a season's worth of
             // stone should be one. Medium rocks give a smaller haul; the small
             // ones stay scenery, or the island turns into a quarry.
-            new Def("Rock_Large.prefab",         9,   0.60f, 7.50f, 0.30f, 1.50f, 0f,   1f,   6.0f,  0.90f, 1.30f,
+            //
+            // The quarryable bands stop at 0.60 (2026-09-08). They used to run to
+            // 1.50, which put boulders IN cliff faces: nothing a worker can stand on
+            // is within reach of one, so it looked like stone and no colonist ever
+            // came. 0.60 is the buildable-slope cap, i.e. ground a unit walks
+            // comfortably. Only the decor rocks dress the steep faces now.
+            new Def("Rock_Large.prefab",         9,   0.60f, 7.50f, 0.30f, 0.60f, 0f,   1f,   6.0f,  0.90f, 1.30f,
                     70, Kind.Node, ResourceNode.ResourceType.Stone),
             new Def("Rock_Large.prefab",         4,   0.60f, 7.50f, 0f,    0.30f, 0f,   1f,   8.0f,  0.90f, 1.30f,
                     70, Kind.Node, ResourceNode.ResourceType.Stone),
-            new Def("Rock_Medium.prefab",       16,   0.50f, 7.50f, 0.15f, 1.50f, 0f,   1f,   4.5f,  0.85f, 1.25f,
+            new Def("Rock_Medium.prefab",       16,   0.50f, 7.50f, 0.15f, 0.60f, 0f,   1f,   4.5f,  0.85f, 1.25f,
                     30, Kind.Node, ResourceNode.ResourceType.Stone),
             new Def("Rock_Small.prefab",        26,   0.50f, 7.50f, 0f,    1.50f, 0f,   1f,   3.5f,  0.80f, 1.30f),
 

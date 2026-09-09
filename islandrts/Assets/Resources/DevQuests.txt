@@ -12,8 +12,31 @@
 #   victory  escape  defeat  deposit  info  info:dev  tracker  report
 #   priority  worker_click  craft_by_colonist  craft_by_player
 #   stance:<defensive|offensive|follow>  formation:<line|wedge|ring|loose|auto>  collapse
+#   sky:<sunny|slightly|partly|cloudy>
 # A finished batch is deleted from here once its report is in; it stays in the
 # changelog and the phase history.
+
+## 2026-09-08 Reachable rocks
+- Walk the cliff feet: no big or medium boulder sits in a rock face
+- Assign a stone worker, then watch: no rock is queued and abandoned
+- Every boulder a worker walks to has room to stand all the way round
+- Small scenery rocks still dress the steep faces
+- Reroll two more seeds: stone count near the fire still feels normal
+- Wall a rock node in, then check nobody keeps walking to it
+
+## 2026-09-08 Clouds and graphics
+- @sky:cloudy F4 Sky > Cloudy: island dims, light still gets through gaps
+- @sky:partly F4 Sky > Partly: about ten soft puffs drift, shade under each
+- @sky:slightly F4 Sky > Slight: two to four clouds cross the island
+- Cloud shade has no hard edge and moves with its cloud all day
+- Puffs are see-through and patchy, never a solid white disc
+- A new sky blends in over about 30 s, nothing pops
+- Clouds at the bottom of the screen are not cut off at full zoom-out
+- Zoom fully out at low tilt: far trees still cast shadows
+- Pan at mid zoom: shadow edges do not crawl or flicker
+- Options > Video > Graphics Low..Ultra changes shadows live
+- Change one advanced row: the Graphics stepper reads Custom
+- Clouds Off: no puffs, no shade, plain sunny lighting
 
 ## 2026-09-07 Warrior stances
 - @stance:offensive Set Offensive: warriors run at raiders across the island

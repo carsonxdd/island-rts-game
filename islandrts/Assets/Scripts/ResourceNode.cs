@@ -160,22 +160,79 @@ public class ResourceNode : MonoBehaviour
         // Trunk-tight radii (the canopy is above agent height): big enough that
         // paths clear the visible trunk, small enough that the carve hole plus
         // bake-erosion (~0.5) keeps the gather ring reachable.
+        obstacle.radius = ObstacleRadiusFor(resourceType);
         switch (resourceType)
         {
             case ResourceType.Wood:  // Trees — trunk only, not the old 0.8 canopy-sized blob
-                obstacle.radius = 0.45f;
                 obstacle.height = 2f;
                 break;
             case ResourceType.Food:  // Bushes
-                obstacle.radius = 0.45f;
                 obstacle.height = 1f;
                 break;
             case ResourceType.Stone:  // Rocks
             case ResourceType.Metal:  // Ore boulders — same footprint as rocks
-                obstacle.radius = 0.5f;
                 obstacle.height = 1.0f;
                 break;
         }
+    }
+
+    /// <summary>
+    /// The carving-obstacle radius a node of this type will take in Start. Static so
+    /// placement code (PropScatter) can work out where workers would stand BEFORE the
+    /// node exists, and so the radius is written down in exactly one place.
+    /// </summary>
+    public static float ObstacleRadiusFor(ResourceType type)
+    {
+        switch (type)
+        {
+            case ResourceType.Stone:
+            case ResourceType.Metal:
+                return 0.5f;
+            default:
+                return 0.45f;   // trees and bushes
+        }
+    }
+
+    /// <summary>
+    /// How far from a node's centre a worker ends up standing: the gather ring plus the
+    /// stop distance it leaves itself. The placement-time twin of
+    /// <see cref="GatherRingRadius"/> + <see cref="GetMaxWorkers"/>'s standing radius.
+    /// </summary>
+    public static float StandRadiusFor(ResourceType type)
+    {
+        return ObstacleRadiusFor(type) + 0.55f + Worker.GatherStopDistance + 0.15f;
+    }
+
+    /// <summary>
+    /// Is there anywhere on the standing ring a worker could actually stand (2026-09-08)?
+    /// Eight ring samples; a hit counts only when it lands on the NavMesh close to the
+    /// node's own height and on ground reachable from the campfire — a patch two metres
+    /// up a cliff face is a ledge, not a place to work from.
+    /// </summary>
+    /// <remarks>
+    /// This is the placement-time gate that keeps quarryable boulders off cliff faces.
+    /// The island's reachability mask allows 0.9 m steps between 1 m cells, so a vertex
+    /// halfway up a bluff reads "reachable" while the bake — which erodes by the agent
+    /// radius and stops at 45° — leaves no walkable surface within reach of it. A node
+    /// placed there is one no colonist can ever work.
+    /// </remarks>
+    public static bool HasStandingRoom(Vector3 nodePos, ResourceType type, int minOpenSides = 2)
+    {
+        float standRadius = StandRadiusFor(type);
+        TerrainGrid terrain = TerrainGrid.Instance;
+        int open = 0;
+        for (int i = 0; i < 8; i++)
+        {
+            float angle = i * 45f * Mathf.Deg2Rad;
+            Vector3 candidate = nodePos + new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * standRadius;
+            NavMeshHit hit;
+            if (!NavMesh.SamplePosition(candidate, out hit, 0.75f, NavMesh.AllAreas)) continue;
+            if (Mathf.Abs(hit.position.y - nodePos.y) > 1f) continue;          // a ledge above or below, not this node's footing
+            if (terrain != null && !terrain.IsReachable(hit.position)) continue;  // cut-off outcrop
+            open++;
+            if (open >= minOpenSides) return true;
+        }
+        return false;
     }
 
     // Depletion shrink target: the Model child, NEVER the root. The root drives the
@@ -298,7 +355,10 @@ public class ResourceNode : MonoBehaviour
 
     public int GetMaxWorkers()
     {
-        if (cachedMaxWorkers > 0 && Time.time - maxWorkersCacheTime < MaxWorkersCacheDuration)
+        // >= 0, not > 0: a walled-in node answers 0 and that answer must cache too,
+        // or every scan re-fires eight NavMesh samples on the one node that can never
+        // be worked.
+        if (cachedMaxWorkers >= 0 && Time.time - maxWorkersCacheTime < MaxWorkersCacheDuration)
             return cachedMaxWorkers;
 
         // Standing radius = gather ring + the stop distance workers leave themselves.
@@ -315,6 +375,18 @@ public class ResourceNode : MonoBehaviour
             NavMeshHit hit;
             if (NavMesh.SamplePosition(candidate, out hit, 0.75f, NavMesh.AllAreas))
                 open++;
+        }
+
+        // No open side at all means nobody can stand here — a boulder in a cliff face,
+        // or a node walled in after the fact. Answer 0 rather than the old floor of 1
+        // (2026-09-08): the floor advertised room at a node every approach would
+        // dead-end on, so workers queued for it, failed, and came back when the
+        // unreachable-node ring expired, forever.
+        if (open == 0)
+        {
+            cachedMaxWorkers = 0;
+            maxWorkersCacheTime = Time.time;
+            return 0;
         }
 
         cachedMaxWorkers = Mathf.Max(1, Mathf.RoundToInt(ringSlots * (open / 8f)));
