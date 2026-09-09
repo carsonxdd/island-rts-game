@@ -1007,3 +1007,15 @@ User: "i also want to add fog of war to a new feature soon before alpha. should 
 Decisions taken with the user: explored memory fog that **gates colonist gathering**, raiders **hidden until seen**, vision from units and buildings with a much larger radius on the Watchtower, unexplored ground not placeable, and a simple minimap shipping alongside it because fog without one reads as a bug. Enemy AI stays fog-blind on purpose — a symmetric fog is a different game.
 
 Written up as `ALPHA_PLAN.md` section I with the build shape (a coarse visibility grid with ever-explored and currently-visible bits, vision sources registering like housing providers, the terrain reading the grid as a texture the way the water depth map already does, and gameplay gates in exactly three places to start). Sequenced before the tuning pass, because tuning raids twice would be waste.
+
+### Palms fading for colonists in front of them (2026-09-08 — ⚠️ PENDING PLAYTEST)
+
+User: "when colonists go in front of palm trees the opaqueness activates." Confirmed as the palm fading while the colonist is between the camera and the trunk, and confirmed as mainly the tall palms.
+
+The depth half of the screen-space test compared every unit against `Mathf.Min(baseScreen.z, topScreen.z)` — the nearest point of the whole object to the camera — on the reasoning that a unit behind ANY part of it counts. Under the tilted ortho camera the crown of a tall palm sits several metres nearer in view depth than its trunk, so that minimum WAS the crown's depth, and a colonist standing metres IN FRONT of the trunk still tested as further away than it. The taller the object the wider that false band, which is why palms were the visible offenders and huts were fine.
+
+The fix reads depth **where the cover is**: `SqrDistanceToSegment` now returns the parameter `t` of the nearest point on the base→top segment, and the test compares the unit against `Lerp(baseScreen.z, topScreen.z, t)`. The trunk overlapping a unit's feet is tested at trunk depth, the crown overlapping its head at crown depth, which is the actual question being asked. No extra work per tick — `t` was already computed inside the distance function and thrown away.
+
+**Edited:** `OcclusionFadeManager.cs`, `Changelog.txt`, `DevQuests.txt`.
+
+**Gotcha this encodes:** see CLAUDE.md Visual / Art (depth at the cover point).

@@ -25,6 +25,8 @@
 - Step out from behind a tree: it comes back gently, not with a snap
 - A tree hiding only a colonist's head still fades
 - Hover a faded tree: the gold glow still works on it
+- Stand a colonist in front of a tall palm: the palm stays solid
+- Walk one behind that same palm: it fades as soon as it covers them
 
 ## 2026-09-08 Reachable rocks
 - Walk the cliff feet: no big or medium boulder sits in a rock face

@@ -145,19 +145,26 @@ public class OcclusionFadeManager : MonoBehaviour
             float reach = tree.SilhouetteRadius * tree.silhouetteTightness * pixelsPerUnit + unitPixels;
             if (tree.IsOccluding) reach *= ReleaseSlack;   // hysteresis: harder to let go than to grab
             float reachSq = reach * reach;
-            // Nearest point of the tree to the camera, so a unit behind ANY part of it counts.
-            float treeDepth = Mathf.Min(baseScreen.z, topScreen.z) + DepthMargin;
 
             bool occluding = false;
             for (int u = 0; u < unitPoints.Count; u++)
             {
                 Vector3 p = unitPoints[u];
-                if (p.z <= treeDepth) continue;  // unit is in front of, or level with, the tree
-                if (SqrDistanceToSegment(p.x, p.y, baseScreen.x, baseScreen.y, topScreen.x, topScreen.y) < reachSq)
-                {
-                    occluding = true;
-                    break;
-                }
+                float t;
+                if (SqrDistanceToSegment(p.x, p.y, baseScreen.x, baseScreen.y, topScreen.x, topScreen.y, out t) >= reachSq)
+                    continue;
+
+                // Depth is read WHERE THE COVER IS, not at the nearest end of the object
+                // (2026-09-08). The camera looks down, so a palm's crown sits metres nearer
+                // in view depth than its trunk; testing every unit against the crown made a
+                // colonist standing well IN FRONT of the trunk read as hidden and faded the
+                // palm for nothing. The piece of silhouette that overlaps the unit on screen
+                // is at t along base->top, so that is the depth the unit has to be behind.
+                float coverDepth = Mathf.Lerp(baseScreen.z, topScreen.z, t) + DepthMargin;
+                if (p.z <= coverDepth) continue;  // unit is in front of, or level with, the cover
+
+                occluding = true;
+                break;
             }
 
             tree.SetOccluding(occluding);
@@ -193,12 +200,17 @@ public class OcclusionFadeManager : MonoBehaviour
             unitPoints.Add(cam.WorldToScreenPoint(worldPos + Vector3.up * UnitSampleHeights[h]));
     }
 
-    static float SqrDistanceToSegment(float px, float py, float ax, float ay, float bx, float by)
+    /// <summary>
+    /// Squared screen distance from a point to the segment, and where along it the nearest
+    /// point sits (0 at the base, 1 at the top) so the caller can read the silhouette's
+    /// view depth at exactly that spot.
+    /// </summary>
+    static float SqrDistanceToSegment(float px, float py, float ax, float ay, float bx, float by, out float t)
     {
         float abx = bx - ax, aby = by - ay;
         float apx = px - ax, apy = py - ay;
         float lenSq = abx * abx + aby * aby;
-        float t = lenSq > 0.0001f ? Mathf.Clamp01((apx * abx + apy * aby) / lenSq) : 0f;
+        t = lenSq > 0.0001f ? Mathf.Clamp01((apx * abx + apy * aby) / lenSq) : 0f;
         float dx = apx - abx * t, dy = apy - aby * t;
         return dx * dx + dy * dy;
     }
