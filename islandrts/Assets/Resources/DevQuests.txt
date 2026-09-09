@@ -25,12 +25,28 @@
 #   stroll  stroll:home  stroll:interrupted  stroll:campfire_only
 #   crowd:split  dropoff:spread  forage:shed  pickup:unreachable  shed:stone  pickup:player:stone
 #   fog:node_revealed  fog:raider_revealed  reveal:<on|off>  cheat:stock_full
-#   fog:node_skipped  fog:raider_unseen  fog:ghost  fog:wall
+#   fog:node_skipped  fog:raider_unseen  fog:ghost  fog:wall  minimap:click  minimap:landing
 #   sky:<sunny|slightly|partly|cloudy|off>  graphics:<preset|custom>
 # crowd:split, dropoff:spread and patrol:spread are STATE checks polled by the
 # tracker twice a second while their quest is open; everything else is an event.
 # A finished batch is deleted from here once its report is in; it stays in the
 # changelog and the phase history.
+
+## 2026-09-09 Minimap
+- Map in the top-right shows the island shape; sea, sand, grass, rock read right
+- Unexplored ground is dark, explored dim, watched ground full colour, moving with you
+- Campfire (orange), huts/tower/Workshop (gold) and walls (tan) sit where they are
+- Colonists light dots, warriors gold, castaway white with a dark rim
+- @minimap:click Left-click the map: the camera centres there
+- Drag across the map: the camera follows smoothly
+- Clicking the map never places a building, demolishes or commands the castaway
+- Hovering the map does not edge-pan the camera
+- The white camera outline rotates with Q/E and grows when zooming out
+- @minimap:landing A raid lands: red pulse on the map where it came ashore
+- Raiders show as red dots only on ground something of yours watches
+- The landing mark stays about a minute after the pulse stops
+- Dev-quest tracker sits below the map, not over it
+- F4 Reveal map: the whole island shows in full colour
 
 ## 2026-09-09 Single tree model
 - Trees show one trunk and one crown, no taller second crown above it

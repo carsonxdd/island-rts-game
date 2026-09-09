@@ -38,6 +38,13 @@ public class EnemySpawner : MonoBehaviour
     private float waveBaseAngle = 0f;  // Chosen direction for current raid group
     private int pendingCount;          // Head count handed over by SpawnRaid, consumed by StartSpawning
     private int pendingRaidIndex;
+    private bool landedThisRaid;       // OnRaidLanded fires once per raid, on the first body ashore
+
+    /// <summary>
+    /// The first raider of a raid has landed, with where. The minimap pings it, fog or
+    /// not: a landing is heard along the coast (2026-09-09).
+    /// </summary>
+    public static event System.Action<Vector3> OnRaidLanded;
 
     void Awake()
     {
@@ -86,6 +93,7 @@ public class EnemySpawner : MonoBehaviour
 
         // Pick a random direction for this raid — all enemies cluster around it
         waveBaseAngle = Random.Range(0f, 360f);
+        landedThisRaid = false;
 
         Debug.Log($"EnemySpawner: Raid {pendingRaidIndex} — {enemiesToSpawn} raiders landing from direction {waveBaseAngle:F0}°");
 
@@ -114,6 +122,12 @@ public class EnemySpawner : MonoBehaviour
 
         // Track active enemies
         activeEnemies.Add(enemy);
+
+        if (!landedThisRaid)
+        {
+            landedThisRaid = true;
+            OnRaidLanded?.Invoke(spawnPos);
+        }
     }
 
     Vector3 GetRandomSpawnPosition()

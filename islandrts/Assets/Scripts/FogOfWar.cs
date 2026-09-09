@@ -181,6 +181,24 @@ public class FogOfWar : MonoBehaviour
         return stamp > 0 && seenStamp[IndexOf(world)] == stamp;
     }
 
+    /// <summary>
+    /// One line for the F4 menu: the globals the shaders read back, and how much of the
+    /// grid is explored. Allocates; debug only.
+    /// </summary>
+    public string DebugLine()
+    {
+        Vector4 p = Shader.GetGlobalVector(ParamsId);
+        Texture t = Shader.GetGlobalTexture(MaskId);
+        int exploredCells = 0;
+        for (int i = 0; i < explored.Length; i++) if (explored[i] != 0) exploredCells++;
+        return "w=" + p.w.ToString("0.#")
+            + " mask=" + (t == null ? "null" : t.name + " " + t.width + "x" + t.height)
+            + (t != null && mask != null && t != mask ? " (NOT OURS)" : "")
+            + " explored=" + exploredCells + "/" + explored.Length
+            + " sources=" + VisionSource.ActiveList.Count
+            + " sim=" + SimHooks.Simulating;
+    }
+
     /// <summary>Explored flag of a cell by grid coordinates (minimap).</summary>
     public bool CellExplored(int x, int z) => revealAll || explored[z * n + x] != 0;
     /// <summary>Visible flag of a cell by grid coordinates (minimap).</summary>

@@ -67,7 +67,7 @@ public class WallLinePlacer
             }
 
             // Left click: set start point and begin drawing line
-            if (Input.GetMouseButtonDown(0))
+            if (Input.GetMouseButtonDown(0) && !Minimap.PointerOver)
             {
                 wallLineStart = snapped;
                 isDrawingWallLine = true;
@@ -92,7 +92,7 @@ public class WallLinePlacer
             UpdateWallLinePreview(snapped);
 
             // Left click: confirm and place all walls in the line
-            if (Input.GetMouseButtonDown(0))
+            if (Input.GetMouseButtonDown(0) && !Minimap.PointerOver)
             {
                 ConfirmWallLine();
             }

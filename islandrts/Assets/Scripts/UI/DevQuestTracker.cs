@@ -65,7 +65,8 @@ public class DevQuestTracker : MonoBehaviour
         RectTransform rt = text.rectTransform;
         rt.anchorMin = rt.anchorMax = new Vector2(1f, 1f);
         rt.pivot = new Vector2(1f, 1f);
-        rt.anchoredPosition = new Vector2(-16f, -16f);
+        // Under the minimap, which owns the corner (2026-09-09)
+        rt.anchoredPosition = new Vector2(-16f, -(Minimap.Margin + Minimap.PanelSize + 12f));
         rt.sizeDelta = new Vector2(380f, 160f);
 
         DevQuests.OnChanged += Refresh;

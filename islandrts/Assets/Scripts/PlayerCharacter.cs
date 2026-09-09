@@ -178,6 +178,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         heldItem = GetComponent<HeldItem>();
         PlayerHUD.Ensure();
         CombatHUD.Ensure();   // shows itself once the first warrior exists
+        Minimap.Ensure();
     }
 
     protected override void OnDestroy()
@@ -223,6 +224,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
     /// <summary>Right-click under the mouse: fetch a pickup, deposit at the fire, or walk there.</summary>
     public void HandleCommandClick()
     {
+        if (Minimap.PointerOver) return;   // a click on the map moves the camera, not the castaway
         if (mainCam == null) mainCam = Camera.main;
         if (mainCam == null) return;
 

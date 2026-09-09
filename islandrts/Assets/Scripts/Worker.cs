@@ -506,7 +506,7 @@ public class Worker : UnitBase<Worker>
     /// </summary>
     void OnMouseDown()
     {
-        if (PauseController.BlockGameplayInput) return;
+        if (PauseController.BlockGameplayInput || Minimap.PointerOver) return;
         if (hasJob || leaving)
         {
             DevQuests.Signal("worker_click:busy");   // a working colonist opens nothing

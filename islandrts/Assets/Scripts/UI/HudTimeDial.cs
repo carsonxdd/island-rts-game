@@ -136,6 +136,9 @@ public class HudTimeDial : MonoBehaviour
     /// sprite, and shipping a texture asset for four dozen 4px dots is not worth an
     /// import step.
     /// </summary>
+    /// <summary>The shared soft-circle sprite, for any HUD that wants a round mark (the minimap's landing pulse).</summary>
+    public static Sprite CircleSprite() => Circle();
+
     static Sprite Circle()
     {
         if (dotSprite != null) return dotSprite;

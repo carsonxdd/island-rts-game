@@ -8,6 +8,14 @@
 # Lines starting with a single # are comments. Anything else that is not a
 # heading, a bullet or an indented continuation is ignored.
 
+## 2026-09-09 — Minimap
+- A north-up map of the island sits in the top-right corner. Unexplored ground is
+  dark, ground nobody is watching is dim, watched ground shows its true colours.
+- It marks your buildings and walls, colonists (light), warriors (gold), your castaway
+  (white) and raiders on watched ground (red), plus the outline of what the camera sees.
+- When a raid comes ashore the map pulses red where it landed, even in the dark.
+- Left-click or drag on the map to move the camera there.
+
 ## 2026-09-09 — Trees no longer draw two trees at once
 - Every tree grew a second, taller crown that never shrank as it was chopped.
   The fog was switching on an old hidden tree model kept inside the tree prefab.

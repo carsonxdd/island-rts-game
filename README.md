@@ -42,6 +42,7 @@ A Unity real-time-strategy survival game. You are one named character on a proce
 | **Right-click** | Command your character: fetch, hand-harvest, deposit and work the queue, work a bench, or walk |
 | **Left-click** | Open a building's panel. The only gesture that opens UI |
 | **Space** | Centre the camera on your character |
+| **Left-click / drag the minimap** | Centre the camera there (the north-up map in the top-right corner) |
 | **Esc** | Cancel the active mode, or open the pause menu when nothing is active |
 | **F2 / F3 / F4 / F6-F7** | Grid overlay · AI overlay · debug cheats · perf recorder (the last three are editor and dev builds only) |
 
@@ -130,7 +131,7 @@ Deeper technical notes, the gotcha list and the session log: [`.claude/CLAUDE.md
 | **Difficulty** | Six presets plus Custom, chosen on New Game and locked for the run. Scales raid size and frequency, enemy stats, night length, starting resources and run length. |
 | **Menus** | Main menu, New Game, pause, options across four tabs, rebindable controls, changelog, field guide, end screens. All built at runtime in code — see [`docs/MENU_WIREFRAMES.md`](docs/MENU_WIREFRAMES.md). |
 | **Weather and light** | A sky condition rolled each dawn: drifting cloud puffs whose shade slides across the island as the sun's light cookie. Graphics presets in Options. |
-| **Fog of war** | The island starts dark and clears for good as your people and buildings see it; ground nobody is watching sits in a grey shroud. Raiders show only while something of yours can see them, so a raid can be an ambush and the Watchtower's long sight is its second job. Colonists only gather and fetch on explored ground, warriors only fight raiders something of yours can see, and nothing can be placed in the dark. A minimap is still to come. |
+| **Fog of war** | The island starts dark and clears for good as your people and buildings see it; ground nobody is watching sits in a grey shroud. Raiders show only while something of yours can see them, so a raid can be an ambush and the Watchtower's long sight is its second job. Colonists only gather and fetch on explored ground, warriors only fight raiders something of yours can see, and nothing can be placed in the dark. A north-up minimap in the top-right corner draws the explored island, your buildings, walls and people, raiders on watched ground, the camera's footprint, and a red pulse where the last raid came ashore; click or drag it to move the camera. |
 | **Readability** | Anything standing between the camera and one of your people (a tree, hut, tower, workshop, shipyard or wall) stays solid but opens a soft see-through window right where they are, so nobody is ever lost behind a canopy. Hover glow is emissive so it works through it. |
 | **Balance sim** | Headless autoplay: scripted strategies play full games and write CSVs, so balance is measured rather than guessed. See [`docs/SIMULATION.md`](docs/SIMULATION.md). |
 

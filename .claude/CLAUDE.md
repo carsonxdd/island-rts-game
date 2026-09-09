@@ -120,6 +120,7 @@ Every 0.25–0.35s (randomized per unit) the brain scores `basePriority × Π(co
 - HUD chip breakdown rows come from `ItemCatalog` (`hudListed` + `hudCategory`), so a new item appears under its category with no UI change. The panel is parented to the ENTRY so it follows its chip. Activity strings are composed only on change; slots repaint only on `Inventory.OnChanged`.
 - Bottom-of-screen overlays must clear `PlayerHUD` (sort 45, strip height): `IntroHintCanvas` is sort 70 at y 150. The raid banner sits BELOW the resource bar (~900px wide from the left).
 - **Right-click never opens a panel.** Right-click on the fire deposits and works the queue; left-click on its collider opens the panel via `BaseBuilding.OnMouseDown` (left button only). Keep the gestures apart.
+- **uGUI stops nothing (2026-09-09):** a ground raycast, an `OnMouseDown` and the edge pan all fire through a HUD box. A click surface that must swallow gameplay clicks publishes a static like `Minimap.PointerOver` (rect test against `Input.mousePosition`, not the EventSystem) and every gameplay click site checks it — the placement/demolish confirms, `PlayerCharacter.HandleCommandClick`, the four `OnMouseDown`s and `CameraController`'s edge pan. The minimap is one texture (`Scale` texels per fog cell) rebuilt at 8 Hz from the ActiveLists; markers are stamped pixels, never objects, and raiders draw only where `FogOfWar.IsVisible` — the landing pulse (`EnemySpawner.OnRaidLanded`) is the one thing on it that ignores the fog, by decision.
 - **Text-asset screens (Changelog, Information) never type a catalog number (2026-09-07).** Prose in `Resources/*.txt`; `@name` lines in `Information.txt` ask `MenuScreens.RenderInfoTable` for a live table (`BuildingDatabase.Instance` is null on the main menu — say so, don't crash). A screen with sub-tabs must bank the old tab's scroll itself and null `activeScroll` before `Rebuild()`, which banks under the SCREEN key. Six `TabRow` captions across `OptionsWidth` wrap at `ButtonSize` — drop them to `SmallSize + 2`, `NoWrap`.
 
 ---
@@ -249,6 +250,7 @@ Console kept quiet on purpose (212 → 65 calls). **Before adding any `Debug.Log
 | Esc → INFORMATION | Field guide from `Resources/Information.txt` + live catalog tables (also on the main menu) |
 | Right-click | Character smart command: fetch · hand-harvest · deposit + work the queue · work a bench · walk |
 | Space | Centre camera on the character |
+| Left-click / drag the minimap | Centre the camera there (top-right; north-up; right-click on it does nothing) |
 | F5 / F8 / F9 | Militia stance Defensive / Offensive / Follow (also the bottom-right combat box, with the formation buttons, once a warrior exists) |
 
 All rebindable in *Options → Controls*. Esc, mouse buttons and F3/F4/F6/F7 are reserved. **Full controls + playtest checklists: `docs/CONTROLS_AND_CHECKLIST.md`** — keep in sync when a binding changes.
@@ -257,7 +259,7 @@ All rebindable in *Options → Controls*. Esc, mouse buttons and F3/F4/F6/F7 are
 
 ## Current State (2026-09-09)
 
-Branch `feature/balance-sim-and-menus`; everything through fog steps 1–4 and the auto dev quests (bb6e4c5) is committed. Uncommitted: fog step 5, the three gameplay gates (node scan, warrior engage, placement) — compiles in all Roslyn configs, unplaytested ("Fog gates" batch). Next fog session: step 6, the minimap (`FogOfWar.CellExplored` / `CellVisible`), which closes section I.
+Branch `feature/balance-sim-and-menus`; everything through fog step 5 and the single-tree fix (dc54c19) is committed. Uncommitted: fog step 6, the minimap (`UI/Minimap.cs` + the `PointerOver` click guards) — compiles in all four Roslyn configs, unplaytested ("Minimap" batch). Section I is built end to end; the next fog work is the playtest, then the "After fog" pass over the five reopened batches.
 
 **Shipped:** four-resource economy with a colonist pool (jobless colonists build/craft/repair/forage with Builder/Crafter/Repairer specialists); player character with hand-harvest and campfire deposit; research → craft split with stations, per-warrior weapons (spears, Iron Spear, Bow); 30-day calendar with dawn-rolled raids; walls/gates/towers/demolish; Utility AI; random islands with stylized water and runtime scatter; occluder cutout windows (trees, buildings, walls); code-built menus, changelog and Information screens; a daily sky (clouds + cookie shade) and graphics presets; F4 debug menu; headless balance sim.
 

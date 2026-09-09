@@ -237,7 +237,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
     {
         // When clicked, open worker assignment UI (the panel is code-built
         // and self-registering now, so a missing scene reference is fine)
-        if (PauseController.BlockGameplayInput) return;
+        if (PauseController.BlockGameplayInput || Minimap.PointerOver) return;
         WorkerAssignmentUI ui = workerUI != null ? workerUI : WorkerAssignmentUI.Instance;
         if (ui != null)
         {

@@ -33,7 +33,7 @@ public class GhostPlacer
 
         MoveGhostToMouse();
 
-        if (Input.GetMouseButtonDown(0))
+        if (Input.GetMouseButtonDown(0) && !Minimap.PointerOver)
         {
             ConfirmPlacement();
         }

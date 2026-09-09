@@ -212,6 +212,7 @@ public class CameraController : MonoBehaviour
     {
         Vector3 m = Input.mousePosition;
         if (m.x < 0f || m.y < 0f || m.x >= UnityEngine.Screen.width || m.y >= UnityEngine.Screen.height) return;
+        if (Minimap.PointerOver) return;   // the map owns the corner it sits in
 
         if (m.x < edgePanBorder) horizontal -= 1f;
         else if (m.x > UnityEngine.Screen.width - edgePanBorder) horizontal += 1f;

@@ -96,7 +96,7 @@ public class Shipyard : MonoBehaviour, ITargetable, IMaterialSet
     void OnMouseDown()
     {
         if (GameStartController.IntroInProgress) return;
-        if (PauseController.BlockGameplayInput) return;
+        if (PauseController.BlockGameplayInput || Minimap.PointerOver) return;
         if (SimHooks.Simulating) return;
         if (GameManager.Instance == null || GameManager.Instance.isGameOver) return;
 

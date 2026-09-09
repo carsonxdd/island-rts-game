@@ -95,7 +95,7 @@ public class Workshop : MonoBehaviour, ITargetable, IMaterialSet
     void OnMouseDown()
     {
         if (GameStartController.IntroInProgress) return;
-        if (PauseController.BlockGameplayInput) return;
+        if (PauseController.BlockGameplayInput || Minimap.PointerOver) return;
         WorkerAssignmentUI ui = WorkerAssignmentUI.Instance;
         if (ui != null) ui.OpenStation(Station);
     }

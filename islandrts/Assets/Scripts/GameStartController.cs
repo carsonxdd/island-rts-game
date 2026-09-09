@@ -266,7 +266,7 @@ public class GameStartController : MonoBehaviour
         ghostValid = IsValidCampfireSpot(ghostTarget);
         RendererTint.SetColor(ghostMaterials, ghostValid ? validColor : invalidColor);
 
-        if (Input.GetMouseButtonDown(0) && ghostValid)
+        if (Input.GetMouseButtonDown(0) && ghostValid && !Minimap.PointerOver)
         {
             ConfirmPlacement();
         }

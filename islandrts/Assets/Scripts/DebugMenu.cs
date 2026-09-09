@@ -328,6 +328,20 @@ public class DebugMenu : MonoBehaviour
             bool reveal = GUILayout.Toggle(fog.revealAll, " Reveal map (no fog)");
             if (reveal != fog.revealAll) DevQuests.Signal(reveal ? "reveal:on" : "reveal:off");
             fog.revealAll = reveal;
+
+            // Diagnostics (2026-09-09, "fog does not darken the ground by day"): what the
+            // shaders are actually handed, and the two look values live so a tester can
+            // tell "not applied" from "too bright" in one Play.
+            GUILayout.Label("Fog: " + fog.DebugLine()
+                + (TerrainGrid.Instance != null ? "  ground=" + TerrainGrid.Instance.DebugGroundShader : ""));
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Unexplored " + fog.unexploredBrightness.ToString("0.00"), GUILayout.Width(120f));
+            fog.unexploredBrightness = GUILayout.HorizontalSlider(fog.unexploredBrightness, 0f, 1f);
+            GUILayout.EndHorizontal();
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Shroud " + fog.shroudBrightness.ToString("0.00"), GUILayout.Width(120f));
+            fog.shroudBrightness = GUILayout.HorizontalSlider(fog.shroudBrightness, 0f, 1f);
+            GUILayout.EndHorizontal();
         }
 
         // Calendar: jump the day counter (the director re-rolls at the next

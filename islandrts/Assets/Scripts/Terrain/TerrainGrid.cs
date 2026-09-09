@@ -215,6 +215,22 @@ public class TerrainGrid : MonoBehaviour
         return Mathf.Sqrt(dhdx * dhdx + dhdz * dhdz);
     }
 
+    /// <summary>The material band the ground is drawn in at a world position (the minimap paints from it).</summary>
+    public Surface SurfaceAt(Vector3 worldPos) => Classify(worldPos.x, worldPos.z, SampleHeight(worldPos));
+
+    /// <summary>
+    /// The base colour of a surface band, read from its material so the minimap matches
+    /// the ground. URP Lit keeps it in <c>_BaseColor</c>; a missing material falls back to
+    /// a plain green.
+    /// </summary>
+    public Color SurfaceColor(Surface s)
+    {
+        int i = (int)s;
+        Material m = surfaceMaterials != null && i < surfaceMaterials.Length ? surfaceMaterials[i] : null;
+        if (m == null) return new Color(0.53f, 0.76f, 0.35f);
+        return m.HasProperty("_BaseColor") ? m.GetColor("_BaseColor") : m.color;
+    }
+
     /// <summary>Above sea level?</summary>
     public bool IsLand(Vector3 worldPos) => SampleHeight(worldPos) > 0f;
 
@@ -422,6 +438,11 @@ public class TerrainGrid : MonoBehaviour
     }
 
     Material[] resolvedMaterials;
+
+    /// <summary>The shader the chunks are drawn with, for the F4 fog diagnostics.</summary>
+    public string DebugGroundShader =>
+        resolvedMaterials != null && resolvedMaterials.Length > 0 && resolvedMaterials[0] != null && resolvedMaterials[0].shader != null
+            ? resolvedMaterials[0].shader.name : "none";
 
     /// <summary>
     /// One material per Surface. A missing slot falls back to the nearest

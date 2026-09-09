@@ -127,7 +127,7 @@ public class DemolishTool
         UpdateDemolishHighlight(targetObj);
 
         // Left click: demolish
-        if (Input.GetMouseButtonDown(0) && targetObj != null && targetType.HasValue)
+        if (Input.GetMouseButtonDown(0) && !Minimap.PointerOver && targetObj != null && targetType.HasValue)
         {
             DemolishBuilding(targetObj, targetType.Value);
         }
