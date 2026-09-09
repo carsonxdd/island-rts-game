@@ -13,6 +13,10 @@ using UnityEngine;
 /// jobless colonist scored ~0.08 on Gather against Idle's 0.01, entered the executor with
 /// nothing to walk to and stood at the fire labelled "Gathering" — the specialist bug.
 /// Crowding counts workers already at the node as well as those walking to it.
+/// Fog gate (2026-09-09, step 5): a node on ground the colony has never seen is not
+/// scanned, so exploring is what puts trees on a worker's list — the same rule the
+/// two pickup scans already apply. Scan time only: a worker at a node is standing on
+/// explored ground by definition (its own <c>VisionSource</c>), so nothing re-checks.
 /// </remarks>
 public class ResourceAvailability : Consideration
 {
@@ -20,6 +24,8 @@ public class ResourceAvailability : Consideration
 
     private const float FloorWithNode = 0.1f;    // a far node is still worth walking to
     private const float CrowdPenaltyMetres = 5f; // every worker committed to a node counts as 5 m further
+
+    static bool fogSignalled;   // dev quest: once per launch, no per-scan string hashing
 
     public override float ScoreRaw(AIBlackboard bb)
     {
@@ -43,6 +49,8 @@ public class ResourceAvailability : Consideration
         // ~3x a second.
         Vector3 myPos = bb.transform.position;
         float searchSqr = bb.searchRadius * bb.searchRadius;
+        FogOfWar fog = FogOfWar.Instance;
+        float nearestHiddenSqr = float.MaxValue;   // closest same-type node the fog kept off the list
 
         var list = ResourceNode.ActiveList;
         for (int i = 0; i < list.Count; i++)
@@ -62,6 +70,13 @@ public class ResourceAvailability : Consideration
             // Skipping it here avoids the expensive availability checks below.
             if (distance >= bestScore) continue;
 
+            // Fog gate: unexplored ground is not on the colony's map (one array read).
+            if (fog != null && !fog.IsExplored(node.transform.position))
+            {
+                if (sqr < nearestHiddenSqr) nearestHiddenSqr = sqr;
+                continue;
+            }
+
             if (!node.HasResources()) continue;
             if (bb.IsNodeUnreachable(node)) continue;  // walled off / off-mesh - skip until its entry expires
             if (!node.HasWorkerRoom(bb.worker)) continue;  // at worker capacity - spill to another node
@@ -78,6 +93,15 @@ public class ResourceAvailability : Consideration
 
         // Cache in blackboard
         bb.bestResource = bestNode;
+
+        // Dev quest proof: the fog changed this worker's answer (a hidden node was
+        // nearer than the one chosen, or there was nothing else to choose).
+        if (!fogSignalled && nearestHiddenSqr < float.MaxValue
+            && (bestNode == null || nearestHiddenSqr < (bestNode.transform.position - myPos).sqrMagnitude))
+        {
+            fogSignalled = true;
+            DevQuests.Signal("fog:node_skipped");
+        }
 
         if (bestNode == null) return 0f;
 

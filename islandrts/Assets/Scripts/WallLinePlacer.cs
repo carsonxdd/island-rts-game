@@ -453,12 +453,18 @@ public class WallLinePlacer
         return mat;
     }
 
-    // A cell can't take a wall if it's occupied or (terrain) the ground
-    // there is underwater / a cliff face
+    // A cell can't take a wall if it's occupied, (terrain) the ground there is
+    // underwater / a cliff face, or (fog, 2026-09-09) nobody has ever seen it
     bool CellBlocked(Vector3 position)
     {
         if (HasWallAtPosition(position)) return true;
-        return TerrainGrid.Instance != null && !TerrainGrid.Instance.IsBuildable(position);
+        if (TerrainGrid.Instance != null && !TerrainGrid.Instance.IsBuildable(position)) return true;
+        if (FogOfWar.Instance != null && !FogOfWar.Instance.IsExplored(position))
+        {
+            DevQuests.Signal("fog:wall");
+            return true;
+        }
+        return false;
     }
 
     // Check if a wall or construction site already exists at this exact grid position

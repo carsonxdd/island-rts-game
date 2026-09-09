@@ -30,6 +30,8 @@ using UnityEngine;
 /// </remarks>
 public static class GuardStance
 {
+    static bool fogSignalled;   // dev quest: once per launch, keeps string hashing out of the scans
+
     public enum Mode { Defensive = 0, Offensive = 1, Follow = 2 }
 
     /// <summary>Which warrior actions a stance switches on; see <see cref="Permits"/>.</summary>
@@ -111,6 +113,19 @@ public static class GuardStance
     public static bool Allows(Enemy enemy, Vector3 warriorPos, BaseBuilding fire)
     {
         Vector3 pos = enemy.transform.position;
+
+        // Fog gate (2026-09-09, step 5): a raider nothing of the colony's is looking at
+        // is not a target in any stance. This is the ONE filter behind Engage (the
+        // consideration and both executor scans), so it is the one place to say so.
+        // A raider in melee is inside its warrior's own VisionSource radius, so an
+        // engaged target only drops here when it genuinely walks out of sight.
+        FogOfWar fog = FogOfWar.Instance;
+        if (fog != null && !fog.IsVisible(pos))
+        {
+            if (!fogSignalled) { fogSignalled = true; DevQuests.Signal("fog:raider_unseen"); }
+            return false;
+        }
+
         switch (Effective)
         {
             case Mode.Offensive:

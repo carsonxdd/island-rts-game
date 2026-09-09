@@ -103,8 +103,13 @@ public class GhostPlacer
                 shoreOk = TerrainGrid.Instance.IsNearWater(targetPosition, ShoreRadius);
         }
 
+        // Fog gate (2026-09-09, step 5): unexplored ground is not placeable, consistent
+        // with colonists refusing to gather what nobody has found. Reveal-all passes.
+        bool fogOk = FogOfWar.Instance == null || FogOfWar.Instance.IsExplored(targetPosition);
+        if (!fogOk) DevQuests.Signal("fog:ghost");
+
         // Update validity and color (must pass all checks)
-        isValidPlacement = !hasCollision && !tooCloseToBuilding && terrainOk && shoreOk;
+        isValidPlacement = !hasCollision && !tooCloseToBuilding && terrainOk && shoreOk && fogOk;
 
         owner.SetGhostColor(isValidPlacement ? owner.validColor : owner.invalidColor);
     }

@@ -119,6 +119,7 @@ public static class SimBuilder
             Vector3 pos = WallGrid.Instance.GridToWorld(cells[i]);
             pos.y = GroundY(pos);
             if (TerrainGrid.Instance != null && !TerrainGrid.Instance.IsBuildable(pos)) continue;
+            if (FogOfWar.Instance != null && !FogOfWar.Instance.IsExplored(pos)) continue;   // WallLinePlacer.CellBlocked
 
             // Walls deliberately do NOT flatten — they follow the terrain per cell.
             Spawn(data, wallType, pos, flatten: false);
@@ -212,6 +213,7 @@ public static class SimBuilder
     private static bool IsClear(Vector3 pos, Vector3 size)
     {
         if (TerrainGrid.Instance != null && !TerrainGrid.Instance.IsBuildable(pos)) return false;
+        if (FogOfWar.Instance != null && !FogOfWar.Instance.IsExplored(pos)) return false;   // GhostPlacer's fog gate
 
         int mask = LayerMask.GetMask("Buildings");
         int hits = Physics.OverlapBoxNonAlloc(
