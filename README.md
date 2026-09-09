@@ -130,6 +130,7 @@ Deeper technical notes, the gotcha list and the session log: [`.claude/CLAUDE.md
 | **Difficulty** | Six presets plus Custom, chosen on New Game and locked for the run. Scales raid size and frequency, enemy stats, night length, starting resources and run length. |
 | **Menus** | Main menu, New Game, pause, options across four tabs, rebindable controls, changelog, field guide, end screens. All built at runtime in code — see [`docs/MENU_WIREFRAMES.md`](docs/MENU_WIREFRAMES.md). |
 | **Weather and light** | A sky condition rolled each dawn: drifting cloud puffs whose shade slides across the island as the sun's light cookie. Graphics presets in Options. |
+| **Readability** | Anything standing between the camera and one of your people (a tree, hut, tower, workshop, shipyard or wall) stays solid but opens a soft see-through window right where they are, so nobody is ever lost behind a canopy. Hover glow is emissive so it works through it. |
 | **Balance sim** | Headless autoplay: scripted strategies play full games and write CSVs, so balance is measured rather than guessed. See [`docs/SIMULATION.md`](docs/SIMULATION.md). |
 
 ---
