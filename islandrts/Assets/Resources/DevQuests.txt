@@ -16,6 +16,11 @@
 # A finished batch is deleted from here once its report is in; it stays in the
 # changelog and the phase history.
 
+## 2026-09-08 Version string
+- Main menu bottom line reads v0.2.0-alpha.1 · updated 2026-09-08
+- @report The submitted report's Build line starts with v0.2.0-alpha.1
+- Sky: no magenta anywhere on the clouds, no console format warning
+
 ## 2026-09-08 Occluders fade
 - Walk a colonist behind a hut: the hut goes see-through, not the worker
 - Same behind the Watchtower and the Workshop

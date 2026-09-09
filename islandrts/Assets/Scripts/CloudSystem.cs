@@ -158,7 +158,7 @@ public class CloudSystem : MonoBehaviour
         block.SetFloat(AlphaId, sheetAlpha);
         sheetRenderer.SetPropertyBlock(block);
 
-        cookie = new RenderTexture(cookieResolution, cookieResolution, 0, RenderTextureFormat.R8)
+        cookie = new RenderTexture(cookieResolution, cookieResolution, 0, RenderTextureFormat.R8, RenderTextureReadWrite.Linear)
         {
             name = "CloudCookie",
             wrapMode = TextureWrapMode.Clamp,

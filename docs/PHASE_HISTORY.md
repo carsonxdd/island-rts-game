@@ -1019,3 +1019,15 @@ The fix reads depth **where the cover is**: `SqrDistanceToSegment` now returns t
 **Edited:** `OcclusionFadeManager.cs`, `Changelog.txt`, `DevQuests.txt`.
 
 **Gotcha this encodes:** see CLAUDE.md Visual / Art (depth at the cover point).
+
+### Alpha plan review, section A closed out (2026-09-08)
+
+User: "go over the alpha plan and let me know what should be changed and if not lets start working on it."
+
+The review found the plan already stale on its first section. `Setup Everything` had been run that day (Editor.log: "Full setup complete", eight steps) and its menu step writes the build scene list, so A1 (scene list) and A3 (setup) were closed before the session started; the uncommitted scene and prefab diff was that re-serialization. Both cloud shaders had imported without a shader error and the game had run, closing A2 except for one warning: the cookie `RenderTexture` asked for `R8` with the default sRGB read/write, which the platform refuses and widens to RGBA — now `RenderTextureReadWrite.Linear`, which is what a coverage field should have been anyway. A4 needed reading, not code: every `UNITY_EDITOR || DEVELOPMENT_BUILD` guard in gameplay scripts hides only `SimOverrides.Apply` and F4 hooks. A5 was half-true — the menu showed a literal "v0.1 · pre-alpha" and the report writer showed no version at all.
+
+**Changes:** `bundleVersion` is `0.2.0-alpha.1` (user's pick: alpha builds count alpha.2, alpha.3...) and is the only version source; `MenuScreens` and `DevQuests.Report` both read `Application.version`. A stray `Worker.cs.bak` (ignored, never tracked) deleted. `VersionControlSettings.asset` reverted again.
+
+**Plan edits:** A1/A2/A3/A5 struck through with what closed them; A4 reduced to "make one release build and play the opening". Section B corrected: twenty batches, not ten, `Playtests/` is empty so the loop itself has never closed — the **"Dev quests" batch is played first** — and five batches (stances, formations and archers, night lasts the raid, slices 3 and 5) are marked for a second pass after fog, since section I changes what they test.
+
+**Edited:** `CloudSystem.cs`, `MenuScreens.cs`, `DevQuests.cs`, `ProjectSettings.asset`, `ALPHA_PLAN.md`, `README.md`, `CLAUDE.md`, `Changelog.txt`, `DevQuests.txt`.

@@ -15,7 +15,7 @@ A Unity real-time-strategy survival game. You are one named character on a proce
 3. **Run `Tools > Island RTS > Setup Everything (In Order)` once.** The art library, opening sequence, scatter settings, terrain, pickups/Workshop and the menu scene are all applied by editor tools, and their order is load-bearing. It is idempotent — re-run it after pulling anything that touched art, prefabs or scene wiring.
 4. It leaves `MainMenu` open, which is what a build starts on. Press Play. `Tools > Island RTS > Open Game Scene (MainIsland)` skips the title screen.
 
-> `Assets/Scenes/SampleScene.unity` is the leftover stock Unity scene and is *not* the game. **Build Settings still points at it** — a build made today ships an empty world. Fixing that is the first item in the alpha plan.
+> `Assets/Scenes/SampleScene.unity` is the leftover stock Unity scene and is *not* the game. It is not in the build: `Setup Everything` writes the scene list as `MainMenu` then `MainIsland`. The version a build reports is `ProjectSettings > Player > Version` (`0.2.0-alpha.1`); bump it before each build handed out.
 
 ### First game
 

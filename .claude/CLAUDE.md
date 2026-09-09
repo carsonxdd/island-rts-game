@@ -16,7 +16,7 @@ Unity **6000.5.9f1** · C# · URP 17.5.0 · AI Navigation 2.0.14 · TextMeshPro 
 
 Repo root: `docs/` (PHASE_HISTORY, CONTROLS_AND_CHECKLIST, SIMULATION, MENU_WIREFRAMES), `*_PLAN.md` design docs (TERRAIN_SYSTEM, PHASE_10_VISUAL_OVERHAUL, CRAFTING_AND_PLAYER_CHARACTER, RESEARCH_AND_DAYS, COLONY_EXPANSION — source of truth for locked decisions), `SimSweeps/` + `tools/run-sim.ps1`, and `islandrts/`.
 
-`islandrts/Assets/`: `Scripts/` (root-level systems + `AI/` `Items/` `Terrain/` `UI/` `Sim/` `Shaders/`), `Editor/` (FullSetup master menu, `LowPoly/` generator+plumber+scatter table, OpeningSequenceSetup, TerrainSetup, NewContentSetup, `Sim/SimTools`), `Prefabs/`, `Art/` (generated low-poly library), `Settings/` (URP, IslandSettings.asset, ScatterSettings.asset), `MainIsland.unity` (**the game scene**), `MainMenu.unity` (entry point), and unused stock `Scenes/SampleScene.unity` (⚠️ still the only scene in EditorBuildSettings).
+`islandrts/Assets/`: `Scripts/` (root-level systems + `AI/` `Items/` `Terrain/` `UI/` `Sim/` `Shaders/`), `Editor/` (FullSetup master menu, `LowPoly/` generator+plumber+scatter table, OpeningSequenceSetup, TerrainSetup, NewContentSetup, `Sim/SimTools`), `Prefabs/`, `Art/` (generated low-poly library), `Settings/` (URP, IslandSettings.asset, ScatterSettings.asset), `MainIsland.unity` (**the game scene**), `MainMenu.unity` (entry point), and unused stock `Scenes/SampleScene.unity` (not in the build; `Setup Everything` writes the scene list as MainMenu → MainIsland).
 
 ### Key Scripts (only where the name doesn't tell you)
 
@@ -209,7 +209,7 @@ Every 0.25–0.35s (randomized per unit) the brain scores `basePriority × Π(co
 - **Compile-verify without opening Unity:** Roslyn `csc.dll` (`Editor/Data/DotNetSdk/sdk/*/Roslyn/bincore/`) against `Editor/Data/Managed/UnityEngine/*.dll` + package DLLs, in three configs (editor `UNITY_EDITOR`, `DEVELOPMENT_BUILD` player, release player). Quote `-r:` paths in the .rsp (the install path has a space). Do NOT reference `UnityEditor.dll` alongside `UnityEditor.*Module.dll` (spurious CS0433). Five `DayNightCycle` editor-GUI field warnings are pre-existing.
 - Edit `manifest.json` BEFORE launching the editor. Batchmode cannot run while another editor has the project open (`Temp/UnityLockfile`). Read the project-relative `Logs/Editor.log`.
 - The upgrade flips `VersionControlSettings.asset` to Unity Version Control — set it back to **Visible Meta Files** if it reappears in a diff.
-- **`EditorBuildSettings.asset` still lists only `SampleScene`** — a build made now ships the empty scene. Fix via File > Build Profiles before building.
+- **The build scene list is written by `MenuSceneSetup.AddScenesToBuildSettings`** (part of Setup Everything): MainMenu, then MainIsland. Never edit it by hand. **The version is `ProjectSettings.bundleVersion` only** (2026-09-08, `0.2.0-alpha.1`): the main menu and every playtest report read `Application.version`; bump it per build handed out and never type a version literal anywhere.
 - `.gitignore` covers `*.sln` and `*.slnx`. Assets re-serialize lazily on save — expect scene/prefab diffs the first time each is edited after an upgrade. New C# files get `.meta` on first editor focus.
 
 ---
@@ -253,11 +253,11 @@ All rebindable in *Options → Controls*. Esc, mouse buttons and F3/F4/F6/F7 are
 
 ## Current State (2026-09-08)
 
-Branch `feature/balance-sim-and-menus`; last commit 9b196fe (stances, 2026-09-07). **Uncommitted:** clouds, shadow fit, graphics presets, unworkable-rock placement fix (2026-09-08).
+Branch `feature/balance-sim-and-menus`; everything through the occluder depth fix (862c835) plus the 2026-09-08 Setup Everything re-serialization and the section-A closeout (version string, linear cookie texture) is committed. Nothing uncommitted.
 
 **Shipped:** four-resource economy with a colonist pool (jobless colonists build/craft/repair/forage with Builder/Crafter/Repairer specialists); player character with hand-harvest and campfire deposit; research → craft split with stations, per-warrior weapons (spears, Iron Spear, Bow); 30-day calendar with dawn-rolled raids; walls/gates/towers/demolish; Utility AI; random islands with stylized water and runtime scatter; tree occlusion fade; code-built menus, changelog and Information screens; a daily sky (clouds + cookie shade) and graphics presets; F4 debug menu; headless balance sim.
 
-**Pending playtest:** everything in `DevQuests.txt` (Slices 3–6 need Setup Everything first; 09-07 stances/gear-up; 09-08 clouds/shadows — the cloud shaders have never been compiled by Unity). `DevQuests` is editor/dev-build only (`const Enabled`, `#pragma 0162`); quest ids are batch-slug + index, so append rather than insert. A raid tuning pass is pending.
+**Pending playtest:** everything in `DevQuests.txt` — twenty batches, and `Playtests/` is still empty, so the "Dev quests" batch (the loop itself) is played FIRST. Setup Everything ran clean on 2026-09-08 and the cloud shaders compiled; ship blockers A1/A2/A3/A5 are closed, A4 is one release build to play. `DevQuests` is editor/dev-build only (`const Enabled`, `#pragma 0162`); quest ids are batch-slug + index, so append rather than insert. A raid tuning pass is pending.
 
 **Next: FEATURE FREEZE for an alpha (2026-09-08), with TWO accepted exceptions — the occluder cutout shader (section H) and fog of war + a minimap (section I, several sessions, gates colonist gathering AND hides raiders).** `ALPHA_PLAN.md` at the repo root is the only in-scope plan: ship blockers (build scene list, cloud shaders uncompiled, version string) → clear the `DevQuests.txt` playtest debt → raid/economy tuning on fresh sweep baselines → tutorial (reactive step list on the intro hint canvas) + a 10–15 day run length on New Game → in-game feedback form posting to a Discord webhook → zip handed to testers directly. Nothing new goes in unless it is on that page; a bug found in playtest gets fixed, a wish gets written down. Parked: the Story tab, weather part two, `COLONY_EXPANSION_PLAN.md`, Phase 10 Stages 3–4, the Warehouse, building upgrades, shore-wading enemies.
 

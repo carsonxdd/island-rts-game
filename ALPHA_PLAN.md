@@ -44,19 +44,25 @@ These make a build wrong or unusable. Nothing else matters until they are closed
 
 | # | Item | Notes |
 |---|------|-------|
-| A1 | **`EditorBuildSettings` lists only `SampleScene`** | A build made today ships the empty stock scene. Needs `MainMenu` first, then `MainIsland`. Fix in File > Build Profiles, verify by building and running once. |
-| A2 | **The cloud shaders have never been compiled by Unity** | Written outside the editor and never opened in it. A typo renders magenta. First editor launch, look at the sky. |
-| A3 | **Run `Setup Everything (In Order)` and confirm it is clean** | Several sessions of art, prefab and scene work have landed since it last ran. |
-| A4 | **A release (non-development) build has to be sanity-checked** | The dev-quest tracker, the F3/F4/F6 tools and the sim are all compiled out of a release build. Confirm nothing the player needs was behind one of those flags. |
-| A5 | **Version string** | The game has no version anywhere. Needs one visible on the main menu and included in every feedback report, or you will not know which build a report is about. |
+| A1 | ~~**`EditorBuildSettings` lists only `SampleScene`**~~ **Closed 2026-09-08.** | `Setup Everything`'s menu step writes the scene list (`MainMenu` first, then `MainIsland`) on every run, so this cannot regress unless the setup is skipped. Verified in the asset the same day. |
+| A2 | ~~**The cloud shaders have never been compiled by Unity**~~ **Closed 2026-09-08**, one loose end. | Both shaders imported with no shader errors and the game has run in the editor since. The cookie render texture asked for R8 sRGB, which the platform refuses and silently widens to RGBA — now created linear. Whether the sky *looks* right is the "Clouds and graphics" playtest batch, not a blocker. |
+| A3 | ~~**Run `Setup Everything (In Order)` and confirm it is clean**~~ **Closed 2026-09-08.** | Ran clean ("Full setup complete", all eight steps). The scene and prefab re-serialization it produced is committed. |
+| A4 | **A release (non-development) build has to be sanity-checked** | The dev-quest tracker, the F3/F4/F6 tools and the sim are all compiled out of a release build. Every `UNITY_EDITOR || DEVELOPMENT_BUILD` guard in gameplay code was read on 2026-09-08 and hides only `SimOverrides` and F4 hooks — so this is now "make one release build and play the opening", nothing to code. |
+| A5 | ~~**Version string**~~ **Closed 2026-09-08.** | `ProjectSettings.bundleVersion` is the one source (`0.2.0-alpha.1`; bump it per build handed out — alpha.2, alpha.3). The main menu shows `v<version> · updated <changelog date>` and every playtest report opens with it, via `Application.version`. The feedback form (F) reads the same field. |
+
+**What is left of A:** one release build, played through the opening. That needs the editor, so it happens at the start of the first B sitting.
 
 ## B. Clear the playtest debt
 
 The largest item and the least glamorous. `Assets/Resources/DevQuests.txt` is the checklist; each batch is one feature that has never been played.
 
-Outstanding batches as of today: the research-and-days slices 3-6 (Iron Spear, food and hunger, archers, the escape ship), utility colonists and priorities, the Information screen, the dev-quest loop itself, warrior stances and formations, the gear-up trip, clouds and graphics presets, and reachable rocks.
+Outstanding batches as of 2026-09-08, twenty of them: the research-and-days slices 3-6 (Iron Spear, food and hunger, archers, the escape ship), the Information screen, utility colonists and priorities, the dev-quest loop itself, the gear-up trip, formations and archers, the water stripe, the warrior cap, the combat box and folding sections, the patrol freeze, night lasts the raid, warrior stances, clouds and graphics presets, reachable rocks, the occluder fade, and the version string.
+
+**The loop has never closed.** `Playtests/` is empty: no report has ever been submitted. So the first sitting is the **"Dev quests" batch itself** — tracker, DEV tab, SUBMIT REPORT, a file in `Playtests/` — before any feature batch, or every later sitting is testing the feature and the tool at once and cannot tell which one failed.
 
 **How to work it:** one batch per sitting, in the order the file lists them, newest last. Play a normal run rather than jumping to the feature with cheats where you can — half of what these will find is interaction between features, not the feature itself. Submit the report, fix what it turns up, delete the batch.
+
+**Fog will reopen some of these.** Section I changes gathering, the raid warning and what warriors can see, so the batches that test those — stances, formations and archers, night lasts the raid, slices 3 and 5 — get a second, shorter pass after I lands. B is "done" for the first time when the file is empty; those five come back as one "After fog" batch.
 
 **Done when:** `DevQuests.txt` has no batches left and the reports are in `Playtests/`.
 

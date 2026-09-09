@@ -8,6 +8,11 @@
 # Lines starting with a single # are comments. Anything else that is not a
 # heading, a bullet or an indented continuation is ignored.
 
+## 2026-09-08 — A version number
+- The main menu now shows the build's version (v0.2.0-alpha.1 to start) next to the
+  updated date, and every playtest report opens with it, so a report can always be
+  matched to the build it came from.
+
 ## 2026-09-08 — Nothing hides your people
 - Buildings fade now too. A worker standing behind a hut, the Watchtower, the Workshop or the Shipyard used to simply vanish; those buildings go see-through while someone is behind them, the way trees already did. Rocks and bushes are left alone, because nothing short enough to see over needs to move out of your way.
 - Tall palms stop going see-through for someone walking in FRONT of them. The check now measures depth at the part of the tree that actually covers your colonist, so the trunk answers for their feet and the crown for their head, and only someone genuinely behind the tree makes it fade.

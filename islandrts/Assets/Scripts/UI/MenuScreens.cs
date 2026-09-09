@@ -272,10 +272,12 @@ public class MenuScreens : MonoBehaviour
             AskConfirm("Quit to desktop?", MenuFlow.QuitGame), textColor: MenuStyle.TextDanger);
 
         MenuBuilder.Spacer(col.transform, 8f);
-        // The date of the newest changelog entry doubles as the build date, so
-        // the version line is never stale and never has to be edited by hand.
+        // Application.version is ProjectSettings.bundleVersion — bumped per build
+        // (0.2.0-alpha.1, alpha.2, ...) and the same string every playtest and
+        // feedback report carries, so a report can be matched to its build. The
+        // newest changelog date doubles as the build date, never edited by hand.
         string latest = Changelog.LatestDate;
-        string version = latest != null ? "v0.1 · pre-alpha · updated " + latest : "v0.1 · pre-alpha";
+        string version = "v" + Application.version + (latest != null ? " · updated " + latest : "");
         MenuBuilder.Label(col.transform, version, MenuStyle.SmallSize, MenuStyle.TextMuted)
             .gameObject.AddComponent<LayoutElement>().preferredHeight = 20f;
     }

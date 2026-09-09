@@ -315,7 +315,7 @@ public static class DevQuests
 #else
         string kind = "development build";
 #endif
-        sb.Append("**Build:** changelog ").Append(latest).Append(" · Unity ").Append(Application.unityVersion)
+        sb.Append("**Build:** v").Append(Application.version).Append(" · changelog ").Append(latest).Append(" · Unity ").Append(Application.unityVersion)
           .Append(" · ").Append(kind).Append(" · ").Append(Application.platform).Append('\n').Append('\n');
 
         AppendRun(sb);
