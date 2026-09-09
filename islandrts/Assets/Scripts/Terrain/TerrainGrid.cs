@@ -59,13 +59,24 @@ public class TerrainGrid : MonoBehaviour
     /// island size before generation; 151 = the standard 150 m map. Static so
     /// editor tools and spawners can read it without an instance.
     /// </summary>
-    public static int VertsPerSide { get; private set; } = 151;
+    public static int VertsPerSide { get; private set; } = IslandOptions.VertsFor(IslandOptions.Size.Medium) + MarginVerts;
     public const float Spacing = 1f;
-    /// <summary>Map half-extent in metres: the island spans [-Half, Half] on x and z.</summary>
+    /// <summary>Map half-extent in metres: the map spans [-Half, Half] on x and z, the island the inner Half − OceanMargin.</summary>
     public static float Half => (VertsPerSide - 1) * Spacing * 0.5f;
 
-    /// <summary>Map half-extent divided by the standard 75 m: the factor every 150 m-map distance scales by.</summary>
-    public static float SizeScale => Half / 75f;
+    /// <summary>
+    /// Open sea between the island's own extent and the map edge, on every side
+    /// (2026-09-09). The island is generated for <see cref="IslandOptions.VertsFor"/>
+    /// and lives in the middle; the margin is extra map. It exists because the cove
+    /// shelf sat 5 m from the edge, where the water depth map and the fog mask both
+    /// stop hard, and every fix at the edge itself drew a line through the shallows.
+    /// </summary>
+    public const float OceanMargin = 20f;
+    /// <summary>Vertices the margin adds to a side (both edges).</summary>
+    static int MarginVerts => Mathf.RoundToInt(2f * OceanMargin / Spacing);
+
+    /// <summary>The ISLAND's half-extent (map half minus the ocean margin) divided by the standard 75 m: the factor every 150 m-map distance scales by.</summary>
+    public static float SizeScale => (Half - OceanMargin) / 75f;
 
     private const int ChunkQuads = 16;      // 16×16 quads per chunk
     public const float DeepWaterY = -0.4f;  // below this is NotWalkable
@@ -126,7 +137,7 @@ public class TerrainGrid : MonoBehaviour
         IslandOptions.Snapshot run = IslandOptions.Active;
         ActiveSize = run.size;
         ActiveStyle = run.style;
-        VertsPerSide = IslandOptions.VertsFor(run.size);
+        VertsPerSide = IslandOptions.VertsFor(run.size) + MarginVerts;
         activeSettings = IslandSettings.Resolve(settings).WithStyle(run.style);
 
         int chosen = ChooseSeed(run);
@@ -651,7 +662,9 @@ public class TerrainGrid : MonoBehaviour
         // shallow texel on the border becomes a cyan stripe to the horizon —
         // which the cove shelf disc produced on seeds where its blend reached the
         // last column. Two texels deep so bilinear filtering from the ring
-        // inward is already fully deep at the map edge.
+        // inward is already fully deep at the map edge. Since OceanMargin
+        // (2026-09-09) nothing of the island can reach this ring; a depth ramp
+        // in from the border was tried instead and cut light water under land.
         for (int i = 0; i < n; i++)
         {
             for (int r = 0; r < BorderDeepTexels && r < n; r++)

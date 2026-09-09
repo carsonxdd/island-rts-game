@@ -103,6 +103,29 @@ public class DebugMenu : MonoBehaviour
 
     BaseBuilding Campfire => BaseBuilding.ActiveList.Count > 0 ? BaseBuilding.ActiveList[0] : null;
 
+    private string stockNote;
+
+    /// <summary>
+    /// Put <paramref name="count"/> of an item in the stockpile whatever its state. The
+    /// stockpile caps total items (60 + research), and <c>Inventory.Add</c> silently
+    /// adds nothing at the cap — which made these buttons "sometimes do nothing" in a
+    /// full colony. A cheat grants the missing room instead; only 16 full slots of
+    /// other items can still refuse it, and then the menu says so.
+    /// </summary>
+    void CheatStock(ItemDef item, int count)
+    {
+        Inventory stock = Campfire.Stockpile;
+        int added = stock.Add(item, count);
+        if (added < count && stock.RoomLeft < count - added)
+        {
+            CraftedUpgrades.AddStockpileRoom(count - added - stock.RoomLeft);
+            added += stock.Add(item, count - added);
+        }
+        stockNote = added >= count
+            ? null
+            : "Only " + added + " of " + count + " " + item.displayName + " fit: every stockpile slot holds something else.";
+    }
+
     // ------------------------------------------------------------------
     // GUI
     // ------------------------------------------------------------------
@@ -400,18 +423,10 @@ public class DebugMenu : MonoBehaviour
             Campfire.Stockpile.Add(ItemCatalog.Stick, 10);
             Campfire.Stockpile.Add(ItemCatalog.StoneChunk, 10);
         }
-        if (GUILayout.Button("+5 Wooden Spears (stockpile)"))
-        {
-            Campfire.Stockpile.Add(ItemCatalog.WoodenSpear, 5);
-        }
-        if (GUILayout.Button("+5 Iron Spears (stockpile)"))
-        {
-            Campfire.Stockpile.Add(ItemCatalog.IronSpear, 5);
-        }
-        if (GUILayout.Button("+5 Bows (stockpile)"))
-        {
-            Campfire.Stockpile.Add(ItemCatalog.Bow, 5);
-        }
+        if (GUILayout.Button("+5 Wooden Spears (stockpile)")) CheatStock(ItemCatalog.WoodenSpear, 5);
+        if (GUILayout.Button("+5 Iron Spears (stockpile)")) CheatStock(ItemCatalog.IronSpear, 5);
+        if (GUILayout.Button("+5 Bows (stockpile)")) CheatStock(ItemCatalog.Bow, 5);
+        if (!string.IsNullOrEmpty(stockNote)) GUILayout.Label(stockNote);
         GUI.enabled = PopulationManager.Instance != null;
         if (GUILayout.Button("Starve the colony (zero food, skip to Starving)"))
         {

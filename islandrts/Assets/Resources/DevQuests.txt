@@ -30,6 +30,11 @@
 - Sea near the cove is bright, sea past unexplored coast is dark
 - Trees and rocks appear when their ground clears and stay when you leave
 - A stick or crate on unexplored ground cannot be hovered or right-clicked
+- Explore to a map edge: no lit strip of sea runs from it to the horizon
+- Open sea all round the cove; the shallows never stop on a straight line
+- Small / Medium / Large islands still look their size (20 m sea margin added)
+- F4 Reveal map on, then off: fog comes back to what you had explored
+- F4 +5 Spears with a full stockpile (60/60): 5 spears appear anyway
 - Place the campfire: a wide circle around it lights up and stays lit
 - Build a Watchtower: it lights a much bigger circle than a hut does
 - A raid lands out of sight; raiders show only when they enter a lit circle

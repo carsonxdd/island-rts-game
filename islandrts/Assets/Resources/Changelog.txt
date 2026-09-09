@@ -8,6 +8,18 @@
 # Lines starting with a single # are comments. Anything else that is not a
 # heading, a bullet or an indented continuation is ignored.
 
+## 2026-09-09 — Map edges: no lit band to the horizon, no hard line in the shallows
+- When your explored ground reached the edge of the map, a bright strip of open
+  ocean stretched from it all the way off the screen. The sea beyond the map is
+  now unexplored and dark like the rest of the unseen water.
+- Where a cove's shallows met the map edge, the light water stopped on a
+  straight line (behind the wreck on some islands). Every island now sits in
+  20 m more open sea on each side, so nothing of it reaches the map edge.
+- Turning the F4 "Reveal map" cheat off gives the real fog back. Before, the
+  whole island stayed in the grey shroud once the cheat had been on.
+- The F4 "+5 spears / bows" cheats work with a full stockpile: they grant the
+  missing room instead of silently adding nothing.
+
 ## 2026-09-09 — Foraging colonists no longer stutter at a pickup
 - A colonist who cannot quite reach a stick or chunk (one lying under a bush or
   at the edge of a ledge) now picks it up from a step away if that is as close

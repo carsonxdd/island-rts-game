@@ -26,7 +26,7 @@ public sealed class IslandField
 
     /// <summary>Anchors in THIS field's world units (the settings' 150 m coordinates scaled to the map size).</summary>
     public Vector2 campfireSite, coveCenter, coveRamp;
-    /// <summary>Map half-extent / 75: 1 on the standard map.</summary>
+    /// <summary>Island half-extent (map half minus TerrainGrid.OceanMargin) / 75: 1 on the standard island.</summary>
     public float sizeScale = 1f;
     public int attempt;
     public int rampsCarved;
@@ -148,9 +148,11 @@ public static class IslandGenerator
         float[,] heights = f.heights;
         float half = (verts - 1) * spacing * 0.5f;
 
-        // Settings distances are authored for the 150 m map; scale them to
-        // this map so one asset serves every island size
-        float scale = half / 75f;
+        // Settings distances are authored for the 150 m island; scale them to
+        // this island so one asset serves every size. The map is wider than the
+        // island by TerrainGrid.OceanMargin on every side (2026-09-09), and that
+        // margin is open sea: nothing authored in the settings reaches it.
+        float scale = (half - TerrainGrid.OceanMargin) / 75f;
         f.sizeScale = scale;
         f.campfireSite = s.campfireSite * scale;
         f.coveCenter = s.coveCenter * scale;

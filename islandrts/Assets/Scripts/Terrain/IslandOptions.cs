@@ -23,7 +23,7 @@ public static class IslandOptions
         "A sprawling 190 m island. Longer supply lines, more to defend, more to find.",
     };
 
-    /// <summary>Heightfield vertices per side (1 m spacing) for each size.</summary>
+    /// <summary>Island vertices per side (1 m spacing) for each size. The map adds TerrainGrid.OceanMargin of sea on every side.</summary>
     public static int VertsFor(Size size)
     {
         switch (size)

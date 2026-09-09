@@ -1093,3 +1093,29 @@ Cause was CollectPickupExecutor, not the fog. It walked to the pickup's raw posi
 Compiles clean under Roslyn.
 
 **Edited:** CollectPickupExecutor.cs, AIBlackboard.cs, ForageAvailability.cs, PickupAvailability.cs, Changelog.txt, DevQuests.txt, ALPHA_PLAN.md, CLAUDE.md.
+
+### Fog mask smeared to the horizon past the map edge (2026-09-09 - PENDING PLAYTEST)
+
+User screenshot, first fog playtest: a bright rectangular band of sea ran from the cove straight off the right of the screen, over otherwise dark water. Same failure the water depth map had on 2026-09-07: the water plane runs far past the island, `FogOfWar.hlsl` sampled the mask with `saturate(uv)` on a Clamp texture, so every water vertex beyond the map read the mask's last row/column, and on a seed where the cove's reveal touched that edge column the explored texel was painted to the horizon.
+
+Fix: the shader multiplies the sample by 0 outside the [0,1] uv range (beyond the map is never explored), and `FogOfWar.StampDisc` / the F4 reveal never write the outermost cell ring, so the bilinear ramp to black lands inside the map instead of leaving a lit seam on its boundary. `CellExplored` / `CellVisible` still answer true for the ring under reveal-all, so the minimap and gates are unaffected. Compiles clean under Roslyn; shader not compiled by Unity.
+
+**Edited:** FogOfWar.hlsl, FogOfWar.cs, Changelog.txt, DevQuests.txt, CLAUDE.md.
+
+### Map-edge line in the shallows, reveal-all one-way, +5 cheats at a full stockpile (2026-09-09 - PENDING PLAYTEST)
+
+Second fog screenshot: the lit band was gone, but the cove's light water stopped on a straight line behind the wreck at the map edge. That was the depth map's 2-texel deep border from 2026-09-07 meeting a shelf that reached the edge: a hard step from shallow to open-ocean depth in 2 m, and the fog ring from earlier today stepped to black at the same edge. `BuildDepthMap` now blends the real depth into the deep border with a smoothstep over `BorderFadeTexels` 12 (the outer `BorderDeepTexels` 2 stay fully deep for the Clamp), and `FogOfWar` multiplies the uploaded mask by a per-cell `edgeFade` (0 on the outer ring -> 1 at `EdgeFadeCells` 6 = 12 m), texture-only so the grid the queries read is untouched. `StampDisc` writes the full grid again.
+
+"Sometimes the game shows everything outside the fog": the only writer found is the F4 "Reveal map" toggle, which stamped every cell explored, so switching it off left the whole island in the shroud - and that menu is where the spear cheats live. Reveal-all is now a live flag: `Stamp` skips, `Smooth` targets 1 on both channels while it is on and eases back when it goes off (`expSmooth` can now fall). Belt and braces: `PushParams` re-binds `_FogMask` every update and `OnDestroy` only clears the globals when it is the live instance. If the reveal still happens with the toggle off, the next thing to check is what was on screen when it did.
+
+"+5 spears / bows sometimes does nothing": `Inventory.Add` clamps to `RoomLeft`, so at the 60-item cap the cheat added 0 silently. `DebugMenu.CheatStock` grants the missing room via `CraftedUpgrades.AddStockpileRoom` and says so when 16 full slots still refuse it.
+
+Compiles clean under Roslyn.
+
+**Edited:** TerrainGrid.cs, FogOfWar.cs, FogOfWar.hlsl, DebugMenu.cs, Changelog.txt, DevQuests.txt, CLAUDE.md.
+
+### Ocean margin instead of the depth ramp (2026-09-09 - PENDING PLAYTEST)
+
+The 12 m depth ramp above was worse: it cut the light shallow-water colour under land wherever the coast sat inside the ramp band (the user's third screenshot). Reverted `BuildDepthMap` to the 2-texel deep ring. The real cause is that `coveCenter` (-70, 3) puts the cove shelf 5 m from the map edge, so the fix is more map: `TerrainGrid.OceanMargin` 20 m of open sea on every side. `VertsPerSide` = `IslandOptions.VertsFor(size)` + 40, `Half` is still the map half, and `SizeScale` plus the generator's `scale` use `Half - OceanMargin`, so every authored distance, anchor and border falloff is island-relative and unchanged; the margin is pure seabed. Fog grid, depth map, NavMesh and water plane size themselves from `Half` and just get bigger. The fog's texture-only edge fade stays (it now lives in deep water). Compiles clean under Roslyn.
+
+**Edited:** TerrainGrid.cs, IslandGenerator.cs, IslandOptions.cs, Changelog.txt, DevQuests.txt, CLAUDE.md.

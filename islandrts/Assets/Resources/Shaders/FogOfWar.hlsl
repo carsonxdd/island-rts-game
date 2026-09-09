@@ -23,6 +23,12 @@ half2 SampleFogOfWar(float3 positionWS)
 {
     float2 uv = positionWS.xz * _FogParams.x + _FogParams.y;
     half2 fog = SAMPLE_TEXTURE2D(_FogMask, sampler_FogMask, saturate(uv)).rg;
+    // The water plane runs far past the island. Clamp sampling would stretch the mask's
+    // last row/column over that whole ocean (the same edge-texel smear the water depth
+    // map had), so a reveal touching the map edge painted a band to the horizon. Beyond
+    // the map is never explored; FogOfWar.cs also fades the mask out over its outer
+    // cells so the ramp to black lands inside the map rather than as a seam on its edge.
+    fog *= (all(uv >= 0.0) && all(uv <= 1.0)) ? (half)1 : (half)0;
     // Bilinear across 2 m cells is a wide ramp; tighten it so the edge reads as an edge
     // while the CPU-side smoothing still animates it.
     return smoothstep(half2(0.12, 0.12), half2(0.88, 0.88), fog);

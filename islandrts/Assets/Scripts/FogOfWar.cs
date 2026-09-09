@@ -57,7 +57,16 @@ public class FogOfWar : MonoBehaviour
     private int stamp;           // increments per update; 0 = never stamped
     private float[] visSmooth;   // texture-only: eased "visible" 0..1
     private float[] expSmooth;   // texture-only: eased "explored" 0..1
+    private float[] edgeFade;    // texture-only: 0 on the outermost cell ring, 1 EdgeFadeCells in
     private byte[] pixels;       // RG8 upload buffer
+
+    /// <summary>
+    /// Cells over which the mask fades to unexplored at the map edge (12 m). The
+    /// shader reads everything past the map as unexplored, and the water depth map
+    /// blends to open ocean over the same distance, so a reveal that reaches the edge
+    /// dims out rather than stopping on a straight line.
+    /// </summary>
+    const int EdgeFadeCells = 6;
     private Texture2D mask;
     private float nextUpdate;
     private float lastUpdate;
@@ -92,6 +101,15 @@ public class FogOfWar : MonoBehaviour
 
         if (!SimHooks.Simulating)
         {
+            edgeFade = new float[count];
+            for (int z = 0; z < n; z++)
+            {
+                for (int x = 0; x < n; x++)
+                {
+                    int edge = Mathf.Min(Mathf.Min(x, z), Mathf.Min(n - 1 - x, n - 1 - z));
+                    edgeFade[z * n + x] = Mathf.SmoothStep(0f, 1f, edge / (float)EdgeFadeCells);
+                }
+            }
             pixels = new byte[count * 2];
             mask = new Texture2D(n, n, TextureFormat.RG16, false, true)
             {
@@ -111,11 +129,15 @@ public class FogOfWar : MonoBehaviour
 
     void OnDestroy()
     {
-        if (Instance == this) Instance = null;
-        // Whatever loads next (the main menu, a restart's first frames) draws unfogged
-        // until a new fog claims the globals.
-        Shader.SetGlobalVector(ParamsId, Vector4.zero);
-        Shader.SetGlobalTexture(MaskId, Texture2D.whiteTexture);
+        if (Instance == this)
+        {
+            Instance = null;
+            // Whatever loads next (the main menu, a restart's first frames) draws
+            // unfogged until a new fog claims the globals. Only the live instance may
+            // do this: a rejected duplicate clearing them would unfog the whole map.
+            Shader.SetGlobalVector(ParamsId, Vector4.zero);
+            Shader.SetGlobalTexture(MaskId, Texture2D.whiteTexture);
+        }
         if (mask != null) Destroy(mask);
     }
 
@@ -127,6 +149,9 @@ public class FogOfWar : MonoBehaviour
         float b = (half / cellSize + 0.5f) / n;
         Shader.SetGlobalVector(ParamsId, new Vector4(a, b, 0f, SimHooks.Simulating ? 0f : 1f));
         Shader.SetGlobalVector(LookId, new Vector4(unexploredBrightness, shroudBrightness, shroudDesaturation, 0f));
+        // Re-bind the mask with the params: anything that clears the global (a scene
+        // teardown racing this one) would otherwise leave the map unfogged for good.
+        if (mask != null) Shader.SetGlobalTexture(MaskId, mask);
     }
 
     // ------------------------------------------------------------------
@@ -186,11 +211,10 @@ public class FogOfWar : MonoBehaviour
     {
         stamp++;
 
-        if (revealAll)
-        {
-            for (int i = 0; i < explored.Length; i++) { explored[i] = 1; seenStamp[i] = stamp; }
-            return;
-        }
+        // Reveal-all is a live flag read by the queries and by Smooth; it never writes
+        // the grid, so switching it off in the F4 menu gives the real fog back (it used
+        // to mark every cell explored, and the whole map stayed in the shroud after).
+        if (revealAll) return;
 
         IReadOnlyList<VisionSource> sources = VisionSource.ActiveList;
         for (int s = 0; s < sources.Count; s++)
@@ -234,17 +258,20 @@ public class FogOfWar : MonoBehaviour
         float kDown = 1f - Mathf.Exp(-shroudRate * dt);
         for (int i = 0; i < explored.Length; i++)
         {
-            float visTarget = seenStamp[i] == stamp ? 1f : 0f;
+            float visTarget = revealAll || seenStamp[i] == stamp ? 1f : 0f;
             float v = visSmooth[i];
             v += (visTarget - v) * (visTarget > v ? kUp : kDown);
             visSmooth[i] = v;
 
+            float expTarget = revealAll || explored[i] != 0 ? 1f : 0f;
             float e = expSmooth[i];
-            if (explored[i] != 0) e += (1f - e) * kUp;
+            e += (expTarget - e) * (expTarget > e ? kUp : kDown);
             expSmooth[i] = e;
 
-            pixels[i * 2] = (byte)(e * 255f + 0.5f);
-            pixels[i * 2 + 1] = (byte)(v * 255f + 0.5f);
+            // The map-edge fade is texture-only: the grid stays honest for the queries.
+            float fade = edgeFade[i];
+            pixels[i * 2] = (byte)(e * fade * 255f + 0.5f);
+            pixels[i * 2 + 1] = (byte)(v * fade * 255f + 0.5f);
         }
     }
 }
