@@ -25,11 +25,30 @@
 #   stroll  stroll:home  stroll:interrupted  stroll:campfire_only
 #   crowd:split  dropoff:spread  forage:shed  pickup:unreachable  shed:stone  pickup:player:stone
 #   fog:node_revealed  fog:raider_revealed  reveal:<on|off>  cheat:stock_full
+#   fog:node_skipped  fog:raider_unseen  fog:ghost  fog:wall
 #   sky:<sunny|slightly|partly|cloudy|off>  graphics:<preset|custom>
 # crowd:split, dropoff:spread and patrol:spread are STATE checks polled by the
 # tracker twice a second while their quest is open; everything else is an event.
 # A finished batch is deleted from here once its report is in; it stays in the
 # changelog and the phase history.
+
+## 2026-09-09 Single tree model
+- Trees show one trunk and one crown, no taller second crown above it
+- A tree being chopped shrinks as a whole, nothing above it stays full size
+- A tree hidden by fog, then explored, still shows only one tree
+- Rocks, bushes, ore, crates and raiders look as before when explored
+
+## 2026-09-09 Fog gates
+- @fog:node_skipped A worker passes over a nearer tree in the dark for a known one
+- Workers never walk into unexplored ground to chop; they explore it first
+- Depleting the known trees makes workers spread outward, not stall at the fire
+- @fog:raider_unseen Warriors ignore a raider nobody can see (F4 reveal off)
+- Raider walks into a warrior's sight: Engage picks it up within a second
+- A warrior in melee keeps its target; no drop when the raider is in reach
+- Watchtower spots a raid early: warriors engage before it reaches the fire
+- @fog:ghost Hover a hut ghost over unexplored ground: it goes red
+- @fog:wall Drag a wall line into the dark: the dark cells are blocked
+- F4 Reveal map on: everything above places and gathers as before
 
 ## 2026-09-09 Auto quests
 - @auto An auto quest flashes gold and reads PASS on the DEV tab, not blank

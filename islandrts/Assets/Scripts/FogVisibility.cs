@@ -69,9 +69,25 @@ public class FogVisibility : MonoBehaviour
         Check(force: false);
     }
 
+    /// <summary>
+    /// Only renderers that are ON when collected are tracked (2026-09-09): a prefab can
+    /// carry deliberately disabled art (Tree.prefab keeps the old FBX tree under its
+    /// root, renderers off, beside the low-poly Model), and restoring "everything"
+    /// switched both trees on at once - the "two trees in one" bug. A recollect first
+    /// restores the tracked set so a hidden object does not read as "nothing to track".
+    /// </summary>
     void Collect()
     {
-        renderers = GetComponentsInChildren<Renderer>(true);
+        bool wasHidden = Hidden;
+        if (renderers != null && wasHidden) Apply(false);
+        Renderer[] all = GetComponentsInChildren<Renderer>(true);
+        int count = 0;
+        for (int i = 0; i < all.Length; i++)
+            if (all[i] != null && all[i].enabled) count++;
+        renderers = new Renderer[count];
+        for (int i = 0, k = 0; i < all.Length; i++)
+            if (all[i] != null && all[i].enabled) renderers[k++] = all[i];
+        if (wasHidden) Apply(true);
     }
 
     void Check(bool force)

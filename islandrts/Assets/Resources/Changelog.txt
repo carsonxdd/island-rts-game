@@ -8,6 +8,19 @@
 # Lines starting with a single # are comments. Anything else that is not a
 # heading, a bullet or an indented continuation is ignored.
 
+## 2026-09-09 — Trees no longer draw two trees at once
+- Every tree grew a second, taller crown that never shrank as it was chopped.
+  The fog was switching on an old hidden tree model kept inside the tree prefab.
+  Only the low-poly tree draws now, and it shrinks as workers cut it down.
+
+## 2026-09-09 — The fog now matters
+- Colonists only gather from trees and rocks the colony has discovered. Send
+  your castaway, a colonist or a Watchtower's sight out to find more.
+- Your warriors only fight raiders something of yours can see. A raid in the
+  dark is an ambush until it reaches your lights; a Watchtower sees it coming.
+- You cannot place a building or a wall on ground nobody has seen yet. The
+  ghost turns red there, and a wall line stops at the dark.
+
 ## 2026-09-09 — Playtest quests tick themselves
 - Most playtest quests (editor and development builds only) now tick and PASS
   on their own the moment the thing happens; only looks, feel and "nothing went
