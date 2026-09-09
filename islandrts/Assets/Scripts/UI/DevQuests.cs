@@ -22,12 +22,15 @@ using UnityEngine;
 /// </code>
 ///
 /// Triggers are plain strings raised by <see cref="Signal"/> from the point of
-/// effect (research:&lt;id&gt;, craft:&lt;id&gt;, build:&lt;type&gt;, specialist:&lt;trade&gt;,
-/// warrior, archer, hungry, starving, colonist_left, raid, raid_survived,
-/// victory, escape, defeat, deposit, info, info:dev, tracker, report, priority,
-/// worker_click, craft_by_colonist, craft_by_player). A new feature adds its
-/// batch here and, where a signal does not exist yet, one Signal line where the
-/// thing happens.
+/// effect; the set in use is listed at the top of DevQuests.txt. A new feature
+/// adds its batch there and, where a signal does not exist yet, one Signal line
+/// where the thing happens. A signal is the proof (2026-09-09): it marks the
+/// quest done AND passed, so the tester only judges what no signal can see.
+/// Two meta signals come from this class itself: <c>auto</c> the first time any
+/// quest ticks itself, <c>persisted</c> when a launch loads a ticked quest back.
+/// Quests that need a state check rather than an event ("four cutters over two
+/// trees") are polled by <see cref="DevQuestTracker"/> every half second while
+/// they are open (<see cref="IsOpen"/>), and raise a plain signal when true.
 ///
 /// Results persist in PlayerPrefs per quest id (batch slug + index) so a tester
 /// can spread the list over several runs and launches; RESET clears them. The
@@ -136,7 +139,8 @@ public static class DevQuests
             return;
         }
         Parse(asset.text);
-        LoadState();
+        bool anyLoaded = LoadState();
+        if (anyLoaded) Signal("persisted");   // a ticked quest came back from PlayerPrefs (the "survives a fresh launch" quest)
     }
 
     private static void Parse(string text)
@@ -203,16 +207,20 @@ public static class DevQuests
         return sb.ToString();
     }
 
-    private static void LoadState()
+    /// <summary>Reads every quest's saved state; true when at least one came back done.</summary>
+    private static bool LoadState()
     {
-        if (SimHooks.Simulating) return;
+        if (SimHooks.Simulating) return false;
+        bool any = false;
         for (int i = 0; i < all.Count; i++)
         {
             Quest q = all[i];
             q.done = PlayerPrefs.GetInt(PrefsPrefix + q.id + ".done", 0) == 1;
             q.result = (Result)PlayerPrefs.GetInt(PrefsPrefix + q.id + ".result", 0);
             q.note = PlayerPrefs.GetString(PrefsPrefix + q.id + ".note", "");
+            any |= q.done;
         }
+        return any;
     }
 
     private static void Save(Quest q)
@@ -227,8 +235,10 @@ public static class DevQuests
 
     /// <summary>
     /// Something happened in the game. Ticks every open quest waiting on
-    /// <paramref name="key"/>. Cheap: one dictionary lookup, nothing when the
-    /// key has no quest, and a constant false in a release build.
+    /// <paramref name="key"/> and marks it PASS (the signal is the proof; a
+    /// tester who saw it go wrong flips the verdict on the DEV tab). Cheap: one
+    /// dictionary lookup, nothing when the key has no quest, and a constant
+    /// false in a release build.
     /// </summary>
     public static void Signal(string key)
     {
@@ -242,11 +252,28 @@ public static class DevQuests
             Quest q = list[i];
             if (q.done) continue;
             q.done = true;
+            if (q.result == Result.Untested) q.result = Result.Pass;
             Save(q);
             any = true;
             OnAutoCompleted?.Invoke(q);
         }
-        if (any) OnChanged?.Invoke();
+        if (!any) return;
+        OnChanged?.Invoke();
+        if (key != "auto") Signal("auto");   // the Dev quests batch's own "an auto quest ticks itself"
+    }
+
+    /// <summary>
+    /// True while some quest waiting on <paramref name="key"/> is still open —
+    /// the watcher's gate, so a state check costs nothing once its quest is done.
+    /// </summary>
+    public static bool IsOpen(string key)
+    {
+        if (!Enabled || SimHooks.Simulating) return false;
+        EnsureLoaded();
+        if (!byTrigger.TryGetValue(key, out List<Quest> list)) return false;
+        for (int i = 0; i < list.Count; i++)
+            if (!list[i].done) return true;
+        return false;
     }
 
     public static void SetDone(Quest q, bool done)

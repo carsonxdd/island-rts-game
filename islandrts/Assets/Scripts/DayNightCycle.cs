@@ -61,6 +61,7 @@ public class DayNightCycle : MonoBehaviour
     public bool DawnHeld { get; private set; }
     private float dawnHoldTimer;
     private bool dawnHoldCapLogged;
+    private bool heldThisNight;   // playtest only: a night that never held ends "on time"
 
     private bool wasNight = false;  // Edge detection for the night/day start events
 
@@ -128,7 +129,9 @@ public class DayNightCycle : MonoBehaviour
                 dawnHoldTimer += Time.deltaTime;
                 if (dawnHoldTimer < cap)
                 {
+                    if (!DawnHeld) DevQuests.Signal("dawn:held");
                     DawnHeld = true;
+                    heldThisNight = true;
                     next = DawnT - 0.0005f;
                 }
                 else if (!dawnHoldCapLogged)
@@ -139,6 +142,7 @@ public class DayNightCycle : MonoBehaviour
             }
             if (next >= DawnT && DawnHeld)
             {
+                if (!dawnHoldCapLogged) DevQuests.Signal("dawn:released");   // the last raider fell, not the cap
                 DawnHeld = false;   // the last raider fell (or the cap released the day)
                 dawnHoldTimer = 0f;
                 dawnHoldCapLogged = false;
@@ -259,6 +263,8 @@ public class DayNightCycle : MonoBehaviour
         else if (!isNight && wasNight)
         {
             Debug.Log($"DayNightCycle: Day {currentDay} begins.");
+            if (!heldThisNight) DevQuests.Signal("dawn:quiet");   // no raider held the dawn: the night ended on time
+            heldThisNight = false;
 
             // Play day music
             if (AudioManager.Instance != null)

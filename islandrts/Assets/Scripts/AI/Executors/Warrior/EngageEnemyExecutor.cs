@@ -72,6 +72,11 @@ public class EngageEnemyExecutor : ActionExecutor
         }
         kiting = false;
         engageAnchor = bb.transform.position;
+        switch (GuardStance.Effective)   // playtest: which order the fight started under
+        {
+            case GuardStance.Mode.Follow: DevQuests.Signal("engage:follow"); break;
+            case GuardStance.Mode.Offensive: DevQuests.Signal("engage:offensive"); break;
+        }
 
         // Don't reset isInAttackRange if we already had a target — preserve state for smooth re-entry
         if (bb.currentTarget == null || !bb.IsTargetAlive())
@@ -312,6 +317,7 @@ public class EngageEnemyExecutor : ActionExecutor
         if (!AINavHelper.TrySetDestination(bb.agent, hit.position)) return false;   // throttled: try again next tick
 
         kiting = true;
+        DevQuests.Signal(offensive ? "kite:offensive" : "kite:hold");
         kiteTimer = 0f;
         bb.isInAttackRange = false;   // moving again; the range hold re-trips on arrival
         bb.agent.isStopped = false;

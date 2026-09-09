@@ -506,8 +506,12 @@ public class Worker : UnitBase<Worker>
     /// </summary>
     void OnMouseDown()
     {
-        if (hasJob || leaving) return;
         if (PauseController.BlockGameplayInput) return;
+        if (hasJob || leaving)
+        {
+            DevQuests.Signal("worker_click:busy");   // a working colonist opens nothing
+            return;
+        }
         WorkerAssignmentUI ui = WorkerAssignmentUI.Instance;
         BaseBuilding fire = baseBuilding != null ? baseBuilding : BaseBuilding.FindAlive();
         if (ui == null || fire == null) return;

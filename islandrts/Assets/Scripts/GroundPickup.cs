@@ -57,6 +57,8 @@ public class GroundPickup : MonoBehaviour, IMaterialSet
     // Set by PickupSpawner on what it places. Salvage leaves it false, so taking a
     // crate can never make the spawner trickle a stick back in its place.
     [System.NonSerialized] public bool spawnerOwned;
+    /// <summary>A byproduct a worked node dropped (<see cref="PickupSpawner.DropByproduct"/>), for the playtest signals only.</summary>
+    [System.NonSerialized] public bool shed;
 
     private ItemDef cachedItem;
     private HoverGlow glow;
@@ -141,6 +143,7 @@ public class GroundPickup : MonoBehaviour, IMaterialSet
         bb.carryType = resourceType;   // delivered as this type (PickupAvailability never mixes types)
         bb.carryAmount += granted;
         bb.worker.carryAmount = bb.carryAmount;
+        if (shed && !bb.hasJob) DevQuests.Signal("forage:shed");   // a jobless colonist tidied a worked node's droppings
 
         // Materials ride home alongside the resource and land in the campfire
         // stockpile on delivery. Only materials: a salvage crate is food, and
@@ -167,6 +170,7 @@ public class GroundPickup : MonoBehaviour, IMaterialSet
         int taken = inventory.Add(Item, ItemAmount);
         if (taken <= 0) return 0;
 
+        if (resourceType == ResourceNode.ResourceType.Stone) DevQuests.Signal("pickup:player:stone");
         Consume();
         return taken;
     }

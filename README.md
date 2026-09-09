@@ -47,7 +47,7 @@ A Unity real-time-strategy survival game. You are one named character on a proce
 
 Every gameplay key is a default, not a fixed binding — *Options → Controls* rebinds all of them with a main and an alternate slot each. Esc, the mouse buttons and the debug keys are reserved.
 
-Full reference: [`docs/CONTROLS_AND_CHECKLIST.md`](docs/CONTROLS_AND_CHECKLIST.md). In game, **Esc → Information** is a field guide built from the game's own catalogs, and in editor and dev builds its **DEV** tab holds the playtest quests — a tracker lists the next ones, some tick themselves, and SUBMIT REPORT writes a markdown report to `Playtests/`.
+Full reference: [`docs/CONTROLS_AND_CHECKLIST.md`](docs/CONTROLS_AND_CHECKLIST.md). In game, **Esc → Information** is a field guide built from the game's own catalogs, and in editor and dev builds its **DEV** tab holds the playtest quests — a tracker lists the next ones, most tick and pass themselves the moment the thing happens (only looks and "nothing went wrong" checks are ticked by hand), and SUBMIT REPORT writes a markdown report to `Playtests/`.
 
 ---
 

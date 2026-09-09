@@ -115,12 +115,14 @@ public class DebugMenu : MonoBehaviour
     void CheatStock(ItemDef item, int count)
     {
         Inventory stock = Campfire.Stockpile;
+        bool wasFull = stock.RoomLeft <= 0;
         int added = stock.Add(item, count);
         if (added < count && stock.RoomLeft < count - added)
         {
             CraftedUpgrades.AddStockpileRoom(count - added - stock.RoomLeft);
             added += stock.Add(item, count - added);
         }
+        if (wasFull && added >= count) DevQuests.Signal("cheat:stock_full");   // the cheat grew the room instead of failing
         stockNote = added >= count
             ? null
             : "Only " + added + " of " + count + " " + item.displayName + " fit: every stockpile slot holds something else.";
@@ -321,7 +323,12 @@ public class DebugMenu : MonoBehaviour
 
         // Fog of war off: every cell explored and visible, raiders and nodes all shown.
         FogOfWar fog = FogOfWar.Instance;
-        if (fog != null) fog.revealAll = GUILayout.Toggle(fog.revealAll, " Reveal map (no fog)");
+        if (fog != null)
+        {
+            bool reveal = GUILayout.Toggle(fog.revealAll, " Reveal map (no fog)");
+            if (reveal != fog.revealAll) DevQuests.Signal(reveal ? "reveal:on" : "reveal:off");
+            fog.revealAll = reveal;
+        }
 
         // Calendar: jump the day counter (the director re-rolls at the next
         // dawn, so a jumped day only changes raid SIZE until then) and force or

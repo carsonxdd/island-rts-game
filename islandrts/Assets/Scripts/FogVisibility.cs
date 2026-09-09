@@ -81,6 +81,8 @@ public class FogVisibility : MonoBehaviour
             || (rule == Rule.Visible ? fog.IsVisible(transform.position) : fog.IsExplored(transform.position));
         bool hide = !show;
         if (!force && hide == Hidden) return;
+        if (Hidden && !hide)   // playtest: something the fog was hiding just came into the light
+            DevQuests.Signal(rule == Rule.Visible ? "fog:raider_revealed" : "fog:node_revealed");
         Apply(hide);
     }
 

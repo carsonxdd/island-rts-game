@@ -248,7 +248,13 @@ public class Enemy : UnitBase<Enemy>
         }
 
         int slot = bestFree >= 0 ? bestFree : bestAny;
-        if (bestFree >= 0) slotOwners[slot] = warrior;
+        if (bestFree >= 0)
+        {
+            slotOwners[slot] = warrior;
+            int held = 0;   // playtest: three warriors on one raider from three bearings
+            for (int i = 0; i < AttackSlotCount; i++) if (slotOwners[i] != null) held++;
+            if (held >= 3) DevQuests.Signal("attack_slots:3");
+        }
         return slot;
     }
 

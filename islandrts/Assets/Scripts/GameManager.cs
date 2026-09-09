@@ -291,6 +291,7 @@ public class GameManager : MonoBehaviour
     {
         isGameOver = false;
         Time.timeScale = 1f;
+        DevQuests.Signal(isEscape ? "continue:escape" : "continue");
 
         if (MenuScreens.Instance != null) MenuScreens.Instance.Close();
     }

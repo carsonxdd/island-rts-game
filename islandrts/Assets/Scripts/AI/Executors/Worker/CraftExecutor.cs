@@ -44,6 +44,11 @@ public class CraftExecutor : ActionExecutor
         displayName = "Heading to the bench";
         Worker.RollMovingAvoidance(bb.agent);
         Acquire(bb);
+
+        // Playtest: an unpinned colonist chose a bench over a waiting site because Craft outranks Build.
+        if (station != null && bb.specialty == Worker.Specialty.Any
+            && ConstructionSite.ActiveList.Count > 0 && LaborPriorities.Craft > LaborPriorities.Build)
+            DevQuests.Signal("priority:craft_wins");
     }
 
     public override void OnUpdate(AIBlackboard bb)
@@ -94,6 +99,10 @@ public class CraftExecutor : ActionExecutor
         // The player holds the bench while they stand at it; the crafter waits.
         // Two string literals, so the assignment allocates nothing.
         displayName = station.AddLabor(Time.deltaTime, bb.worker, null) ? "Crafting" : "Waiting for the bench";
+
+        // Playtest: a pinned Crafter keeps the bench while a site waits for hands.
+        if (bb.specialty == Worker.Specialty.Crafter && ConstructionSite.ActiveList.Count > 0)
+            DevQuests.Signal("craft:specialist_holds");
     }
 
     void Acquire(AIBlackboard bb)

@@ -114,6 +114,7 @@ public class PatrolExecutor : ActionExecutor
             if (AINavHelper.TrySetDestination(bb.agent, currentPatrolPoint))
             {
                 patrolDestinationSet = true;
+                if (bb.isRanged) DevQuests.Signal("patrol:archer");   // an archer walks to a post like a spearman
             }
         }
     }

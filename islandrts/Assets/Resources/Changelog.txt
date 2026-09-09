@@ -8,6 +8,12 @@
 # Lines starting with a single # are comments. Anything else that is not a
 # heading, a bullet or an indented continuation is ignored.
 
+## 2026-09-09 — Playtest quests tick themselves
+- Most playtest quests (editor and development builds only) now tick and PASS
+  on their own the moment the thing happens; only looks, feel and "nothing went
+  wrong over time" checks are still ticked by hand. A quest you saw go wrong
+  can be flipped to FAIL on the DEV tab, and that verdict sticks.
+
 ## 2026-09-09 — Map edges: no lit band to the horizon, no hard line in the shallows
 - When your explored ground reached the edge of the map, a bright strip of open
   ocean stretched from it all the way off the screen. The sea beyond the map is

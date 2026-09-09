@@ -134,6 +134,7 @@ public class CollectPickupExecutor : ActionExecutor
     void GiveUp(AIBlackboard bb)
     {
         bb.MarkPickupUnreachable(target);
+        DevQuests.Signal("pickup:unreachable");
         ReleaseClaim(bb);
         target = null;
         destinationQueued = false;

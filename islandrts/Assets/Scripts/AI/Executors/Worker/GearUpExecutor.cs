@@ -119,6 +119,9 @@ public class GearUpExecutor : ActionExecutor
     {
         arrived = true;
         pauseTimer = 0f;
+        DevQuests.Signal("gearup");
+        DevQuests.Signal(bb.hasJob ? "gearup:job" : "gearup:idle");
+        if (bb.carryAmount > 0.01f) DevQuests.Signal("gearup:delivered");   // the old trade's load lands in the pool first
         ReturnToBaseExecutor.Deliver(bb);
         displayName = "Gearing up: " + bb.worker.RoleTitle();
         if (bb.agent != null && bb.agent.enabled && bb.agent.isOnNavMesh)

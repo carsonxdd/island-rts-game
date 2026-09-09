@@ -874,6 +874,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
     {
         if (knockedOut) return;
         knockedOut = true;
+        DevQuests.Signal(GuardStance.Active == GuardStance.Mode.Follow ? "knockout:follow" : "knockout");
         reviveAt = Time.time + knockoutSeconds;
         hasPendingDestination = false;
         StopWork();

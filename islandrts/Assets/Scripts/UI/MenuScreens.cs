@@ -97,8 +97,11 @@ public class MenuScreens : MonoBehaviour
             // can never own (see the KeyBindings class summary).
             if (key != KeyCode.Escape && !KeyBindings.IsReserved(key))
             {
-                KeyBindings.Bind(captureAction.Value, captureSecondary, key);
+                KeyBindings.Action a = captureAction.Value;
+                KeyBindings.Bind(a, captureSecondary, key);
                 KeyBindings.Save();
+                if (a == KeyBindings.Action.StanceDefensive || a == KeyBindings.Action.StanceOffensive || a == KeyBindings.Action.StanceFollow)
+                    DevQuests.Signal("rebind:militia");
             }
             CancelCapture();
         }
@@ -554,6 +557,7 @@ public class MenuScreens : MonoBehaviour
             if (p == GameSettings.GraphicsPreset.Custom) { setPreset((int)GameSettings.Graphics); return; }
             GameSettings.ApplyGraphicsPreset(p);
             GameSettings.Apply();
+            DevQuests.Signal("graphics:preset");
             Rebuild();
         }, "Sets every row below. Change any of them and this reads Custom.");
 
@@ -996,6 +1000,7 @@ public class MenuScreens : MonoBehaviour
 
     private void RenderInfoTab(Transform t, GameInfo.Tab tab)
     {
+        DevQuests.Signal("info:" + tab.title.ToLowerInvariant());   // info:research, info:building, info:raids ...
         for (int i = 0; i < tab.blocks.Count; i++)
         {
             GameInfo.Block b = tab.blocks[i];

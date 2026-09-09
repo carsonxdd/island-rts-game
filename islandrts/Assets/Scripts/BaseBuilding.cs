@@ -582,6 +582,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         if (index < 0) index = 0;
         index = (index + step + weapons.Length) % weapons.Length;
         selectedWeapon = weapons[index];
+        DevQuests.Signal("picker");
     }
 
     /// <summary>True when a recruit could happen right now: Spearcraft known, under the cap if there is one, the chosen weapon in stock, the food, and someone idle.</summary>
@@ -592,7 +593,29 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         if (Stockpile.Count(SelectedWeapon) <= 0) return false; // nothing to arm them with
         if (ResourceManager.Instance == null
             || ResourceManager.Instance.food < warriorCost_Food) return false;
-        return PopulationManager.Instance != null && PopulationManager.Instance.GetIdleCount() > 0;
+        PopulationManager pm = PopulationManager.Instance;
+        if (pm == null) return false;
+        if (pm.GetIdleCount() > 0) return true;
+        // Playtest: everything else is in place and only hands are missing — the
+        // greyed + is housing's doing (no beds → no arrivals) or a pinned specialist's.
+        if (pm.GetColonistCount() > 0)
+        {
+            if (!pm.HasAvailableHousing()) DevQuests.Signal("recruit:housing_full");
+            else if (DevQuests.IsOpen("recruit:no_idle") && AnyJoblessSpecialist()) DevQuests.Signal("recruit:no_idle");
+        }
+        return false;
+    }
+
+    /// <summary>A colonist with no job who is pinned to a trade, so not idle (playtest signal only).</summary>
+    static bool AnyJoblessSpecialist()
+    {
+        var workers = Worker.ActiveList;
+        for (int i = 0; i < workers.Count; i++)
+        {
+            Worker w = workers[i];
+            if (w != null && !w.hasJob && !w.leaving && w.specialty != Worker.Specialty.Any) return true;
+        }
+        return false;
     }
 
     /// <summary>
@@ -641,6 +664,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         DevQuests.Signal(archer ? "archer" : "warrior");
         activeWarriors.Add(warrior);
         currentWarriors++;
+        if (currentWarriors >= 6) DevQuests.Signal("warrior:6");   // past the old cap of five
 
         // Same person, new body: swap the roster entry BEFORE destroying the old body,
         // so the worker's OnDestroy → NotifyWorkerRemoved finds nothing to remove.
@@ -711,6 +735,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
 
         if (warrior.weapon != null) Stockpile.Add(warrior.weapon, 1);   // lost if the stockpile is full
         warrior.ApplyWeapon(better);
+        DevQuests.Signal("rearm");
         return true;
     }
 

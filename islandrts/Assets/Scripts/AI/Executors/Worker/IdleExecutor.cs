@@ -62,6 +62,7 @@ public class IdleExecutor : ActionExecutor
     {
         destinationQueued = false;
         home = PopulationManager.Instance != null ? PopulationManager.Instance.HomeOf(bb.worker) : null;
+        if (bb.specialty != Worker.Specialty.Any) DevQuests.Signal("specialist:idle");   // a specialist with no work of their trade
 
         if (home != null && AgentReady(bb)
             && TargetingUtil.EdgeDistance(bb.transform.position, home.transform, home.HousingCollider) > HomeRadius)
@@ -164,6 +165,8 @@ public class IdleExecutor : ActionExecutor
         destinationQueued = false;
         strollTimer = 0f;
         displayName = "Wandering";
+        DevQuests.Signal("stroll");
+        if (buildingBuffer.Count == 1) DevQuests.Signal("stroll:campfire_only");   // the fire is the only standing building
         Worker.RollMovingAvoidance(bb.agent);
         if (bb.stuckResolver != null) bb.stuckResolver.ResetStuckDetection();
         IssueStrollMove(bb);
@@ -174,6 +177,7 @@ public class IdleExecutor : ActionExecutor
         if (IsNight)
         {
             // Dusk mid-stroll: turn for home (or stand if already there)
+            DevQuests.Signal("stroll:home");
             if (home != null && home.HousingAlive && AgentReady(bb)
                 && TargetingUtil.EdgeDistance(bb.transform.position, home.transform, home.HousingCollider) > HomeRadius)
                 GoHome(bb);
@@ -315,6 +319,7 @@ public class IdleExecutor : ActionExecutor
 
     public override void OnExit(AIBlackboard bb)
     {
+        if (mode == Mode.Strolling && bb.hasJob) DevQuests.Signal("stroll:interrupted");   // a job given mid-stroll
         mode = Mode.Standing;
         home = null;
         if (AgentReady(bb))

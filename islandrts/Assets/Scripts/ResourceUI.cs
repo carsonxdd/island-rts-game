@@ -386,6 +386,7 @@ public class ResourceUI : MonoBehaviour
         if (openPanel == kind) { CloseBreakdown(); return; }
         openPanel = kind;
         BuildBreakdown(kind, anchor);
+        if (kind == Breakdown.Food) DevQuests.Signal("hud:food");
     }
 
     void CloseBreakdown()

@@ -451,6 +451,7 @@ public static class MenuBuilder
         VerticalLayoutGroup body = Column(parent, 4f, new RectOffset(0, 0, 0, 0));
 
         bool open = PlayerPrefs.GetInt(prefsKey, 1) == 1;
+        if (!open) DevQuests.Signal("collapse:restored");   // a section came back folded from an earlier open
         string caption = title.ToUpperInvariant();
         Action apply = () =>
         {

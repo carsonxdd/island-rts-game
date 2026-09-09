@@ -364,7 +364,12 @@ public class WorkerAssignmentUI : MonoBehaviour
         MenuBuilder.SliderRow(sec, "Build", LaborPriorities.Build, v => { LaborPriorities.Build = v; DevQuests.Signal("priority"); });
         MenuBuilder.SliderRow(sec, "Craft", LaborPriorities.Craft, v => { LaborPriorities.Craft = v; DevQuests.Signal("priority"); });
         MenuBuilder.SliderRow(sec, "Repair", LaborPriorities.Repair, v => { LaborPriorities.Repair = v; DevQuests.Signal("priority"); });
-        MenuBuilder.SliderRow(sec, "Tidy the beach", LaborPriorities.Forage, v => { LaborPriorities.Forage = v; DevQuests.Signal("priority"); });
+        MenuBuilder.SliderRow(sec, "Tidy the beach", LaborPriorities.Forage, v =>
+        {
+            if (LaborPriorities.Forage <= 0f && v > 0f) DevQuests.Signal("priority:forage_back");   // was off, back on
+            LaborPriorities.Forage = v;
+            DevQuests.Signal("priority");
+        });
         MenuBuilder.RowDescription(sec, "What an idle colonist reaches for first, all else equal. Zero switches that work off.");
 
         body = MenuBuilder.CollapsibleSection(body, "Defence", "ui.campfire.defence", OnSectionToggled).transform;
@@ -722,6 +727,7 @@ public class WorkerAssignmentUI : MonoBehaviour
             if (lockState != row.lockedLast && row.label != null)
             {
                 row.lockedLast = lockState;
+                if (locked) DevQuests.Signal("specialist:locked");   // the row names its research
                 row.label.text = locked
                     ? row.name + "  <size=78%><color=#" + LockHex + ">research " + Unlocks.ResearchTitleFor(gate) + "</color></size>"
                     : row.name;

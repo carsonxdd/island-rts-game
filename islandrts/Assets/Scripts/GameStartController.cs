@@ -392,6 +392,7 @@ public class GameStartController : MonoBehaviour
             + "Right-click the fire to deposit what you carry · click it to give jobs    B: build    Space: find yourself");
         hintFadeStart = Time.time + 12f;
 
+        DevQuests.Signal("campfire");
         OnColonyStarted?.Invoke();
         Debug.Log("GameStartController: Campfire lit — the colony begins.");
     }

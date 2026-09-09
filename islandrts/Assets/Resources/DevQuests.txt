@@ -2,24 +2,45 @@
 # Shown on the HUD tracker and on Esc > Information > DEV. Newest batch first.
 #
 #   ## yyyy-mm-dd Feature          a batch: one recent change to test
-#   - @signal Short quest text     ticks itself when the game raises that signal
+#   - @signal Short quest text     ticks itself (done + PASS) when the game raises that signal
 #   - Short quest text             the tester ticks it after checking
 #
-# Keep a quest under ~70 characters — it is one line on the panel. Signals
-# come from DevQuests.Signal(...) at the point of effect; the set in use:
+# Keep a quest under ~70 characters — it is one line on the panel. A signal is
+# the proof, so a quest only stays manual when nothing in code can see it (a
+# look, a feel, a "nothing bad happened over time"). Signals come from
+# DevQuests.Signal(...) at the point of effect; the set in use:
 #   research:<id>  craft:<id>  build:<buildingtype>  specialist:<trade>
-#   warrior  archer  hungry  starving  colonist_left  raid  raid_survived
-#   victory  escape  defeat  deposit  info  info:dev  tracker  report
-#   priority  worker_click  craft_by_colonist  craft_by_player
-#   stance:<defensive|offensive|follow>  formation:<line|wedge|ring|loose|auto>  collapse
-#   sky:<sunny|slightly|partly|cloudy>
+#   specialist:idle  specialist:locked  warrior  archer  warrior:6  rearm  picker
+#   recruit:no_idle  recruit:housing_full  hungry  starving  colonist_left
+#   raid  raid_survived  victory  escape  defeat  continue  continue:escape
+#   deposit  campfire  info  info:<tab>  info:dev  tracker  report  auto  persisted
+#   priority  priority:forage_back  priority:craft_wins  worker_click  worker_click:busy
+#   craft_by_colonist  craft_by_player  craft:specialist_holds  hud:food
+#   stance:<defensive|offensive|follow>  stance_key:follow  combat_box:<shown|hidden|stance>
+#   formation:<line|wedge|ring|loose|auto>  formation:auto_line  collapse  collapse:restored
+#   rebind:militia  engage:<follow|offensive>  intercept:advance  kite:<offensive|hold>
+#   attack_slots:3  patrol:archer  patrol:spread  arrow_hit  knockout  knockout:follow
+#   dawn:held  dawn:released  dawn:quiet  garrison
+#   gearup  gearup:job  gearup:idle  gearup:delivered  gearup:after_flee
+#   stroll  stroll:home  stroll:interrupted  stroll:campfire_only
+#   crowd:split  dropoff:spread  forage:shed  pickup:unreachable  shed:stone  pickup:player:stone
+#   fog:node_revealed  fog:raider_revealed  reveal:<on|off>  cheat:stock_full
+#   sky:<sunny|slightly|partly|cloudy|off>  graphics:<preset|custom>
+# crowd:split, dropoff:spread and patrol:spread are STATE checks polled by the
+# tracker twice a second while their quest is open; everything else is an event.
 # A finished batch is deleted from here once its report is in; it stays in the
 # changelog and the phase history.
 
+## 2026-09-09 Auto quests
+- @auto An auto quest flashes gold and reads PASS on the DEV tab, not blank
+- @persisted Relaunch the game: ticked quests come back ticked
+- Flip an auto PASS to FAIL on the DEV tab: it stays FAIL after a relaunch
+- RESET on the DEV tab clears the auto ticks too
+
 ## 2026-09-09 Forage stutter
-- Let workers shed sticks at a bush/tree: a jobless colonist collects them cleanly
+- @forage:shed Let workers shed sticks at a tree: a jobless colonist collects them
 - No colonist shuffles a metre forward/back at a pickup for more than ~2 s
-- A pickup nobody can reach is left alone; that colonist finds other work
+- @pickup:unreachable A pickup nobody can reach is dropped; they find other work
 - A colonist walking into a group at a pickup does not catch the shuffle
 - Drop a pickup on unexplored ground (F4 reveal off): nobody goes for it
 
@@ -28,28 +49,28 @@
 - Walk ashore: ground clears ahead in a soft-edged circle, no popping cells
 - Walk away: the ground behind you goes grey, not black, and stays grey
 - Sea near the cove is bright, sea past unexplored coast is dark
-- Trees and rocks appear when their ground clears and stay when you leave
+- @fog:node_revealed Trees and rocks appear when their ground clears, and stay
 - A stick or crate on unexplored ground cannot be hovered or right-clicked
 - Explore to a map edge: no lit strip of sea runs from it to the horizon
 - Open sea all round the cove; the shallows never stop on a straight line
 - Small / Medium / Large islands still look their size (20 m sea margin added)
-- F4 Reveal map on, then off: fog comes back to what you had explored
-- F4 +5 Spears with a full stockpile (60/60): 5 spears appear anyway
-- Place the campfire: a wide circle around it lights up and stays lit
-- Build a Watchtower: it lights a much bigger circle than a hut does
-- A raid lands out of sight; raiders show only when they enter a lit circle
+- @reveal:off F4 Reveal map on, then off: fog comes back to what you had explored
+- @cheat:stock_full F4 +5 Spears with a full stockpile (60/60): 5 spears appear anyway
+- @campfire Place the campfire: a wide circle around it lights up and stays lit
+- @build:watchtower Build a Watchtower: it lights a much bigger circle than a hut
+- @fog:raider_revealed Raiders land out of sight and show only in a lit circle
 - Raiders in the shroud open no window through trees (no give-away hole)
-- Flee to a hut: the garrisoned worker's own circle goes dark, hut still sees
-- F4 "Reveal map": whole island lit and every raider shown; toggle off again
+- @garrison Flee to a hut: the garrisoned worker's circle goes dark, hut still sees
+- @reveal:on F4 "Reveal map": whole island lit and every raider shown
 - Esc > main menu: menu island is NOT dark; New Game starts dark again
 
 ## 2026-09-08 Crowding fixes
-- Assign 4 wood cutters near one forest: they split over 2+ trees
-- Send them home together: they arrive on different sides of the fire
+- @crowd:split Assign 4 wood cutters near one forest: they split over 2+ trees
+- @dropoff:spread Send them home together: they arrive on different sides of the fire
 - Nobody stands "Returning to base" at the fire for more than ~2 s
-- Make a Builder with no site: label reads "Builder, idle", not "Gathering"
+- @specialist:idle Make a Builder with no site: label reads "Builder, idle"
 - That Builder stands at home (no strolling); a plain colonist strolls by day
-- Change a worker's job: they gear up at the fire without blocking deliverers
+- @gearup Change a worker's job: they gear up at the fire without blocking deliverers
 - No two workers stand in one spot at a tree
 
 ## 2026-09-08 Occluder cutout
@@ -68,20 +89,20 @@
 - Loose stone on the ground is a low pile of chunks, not a single rock
 - A pile and a scenery small rock are told apart at a glance from RTS zoom
 - Hover a pile: gold glow; hover a scenery rock: nothing
-- Right-click a pile: the character walks over and takes a stone chunk
-- A rock worker's shed chunks are piles too
+- @pickup:player:stone Right-click a pile: the character walks over and takes a chunk
+- @shed:stone A rock worker's shed chunks are piles too
 - Large (x3) piles still fit their click box
 
 ## 2026-09-08 Idle stroll
-- An idle colonist stands 6-15 s, then walks to another building and stops
+- @stroll An idle colonist stands 6-15 s, then walks to another building and stops
 - Label reads Wandering on the walk, Idle again when they stop
 - Nobody strolls onto the campfire's drop-off edge or blocks deliveries
-- Assign a job mid-stroll: they leave for it at once
-- At dusk strollers head home and stay put until morning
-- With only the campfire built they still stroll around it
+- @stroll:interrupted Assign a job mid-stroll: they leave for it at once
+- @stroll:home At dusk strollers head home and stay put until morning
+- @stroll:campfire_only With only the campfire built they still stroll around it
 
 ## 2026-09-08 Version string
-- Main menu bottom line reads v0.2.0-alpha.1 · updated 2026-09-08
+- Main menu bottom line reads v0.2.0-alpha.1 · updated 2026-09-09
 - @report The submitted report's Build line starts with v0.2.0-alpha.1
 - Sky: no magenta anywhere on the clouds, no console format warning
 
@@ -103,44 +124,44 @@
 - Clouds at the bottom of the screen are not cut off at full zoom-out
 - Zoom fully out at low tilt: far trees still cast shadows
 - Pan at mid zoom: shadow edges do not crawl or flicker
-- Options > Video > Graphics Low..Ultra changes shadows live
-- Change one advanced row: the Graphics stepper reads Custom
-- Clouds Off: no puffs, no shade, plain sunny lighting
+- @graphics:preset Options > Video > Graphics Low..Ultra changes shadows live
+- @graphics:custom Change one advanced row: the Graphics stepper reads Custom
+- @sky:off Clouds Off: no puffs, no shade, plain sunny lighting
 
 ## 2026-09-07 Warrior stances
 - @stance:offensive Set Offensive: warriors run at raiders across the island
 - @stance:defensive Set Defensive: they wait until raiders near the fire or walls
 - @stance:follow Set Follow: warriors ring your castaway and keep up
-- Follow: walk into a raider, warriors engage it, then come back to you
-- Get knocked out on Follow: warriors go back to holding the colony
-- Three warriors on one raider come in from different sides
+- @engage:follow Follow: walk into a raider, warriors engage it, then come back
+- @knockout:follow Get knocked out on Follow: warriors go back to holding the colony
+- @attack_slots:3 Three warriors on one raider come in from different sides
 - Archer on Follow stops a few steps off you, not a bow-length away
 
 ## 2026-09-07 Night lasts the raid
-- Leave one raider alive at sunrise: the sky stays dark, chip says dawn waits
-- Kill the last raider: day breaks within a few seconds
+- @dawn:held Leave one raider alive at sunrise: sky stays dark, chip says dawn waits
+- @dawn:released Kill the last raider: day breaks within a few seconds
 - No raider ever vanishes at sunrise
-- A quiet night still ends on time
+- @dawn:quiet A quiet night still ends on time
 
 ## 2026-09-07 Patrol freeze
-- Six warriors, no walls: none stands within 4u of the fire's edge
+- @patrol:spread Six warriors, no walls: none stands within 4u of the fire's edge
 - Every idle warrior moves to a new post within ~20s; none frozen
-- An archer walks up to its post like a spearman does
+- @patrol:archer An archer walks up to its post like a spearman does
 - Workers deliver to the fire without shoving through warriors
 
 ## 2026-09-07 Combat box and folding sections
-- Recruit a warrior: the militia box appears bottom-right
-- Click Offensive in the box: the panel's Stance stepper follows
-- Press F9: Follow lights up in the box and warriors come to you
-- Rebind a stance key in Options > Controls, Militia group; the hint updates
-- Dismiss the last warrior: the box hides
+- @combat_box:shown Recruit a warrior: the militia box appears bottom-right
+- @combat_box:stance Click a stance in the box: the panel's Stance stepper follows
+- @stance_key:follow Press F9: Follow lights up in the box and warriors come to you
+- @rebind:militia Rebind a stance key in Options > Controls, Militia; hint updates
+- @combat_box:hidden Dismiss the last warrior: the box hides
 - @collapse Fold a section on the Colonists tab: the panel shrinks to fit
-- Folded sections stay folded after closing and reopening the panel
+- @collapse:restored Folded sections stay folded after closing and reopening
 
 ## 2026-09-07 No warrior cap
-- Recruit a sixth warrior with spare beds, idle hands, spears and food
+- @warrior:6 Recruit a sixth warrior with spare beds, idle hands, spears and food
 - Warriors row reads a plain count, no '/ 5'
-- With every bed full, + on Warriors stays greyed (housing is the cap)
+- @recruit:housing_full With every bed full, + on Warriors stays greyed
 
 ## 2026-09-07 Water stripe
 - No cyan band from the cove to the horizon on the seed that showed one
@@ -151,50 +172,50 @@
 - @formation:wedge Force Wedge: a point man, edges fan back, archers inside
 - @formation:ring Force Ring: warriors circle the centre, archers inside
 - @formation:loose Force Loose: back to the old spread
-- Auto on Defensive rallies in a Line facing the raiders
-- Offensive: the group walks at the raiders together, charges at ~20u
-- Offensive archer backs off when a raider closes, still shooting
-- Defensive archer holds its rank, steps back once, never leaves the line
+- @formation:auto_line Auto on Defensive rallies in a Line facing the raiders
+- @intercept:advance Offensive: the group walks at the raiders, charges at ~20u
+- @kite:offensive Offensive archer backs off when a raider closes, still shooting
+- @kite:hold Defensive archer holds its rank, steps back once, never leaves the line
 - An archer never stands idle with a raider in bow range
 
 ## 2026-09-07 Gear-up trip
-- Give a wood cutter the quarry job mid-trip: they walk to the fire first
-- Their old load lands in the pool before they head for a rock
+- @gearup:job Give a wood cutter the quarry job mid-trip: they go to the fire first
+- @gearup:delivered Their old load lands in the pool before they head for a rock
 - 'Gearing up: Quarrier' shows over their head at the fire
-- Send a worker back to idle: same trip, label 'Gearing up: Colonist'
-- Change a job during a raid: they flee first, gear up after
+- @gearup:idle Send a worker back to idle: same trip, label 'Gearing up: Colonist'
+- @gearup:after_flee Change a job during a raid: they flee first, gear up after
 
 ## 2026-09-07 Dev quests
 - @info:dev Open Esc > Information > DEV
 - @tracker Toggle the HUD tracker off and on from the DEV tab
-- An auto quest ticks itself and flashes gold on the tracker
+- @auto An auto quest ticks itself and flashes gold on the tracker
 - @report SUBMIT REPORT: clipboard holds it, Playtests/ has the file
-- Results survive Restart and a fresh launch; RESET clears them
+- @persisted Results survive Restart and a fresh launch; RESET clears them
 
 ## 2026-09-07 Priorities
 - @priority Move a priority slider on the Colonists tab
 - @worker_click Left-click an idle colonist: the panel opens on Colonists
-- Craft 100 / Build 50: idle colonist picks a bench over a nearby site
-- Forage at 0: nobody tidies the beach; back up and they do
-- Left-click on a working colonist (with a job) does nothing
+- @priority:craft_wins Craft 100 / Build 50: idle colonist picks a bench over a site
+- @priority:forage_back Forage at 0: nobody tidies the beach; back up and they do
+- @worker_click:busy Left-click on a working colonist (with a job) does nothing
 
 ## 2026-09-07 Utility colonists
 - @craft_by_colonist An idle colonist (no Crafter pinned) works a queued bench
 - @specialist:builder Pin a Builder from the Specialists rows
 - @specialist:crafter Pin a Crafter
 - @specialist:repairer Pin a Repairer
-- Pinned Crafter stays at the bench while a hut site waits
+- @craft:specialist_holds Pinned Crafter stays at the bench while a hut site waits
 - Pinned Builder ignores a queued bench; Repairer never tidies the beach
 - Unpinned colonist leaves the bench for a new site, then returns
-- Recruit button disables with only specialists and nobody idle
-- Locked specialist rows name Construction / Crafting
+- @recruit:no_idle Recruit button disables with only specialists and nobody idle
+- @specialist:locked Locked specialist rows name Construction / Crafting
 
 ## 2026-09-07 Information screen
 - @info Open INFORMATION from the main menu or the pause menu
 - Six tabs plus DEV, captions on one line, BACK returns where you came from
-- RESEARCH lists every entry with tier, cost, seconds, prerequisites
-- BUILDING lists costs and health from the pause menu; a note from the main menu
-- RAIDS numbers match F4: day 3, 15% + 20% per quiet night, certain after 5
+- @info:research RESEARCH lists every entry with tier, cost, seconds, prerequisites
+- @info:building BUILDING lists costs and health in-game; a note from the main menu
+- @info:raids RAIDS numbers match F4: day 3, 15% + 20% per quiet night, sure after 5
 - Scroll position remembered per tab and across leaving the screen
 
 ## 2026-09-04 Slice 3 Crafters and iron
@@ -202,26 +223,26 @@
 - @build:workshop Build a Workshop (about 10 s per builder)
 - @research:iron_work Research Iron Work at the Workshop
 - @craft:iron_spear Craft an Iron Spear; the Workshop is twice as fast
-- Arm-with picker cycles weapons; the in-stock count updates
+- @picker Arm-with picker cycles weapons; the in-stock count updates
 - @warrior Recruit a warrior with the picked weapon
-- A spearman fetches an Iron Spear from the stockpile in peacetime
+- @rearm A spearman fetches an Iron Spear from the stockpile in peacetime
 
 ## 2026-09-04 Slice 4 Food
 - @hungry Let food run out: HUNGRY banner, work slows, no arrivals
 - @starving A full day without food: STARVING banner
 - @colonist_left A colonist walks to the cove and leaves
-- Food chip breakdown shows the daily drain
+- @hud:food Food chip breakdown shows the daily drain
 
 ## 2026-09-04 Slice 5 Archers
 - @research:bowyery Research Bowyery
 - @craft:bow Craft a Bow
 - @archer Recruit an archer (Bow picked)
-- Archer holds range, shoots over a wall; arrows hit and vanish
+- @arrow_hit Archer holds range, shoots over a wall; arrows hit and vanish
 - Archer body differs from the spearman (after Setup Everything)
 
 ## 2026-09-04 Slice 6 Escape
 - @research:shipwright Research Shipwright
 - @build:shipyard Build the Shipyard: red inland, green on the beach
 - @escape Click the finished Shipyard, YES: ship sails, ESCAPED shows
-- KEEP PLAYING after ESCAPED resumes the game
+- @continue:escape KEEP PLAYING after ESCAPED resumes the game
 - @raid_survived Survive a raid night with the campfire standing

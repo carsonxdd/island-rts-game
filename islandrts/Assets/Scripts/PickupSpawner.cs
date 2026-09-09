@@ -211,8 +211,10 @@ public class PickupSpawner : MonoBehaviour
         if (pickup != null)
         {
             pickup.spawnerOwned = owned;
+            pickup.shed = !owned;   // only DropByproduct places unowned pickups here; salvage is scattered by PropScatter
             float big = bigChance >= 0f ? bigChance : largeChance;
             if (Random.value < big) MakeLarge(pickup);
+            if (pickup.shed && pickup.resourceType == ResourceNode.ResourceType.Stone) DevQuests.Signal("shed:stone");
         }
         return true;
     }

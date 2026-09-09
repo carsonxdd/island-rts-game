@@ -87,6 +87,70 @@ public class DevQuestTracker : MonoBehaviour
             flashed = null;
             Refresh();
         }
+        if (Time.time >= nextWatch)
+        {
+            nextWatch = Time.time + WatchInterval;
+            Watch();
+        }
+    }
+
+    // ---- state watcher (2026-09-09) ----------------------------------------
+    // A few quests are about a STATE, not an event ("four cutters over two
+    // trees"). Each check runs only while its quest is open (DevQuests.IsOpen is
+    // one dictionary lookup) and walks the ActiveLists with no allocation, twice
+    // a second. Once the quest ticks the check is skipped for good.
+
+    private const float WatchInterval = 0.5f;
+    private float nextWatch;
+
+    private void Watch()
+    {
+        if (DevQuests.IsOpen("crowd:split")) WatchCuttersSplit();
+        if (DevQuests.IsOpen("dropoff:spread")) WatchDropoffSpread();
+        if (DevQuests.IsOpen("patrol:spread")) WatchPatrolSpread();
+    }
+
+    /// <summary>Four or more wood workers at nodes, over at least two trees.</summary>
+    private static void WatchCuttersSplit()
+    {
+        var nodes = ResourceNode.ActiveList;
+        int workers = 0, trees = 0;
+        for (int i = 0; i < nodes.Count; i++)
+        {
+            ResourceNode n = nodes[i];
+            if (n == null || n.resourceType != ResourceNode.ResourceType.Wood) continue;
+            int at = n.GetWorkerCount();
+            if (at <= 0) continue;
+            workers += at;
+            trees++;
+        }
+        if (workers >= 4 && trees >= 2) DevQuests.Signal("crowd:split");
+    }
+
+    /// <summary>Two workers hold different drop-off bearings on the fire at once.</summary>
+    private static void WatchDropoffSpread()
+    {
+        var workers = Worker.ActiveList;
+        int claimed = 0;
+        for (int i = 0; i < workers.Count; i++)
+            if (workers[i] != null && workers[i].dropoffSlot >= 0) claimed++;   // slots are unique per worker
+        if (claimed >= 2) DevQuests.Signal("dropoff:spread");
+    }
+
+    /// <summary>Six warriors, no walls, and none within 4 u of the fire's edge.</summary>
+    private static void WatchPatrolSpread()
+    {
+        if (Warrior.ActiveList.Count < 6 || Wall.ActiveList.Count > 0) return;
+        BaseBuilding fire = BaseBuilding.FindAlive();
+        if (fire == null || fire.HousingCollider == null) return;
+        var warriors = Warrior.ActiveList;
+        for (int i = 0; i < warriors.Count; i++)
+        {
+            Warrior w = warriors[i];
+            if (w == null) continue;
+            if (TargetingUtil.EdgeDistance(w.transform.position, fire.transform, fire.HousingCollider) < 4f) return;
+        }
+        DevQuests.Signal("patrol:spread");
     }
 
     private void Flash(DevQuests.Quest q)

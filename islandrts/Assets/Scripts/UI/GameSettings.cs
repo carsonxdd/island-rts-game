@@ -141,6 +141,7 @@ public static class GameSettings
             }
         }
         Graphics = GraphicsPreset.Custom;
+        DevQuests.Signal("graphics:custom");
     }
 
     // ---- camera -----------------------------------------------------------

@@ -116,6 +116,7 @@ public class FleeToHutExecutor : ActionExecutor
                 bb.worker.SetGarrisoned(true);
                 garrisoned = true;
                 displayName = "Hiding";
+                DevQuests.Signal("garrison");
             }
         }
     }
@@ -192,6 +193,7 @@ public class FleeToHutExecutor : ActionExecutor
 
     public override void OnExit(AIBlackboard bb)
     {
+        if (bb.gearingUp) DevQuests.Signal("gearup:after_flee");   // the job changed during the raid; the fire trip is still owed
         if (garrisoned)
         {
             bb.worker.SetGarrisoned(false);

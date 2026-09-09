@@ -129,9 +129,12 @@ public class InterceptExecutor : ActionExecutor
         if (GuardStance.Effective == GuardStance.Mode.Offensive)
         {
             Vector3 advance = enemyCentroid - dirToEnemies * GuardStance.AdvanceStandoff;
+            DevQuests.Signal("intercept:advance");
             PlaceRally(bb, advance, dirToEnemies, basePos);
             return;
         }
+        if (Formation.Active == Formation.Kind.Auto && Formation.Effective == Formation.Kind.Line)
+            DevQuests.Signal("formation:auto_line");   // Defensive rally under Auto resolved to a Line
 
         // Colony perimeter with no walls: well clear of the fire, so a Line's second
         // rank (4 u behind the centre) still leaves the delivery edge open

@@ -110,6 +110,7 @@ public class CloudSystem : MonoBehaviour
     static readonly int ShadowDensityId = Shader.PropertyToID("_ShadowDensity");
     static readonly int CloudCountId = Shader.PropertyToID("_CloudCount");
     static readonly int CloudsId = Shader.PropertyToID("_Clouds");
+    private bool wasOff;   // playtest only: the Clouds setting just went Off
     static readonly int CloudSeedsId = Shader.PropertyToID("_CloudSeeds");
 
     /// <summary>Create the system for this scene's sun. No-op under the sim or if one exists.</summary>
@@ -269,11 +270,14 @@ public class CloudSystem : MonoBehaviour
 
         if (mode == GameSettings.CloudMode.Off)
         {
+            if (!wasOff) DevQuests.Signal("sky:off");
+            wasOff = true;
             SunMultiplier = AmbientMultiplier = ShadowStrengthMultiplier = 1f;
             HideAll();
             BindCookie(false);
             return;
         }
+        wasOff = false;
 
         int c = (int)Current;
         float rate = dt / Mathf.Max(transitionSeconds, 0.1f);

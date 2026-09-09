@@ -59,6 +59,7 @@ public class CombatHUD : MonoBehaviour
         {
             root.gameObject.SetActive(show);
             if (show) RefreshKeyHint();   // a rebind while hidden lands on the next show
+            DevQuests.Signal(show ? "combat_box:shown" : "combat_box:hidden");
         }
         if (!show) return;
 
@@ -68,7 +69,11 @@ public class CombatHUD : MonoBehaviour
         {
             if (KeyBindings.Down(KeyBindings.Action.StanceDefensive)) GuardStance.Set(GuardStance.Mode.Defensive);
             else if (KeyBindings.Down(KeyBindings.Action.StanceOffensive)) GuardStance.Set(GuardStance.Mode.Offensive);
-            else if (KeyBindings.Down(KeyBindings.Action.StanceFollow)) GuardStance.Set(GuardStance.Mode.Follow);
+            else if (KeyBindings.Down(KeyBindings.Action.StanceFollow))
+            {
+                GuardStance.Set(GuardStance.Mode.Follow);
+                DevQuests.Signal("stance_key:follow");
+            }
         }
 
         int stance = (int)GuardStance.Active;
@@ -165,7 +170,7 @@ public class CombatHUD : MonoBehaviour
 
         // Line 2: the stances
         stanceButtons = ButtonRow(box.transform, GuardStance.Names, StanceWidth, StanceHeight, MenuStyle.SmallSize + 1f,
-            i => GuardStance.Set((GuardStance.Mode)i));
+            i => { GuardStance.Set((GuardStance.Mode)i); DevQuests.Signal("combat_box:stance"); });
 
         // Line 3: the formations
         formationButtons = ButtonRow(box.transform, Formation.Names, FormationWidth, FormationHeight, MenuStyle.SmallSize - 1f,

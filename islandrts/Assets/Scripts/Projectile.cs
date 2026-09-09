@@ -106,6 +106,7 @@ public class Projectile : MonoBehaviour
         {
             targetHealth.TakeDamage(damage);
             if (CombatEffects.Instance != null) CombatEffects.Instance.SpawnHitEffect(lastKnown, damage);
+            DevQuests.Signal("arrow_hit");
         }
         target = null;
         targetHealth = null;
