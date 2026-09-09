@@ -33,6 +33,13 @@ public static class GameSettings
     private const string KeyQuality = "opt.quality";
     private const string KeyVSync = "opt.vsync";
     private const string KeyFrameCap = "opt.frameCap";
+    private const string KeyGraphics = "opt.graphics";
+    private const string KeyShadows = "opt.shadows";
+    private const string KeyShadowDistance = "opt.shadowDistance";
+    private const string KeySoftShadows = "opt.softShadows";
+    private const string KeyAntiAliasing = "opt.antiAliasing";
+    private const string KeyRenderScale = "opt.renderScale";
+    private const string KeyClouds = "opt.clouds";
 
     private const string KeyCameraSpeed = "opt.cameraSpeed";
     private const string KeyZoomSpeed = "opt.zoomSpeed";
@@ -70,6 +77,71 @@ public static class GameSettings
     public static int FrameCap = 0;
 
     public static readonly int[] FrameCapChoices = { 0, 30, 60, 120, 144, 240 };
+
+    // ---- graphics (2026-09-08) --------------------------------------------
+    //
+    // A preset sets every row below it; touching any row turns the preset
+    // into Custom (or back into whichever preset the rows now match). The
+    // values are pushed by GraphicsQuality.Apply, read by CameraController
+    // (shadow distance) and CloudSystem (clouds) at their point of effect.
+
+    public enum GraphicsPreset { Low, Medium, High, Ultra, Custom }
+    public enum ShadowLevel { Off, Low, Medium, High, Ultra }
+    public enum CloudMode { Off, ShadowsOnly, Full }
+
+    public static GraphicsPreset Graphics = GraphicsPreset.High;
+    public static ShadowLevel Shadows = ShadowLevel.High;
+    /// <summary>Multiplier on how far past the view shadows are drawn (0.5–1.5).</summary>
+    public static float ShadowDistanceScale = 1f;
+    public static bool SoftShadows = true;
+    /// <summary>MSAA samples: 0/1 off, 2, 4, 8.</summary>
+    public static int AntiAliasing = 4;
+    /// <summary>URP render scale (0.5–1.5).</summary>
+    public static float RenderScale = 1f;
+    public static CloudMode Clouds = CloudMode.Full;
+
+    public static readonly int[] AntiAliasingChoices = { 0, 2, 4, 8 };
+
+    struct PresetValues
+    {
+        public ShadowLevel shadows; public float distance; public bool soft; public int aa; public float scale; public CloudMode clouds;
+        public PresetValues(ShadowLevel s, float d, bool so, int a, float sc, CloudMode c)
+        { shadows = s; distance = d; soft = so; aa = a; scale = sc; clouds = c; }
+    }
+
+    static readonly PresetValues[] Presets =
+    {
+        new PresetValues(ShadowLevel.Low,    0.7f,  false, 0, 1f, CloudMode.ShadowsOnly),  // Low
+        new PresetValues(ShadowLevel.Medium, 0.85f, true,  2, 1f, CloudMode.Full),         // Medium
+        new PresetValues(ShadowLevel.High,   1f,    true,  4, 1f, CloudMode.Full),         // High
+        new PresetValues(ShadowLevel.Ultra,  1.25f, true,  8, 1f, CloudMode.Full),         // Ultra
+    };
+
+    /// <summary>Set every graphics row from a preset. Custom is a no-op.</summary>
+    public static void ApplyGraphicsPreset(GraphicsPreset preset)
+    {
+        Graphics = preset;
+        if (preset == GraphicsPreset.Custom) return;
+        PresetValues p = Presets[(int)preset];
+        Shadows = p.shadows; ShadowDistanceScale = p.distance; SoftShadows = p.soft;
+        AntiAliasing = p.aa; RenderScale = p.scale; Clouds = p.clouds;
+    }
+
+    /// <summary>After a row changed: the preset the rows now match, else Custom.</summary>
+    public static void DetectGraphicsPreset()
+    {
+        for (int i = 0; i < Presets.Length; i++)
+        {
+            PresetValues p = Presets[i];
+            if (Shadows == p.shadows && SoftShadows == p.soft && AntiAliasing == p.aa && Clouds == p.clouds
+                && Mathf.Abs(ShadowDistanceScale - p.distance) < 0.01f && Mathf.Abs(RenderScale - p.scale) < 0.01f)
+            {
+                Graphics = (GraphicsPreset)i;
+                return;
+            }
+        }
+        Graphics = GraphicsPreset.Custom;
+    }
 
     // ---- camera -----------------------------------------------------------
 
@@ -193,9 +265,22 @@ public static class GameSettings
         DisplayMode = (Display)PlayerPrefs.GetInt(KeyDisplayMode, defaultMode);
 
         ResolutionIndex = PlayerPrefs.GetInt(KeyResolution, -1);
-        QualityLevel = PlayerPrefs.GetInt(KeyQuality, QualitySettings.GetQualityLevel());
+        // The Unity quality level is no longer a player choice (2026-09-08):
+        // the Graphics rows below cover what its two entries used to switch,
+        // and they write into whichever URP asset is live. Pin the "PC" level
+        // so a previously saved "Mobile" (no soft shadows) cannot linger.
+        int pc = System.Array.IndexOf(QualitySettings.names, "PC");
+        QualityLevel = pc >= 0 ? pc : PlayerPrefs.GetInt(KeyQuality, QualitySettings.GetQualityLevel());
         VSync = GetBool(KeyVSync, VSync);
         FrameCap = PlayerPrefs.GetInt(KeyFrameCap, FrameCap);
+
+        Graphics = (GraphicsPreset)PlayerPrefs.GetInt(KeyGraphics, (int)Graphics);
+        Shadows = (ShadowLevel)PlayerPrefs.GetInt(KeyShadows, (int)Shadows);
+        ShadowDistanceScale = PlayerPrefs.GetFloat(KeyShadowDistance, ShadowDistanceScale);
+        SoftShadows = GetBool(KeySoftShadows, SoftShadows);
+        AntiAliasing = PlayerPrefs.GetInt(KeyAntiAliasing, AntiAliasing);
+        RenderScale = PlayerPrefs.GetFloat(KeyRenderScale, RenderScale);
+        Clouds = (CloudMode)PlayerPrefs.GetInt(KeyClouds, (int)Clouds);
 
         CameraSpeed = PlayerPrefs.GetFloat(KeyCameraSpeed, CameraSpeed);
         ZoomSpeed = PlayerPrefs.GetFloat(KeyZoomSpeed, ZoomSpeed);
@@ -231,6 +316,14 @@ public static class GameSettings
         PlayerPrefs.SetInt(KeyQuality, QualityLevel);
         SetBool(KeyVSync, VSync);
         PlayerPrefs.SetInt(KeyFrameCap, FrameCap);
+
+        PlayerPrefs.SetInt(KeyGraphics, (int)Graphics);
+        PlayerPrefs.SetInt(KeyShadows, (int)Shadows);
+        PlayerPrefs.SetFloat(KeyShadowDistance, ShadowDistanceScale);
+        SetBool(KeySoftShadows, SoftShadows);
+        PlayerPrefs.SetInt(KeyAntiAliasing, AntiAliasing);
+        PlayerPrefs.SetFloat(KeyRenderScale, RenderScale);
+        PlayerPrefs.SetInt(KeyClouds, (int)Clouds);
 
         PlayerPrefs.SetFloat(KeyCameraSpeed, CameraSpeed);
         PlayerPrefs.SetFloat(KeyZoomSpeed, ZoomSpeed);
@@ -303,6 +396,10 @@ public static class GameSettings
 
         ApplyDisplayMode();
 
+        // Shadow map, cascades, MSAA, render scale and the sun's shadow mode;
+        // every write inside is change-guarded, so a slider drag is free.
+        GraphicsQuality.Apply();
+
         CombatEffects fx = CombatEffects.Instance;
         if (fx != null) fx.showDamageNumbers = DamageNumbers && !SimHooks.Simulating;
 
@@ -345,7 +442,8 @@ public static class GameSettings
         MuteWhenUnfocused = true;
 
         DisplayMode = Display.Fullscreen; ResolutionIndex = -1;
-        QualityLevel = 2; VSync = true; FrameCap = 0;
+        VSync = true; FrameCap = 0;
+        ApplyGraphicsPreset(GraphicsPreset.High);
 
         CameraSpeed = 1f; ZoomSpeed = 1f; RotationSpeed = 1f;
         EdgePan = false; InvertTilt = false; ScreenShakeStrength = 1f;

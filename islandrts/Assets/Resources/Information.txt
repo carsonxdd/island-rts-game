@@ -37,6 +37,7 @@ A day lasts 100 seconds and a night 50; harder difficulties stretch the night. T
 dial on the HUD shows where you are in the cycle and the day counter shows the
 calendar. Dawn is when the colony decides things: a raid is rolled for the coming
 night, and survivors only land by day.
+- The sky is rolled at dawn too: sunny, slightly cloudy, partly cloudy or cloudy. Clouds shade whatever they drift over; a cloudy day is dimmer everywhere.
 - Colonists work through the night, but foragers keep close to the fire after dusk and everyone hides in the huts when raiders are near.
 - The colony eats once per calendar day, per colonist.
 - The run ends at the dawn after the last day, or earlier if you sail away.

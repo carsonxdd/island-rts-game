@@ -90,6 +90,13 @@ public class DayNightCycle : MonoBehaviour
         {
             Debug.LogError("DayNightCycle: Day/Night LightingPreset references are missing. Assign them in the Inspector.");
         }
+
+        // The sun's shadow mode is a graphics setting (2026-09-08); the cloud
+        // layer shades through its light cookie. Both are runtime-added here so
+        // the scene stays the single source of the light itself.
+        GraphicsQuality.Sun = sunLight;
+        GraphicsQuality.Apply();
+        CloudSystem.EnsureExists(sunLight);
     }
 
     void Update()
@@ -216,14 +223,17 @@ public class DayNightCycle : MonoBehaviour
         // Lerp all preset values from night -> day based on dayProgress.
         if (dayPreset != null && nightPreset != null)
         {
+            // Cloud cover dims the sun, flattens the ambient a little and softens
+            // the shadows (a cloudy sky is a big diffuse light). The multipliers
+            // are 1 with no CloudSystem, so the menu and the sim see the presets.
             sunLight.color = Color.Lerp(nightPreset.sunColor, dayPreset.sunColor, dayProgress);
-            sunLight.intensity = Mathf.Lerp(nightPreset.sunIntensity, dayPreset.sunIntensity, dayProgress);
-            sunLight.shadowStrength = Mathf.Lerp(nightPreset.shadowStrength, dayPreset.shadowStrength, dayProgress);
+            sunLight.intensity = Mathf.Lerp(nightPreset.sunIntensity, dayPreset.sunIntensity, dayProgress) * CloudSystem.SunMultiplier;
+            sunLight.shadowStrength = Mathf.Lerp(nightPreset.shadowStrength, dayPreset.shadowStrength, dayProgress) * CloudSystem.ShadowStrengthMultiplier;
 
             RenderSettings.ambientSkyColor = Color.Lerp(nightPreset.ambientSky, dayPreset.ambientSky, dayProgress);
             RenderSettings.ambientEquatorColor = Color.Lerp(nightPreset.ambientEquator, dayPreset.ambientEquator, dayProgress);
             RenderSettings.ambientGroundColor = Color.Lerp(nightPreset.ambientGround, dayPreset.ambientGround, dayProgress);
-            RenderSettings.ambientIntensity = Mathf.Lerp(nightPreset.ambientIntensity, dayPreset.ambientIntensity, dayProgress);
+            RenderSettings.ambientIntensity = Mathf.Lerp(nightPreset.ambientIntensity, dayPreset.ambientIntensity, dayProgress) * CloudSystem.AmbientMultiplier;
         }
 
         // Update isNight flag

@@ -32,7 +32,7 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 2682146606561348739}
+  - {fileID: 3213952589176380625}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &4176107455400080248
@@ -94,7 +94,7 @@ NavMeshObstacle:
   m_CarveOnlyStationary: 1
   m_Center: {x: 0, y: 0, z: 0}
   m_TimeToStationary: 0.5
---- !u!1001 &1218234429026392209
+--- !u!1001 &1822461658540345539
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -151,8 +151,8 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: fb99c4ed61406464394e823c81625dfc, type: 3}
---- !u!4 &2682146606561348739 stripped
+--- !u!4 &3213952589176380625 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 3877863037350122514, guid: fb99c4ed61406464394e823c81625dfc, type: 3}
-  m_PrefabInstance: {fileID: 1218234429026392209}
+  m_PrefabInstance: {fileID: 1822461658540345539}
   m_PrefabAsset: {fileID: 0}

@@ -50,13 +50,15 @@ public class CameraController : MonoBehaviour
     public float startOrthoSize = 15f;
     public float minOrthoSize = 5f;
     public float maxOrthoSize = 30f;
-    [Tooltip("Ortho near clip. NEGATIVE on purpose: when tilted low / zoomed out, ground at the bottom of the view sits behind the camera plane and would be sliced off. A negative near extends the render box backwards (standard for ortho RTS cameras).")]
+    [Tooltip("FLOOR for the ortho near clip. NEGATIVE on purpose: when tilted low / zoomed out, ground at the bottom of the view sits behind the camera plane and would be sliced off. Since 2026-09-08 the live near clip is computed from the view each frame (see UpdateClipPlanes) and clamped to this — a fixed -100 spent most of the shadow map on space behind the camera.")]
     public float nearClip = -100f;
+    [Tooltip("Tallest thing the near clip must keep in frame when no cloud layer exists (hilltop + palm).")]
+    public float sceneCeiling = 16f;
 
     [Header("Shadows")]
     [Tooltip("Drive URP's shadow distance from the current zoom/tilt. The asset's fixed value only covers the view when zoomed in — zoomed out, everything past it renders unshadowed.")]
     public bool scaleShadowDistanceWithZoom = true;
-    [Tooltip("Safety factor over the computed view depth, so shadow casters just off-screen still cast in.")]
+    [Tooltip("Safety factor over the computed view depth, so shadow casters just off-screen still cast in. The Options Shadow Distance slider multiplies this again.")]
     public float shadowDistanceMargin = 1.25f;
     public float minShadowDistance = 50f;
     [Tooltip("Upper bound. Higher covers more, but spreads the shadowmap thinner (softer/blockier close-up shadows).")]
@@ -91,12 +93,11 @@ public class CameraController : MonoBehaviour
     float yawVelRef;                          // SmoothDampAngle internal
     static readonly Plane groundPlane = new Plane(Vector3.up, 0f);
 
-    // Shadow-distance state. The URP asset is a ScriptableObject on disk, so the
-    // original value is cached and restored on disable — otherwise a Play session
-    // would permanently rewrite the asset in the editor.
-    UniversalRenderPipelineAsset shadowAsset;
-    float originalShadowDistance;
-    float appliedShadowDistance = -1f;
+    // The URP asset writes (shadow distance included) live in GraphicsQuality
+    // since 2026-09-08 — it caches and restores the on-disk values. This only
+    // reports how deep the view is; the near clip is quantised here.
+    float appliedNearClip = float.NaN;
+    const float NearClipStep = 8f;
 
     void Awake()
     {
@@ -124,7 +125,7 @@ public class CameraController : MonoBehaviour
         UpdateFreeLook(dt);
         UpdateKeyboardPan(dt);
         UpdateRotation(dt);
-        UpdateShadowDistance();
+        UpdateClipPlanes();
 
         // Snap the view onto the player's character (Space by default). No
         // auto-follow — it is an RTS — just a way to find yourself again.
@@ -362,7 +363,8 @@ public class CameraController : MonoBehaviour
     }
 
     /// <summary>
-    /// Keeps URP's shadow distance covering what's actually on screen.
+    /// Keeps the camera's clip range and URP's shadow distance fitted to what is
+    /// actually on screen.
     ///
     /// Shadow distance is measured along the view axis from the camera, and the
     /// furthest thing visible is the ground at the TOP edge of the view — at depth
@@ -370,52 +372,42 @@ public class CameraController : MonoBehaviour
     /// 50, which covers a zoomed-in view but is roughly half of what a fully zoomed-out
     /// low-tilt view spans, so distant trees rendered with no shadow at all.
     ///
-    /// Scaling it means close-up shadows keep the full shadowmap resolution instead of
-    /// paying for coverage they never use.
+    /// The NEAR clip matters just as much (2026-09-08): URP splits the cascades
+    /// over [near, shadowDistance], so a fixed -100 near spent most of the shadow
+    /// map on empty space behind the camera and the ground got the coarse
+    /// remainder. The nearest thing that can be on screen is the cloud layer (or a
+    /// palm on a hilltop) at the BOTTOM edge, at depth
+    /// (cameraHeight - ceiling - orthoSize * cos(pitch)) / sin(pitch). Both values
+    /// are quantised — every change re-fits the cascades and shifts the shadow
+    /// texel grid, which is the "shadows crawl when I pan" look.
     /// </summary>
-    void UpdateShadowDistance()
+    void UpdateClipPlanes()
     {
-        if (!scaleShadowDistanceWithZoom) return;
-
-        var asset = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
-        if (asset == null) return;
-
-        if (asset != shadowAsset)
-        {
-            RestoreShadowDistance();          // quality level switched — put the old asset back
-            shadowAsset = asset;
-            originalShadowDistance = asset.shadowDistance;
-            appliedShadowDistance = -1f;
-        }
-
         float pitch = Mathf.Max(NormalizePitch(transform.eulerAngles.x), 1f) * Mathf.Deg2Rad;
         float sin = Mathf.Max(Mathf.Sin(pitch), 0.0001f);
-        float viewDepth = (transform.position.y + cam.orthographicSize * Mathf.Cos(pitch)) / sin;
+        float cos = Mathf.Cos(pitch);
+        float h = transform.position.y;
+        float s = cam.orthographicSize;
 
-        float want = Mathf.Clamp(viewDepth * shadowDistanceMargin,
-                                 minShadowDistance, maxShadowDistance);
-        if (Mathf.Abs(want - appliedShadowDistance) < 0.5f) return;
+        float ceiling = CloudSystem.Instance != null ? CloudSystem.Instance.cloudHeight + 4f : sceneCeiling;
+        float nearest = (h - ceiling - s * cos) / sin - 8f;                 // margin for wave/bob
+        float near = Mathf.Floor(Mathf.Min(nearest, -4f) / NearClipStep) * NearClipStep;
+        near = Mathf.Max(near, nearClip);                                    // never deeper than the floor
+        if (float.IsNaN(appliedNearClip) || Mathf.Abs(near - appliedNearClip) > 0.5f)
+        {
+            appliedNearClip = near;
+            cam.nearClipPlane = near;
+        }
 
-        appliedShadowDistance = want;
-        shadowAsset.shadowDistance = want;
-    }
-
-    void OnDisable()
-    {
-        RestoreShadowDistance();
+        if (!scaleShadowDistanceWithZoom) return;
+        float viewDepth = (h + s * cos) / sin;
+        float want = Mathf.Clamp(viewDepth * shadowDistanceMargin, minShadowDistance, maxShadowDistance);
+        GraphicsQuality.SetViewShadowDistance(want);
     }
 
     void OnDestroy()
     {
         if (Instance == this) Instance = null;
-    }
-
-    void RestoreShadowDistance()
-    {
-        if (shadowAsset == null) return;
-        shadowAsset.shadowDistance = originalShadowDistance;
-        shadowAsset = null;
-        appliedShadowDistance = -1f;
     }
 
     /// <summary>

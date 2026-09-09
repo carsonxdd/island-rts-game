@@ -314,6 +314,20 @@ public class DebugMenu : MonoBehaviour
             if (raid != director.RaidTonight) director.DebugSetRaidTonight(raid);
         }
 
+        // Sky: force a cloud condition instead of waiting on the dawn roll
+        // (blends in over the usual transition, like a real change would).
+        var sky = CloudSystem.Instance;
+        if (sky != null)
+        {
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Sky: " + CloudSystem.ConditionNames[(int)sky.Current], GUILayout.Width(120));
+            if (GUILayout.Button("Sunny")) sky.Set(CloudSystem.Condition.Sunny);
+            if (GUILayout.Button("Slight")) sky.Set(CloudSystem.Condition.SlightlyCloudy);
+            if (GUILayout.Button("Partly")) sky.Set(CloudSystem.Condition.PartlyCloudy);
+            if (GUILayout.Button("Cloudy")) sky.Set(CloudSystem.Condition.Cloudy);
+            GUILayout.EndHorizontal();
+        }
+
         bool gameOver = GameManager.Instance != null && GameManager.Instance.isGameOver;
         GUI.enabled = !gameOver;  // don't fight the game-over timeScale = 0
         GUILayout.BeginHorizontal();

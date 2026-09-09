@@ -511,10 +511,6 @@ public class MenuScreens : MonoBehaviour
             i => { GameSettings.ResolutionIndex = i; GameSettings.Apply(); },
             Application.isEditor ? "Applies in a built game; the editor ignores it." : null);
 
-        MenuBuilder.StepperRow(t, "Quality", QualitySettings.names, GameSettings.QualityLevel,
-            i => { GameSettings.QualityLevel = i; GameSettings.Apply(); },
-            "Shadow and texture detail. Lower it first if the game runs rough.");
-
         MenuBuilder.ToggleRow(t, "V-Sync", GameSettings.VSync,
             v => { GameSettings.VSync = v; GameSettings.Apply(); Rebuild(); },
             "Matches the display's refresh rate. Removes tearing, adds a little input lag.");
@@ -533,6 +529,72 @@ public class MenuScreens : MonoBehaviour
             GameSettings.VSync
                 ? "Ignored while V-Sync is on."
                 : "Capping below your display's refresh rate saves power and heat.");
+
+        BuildGraphicsRows(t);
+    }
+
+    /// <summary>
+    /// The Graphics preset and the rows it sets (2026-09-08). A stepper move to
+    /// Low..Ultra rewrites every row; a row change re-detects the preset (Custom
+    /// unless the rows match one) and moves the stepper silently through the
+    /// setter StepperRow returns — a Rebuild mid slider-drag would destroy the
+    /// slider under the pointer.
+    /// </summary>
+    private void BuildGraphicsRows(Transform t)
+    {
+        MenuBuilder.SectionHeader(t, "GRAPHICS");
+
+        string[] presets = { "Low", "Medium", "High", "Ultra", "Custom" };
+        Action<int> setPreset = null;
+        setPreset = MenuBuilder.StepperRow(t, "Graphics", presets, (int)GameSettings.Graphics, i =>
+        {
+            var p = (GameSettings.GraphicsPreset)i;
+            if (p == GameSettings.GraphicsPreset.Custom) { setPreset((int)GameSettings.Graphics); return; }
+            GameSettings.ApplyGraphicsPreset(p);
+            GameSettings.Apply();
+            Rebuild();
+        }, "Sets every row below. Change any of them and this reads Custom.");
+
+        void RowChanged(bool rebuild)
+        {
+            GameSettings.DetectGraphicsPreset();
+            GameSettings.Apply();
+            if (rebuild) Rebuild(); else setPreset((int)GameSettings.Graphics);
+        }
+
+        MenuBuilder.StepperRow(t, "Shadows", new[] { "Off", "Low", "Medium", "High", "Ultra" }, (int)GameSettings.Shadows,
+            i => { GameSettings.Shadows = (GameSettings.ShadowLevel)i; RowChanged(true); },
+            "Shadow map detail. Off is the biggest saving; Ultra adds a second cascade.");
+
+        MenuBuilder.RangeSliderRow(t, "Shadow distance", GameSettings.ShadowDistanceScale, 0.5f, 1.5f,
+            v => Mathf.RoundToInt(v * 100f) + "%",
+            v => { GameSettings.ShadowDistanceScale = v; RowChanged(false); },
+            "How far past the top of the view shadows are drawn. Raise it if far trees lose theirs.");
+
+        MenuBuilder.ToggleRow(t, "Soft shadows", GameSettings.SoftShadows,
+            v => { GameSettings.SoftShadows = v; RowChanged(true); },
+            "Blurs shadow edges. A small cost on older graphics cards.");
+
+        int aaIndex = 0;
+        string[] aaNames = new string[GameSettings.AntiAliasingChoices.Length];
+        for (int i = 0; i < aaNames.Length; i++)
+        {
+            int a = GameSettings.AntiAliasingChoices[i];
+            aaNames[i] = a == 0 ? "Off" : a + "x";
+            if (a == GameSettings.AntiAliasing) aaIndex = i;
+        }
+        MenuBuilder.StepperRow(t, "Anti-aliasing", aaNames, aaIndex,
+            i => { GameSettings.AntiAliasing = GameSettings.AntiAliasingChoices[i]; RowChanged(true); },
+            "Smooths the edges of the low-poly art (MSAA).");
+
+        MenuBuilder.RangeSliderRow(t, "Resolution scale", GameSettings.RenderScale, 0.5f, 1.5f,
+            v => Mathf.RoundToInt(v * 100f) + "%",
+            v => { GameSettings.RenderScale = v; RowChanged(false); },
+            "Renders the world at a fraction of the window. Below 100% is the biggest frame-rate win.");
+
+        MenuBuilder.StepperRow(t, "Clouds", new[] { "Off", "Shadows only", "Full" }, (int)GameSettings.Clouds,
+            i => { GameSettings.Clouds = (GameSettings.CloudMode)i; RowChanged(true); },
+            "Drifting clouds and the shade they cast on the island.");
     }
 
     private void BuildCameraTab(Transform t)
