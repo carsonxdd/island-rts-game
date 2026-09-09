@@ -10,9 +10,13 @@ using UnityEngine.AI;
 /// Phase 6.25: delivery is measured from the campfire's collider EDGE
 /// (bb.deliveryDistance = 1.5 from the edge), not its center. The campfire
 /// carves the NavMesh, so center distance never gets small — the old
-/// center-based check only ever succeeded via the timer fallbacks. The
-/// dropoff destination uses the shared ClosestPoint -> SamplePosition
-/// approach-point pattern (TargetingUtil.GetApproachPoint).
+/// center-based check only ever succeeded via the timer fallbacks.
+///
+/// 2026-09-08: the drop-off destination is a claimed slot on the fire's edge
+/// ring (<see cref="BaseBuilding.ClaimDropoffSlot"/>), so a group returning
+/// from one forest fans out over the fire's sides instead of queueing on the
+/// one closest face. A worker stopped behind someone else is treated as
+/// arrived after a short stall rather than the old 3 s / 8 s waits.
 /// </summary>
 public class ReturnToBaseExecutor : ActionExecutor
 {
@@ -24,9 +28,16 @@ public class ReturnToBaseExecutor : ActionExecutor
     // Campfire collider, cached on entry for edge-distance checks
     private Collider campfireCollider;
 
+    // Stopped short behind another colonist: after this long standing still within
+    // StallReach of the edge, hand over from where we are (the fire is a big warm target)
+    private const float StallSeconds = 1.5f;
+    private const float StallReach = 3f;
+    private float stallTimer;
+
     public override void OnEnter(AIBlackboard bb)
     {
         returnTimer = 0f;
+        stallTimer = 0f;
         campfireCollider = bb.baseBuilding != null ? bb.baseBuilding.GetComponent<Collider>() : null;
 
         if (bb.baseBuilding == null || !bb.agent.isOnNavMesh || !bb.agent.enabled) return;
@@ -96,6 +107,12 @@ public class ReturnToBaseExecutor : ActionExecutor
         bool agentStopped = bb.agent.isOnNavMesh && bb.agent.velocity.sqrMagnitude < 0.05f;
         bool stoppedNearBase = agentStopped && edgeDistance <= bb.deliveryDistance + 1.5f;
 
+        // 3b. Stalled behind someone: standing still a little further out for
+        //     StallSeconds (a queue, not a lost path — a lost path re-issues below)
+        stallTimer = agentStopped && edgeDistance <= bb.deliveryDistance + StallReach
+            ? stallTimer + Time.deltaTime : 0f;
+        bool stalledNearBase = stallTimer >= StallSeconds;
+
         // 4. Timer fallback: been trying to return for 3+ seconds and within generous range
         bool timerFallback = returnTimer > 3f && edgeDistance <= bb.deliveryDistance + 3f;
 
@@ -103,7 +120,7 @@ public class ReturnToBaseExecutor : ActionExecutor
         //    (handles pathfinding failures, NavMesh issues, etc.)
         bool nuclearFallback = returnTimer > 8f && bb.carryAmount > 0f;
 
-        if (withinRange || pathFinishedNearBase || stoppedNearBase || timerFallback || nuclearFallback)
+        if (withinRange || pathFinishedNearBase || stoppedNearBase || stalledNearBase || timerFallback || nuclearFallback)
         {
             DeliverResources(bb);
             if (bb.stuckResolver != null)
@@ -184,18 +201,21 @@ public class ReturnToBaseExecutor : ActionExecutor
     }
 
     /// <summary>
-    /// Walkable point at the campfire's collider edge nearest the worker.
-    /// The campfire carves the NavMesh, so this must go through the shared
-    /// ClosestPoint -> SamplePosition pattern.
+    /// Walkable point on the campfire's edge at this worker's claimed drop-off slot
+    /// (the free bearing nearest its line of approach). The campfire carves the
+    /// NavMesh, so the slot point goes through the shared approach-point pattern.
     /// </summary>
     Vector3 GetDropoffPoint(AIBlackboard bb)
     {
-        return TargetingUtil.GetApproachPoint(
-            bb.transform.position, bb.baseBuilding.transform, campfireCollider);
+        int slot = bb.baseBuilding.ClaimDropoffSlot(bb.worker, bb.transform.position);
+        return bb.baseBuilding.DropoffPoint(slot);
     }
 
     public override void OnExit(AIBlackboard bb)
     {
+        if (bb.baseBuilding != null) bb.baseBuilding.ReleaseDropoffSlot(bb.worker);
+        else if (bb.worker != null) bb.worker.dropoffSlot = -1;
+
         // Restore stopping distance for gathering
         if (bb.agent != null && bb.agent.isOnNavMesh)
         {

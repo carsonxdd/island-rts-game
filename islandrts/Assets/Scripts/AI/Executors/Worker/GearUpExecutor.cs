@@ -107,9 +107,11 @@ public class GearUpExecutor : ActionExecutor
         }
     }
 
+    /// <summary>A claimed drop-off slot on the fire's edge (2026-09-08), so a gearing-up colonist never parks on the face the deliverers use.</summary>
     Vector3 ApproachPoint(AIBlackboard bb)
     {
-        return TargetingUtil.GetApproachPoint(bb.transform.position, bb.baseBuilding.transform, campfireCollider);
+        int slot = bb.baseBuilding.ClaimDropoffSlot(bb.worker, bb.transform.position);
+        return bb.baseBuilding.DropoffPoint(slot);
     }
 
     /// <summary>At the fire: hand everything in and stand for the gear-up beat.</summary>
@@ -137,6 +139,8 @@ public class GearUpExecutor : ActionExecutor
     public override void OnExit(AIBlackboard bb)
     {
         arrived = false;
+        if (bb.baseBuilding != null) bb.baseBuilding.ReleaseDropoffSlot(bb.worker);
+        else if (bb.worker != null) bb.worker.dropoffSlot = -1;
         if (bb.agent != null && bb.agent.enabled && bb.agent.isOnNavMesh)
         {
             bb.agent.stoppingDistance = Worker.GatherStopDistance;

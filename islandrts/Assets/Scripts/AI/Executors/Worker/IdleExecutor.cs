@@ -95,6 +95,7 @@ public class IdleExecutor : ActionExecutor
     void UpdateStanding(AIBlackboard bb)
     {
         if (IsNight) return;   // stays put until morning (or until the brain finds work)
+        if (bb.specialty != Worker.Specialty.Any) return;   // a specialist waits at home for their trade (2026-09-08), no stroll
 
         standTimer -= Time.deltaTime;
         if (standTimer > 0f) return;
@@ -295,7 +296,12 @@ public class IdleExecutor : ActionExecutor
     {
         mode = Mode.Standing;
         destinationQueued = false;
-        displayName = "Idle";
+        // A specialist with nothing to do says so by trade ("Builder, idle") — before
+        // 2026-09-08 they never got here at all (Gather outscored Idle with no node
+        // and they stood at the fire labelled "Gathering").
+        displayName = bb.specialty != Worker.Specialty.Any && bb.worker != null
+            ? bb.worker.RoleTitle() + ", idle"
+            : "Idle";
         standTimer = Random.Range(StandMin, StandMax);
         if (AgentReady(bb))
         {

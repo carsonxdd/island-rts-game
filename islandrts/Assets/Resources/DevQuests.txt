@@ -16,6 +16,15 @@
 # A finished batch is deleted from here once its report is in; it stays in the
 # changelog and the phase history.
 
+## 2026-09-08 Crowding fixes
+- Assign 4 wood cutters near one forest: they split over 2+ trees
+- Send them home together: they arrive on different sides of the fire
+- Nobody stands "Returning to base" at the fire for more than ~2 s
+- Make a Builder with no site: label reads "Builder, idle", not "Gathering"
+- That Builder stands at home (no strolling); a plain colonist strolls by day
+- Change a worker's job: they gear up at the fire without blocking deliverers
+- No two workers stand in one spot at a tree
+
 ## 2026-09-08 Occluder cutout
 - Walk a colonist behind a palm: a round window opens on them, tree stays solid
 - Same behind a round tree, a hut, the Watchtower, the Workshop, a wall line

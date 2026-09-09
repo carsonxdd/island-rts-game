@@ -573,6 +573,22 @@ public class ResourceNode : MonoBehaviour, IMaterialSet
         claimedWorkers.Remove(worker);
     }
 
+    /// <summary>
+    /// Everyone this node is committed to: workers walking to it (claims) plus workers
+    /// already standing at it (registered). The scan's crowd measure (2026-09-08) —
+    /// claims alone let a fifth worker pick the tree three others were already
+    /// chopping, because a worker unclaims on arrival.
+    /// </summary>
+    public int GetWorkerCount()
+    {
+        for (int i = activeWorkers.Count - 1; i >= 0; i--)
+        {
+            if (activeWorkers[i] == null)
+                activeWorkers.RemoveAt(i);
+        }
+        return activeWorkers.Count + GetClaimCount();
+    }
+
     public int GetClaimCount()
     {
         // Clean up null references (manual loop — no lambda allocation)

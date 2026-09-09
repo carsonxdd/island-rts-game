@@ -53,6 +53,13 @@ public class Worker : UnitBase<Worker>
     /// </summary>
     [System.NonSerialized] public bool gearingUp;
 
+    /// <summary>
+    /// The campfire drop-off slot this colonist holds (2026-09-08), -1 for none. Set by
+    /// ReturnToBase / GearUp while walking in, cleared on their exit; BaseBuilding reads
+    /// it to tell a live claim from a stale one. See <see cref="BaseBuilding.ClaimDropoffSlot"/>.
+    /// </summary>
+    [System.NonSerialized] public int dropoffSlot = -1;
+
     /// <summary>The unit a colonist is about to become, for the gear-up label.</summary>
     public string RoleTitle()
     {
@@ -348,8 +355,8 @@ public class Worker : UnitBase<Worker>
             // ThreatNearby tanks Gather when enemies are close (1 enemy → 0.2, 2+ → early-out 0)
             new ActionOption("Gather", new Consideration[]
             {
-                new ResourceAvailability(ResponseCurve.Linear(1f, 0.1f)),  // Need a resource node
-                new CrowdPenalty(4f, ResponseCurve.Linear(0.8f, 0.2f)),  // Spread across nodes (4+ workers = max penalty)
+                new ResourceAvailability(ResponseCurve.Linear(1f, 0f)),  // Need a resource node — 0 with none (the 0.1 floor for a far node lives inside; a yShift here had jobless colonists "Gathering" nothing at the fire, 2026-09-08)
+                new CrowdPenalty(4f, ResponseCurve.Linear(0.8f, 0.2f)),  // Spread across nodes (4+ workers walking to or at the node = max penalty)
                 new ResourceCarry(ResponseCurve.InverseLinear(0.8f, 0.2f)),  // Empty inventory preferred
                 new TimeOfDay(false, ResponseCurve.Linear(0.3f, 0.7f)),  // Slight daytime preference, not crippled at night
                 new ThreatNearby(1f, ResponseCurve.InverseLinear(1f, 0f))  // 1 enemy nearby → score 0, hard suppression

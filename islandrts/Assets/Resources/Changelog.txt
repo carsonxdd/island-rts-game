@@ -8,6 +8,16 @@
 # Lines starting with a single # are comments. Anything else that is not a
 # heading, a bullet or an indented continuation is ignored.
 
+## 2026-09-08 — Colonists spread out at the fire and in the forest
+- Colonists bringing resources home now fan out around the campfire instead of
+  queueing on one side of it, and one stuck behind another hands over after a
+  moment rather than standing there.
+- Workers count the people already chopping a tree, not just those walking to
+  it, so they spread across nearby trees and rocks instead of piling onto one.
+- A Builder, Crafter or Repairer with nothing to do now waits at home and says
+  so ("Builder, idle") instead of loitering at the fire labelled "Gathering".
+  Colonists with nothing to do at all stroll the village as intended.
+
 ## 2026-09-08 — Trees and buildings open a window instead of fading
 - A tree, hut, tower, workshop, shipyard or wall standing between the camera and
   one of your people now stays solid and opens a soft round window right where

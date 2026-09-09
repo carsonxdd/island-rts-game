@@ -17,11 +17,12 @@ public class CrowdPenalty : Consideration
 
     public override float ScoreRaw(AIBlackboard bb)
     {
-        // Use the claim count on the best resource as a crowd proxy
+        // Everyone committed to the best node: walking there and already working there
+        // (claims alone ignored the workers standing at it, 2026-09-08)
         if (bb.bestResource != null)
         {
-            int claimCount = bb.bestResource.GetClaimCount();
-            return Mathf.Clamp01(1f - claimCount / maxCrowd);
+            int crowd = bb.bestResource.GetWorkerCount();
+            return Mathf.Clamp01(1f - crowd / maxCrowd);
         }
         return 1f; // No crowd info available, no penalty
     }

@@ -6,9 +6,20 @@ using UnityEngine;
 /// Returns 1.0 when a great node is nearby, 0.0 when none available.
 /// Also caches the best resource node in the blackboard.
 /// </summary>
+/// <remarks>
+/// The floor lives HERE, not in the curve (2026-09-08): a node at the search-radius edge
+/// still scores <see cref="FloorWithNode"/> so a worker will walk to it, but "no node" is
+/// a genuine 0 and the action early-outs. With the floor in the curve's yShift every
+/// jobless colonist scored ~0.08 on Gather against Idle's 0.01, entered the executor with
+/// nothing to walk to and stood at the fire labelled "Gathering" — the specialist bug.
+/// Crowding counts workers already at the node as well as those walking to it.
+/// </remarks>
 public class ResourceAvailability : Consideration
 {
     public ResourceAvailability(ResponseCurve curve) : base(curve) { }
+
+    private const float FloorWithNode = 0.1f;    // a far node is still worth walking to
+    private const float CrowdPenaltyMetres = 5f; // every worker committed to a node counts as 5 m further
 
     public override float ScoreRaw(AIBlackboard bb)
     {
@@ -46,7 +57,7 @@ public class ResourceAvailability : Consideration
 
             float distance = Mathf.Sqrt(sqr);
 
-            // Prune: score is distance + (claims * 5) and the claim penalty is never
+            // Prune: score is distance + (workers * 5) and the crowd penalty is never
             // negative, so a node already further than the current best cannot win.
             // Skipping it here avoids the expensive availability checks below.
             if (distance >= bestScore) continue;
@@ -55,8 +66,8 @@ public class ResourceAvailability : Consideration
             if (bb.IsNodeUnreachable(node)) continue;  // walled off / off-mesh - skip until its entry expires
             if (!node.HasWorkerRoom(bb.worker)) continue;  // at worker capacity - spill to another node
 
-            // Existing scoring: distance + claim penalty
-            float score = distance + (node.GetClaimCount() * 5f);
+            // Scoring: distance + crowd penalty (walking there AND already working there)
+            float score = distance + (node.GetWorkerCount() * CrowdPenaltyMetres);
 
             if (score < bestScore)
             {
@@ -70,7 +81,8 @@ public class ResourceAvailability : Consideration
 
         if (bestNode == null) return 0f;
 
-        // Normalize: 0 = terrible (at search radius), 1 = great (very close, unclaimed)
-        return Mathf.Clamp01(1f - bestScore / bb.searchRadius);
+        // Normalize: floor = far / crowded, 1 = great (very close, unclaimed). Never 0
+        // with a node in hand — 0 means "nothing to gather" and early-outs the action.
+        return Mathf.Max(FloorWithNode, Mathf.Clamp01(1f - bestScore / bb.searchRadius));
     }
 }

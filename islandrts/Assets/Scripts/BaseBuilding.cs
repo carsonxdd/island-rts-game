@@ -322,6 +322,85 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         return false;
     }
 
+    // --- Drop-off slots (2026-09-08) ---
+    // Eight bearings around the fire that colonists walking in to deliver (or to
+    // gear up) claim, the same way warriors claim an enemy's attack slots. Before
+    // this every returner pathed to the ONE closest point on the collider, so a
+    // group coming back from the same forest queued nose-to-tail on one face and
+    // the ones at the back stood "Returning to base" until the 8 s fallback fired.
+    // A slot is free when its owner is gone, dead, or no longer holding it
+    // (Worker.dropoffSlot) — nothing leaks. With every slot taken the nearest is
+    // shared; two on one face is still a short queue.
+
+    public const int DropoffSlotCount = 8;
+    private Worker[] dropoffOwners;
+
+    /// <summary>
+    /// The slot this colonist should deliver at: the one it already holds, else the
+    /// free bearing closest to its own line of approach, else the closest regardless.
+    /// Stamps <see cref="Worker.dropoffSlot"/>. Pair with <see cref="DropoffPoint"/>.
+    /// </summary>
+    public int ClaimDropoffSlot(Worker worker, Vector3 from)
+    {
+        if (dropoffOwners == null) dropoffOwners = new Worker[DropoffSlotCount];
+
+        if (worker != null && worker.dropoffSlot >= 0 && worker.dropoffSlot < DropoffSlotCount
+            && dropoffOwners[worker.dropoffSlot] == worker)
+            return worker.dropoffSlot;
+
+        Vector3 dir = from - transform.position;
+        dir.y = 0f;
+        float wanted = dir.sqrMagnitude > 0.001f ? Mathf.Atan2(dir.z, dir.x) * Mathf.Rad2Deg : 0f;
+
+        int bestFree = -1, bestAny = -1;
+        float bestFreeDelta = float.MaxValue, bestAnyDelta = float.MaxValue;
+        for (int i = 0; i < DropoffSlotCount; i++)
+        {
+            float delta = Mathf.Abs(Mathf.DeltaAngle(wanted, DropoffSlotAngle(i)));
+            if (delta < bestAnyDelta) { bestAnyDelta = delta; bestAny = i; }
+            if (DropoffSlotFree(i) && delta < bestFreeDelta) { bestFreeDelta = delta; bestFree = i; }
+        }
+
+        int slot = bestFree >= 0 ? bestFree : bestAny;
+        if (bestFree >= 0) dropoffOwners[slot] = worker;
+        if (worker != null) worker.dropoffSlot = slot;
+        return slot;
+    }
+
+    /// <summary>Give the slot back (delivered, or left for another errand). Clears <see cref="Worker.dropoffSlot"/>.</summary>
+    public void ReleaseDropoffSlot(Worker worker)
+    {
+        if (worker != null) worker.dropoffSlot = -1;
+        if (dropoffOwners == null) return;
+        for (int i = 0; i < DropoffSlotCount; i++)
+            if (dropoffOwners[i] == worker) dropoffOwners[i] = null;
+    }
+
+    /// <summary>
+    /// Walkable point at the fire's collider edge along the slot's bearing. The fire
+    /// carves the NavMesh, so this goes through the shared ClosestPoint → SamplePosition
+    /// approach-point pattern, aimed from a point out along the bearing instead of from
+    /// the colonist (which is what put everyone on the same face).
+    /// </summary>
+    public Vector3 DropoffPoint(int slot)
+    {
+        float a = DropoffSlotAngle(slot) * Mathf.Deg2Rad;
+        Vector3 outside = transform.position + new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * 10f;
+        Collider col = housingCollider != null ? housingCollider : GetComponent<Collider>();
+        return TargetingUtil.GetApproachPoint(outside, transform, col);
+    }
+
+    static float DropoffSlotAngle(int slot) => slot * (360f / DropoffSlotCount) + 22.5f;   // face-centres and corners alike, never a corner exactly
+
+    bool DropoffSlotFree(int i)
+    {
+        Worker owner = dropoffOwners[i];
+        if (owner == null) return true;                        // destroyed, or never claimed
+        if (owner.dropoffSlot != i) return true;               // moved on without releasing
+        Health h = owner.CachedHealth;
+        return h != null && !h.IsAlive;
+    }
+
     /// <summary>
     /// Called from Worker.OnDestroy so every destruction path (killed by enemy,
     /// converted to a warrior, scene teardown) updates the roster and the population
