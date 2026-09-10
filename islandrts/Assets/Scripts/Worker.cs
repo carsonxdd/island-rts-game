@@ -297,6 +297,7 @@ public class Worker : UnitBase<Worker>
         bb.health = CachedHealth;
         bb.baseBuilding = baseBuilding;
         bb.worker = this;
+        bb.faction = Factions.Player;   // commit 5 reads the unit's own Faction here
         bb.assignedResourceType = assignedResourceType;
         bb.hasJob = hasJob;
         bb.specialty = specialty;

@@ -46,8 +46,7 @@ public static class RepairCosts
     /// </summary>
     public static bool CanAffordAny(PerHp cost)
     {
-        ResourceManager rm = ResourceManager.Instance;
-        if (rm == null) return false;
+        ResourcePool rm = Factions.Player.Resources;
         if (cost.wood > 0f && rm.wood < 1) return false;
         if (cost.food > 0f && rm.food < 1) return false;
         if (cost.stone > 0f && rm.stone < 1) return false;

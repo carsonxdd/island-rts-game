@@ -193,8 +193,7 @@ public class RaidDirector : MonoBehaviour
         p += Shipyard.ActiveList.Count * 8f;   // a ship on the slipway is worth raiding (2026-09-04)
         p += (Wall.ActiveList.Count + Gate.ActiveList.Count) * 0.3f;
 
-        ResourceManager rm = ResourceManager.Instance;
-        if (rm != null)
+        ResourcePool rm = Factions.Player.Resources;
         {
             p += (rm.wood + rm.food + rm.stone) / 60f;
             p += rm.metal / 10f;

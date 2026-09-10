@@ -12,6 +12,13 @@ public class AIBlackboard
     public NavMeshAgent agent;
     public Health health;
     public BaseBuilding baseBuilding;
+    /// <summary>
+    /// Who this unit fights for (lap step 1). Considerations and executors read
+    /// this, never <c>Factions.Player</c>. Set in the unit's Start; until commit 5
+    /// puts <c>IOwned</c> on the units it is Player for workers and warriors and
+    /// Raiders for enemies.
+    /// </summary>
+    public Faction faction;
 
     // --- Unit-type-specific references (set once by the unit's setup) ---
 

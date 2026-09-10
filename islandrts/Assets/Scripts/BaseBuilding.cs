@@ -591,8 +591,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         if (!Unlocks.Has(Unlocks.Kind.Militia)) return false;   // Spearcraft not researched
         if (maxWarriors > 0 && currentWarriors >= maxWarriors) return false;
         if (Stockpile.Count(SelectedWeapon) <= 0) return false; // nothing to arm them with
-        if (ResourceManager.Instance == null
-            || ResourceManager.Instance.food < warriorCost_Food) return false;
+        if (Factions.Player.Resources.food < warriorCost_Food) return false;
         PopulationManager pm = PopulationManager.Instance;
         if (pm == null) return false;
         if (pm.GetIdleCount() > 0) return true;
@@ -639,7 +638,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
 
         ItemDef weapon = SelectedWeapon;
         if (Stockpile.Remove(weapon, 1) <= 0) return;
-        ResourceManager.Instance.SpendFood(warriorCost_Food);
+        Factions.Player.Resources.SpendFood(warriorCost_Food);
 
         // Stand the warrior where the colonist stood (a garrisoned colonist is at a
         // hut edge, which is on the NavMesh too)

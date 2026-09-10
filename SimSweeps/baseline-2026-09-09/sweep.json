@@ -1,0 +1,11 @@
+{
+    "outputDir": "SimLogs",
+    "captureDeltaTime": 0.016666668,
+    "maxWallSecondsPerRun": 900,
+    "repeats": 6,
+    "runs": [
+        { "id": "base_turtle", "strategy": "Turtle", "seed": 1, "terrainSeed": 20260909 },
+        { "id": "base_rush",   "strategy": "Rush",   "seed": 1, "terrainSeed": 20260909 },
+        { "id": "base_eco",    "strategy": "Eco",    "seed": 1, "terrainSeed": 20260909 }
+    ]
+}

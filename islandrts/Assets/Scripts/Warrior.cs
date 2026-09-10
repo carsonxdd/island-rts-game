@@ -148,6 +148,7 @@ public class Warrior : UnitBase<Warrior>
         bb.health = healthComponent;
         bb.baseBuilding = baseBuilding;
         bb.warrior = this;
+        bb.faction = Factions.Player;   // commit 5 reads the unit's own Faction here
         bb.attackRange = attackRange;
         bb.attackCooldown = attackCooldown;
         bb.damage = damage;

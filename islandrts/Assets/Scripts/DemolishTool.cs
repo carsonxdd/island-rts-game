@@ -173,7 +173,7 @@ public class DemolishTool
 
     void DemolishBuilding(GameObject buildingObj, BuildingType type)
     {
-        if (ResourceManager.Instance == null || BuildingDatabase.Instance == null) return;
+        if (BuildingDatabase.Instance == null) return;
 
         // Get building data for refund calculation
         BuildingData data = BuildingDatabase.Instance.GetBuildingData(type);
@@ -185,10 +185,10 @@ public class DemolishTool
             int stoneRefund = Mathf.FloorToInt(data.stoneCost * 0.5f);
             int metalRefund = Mathf.FloorToInt(data.metalCost * 0.5f);
 
-            if (woodRefund > 0) ResourceManager.Instance.AddWood(woodRefund);
-            if (foodRefund > 0) ResourceManager.Instance.AddFood(foodRefund);
-            if (stoneRefund > 0) ResourceManager.Instance.AddStone(stoneRefund);
-            if (metalRefund > 0) ResourceManager.Instance.AddMetal(metalRefund);
+            if (woodRefund > 0) Factions.Player.Resources.AddWood(woodRefund);
+            if (foodRefund > 0) Factions.Player.Resources.AddFood(foodRefund);
+            if (stoneRefund > 0) Factions.Player.Resources.AddStone(stoneRefund);
+            if (metalRefund > 0) Factions.Player.Resources.AddMetal(metalRefund);
         }
 
         // Play sound

@@ -1313,8 +1313,7 @@ public class MenuScreens : MonoBehaviour
         if (pm != null && pm.ColonistsLeft > 0)
             MenuBuilder.ValueRow(parent, "Colonists who left", pm.ColonistsLeft.ToString(), MenuStyle.TextDanger);
 
-        ResourceManager rm = ResourceManager.Instance;
-        if (rm != null)
+        ResourcePool rm = Factions.Player.Resources;
         {
             MenuBuilder.ValueRow(parent, "Resources on hand",
                 rm.wood + "W  ·  " + rm.food + "F  ·  " + rm.stone + "S  ·  " + rm.metal + "M");

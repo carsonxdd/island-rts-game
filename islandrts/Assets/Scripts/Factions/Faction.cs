@@ -37,6 +37,9 @@ public sealed class Faction
     /// </summary>
     public BaseBuilding Campfire { get; set; }
 
+    /// <summary>The colony's pooled wood / food / stone / metal (commit 2). The player's is filled by <c>ResourceManager.Awake</c> from the scene's starting amounts.</summary>
+    public ResourcePool Resources { get; } = new ResourcePool();
+
     public bool IsPlayer => Type == Kind.Player;
     public bool IsRaiders => Type == Kind.Raiders;
 

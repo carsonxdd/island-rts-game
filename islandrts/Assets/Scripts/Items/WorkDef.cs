@@ -86,8 +86,7 @@ public abstract class WorkDef
         if (FirstMissingItem(hands, stock) != null) return false;
         if (HasResourceCost)
         {
-            if (ResourceManager.Instance == null) return false;
-            if (!ResourceManager.Instance.CanAfford(woodCost, foodCost, stoneCost, metalCost)) return false;
+            if (!Factions.Player.Resources.CanAfford(woodCost, foodCost, stoneCost, metalCost)) return false;
         }
         return true;
     }
@@ -113,8 +112,7 @@ public abstract class WorkDef
                      + (stock != null ? stock.Count(itemCosts[i].item) : 0);
             if (have < itemCosts[i].count) return (itemCosts[i].count - have) + " " + itemCosts[i].item.displayName;
         }
-        ResourceManager rm = ResourceManager.Instance;
-        if (rm == null) return "resources";
+        ResourcePool rm = Factions.Player.Resources;
         if (rm.wood < woodCost) return (woodCost - rm.wood) + " Wood";
         if (rm.food < foodCost) return (foodCost - rm.food) + " Food";
         if (rm.stone < stoneCost) return (stoneCost - rm.stone) + " Stone";
@@ -132,7 +130,7 @@ public abstract class WorkDef
 
         if (HasResourceCost)
         {
-            if (!ResourceManager.Instance.SpendResources(woodCost, foodCost, stoneCost, metalCost))
+            if (!Factions.Player.Resources.SpendResources(woodCost, foodCost, stoneCost, metalCost))
                 return false;
         }
 

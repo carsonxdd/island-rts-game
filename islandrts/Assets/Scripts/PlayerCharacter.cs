@@ -775,8 +775,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
 
             if (slot.item.kind == ItemKind.Resource)
             {
-                if (ResourceManager.Instance == null) continue;
-                ResourceManager.Instance.Add(slot.item.resourceType, slot.count);
+                Factions.Player.Resources.Add(slot.item.resourceType, slot.count);
                 inventory.TakeSlot(i);
                 deposited += slot.count;
             }

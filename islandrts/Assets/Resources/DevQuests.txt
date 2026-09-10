@@ -37,6 +37,7 @@
 - @faction:bootstrap Game scene loads: Castaways and Raiders factions exist
 - Restart, then New Game: no error about factions in the console
 - @faction:hostile F4 relation toggle to Hostile fires (rival camp, later commit)
+- HUD chips read 100W 50F 0S 0M at the fire; deposits, builds, refunds move them
 
 ## 2026-09-09 Minimap
 - Map in the top-right shows the island shape; sea, sand, grass, rock read right

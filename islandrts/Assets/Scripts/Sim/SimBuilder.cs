@@ -53,8 +53,8 @@ public static class SimBuilder
         BuildingData data = BuildingDatabase.Instance != null
             ? BuildingDatabase.Instance.GetBuildingData(type) : null;
         if (data == null || data.constructionSitePrefab == null) return false;
-        if (ResourceManager.Instance == null || Campfire == null) return false;
-        if (!ResourceManager.Instance.CanAfford(data.woodCost, data.foodCost, data.stoneCost, data.metalCost)) return false;
+        if (Campfire == null) return false;
+        if (!Factions.Player.Resources.CanAfford(data.woodCost, data.foodCost, data.stoneCost, data.metalCost)) return false;
 
         Vector3 origin = Campfire.transform.position;
 
@@ -90,7 +90,7 @@ public static class SimBuilder
         BuildingData data = BuildingDatabase.Instance != null
             ? BuildingDatabase.Instance.GetBuildingData(wallType) : null;
         if (data == null || data.constructionSitePrefab == null) return 0;
-        if (ResourceManager.Instance == null || Campfire == null || WallGrid.Instance == null) return 0;
+        if (Campfire == null || WallGrid.Instance == null) return 0;
 
         Vector2Int center = WallGrid.Instance.WorldToGrid(Campfire.transform.position);
         List<Vector2Int> cells = new List<Vector2Int>();
@@ -113,7 +113,7 @@ public static class SimBuilder
         int placed = 0;
         for (int i = 0; i < cells.Count && placed < maxSites; i++)
         {
-            if (!ResourceManager.Instance.CanAfford(data.woodCost, data.foodCost, data.stoneCost)) break;
+            if (!Factions.Player.Resources.CanAfford(data.woodCost, data.foodCost, data.stoneCost)) break;
             if (WallGrid.Instance.HasWallAt(cells[i])) continue;
 
             Vector3 pos = WallGrid.Instance.GridToWorld(cells[i]);
@@ -134,15 +134,14 @@ public static class SimBuilder
     /// </summary>
     public static int ConvertGates(int count)
     {
-        if (ResourceManager.Instance == null) return 0;
         int done = 0;
         var walls = Wall.ActiveList;
         for (int i = walls.Count - 1; i >= 0 && done < count; i--)
         {
             Wall w = walls[i];
             if (w == null) continue;
-            if (!ResourceManager.Instance.CanAfford(5, 0, 0)) break;
-            ResourceManager.Instance.SpendResources(5, 0, 0);
+            if (!Factions.Player.Resources.CanAfford(5, 0, 0)) break;
+            Factions.Player.Resources.SpendResources(5, 0, 0);
             w.UpgradeToGate();
             done++;
         }
@@ -162,8 +161,8 @@ public static class SimBuilder
         BuildingData data = BuildingDatabase.Instance != null
             ? BuildingDatabase.Instance.GetBuildingData(type) : null;
         if (data == null || data.constructionSitePrefab == null) return false;
-        if (ResourceManager.Instance == null || Campfire == null || TerrainGrid.Instance == null) return false;
-        if (!ResourceManager.Instance.CanAfford(data.woodCost, data.foodCost, data.stoneCost, data.metalCost)) return false;
+        if (Campfire == null || TerrainGrid.Instance == null) return false;
+        if (!Factions.Player.Resources.CanAfford(data.woodCost, data.foodCost, data.stoneCost, data.metalCost)) return false;
 
         Vector3 origin = Campfire.transform.position;
         for (float radius = 6f; radius <= maxRadius; radius += 2f)
@@ -188,7 +187,7 @@ public static class SimBuilder
 
     private static void Spawn(BuildingData data, BuildingType type, Vector3 pos, bool flatten)
     {
-        ResourceManager.Instance.SpendResources(data.woodCost, data.foodCost, data.stoneCost, data.metalCost);
+        Factions.Player.Resources.SpendResources(data.woodCost, data.foodCost, data.stoneCost, data.metalCost);
 
         if (flatten && TerrainGrid.Instance != null)
         {

@@ -30,7 +30,7 @@ using UnityEngine.SceneManagement;
 /// rolls day 1 there). Runs 1..n
 /// get configured from the sceneLoaded callback instead, which is already ahead
 /// of every Start — but NOT ahead of any Awake, which is why ConfigureScene has
-/// to write ResourceManager's live pool rather than just its starting amounts.
+/// to write the live pool (Factions.Player.Resources) rather than the component's starting amounts.
 /// </remarks>
 [DefaultExecutionOrder(-1000)]
 public class SimRunner : MonoBehaviour
@@ -221,17 +221,15 @@ public class SimRunner : MonoBehaviour
     /// </summary>
     private void ConfigureScene(SimConfig cfg)
     {
-        ResourceManager rm = FindAnyObjectByType<ResourceManager>();
-        if (rm != null)
         {
-            // ResourceManager copies its starting amounts into the live pool in
-            // AWAKE, not Start — and sceneLoaded runs after every Awake. Setting
-            // only the startingX fields here therefore did nothing at all: the
-            // three starting-resource knobs were silently ignored by every sweep
-            // run so far. Write the live pool as well.
-            if (cfg.startingWood >= 0) { rm.startingWood = cfg.startingWood; rm.wood = cfg.startingWood; }
-            if (cfg.startingFood >= 0) { rm.startingFood = cfg.startingFood; rm.food = cfg.startingFood; }
-            if (cfg.startingStone >= 0) { rm.startingStone = cfg.startingStone; rm.stone = cfg.startingStone; }
+            // ResourceManager copies the scene's starting amounts into the live
+            // pool in AWAKE, not Start — and sceneLoaded runs after every Awake.
+            // So the knobs write the live pool itself (Factions.Player.Resources
+            // since lap step 1), not the component's starting fields.
+            ResourcePool pool = Factions.Player.Resources;
+            if (cfg.startingWood >= 0) pool.wood = cfg.startingWood;
+            if (cfg.startingFood >= 0) pool.food = cfg.startingFood;
+            if (cfg.startingStone >= 0) pool.stone = cfg.startingStone;
         }
 
         EnemySpawner es = FindAnyObjectByType<EnemySpawner>();
@@ -368,7 +366,7 @@ public class SimRunner : MonoBehaviour
     private SimState BuildState()
     {
         BaseBuilding fire = SimBuilder.Campfire;
-        ResourceManager rm = ResourceManager.Instance;
+        ResourcePool rm = Factions.Player.Resources;
         DayNightCycle dn = FindAnyObjectByType<DayNightCycle>();
 
         return new SimState
@@ -379,9 +377,9 @@ public class SimRunner : MonoBehaviour
             Workers = fire != null ? fire.GetTotalWorkers() : 0,
             Warriors = fire != null ? fire.GetWarriorCount() : 0,
             Enemies = Enemy.ActiveList.Count,
-            Wood = rm != null ? rm.wood : 0,
-            Food = rm != null ? rm.food : 0,
-            Stone = rm != null ? rm.stone : 0,
+            Wood = rm.wood,
+            Food = rm.food,
+            Stone = rm.stone,
             Colonists = PopulationManager.Instance != null ? PopulationManager.Instance.GetColonistCount() : 0,
             Hunger = PopulationManager.Instance != null ? (int)PopulationManager.Instance.Hunger : 0,
         };
@@ -415,7 +413,7 @@ public class SimRunner : MonoBehaviour
         if (!runActive) return;
 
         BaseBuilding fire = SimBuilder.Campfire;
-        ResourceManager rm = ResourceManager.Instance;
+        ResourcePool rm = Factions.Player.Resources;
         DayNightCycle dn = FindAnyObjectByType<DayNightCycle>();
 
         RaidDirector rd = RaidDirector.Instance;
@@ -424,9 +422,9 @@ public class SimRunner : MonoBehaviour
             day = dn != null ? dn.GetCurrentDay() : metrics.days.Count + 1,
             raid = rd != null && rd.RaidTonight,
             raidSize = rd != null && rd.RaidTonight ? rd.PlannedSize : 0,
-            wood = rm != null ? rm.wood : 0,
-            food = rm != null ? rm.food : 0,
-            stone = rm != null ? rm.stone : 0,
+            wood = rm.wood,
+            food = rm.food,
+            stone = rm.stone,
             workers = fire != null ? fire.GetTotalWorkers() : 0,
             warriors = fire != null ? fire.GetWarriorCount() : 0,
             huts = SimBuilder.HutCount,
@@ -464,11 +462,11 @@ public class SimRunner : MonoBehaviour
     private void CaptureDawn()
     {
         BaseBuilding fire = SimBuilder.Campfire;
-        ResourceManager rm = ResourceManager.Instance;
+        ResourcePool rm = Factions.Player.Resources;
 
-        night.woodDawn = rm != null ? rm.wood : 0;
-        night.foodDawn = rm != null ? rm.food : 0;
-        night.stoneDawn = rm != null ? rm.stone : 0;
+        night.woodDawn = rm.wood;
+        night.foodDawn = rm.food;
+        night.stoneDawn = rm.stone;
         night.workersDawn = fire != null ? fire.GetTotalWorkers() : 0;
         night.warriorsDawn = fire != null ? fire.GetWarriorCount() : 0;
         night.hutsDawn = SimBuilder.HutCount;
@@ -501,13 +499,10 @@ public class SimRunner : MonoBehaviour
             night = null;
         }
 
-        ResourceManager rm = ResourceManager.Instance;
-        if (rm != null)
-        {
-            metrics.finalWood = rm.wood;
-            metrics.finalFood = rm.food;
-            metrics.finalStone = rm.stone;
-        }
+        ResourcePool rm = Factions.Player.Resources;
+        metrics.finalWood = rm.wood;
+        metrics.finalFood = rm.food;
+        metrics.finalStone = rm.stone;
         metrics.totalEnemiesKilled = GameManager.Instance != null ? GameManager.Instance.totalEnemiesKilled : 0;
         metrics.gameSeconds = Time.time - runStartGameTime;
         metrics.wallClockSeconds = Time.realtimeSinceStartup - runStartRealTime;

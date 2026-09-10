@@ -59,6 +59,6 @@ public class BuildingDatabase : MonoBehaviour
         BuildingData data = GetBuildingData(type);
         if (data == null) return false;
 
-        return ResourceManager.Instance.CanAfford(data.woodCost, data.foodCost, data.stoneCost, data.metalCost);
+        return Factions.Player.Resources.CanAfford(data.woodCost, data.foodCost, data.stoneCost, data.metalCost);
     }
 }

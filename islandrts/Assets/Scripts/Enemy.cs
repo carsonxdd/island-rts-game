@@ -97,6 +97,7 @@ public class Enemy : UnitBase<Enemy>
         bb.agent = agent;
         bb.health = healthComponent;
         bb.enemy = this;
+        bb.faction = Factions.Raiders;   // commit 5 reads the unit's own Faction here
         bb.attackRange = attackRange;
         bb.attackCooldown = attackCooldown;
         bb.damage = damage;

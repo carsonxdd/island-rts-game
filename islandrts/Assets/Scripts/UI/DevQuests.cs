@@ -404,8 +404,7 @@ public static class DevQuests
             if (fire != null) sb.Append(" · ").Append(fire.GetWarriorCount()).Append(" warriors");
             sb.Append(" · ").Append(pm.Hunger);
         }
-        ResourceManager rm = ResourceManager.Instance;
-        if (rm != null)
+        ResourcePool rm = Factions.Player.Resources;
         {
             sb.Append(" · ").Append(rm.GetWood()).Append("W ").Append(rm.GetFood()).Append("F ")
               .Append(rm.GetStone()).Append("S ").Append(rm.GetMetal()).Append('M');

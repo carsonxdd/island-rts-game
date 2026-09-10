@@ -90,8 +90,8 @@ public abstract class SimPolicy
         CraftingCatalog.Recipe wooden = CraftingCatalog.Find("wooden_spear");
         CraftingCatalog.Recipe iron = CraftingCatalog.Find("iron_spear");
         CraftingCatalog.Recipe bow = CraftingCatalog.Find("bow");
-        bool ironOk = iron != null && iron.Unlocked && ResourceManager.Instance != null
-                      && ResourceManager.Instance.metal >= iron.metalCost;
+        bool ironOk = iron != null && iron.Unlocked
+                      && Factions.Player.Resources.metal >= iron.metalCost;
         CraftingCatalog.Recipe spear = ironOk ? iron : wooden;
 
         int have = fire.WeaponsInStock() + fire.Station.Queued(wooden) + fire.Station.Queued(iron)

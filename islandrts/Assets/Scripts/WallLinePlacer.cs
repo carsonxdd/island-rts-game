@@ -62,7 +62,7 @@ public class WallLinePlacer
                 : null;
             if (owner.selectionUI != null && data != null)
             {
-                bool canAfford = ResourceManager.Instance.CanAfford(data.woodCost, data.foodCost, data.stoneCost);
+                bool canAfford = Factions.Player.Resources.CanAfford(data.woodCost, data.foodCost, data.stoneCost);
                 owner.selectionUI.UpdateDisplay(data, canAfford);
             }
 
@@ -229,7 +229,7 @@ public class WallLinePlacer
             int totalWood = data.woodCost * validCount;
             int totalFood = data.foodCost * validCount;
             int totalStone = data.stoneCost * validCount;
-            bool canAfford = ResourceManager.Instance.CanAfford(totalWood, totalFood, totalStone);
+            bool canAfford = Factions.Player.Resources.CanAfford(totalWood, totalFood, totalStone);
             owner.selectionUI.UpdateWallLineDisplay(data, validCount, canAfford);
         }
     }
@@ -340,7 +340,7 @@ public class WallLinePlacer
     /// </summary>
     void ConfirmWallLine()
     {
-        if (BuildingDatabase.Instance == null || ResourceManager.Instance == null) return;
+        if (BuildingDatabase.Instance == null) return;
 
         BuildingData data = BuildingDatabase.Instance.GetBuildingData(owner.selectedBuildingType);
         if (data == null || data.constructionSitePrefab == null) return;
@@ -366,13 +366,13 @@ public class WallLinePlacer
         int totalFood = data.foodCost * validPositions.Count;
         int totalStone = data.stoneCost * validPositions.Count;
 
-        if (!ResourceManager.Instance.CanAfford(totalWood, totalFood, totalStone))
+        if (!Factions.Player.Resources.CanAfford(totalWood, totalFood, totalStone))
         {
             return;
         }
 
         // Deduct resources (once for the entire line)
-        ResourceManager.Instance.SpendResources(totalWood, totalFood, totalStone);
+        Factions.Player.Resources.SpendResources(totalWood, totalFood, totalStone);
 
         // Place construction sites at each valid position (rotation auto-determined by WallGrid)
         for (int i = 0; i < validPositions.Count; i++)
@@ -408,7 +408,7 @@ public class WallLinePlacer
         // Restore single-wall cost display
         if (owner.selectionUI != null)
         {
-            bool canAfford = ResourceManager.Instance.CanAfford(data.woodCost, data.foodCost, data.stoneCost);
+            bool canAfford = Factions.Player.Resources.CanAfford(data.woodCost, data.foodCost, data.stoneCost);
             owner.selectionUI.UpdateDisplay(data, canAfford);
         }
     }
@@ -428,7 +428,7 @@ public class WallLinePlacer
             : null;
         if (owner.selectionUI != null && data != null)
         {
-            bool canAfford = ResourceManager.Instance.CanAfford(data.woodCost, data.foodCost, data.stoneCost);
+            bool canAfford = Factions.Player.Resources.CanAfford(data.woodCost, data.foodCost, data.stoneCost);
             owner.selectionUI.UpdateDisplay(data, canAfford);
         }
     }

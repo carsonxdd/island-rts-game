@@ -201,7 +201,7 @@ public class BuildPlacement : MonoBehaviour
         // Update UI if exists
         if (selectionUI != null)
         {
-            bool canAfford = ResourceManager.Instance.CanAfford(data.woodCost, data.foodCost, data.stoneCost, data.metalCost);
+            bool canAfford = Factions.Player.Resources.CanAfford(data.woodCost, data.foodCost, data.stoneCost, data.metalCost);
             selectionUI.UpdateDisplay(data, canAfford);
             selectionUI.Show();
         }
@@ -297,7 +297,7 @@ public class BuildPlacement : MonoBehaviour
         // Update UI if exists
         if (selectionUI != null)
         {
-            bool canAfford = ResourceManager.Instance.CanAfford(data.woodCost, data.foodCost, data.stoneCost, data.metalCost);
+            bool canAfford = Factions.Player.Resources.CanAfford(data.woodCost, data.foodCost, data.stoneCost, data.metalCost);
             selectionUI.UpdateDisplay(data, canAfford);
         }
     }
@@ -356,14 +356,13 @@ public class BuildPlacement : MonoBehaviour
         }
 
         // Check cost: 5 wood
-        if (ResourceManager.Instance == null) return;
 
-        if (!ResourceManager.Instance.CanAfford(5, 0, 0))
+        if (!Factions.Player.Resources.CanAfford(5, 0, 0))
         {
             return;
         }
 
-        ResourceManager.Instance.SpendResources(5, 0, 0);
+        Factions.Player.Resources.SpendResources(5, 0, 0);
 
         // Play sound
         if (AudioManager.Instance != null)

@@ -94,7 +94,7 @@ public class RepairExecutor : ActionExecutor
             return;
         }
 
-        Work(Time.deltaTime);
+        Work(bb, Time.deltaTime);
     }
 
     bool IsRepaired() => health != null && health.currentHealth >= health.maxHealth - 0.01f;
@@ -134,7 +134,7 @@ public class RepairExecutor : ActionExecutor
     }
 
     /// <summary>One tick of repair: charge what this tick's HP costs, then heal. Pauses when unaffordable.</summary>
-    void Work(float dt)
+    void Work(AIBlackboard bb, float dt)
     {
         float missing = health.maxHealth - health.currentHealth;
         float hp = Mathf.Min(RepairCosts.RepairRate * dt, missing);
@@ -153,8 +153,7 @@ public class RepairExecutor : ActionExecutor
 
             if (dueWood > 0 || dueFood > 0 || dueStone > 0 || dueMetal > 0)
             {
-                ResourceManager rm = ResourceManager.Instance;
-                if (rm == null || !rm.SpendResources(dueWood, dueFood, dueStone, dueMetal))
+                if (!bb.faction.Resources.SpendResources(dueWood, dueFood, dueStone, dueMetal))
                 {
                     displayName = "Repairing (no materials)";
                     return;   // pause — the debt is not committed, so nothing was lost

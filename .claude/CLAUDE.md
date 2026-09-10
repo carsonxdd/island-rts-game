@@ -46,7 +46,7 @@ Every 0.25–0.35s (randomized per unit) the brain scores `basePriority × Π(co
 
 ### Patterns
 
-- **Singletons:** ResourceManager, AudioManager, WallGrid, AIWorldState, PopulationManager, GameManager, CombatEffects, CameraShake, BuildingDatabase. No `DontDestroyOnLoad` (stale state across restarts) except `DebugMenu` and `SimRunner`, which hold no game state.
+- **Singletons:** AudioManager, WallGrid, AIWorldState, PopulationManager, GameManager, CombatEffects, CameraShake, BuildingDatabase. No `DontDestroyOnLoad` (stale state across restarts) except `DebugMenu` and `SimRunner`, which hold no game state.
 - **`ActiveRegistry<T>`** gives static O(1) lists for every unit, building, node, site and pickup type. `FindObjectsByType` is **banned** — use `X.ActiveList` with an index loop. Unique lookups use `FindAnyObjectByType<T>()` (`FindFirstObjectByType` is obsolete in 6000.5).
 - **Targeting:** everything implements `ITargetable`. Scans go through `TargetingUtil.FindNearest`, target state through `bb.SetTarget` / `ClearTarget` / `IsTargetAlive`, carve-safe destinations and ranges through `TargetingUtil.GetApproachPoint` / `EdgeDistance`. Never hand-roll a scan or an approach point.
 - **Performance:** zero GC in Update and AI eval; `AINavHelper` throttles SetDestination (20/frame) and CalculatePath (2/frame); enemy density grid (`AIWorldState`, cell 10); dirty-checked UI text; audio preloaded; staggered per-unit timers.
@@ -89,7 +89,8 @@ Every 0.25–0.35s (randomized per unit) the brain scores `basePriority × Π(co
 
 - `Faction` is a plain class (`Id`, `Name`, `Color`, `Kind` Player/Rival/Raiders, `Campfire`); `Factions.Player` / `Raiders` / `All` / `ById` is the registry, `Relations.Get/Set` the symmetric `Attitude` matrix (self Allied, Raiders Hostile to all, both immutable). **The registry is scene-keyed** (`EnsureForScene` compares the active `SceneHandle` on every access), NOT `sceneLoaded`-keyed — `sceneLoaded` runs after every `Awake`, and Awakes will read `Factions.Player`. Never cache a `Faction` in a static across scene loads.
 - **Faction is read in `Start` or later, never `Awake`:** `Spawn.Owned(prefab, pos, rot, faction)` is the ONLY way to instantiate an owned thing and sets `IOwned.Faction` right after `Instantiate`, when `Awake` has already run. A root with no `IOwned` is a `LogError`, never a fallback.
-- Migration state: the colony statics (`ResourceManager.Instance`, `PopulationManager.Instance`, `Unlocks`, `CraftedUpgrades`, `LaborPriorities`, `GuardStance`, `Formation`, `BaseBuilding.FindAlive`) are still the truth until their commit in `ARCHITECTURE_LAP_PLAN.md` step 1 moves them; each one joins the banned list the commit its shim dies.
+- **`ResourceManager.Instance` is BANNED (commit 2, 2026-09-09).** The pool is `ResourcePool` on `Faction.Resources`: UI, placement, demolish, repair pricing, debug and the sim read `Factions.Player.Resources`; executors read `bb.faction.Resources` (`AIBlackboard.faction`, set in each unit's Start — Player for workers/warriors, Raiders for enemies until commit 5). The `ResourceManager` component only holds the scene's starting amounts and fills the player's pool in Awake (which is why the registry must work in Awake). A sim knob writes the live pool, never the component.
+- Migration state: `PopulationManager.Instance`, `Unlocks`, `CraftedUpgrades`, `LaborPriorities`, `GuardStance`, `Formation`, `BaseBuilding.FindAlive` are still the truth until their commit in `ARCHITECTURE_LAP_PLAN.md` step 1 moves them; each joins the banned list the commit its shim dies.
 
 ### Bookkeeping Gotchas (single owner)
 

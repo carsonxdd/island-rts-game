@@ -226,12 +226,7 @@ public class DebugMenu : MonoBehaviour
         GUILayout.Space(6);
         GUILayout.Label("Resources", sectionStyle);
 
-        var rm = ResourceManager.Instance;
-        if (rm == null)
-        {
-            GUILayout.Label("(no ResourceManager)");
-            return;
-        }
+        ResourcePool rm = Factions.Player.Resources;
 
         ResourceRow("Wood " + rm.wood, amt => rm.AddWood(amt));
         ResourceRow("Food " + rm.food, amt => rm.AddFood(amt));
@@ -451,7 +446,7 @@ public class DebugMenu : MonoBehaviour
         GUI.enabled = PopulationManager.Instance != null;
         if (GUILayout.Button("Starve the colony (zero food, skip to Starving)"))
         {
-            if (ResourceManager.Instance != null) ResourceManager.Instance.SpendFood(ResourceManager.Instance.food);
+            Factions.Player.Resources.food = 0;
             PopulationManager.Instance.DebugStarve();
         }
         // The escape (2026-09-04): skips the Shipyard's confirm, keeps the departure beat
@@ -503,11 +498,8 @@ public class DebugMenu : MonoBehaviour
     {
         spawningColony = true;
 
-        var rm = ResourceManager.Instance;
-        if (rm != null)
-        {
-            rm.AddWood(1000); rm.AddFood(1000); rm.AddStone(1000); rm.AddMetal(1000);
-        }
+        ResourcePool rm = Factions.Player.Resources;
+        rm.AddWood(1000); rm.AddFood(1000); rm.AddStone(1000); rm.AddMetal(1000);
 
         // 1. Campfire — skip the intro if it's still running
         if (GameStartController.IntroInProgress && GameStartController.Instance != null)

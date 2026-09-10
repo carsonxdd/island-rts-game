@@ -376,7 +376,7 @@ public class PopulationManager : MonoBehaviour
         {
             float drain = DailyDrain;
             if (drain <= 0.0001f) return 999f;
-            float food = ResourceManager.Instance != null ? ResourceManager.Instance.food : 0f;
+            float food = Factions.Player.Resources.food;
             return food / drain;
         }
     }
@@ -413,8 +413,7 @@ public class PopulationManager : MonoBehaviour
 
         if (foodDebt >= 1f)
         {
-            ResourceManager rm = ResourceManager.Instance;
-            if (rm != null && rm.SpendFood(1))
+            if (Factions.Player.Resources.SpendFood(1))
             {
                 foodDebt -= 1f;
                 starvedSeconds = 0f;

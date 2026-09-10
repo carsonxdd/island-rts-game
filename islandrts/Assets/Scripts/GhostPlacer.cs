@@ -137,19 +137,14 @@ public class GhostPlacer
         }
 
         // Check if player has enough resources
-        if (ResourceManager.Instance == null)
-        {
-            Debug.LogError("BuildPlacement: No ResourceManager found in scene!");
-            return;
-        }
-
-        if (!ResourceManager.Instance.CanAfford(data.woodCost, data.foodCost, data.stoneCost, data.metalCost))
+        ResourcePool pool = Factions.Player.Resources;
+        if (!pool.CanAfford(data.woodCost, data.foodCost, data.stoneCost, data.metalCost))
         {
             return;
         }
 
         // Deduct resources (metal too since the Shipyard, 2026-09-04)
-        ResourceManager.Instance.SpendResources(data.woodCost, data.foodCost, data.stoneCost, data.metalCost);
+        pool.SpendResources(data.woodCost, data.foodCost, data.stoneCost, data.metalCost);
 
         // Terrain T2: level a pad under the footprint so the building sits
         // flush instead of clipping into the slope (target height = center

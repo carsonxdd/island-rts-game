@@ -421,8 +421,7 @@ public class ResourceUI : MonoBehaviour
     void BuildResourceRows(ResourceNode.ResourceType type)
     {
         Header(type.ToString());
-        AddRow("In the stores", () => ResourceManager.Instance != null
-            ? ResourceManager.Instance.Get(type).ToString() : "0");
+        AddRow("In the stores", () => Factions.Player.Resources.Get(type).ToString());
 
         // Everything the campfire stockpile holds under this chip
         ItemDef[] all = ItemCatalog.All;
@@ -578,8 +577,7 @@ public class ResourceUI : MonoBehaviour
 
     void UpdateUI()
     {
-        ResourceManager rm = ResourceManager.Instance;
-        if (rm == null) return;
+        ResourcePool rm = Factions.Player.Resources;
 
         BaseBuilding fire = BaseBuilding.ActiveList.Count > 0 ? BaseBuilding.ActiveList[0] : null;
 
@@ -696,7 +694,7 @@ public class ResourceUI : MonoBehaviour
     /// under a day of reserve and red at zero; the caption names the hunger
     /// state once the colony is short. Repainted only when a part changes.
     /// </summary>
-    void UpdateFoodChip(ResourceManager rm)
+    void UpdateFoodChip(ResourcePool rm)
     {
         if (foodChip == null) return;
         PopulationManager pm = PopulationManager.Instance;
