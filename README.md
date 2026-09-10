@@ -72,6 +72,7 @@ All packages are in the project manifest. Nothing to install by hand.
 islandrts/Assets/
 ├── Scripts/
 │   ├── AI/                      # Utility AI: Core, WorldState, Considerations, Executors, Shared, Debug
+│   ├── Factions/                # Faction, Factions registry, Relations, ResourcePool, Population, Knowledge, Spawn
 │   ├── UI/                      # Runtime uGUI menus, HUD, settings, keybindings, difficulty, dev quests
 │   ├── Items/                   # ItemCatalog, Inventory, ResearchCatalog, CraftingCatalog, Unlocks
 │   ├── Terrain/                 # TerrainGrid, IslandGenerator, IslandSettings, PropScatter
@@ -86,6 +87,9 @@ islandrts/Assets/
 ├── MainMenu.unity               # Entry point
 ├── MainIsland.unity             # The game scene
 └── Scenes/SampleScene.unity     # Stock Unity scene, unused
+tools/
+├── run-sim.ps1                  # Runs a balance sweep against the headless sim player
+└── verify-scripts.py            # Roslyn compile check of every script in four configs, no Unity launch
 ```
 
 ---
@@ -145,7 +149,7 @@ The console is intentionally quiet — about 65 calls in the whole project. Only
 
 ## Where the project is going
 
-**Right now: the architecture lap** — factions, then a spatial hash and AI level of detail, then a colony governor with diplomacy and trade, then save/load (dawn checkpoints), then an archipelago of persistent islands. Step by step, with decisions and definitions of done: **[`ARCHITECTURE_LAP_PLAN.md`](ARCHITECTURE_LAP_PLAN.md)** (the reasoning behind the order is in [`docs/SCALING_NOTES.md`](docs/SCALING_NOTES.md)). Months of work; the first player-visible piece is the rival colony in step 3.
+**Right now: the architecture lap** — factions, then a spatial hash and AI level of detail, then a colony governor with diplomacy and trade, then save/load (dawn checkpoints), then an archipelago of persistent islands. Step by step, with decisions and definitions of done: **[`ARCHITECTURE_LAP_PLAN.md`](ARCHITECTURE_LAP_PLAN.md)** (the reasoning behind the order is in [`docs/SCALING_NOTES.md`](docs/SCALING_NOTES.md)). Months of work; the first player-visible piece is the rival colony in step 3. **Step 1 (factions) landed on 2026-09-09:** ownership is data on every unit and building, every scan filters by relation, and the F4 debug menu can spawn a stub rival camp with a Hostile / Neutral / Allied toggle. The next steps are the spatial hash and AI level of detail.
 
 **After it: the alpha.** Playtesting the pile of built-but-unplayed work, tuning, a tutorial, a feedback path, and a build handed to testers — **[`ALPHA_PLAN.md`](ALPHA_PLAN.md)**, sections B → G, on the refactored foundation.
 
