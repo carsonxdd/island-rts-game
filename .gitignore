@@ -114,3 +114,6 @@ SimSweeps/*.log
 # Editor backup copies
 *.bak
 *.bak.meta
+
+# Roslyn verify scratch (tools/verify-scripts.py)
+tools/verify-out/

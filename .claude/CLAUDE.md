@@ -85,6 +85,12 @@ Every 0.25–0.35s (randomized per unit) the brain scores `basePriority × Π(co
 - Unreachable-node fallback: `bb.MarkNodeUnreachable` ring (15s), set by `GatherExecutor` after 0.6s of dead-end path. **Pickups have the same ring (2026-09-09):** `bb.MarkPickupUnreachable`, set by `CollectPickupExecutor` on a stuck reset, a partial path, or 0.5 s stalled beyond 1.5 u (stalled within 1.5 u collects). A stuck reset that only drops the target re-acquires the same one next tick — the forage "metre forward, metre back" stutter. Both pickup scans skip the ring and unexplored ground.
 - **Idle walks home, then strolls by day (2026-09-08):** far from home → the home provider's approach point, stopping 3.5u out (that is what walks a fresh arrival in from the cove); then stand 6–15 s / walk to a spot just outside a random building's `noBuildRadius` (campfire, huts, Workshop, Watchtower, Shipyard; `FireClearance` 4 off the fire's edge, 4–30 u away, 20 s walk cap). Night = stand at home. Display only — `Worker.IsIdle` and the 0.1 floor are unchanged, so any work still outscores it.
 
+### Factions (lap step 1, 2026-09-09 — `Scripts/Factions/`, in migration)
+
+- `Faction` is a plain class (`Id`, `Name`, `Color`, `Kind` Player/Rival/Raiders, `Campfire`); `Factions.Player` / `Raiders` / `All` / `ById` is the registry, `Relations.Get/Set` the symmetric `Attitude` matrix (self Allied, Raiders Hostile to all, both immutable). **The registry is scene-keyed** (`EnsureForScene` compares the active `SceneHandle` on every access), NOT `sceneLoaded`-keyed — `sceneLoaded` runs after every `Awake`, and Awakes will read `Factions.Player`. Never cache a `Faction` in a static across scene loads.
+- **Faction is read in `Start` or later, never `Awake`:** `Spawn.Owned(prefab, pos, rot, faction)` is the ONLY way to instantiate an owned thing and sets `IOwned.Faction` right after `Instantiate`, when `Awake` has already run. A root with no `IOwned` is a `LogError`, never a fallback.
+- Migration state: the colony statics (`ResourceManager.Instance`, `PopulationManager.Instance`, `Unlocks`, `CraftedUpgrades`, `LaborPriorities`, `GuardStance`, `Formation`, `BaseBuilding.FindAlive`) are still the truth until their commit in `ARCHITECTURE_LAP_PLAN.md` step 1 moves them; each one joins the banned list the commit its shim dies.
+
 ### Bookkeeping Gotchas (single owner)
 
 - Worker removal has ONE owner: `Worker.OnDestroy → BaseBuilding.NotifyWorkerRemoved → PopulationManager.RemoveColonist`; roster membership is the idempotence guard. Job counts are **computed** from the roster — never add a counter back.
@@ -211,7 +217,7 @@ Every 0.25–0.35s (randomized per unit) the brain scores `basePriority × Π(co
 
 ## Engine / Tooling Gotchas
 
-- **Compile-verify without opening Unity:** Roslyn `csc.dll` (`Editor/Data/DotNetSdk/sdk/*/Roslyn/bincore/`) against `Editor/Data/Managed/UnityEngine/*.dll` + package DLLs, in three configs (editor `UNITY_EDITOR`, `DEVELOPMENT_BUILD` player, release player). Quote `-r:` paths in the .rsp (the install path has a space). Do NOT reference `UnityEditor.dll` alongside `UnityEditor.*Module.dll` (spurious CS0433). Five `DayNightCycle` editor-GUI field warnings are pre-existing.
+- **Compile-verify without opening Unity: `py tools/verify-scripts.py -w`** (2026-09-09) — Roslyn in all four configs (editor, dev player, release player, Editor assembly), currently 0 errors / 0 warnings. It references the editor's `UnityEngine/*.dll` + `Unity.Scripting.dll` (`PreserveAttribute`) + `Library/ScriptAssemblies` package DLLs; never `UnityEditor.dll` beside `UnityEditor.*Module.dll` (spurious CS0433). `Scene.handle` is a `SceneHandle` struct in 6000.5 (`GetRawData()`), not an int.
 - Edit `manifest.json` BEFORE launching the editor. Batchmode cannot run while another editor has the project open (`Temp/UnityLockfile`). Read the project-relative `Logs/Editor.log`.
 - The upgrade flips `VersionControlSettings.asset` to Unity Version Control — set it back to **Visible Meta Files** if it reappears in a diff.
 - **The build scene list is written by `MenuSceneSetup.AddScenesToBuildSettings`** (part of Setup Everything): MainMenu, then MainIsland. Never edit it by hand. **The version is `ProjectSettings.bundleVersion` only** (2026-09-08, `0.2.0-alpha.1`): the main menu and every playtest report read `Application.version`; bump it per build handed out and never type a version literal anywhere.
@@ -238,28 +244,13 @@ Console kept quiet on purpose (212 → 65 calls). **Before adding any `Debug.Log
 
 ## Controls
 
-| Key | Action |
-|-----|--------|
-| WASD / Arrows · Q / E · Wheel · Middle-drag | Pan · rotate · zoom · tilt/rotate |
-| B | Build mode (opening: place the campfire) |
-| 1–6 | Hut · Wood Wall · Stone Wall · Watchtower · Workshop · Shipyard (beach only) |
-| G / R / Shift | Wall → gate · L-path toggle or rotate · Bresenham staircase |
-| Delete / X | Demolish (50% refund) |
-| F2 / F3 / F4 / F6 | Grid overlay · AI overlay · Debug menu (cheats) · Perf logger |
-| Left-click campfire / Workshop | Panel: Colonists (jobs, Specialists, warriors) · Stockpile · Craft · Research · Queue |
-| Esc → INFORMATION | Field guide from `Resources/Information.txt` + live catalog tables (also on the main menu) |
-| Right-click | Character smart command: fetch · hand-harvest · deposit + work the queue · work a bench · walk |
-| Space | Centre camera on the character |
-| Left-click / drag the minimap | Centre the camera there (top-right; north-up; right-click on it does nothing) |
-| F5 / F8 / F9 | Militia stance Defensive / Offensive / Follow (also the bottom-right combat box, with the formation buttons, once a warrior exists) |
-
-All rebindable in *Options → Controls*. Esc, mouse buttons and F3/F4/F6/F7 are reserved. **Full controls + playtest checklists: `docs/CONTROLS_AND_CHECKLIST.md`** — keep in sync when a binding changes.
+WASD/Arrows · Q/E · wheel · middle-drag = pan · rotate · zoom · tilt. **B** build mode (opening: place the campfire); **1–6** Hut · Wood Wall · Stone Wall · Watchtower · Workshop · Shipyard (beach only); **G / R / Shift** wall→gate · L-path toggle or rotate · Bresenham; **Delete / X** demolish (50% refund). **F2 / F3 / F4 / F6** grid · AI overlay · debug menu · perf logger. Left-click campfire / Workshop = panel (Colonists · Stockpile · Craft · Research · Queue); Esc → INFORMATION = field guide (`Resources/Information.txt` + live tables). Right-click = character smart command (fetch · hand-harvest · deposit + work the queue · work a bench · walk); **Space** centres on the character; left-click / drag the minimap centres the camera there. **F5 / F8 / F9** militia stance Defensive / Offensive / Follow (also the bottom-right combat box with the formation buttons). All rebindable in *Options → Controls*; Esc, mouse buttons and F3/F4/F6/F7 are reserved. **Full controls + playtest checklists: `docs/CONTROLS_AND_CHECKLIST.md`** — keep in sync when a binding changes.
 
 ---
 
 ## Current State (2026-09-09)
 
-Branch `feature/balance-sim-and-menus`; everything through fog step 5 and the single-tree fix (dc54c19) is committed. Uncommitted: fog step 6, the minimap (`UI/Minimap.cs` + the `PointerOver` click guards) — compiles in all four Roslyn configs, unplaytested ("Minimap" batch). Section I is built end to end; the next fog work is the playtest, then the "After fog" pass over the five reopened batches.
+Branch `feature/balance-sim-and-menus`; everything through the minimap (cc99638) and the lap plan (343c588) is committed. **The lap has started: step 1 commit 1 (the faction types, no readers but the GameManager init line) is done; commit 2 (the resource pool onto `Faction.Resources`, 64 sites, shim deleted) is next — but FIRST rebuild the headless sim player (`Tools > Island RTS > Simulation > Build Headless Sim Player`; the exe on disk is from Aug 27) and take the pre-lap baseline (Turtle/Rush/Eco n=6, one seed → `SimSweeps/baseline-2026-09-09/`).** Section I (fog + minimap) is built end to end and unplaytested; its playtest and the "After fog" pass over the five reopened batches still stand.
 
 **Shipped:** four-resource economy with a colonist pool (jobless colonists build/craft/repair/forage with Builder/Crafter/Repairer specialists); player character with hand-harvest and campfire deposit; research → craft split with stations, per-warrior weapons (spears, Iron Spear, Bow); 30-day calendar with dawn-rolled raids; walls/gates/towers/demolish; Utility AI; random islands with stylized water and runtime scatter; occluder cutout windows (trees, buildings, walls); code-built menus, changelog and Information screens; a daily sky (clouds + cookie shade) and graphics presets; F4 debug menu; headless balance sim.
 

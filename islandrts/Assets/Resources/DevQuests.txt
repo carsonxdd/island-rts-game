@@ -27,10 +27,16 @@
 #   fog:node_revealed  fog:raider_revealed  reveal:<on|off>  cheat:stock_full
 #   fog:node_skipped  fog:raider_unseen  fog:ghost  fog:wall  minimap:click  minimap:landing
 #   sky:<sunny|slightly|partly|cloudy|off>  graphics:<preset|custom>
+#   faction:bootstrap  faction:<hostile|neutral|allied>
 # crowd:split, dropoff:spread and patrol:spread are STATE checks polled by the
 # tracker twice a second while their quest is open; everything else is an event.
 # A finished batch is deleted from here once its report is in; it stays in the
 # changelog and the phase history.
+
+## 2026-09-09 Factions step 1
+- @faction:bootstrap Game scene loads: Castaways and Raiders factions exist
+- Restart, then New Game: no error about factions in the console
+- @faction:hostile F4 relation toggle to Hostile fires (rival camp, later commit)
 
 ## 2026-09-09 Minimap
 - Map in the top-right shows the island shape; sea, sand, grass, rock read right

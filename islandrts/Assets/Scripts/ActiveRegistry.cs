@@ -45,5 +45,7 @@ public static class ActiveRegistryReset
         ActiveRegistry<Workshop>.Clear();
         ActiveRegistry<GroundPickup>.Clear();
         ActiveRegistry<VisionSource>.Clear();
+        ActiveRegistry<Shipyard>.Clear();       // both forgotten until the lap's step 1 (2026-09-09)
+        ActiveRegistry<CraftStation>.Clear();
     }
 }

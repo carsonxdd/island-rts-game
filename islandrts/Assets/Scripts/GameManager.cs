@@ -89,7 +89,9 @@ public class GameManager : MonoBehaviour
         // Subscribe to day/night events to track progress
         DayNightCycle.OnDayStart += OnDayStart;
 
-        Debug.Log($"GameManager: Initialized. Win condition: reach day {daysToSurvive + 1}");
+        // Naming the factions here is the one read of Factions in step 1's first commit:
+        // it proves the per-scene bootstrap runs (and fires the faction:bootstrap quest).
+        Debug.Log($"GameManager: Initialized. Win condition: reach day {daysToSurvive + 1}. Factions: {Factions.Player.Name}, {Factions.Raiders.Name}");
     }
 
     void OnDestroy()
