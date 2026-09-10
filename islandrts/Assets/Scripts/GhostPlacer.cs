@@ -157,11 +157,8 @@ public class GhostPlacer
 
         // Use target position (where ghost is moving to) not current position
         // Spawn the construction site with the ghost's rotation
-        GameObject constructionSite = Object.Instantiate(
-            data.constructionSitePrefab,
-            targetPosition,
-            Quaternion.Euler(0f, currentRotation, 0f)
-        );
+        GameObject constructionSite = Spawn.Owned(data.constructionSitePrefab, targetPosition,
+            Quaternion.Euler(0f, currentRotation, 0f), Factions.Player);
 
         // Make sure it's on the Buildings layer for collision detection
         constructionSite.layer = LayerMask.NameToLayer("Buildings");

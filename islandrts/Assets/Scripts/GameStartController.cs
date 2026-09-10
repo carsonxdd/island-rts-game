@@ -480,7 +480,7 @@ public class GameStartController : MonoBehaviour
             TerrainGrid.Instance.FlattenArea(position, 2.2f, 1.6f);
         }
         position.y = TerrainGrid.Instance != null ? TerrainGrid.Instance.SampleHeight(position) : 0f;
-        GameObject fire = Instantiate(campfirePrefab, position, Quaternion.identity);
+        GameObject fire = Spawn.Owned(campfirePrefab, position, Quaternion.identity, Factions.Player);
         fire.name = "Campfire";
 
         placedCampfire = fire.GetComponent<BaseBuilding>();

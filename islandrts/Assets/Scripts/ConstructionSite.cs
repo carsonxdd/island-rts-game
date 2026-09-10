@@ -199,11 +199,7 @@ public class ConstructionSite : MonoBehaviour, IOwned
         }
 
         // Spawn the finished building
-        GameObject finishedBuilding = Instantiate(
-            data.finishedBuildingPrefab,
-            transform.position,
-            transform.rotation
-        );
+        GameObject finishedBuilding = Spawn.Owned(data.finishedBuildingPrefab, transform.position, transform.rotation, Faction);
 
         // Copy layer to finished building
         finishedBuilding.layer = gameObject.layer;

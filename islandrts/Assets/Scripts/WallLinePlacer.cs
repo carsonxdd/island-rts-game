@@ -379,11 +379,7 @@ public class WallLinePlacer
         {
             Vector3 sitePos = validPositions[i];
             sitePos.y = owner.GroundYAt(sitePos) + owner.placementHeight;
-            GameObject constructionSite = Object.Instantiate(
-                data.constructionSitePrefab,
-                sitePos,
-                Quaternion.identity
-            );
+            GameObject constructionSite = Spawn.Owned(data.constructionSitePrefab, sitePos, Quaternion.identity, Factions.Player);
 
             constructionSite.layer = LayerMask.NameToLayer("Buildings");
 

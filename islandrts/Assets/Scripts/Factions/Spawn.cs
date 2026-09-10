@@ -8,8 +8,9 @@ using UnityEngine;
 /// </summary>
 /// <remarks>
 /// A prefab with no <see cref="IOwned"/> on its root is an error, not a fallback:
-/// an owner that silently fails to land is a unit that fights for nobody. Nothing
-/// calls this until step 1's commit 6 rewrites the instantiate sites.
+/// an owner that silently fails to land is a unit that fights for nobody. Every
+/// instantiate site of an owned thing goes through here since commit 6 (the
+/// campfire, colonists, warriors, raiders, construction sites, finished buildings).
 /// </remarks>
 public static class Spawn
 {

@@ -545,7 +545,7 @@ public class DebugMenu : MonoBehaviour
                     pos.y = TerrainGrid.Instance.SampleHeight(pos);
                 }
 
-                GameObject hut = Instantiate(hutData.finishedBuildingPrefab, pos, Quaternion.identity);
+                GameObject hut = Spawn.Owned(hutData.finishedBuildingPrefab, pos, Quaternion.identity, Factions.Player);
                 if (buildingsLayer >= 0) hut.layer = buildingsLayer;
                 placed++;
             }

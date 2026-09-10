@@ -195,7 +195,7 @@ public static class SimBuilder
         }
         pos.y += data.placementHeight;
 
-        GameObject site = Object.Instantiate(data.constructionSitePrefab, pos, Quaternion.identity);
+        GameObject site = global::Spawn.Owned(data.constructionSitePrefab, pos, Quaternion.identity, Factions.Player);   // global:: because this class has its own Spawn method
         int layer = LayerMask.NameToLayer("Buildings");
         if (layer >= 0) site.layer = layer;
 

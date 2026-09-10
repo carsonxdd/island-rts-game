@@ -440,7 +440,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
             return null;
         }
 
-        GameObject workerObj = Instantiate(workerPrefab, position, Quaternion.identity);
+        GameObject workerObj = Spawn.Owned(workerPrefab, position, Quaternion.identity, Faction);
         workerObj.name = $"Colonist_{activeWorkers.Count + 1}";
 
         Worker worker = workerObj.GetComponent<Worker>();
@@ -639,7 +639,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         NavMeshHit hit;
         if (NavMesh.SamplePosition(spawnPos, out hit, 2f, NavMesh.AllAreas)) spawnPos = hit.position;
 
-        GameObject warriorObj = Instantiate(warriorPrefab, spawnPos, recruit.transform.rotation);
+        GameObject warriorObj = Spawn.Owned(warriorPrefab, spawnPos, recruit.transform.rotation, Faction);
         bool archer = weapon.equipment != null && weapon.equipment.ranged;   // a bow makes an archer (2026-09-04)
         warriorObj.name = (archer ? "Archer_" : "Warrior_") + (currentWarriors + 1);
 

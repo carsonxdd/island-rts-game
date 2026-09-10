@@ -116,7 +116,7 @@ public class EnemySpawner : MonoBehaviour
         Vector3 spawnPos = GetRandomSpawnPosition();
 
         // Spawn the enemy
-        GameObject enemy = Instantiate(enemyPrefab, spawnPos, Quaternion.identity);
+        GameObject enemy = Spawn.Owned(enemyPrefab, spawnPos, Quaternion.identity, Factions.Raiders);
         enemy.name = $"Enemy_{activeEnemies.Count + 1}_Raid{pendingRaidIndex}";
         enemy.transform.parent = transform;  // Organize under spawner
 
