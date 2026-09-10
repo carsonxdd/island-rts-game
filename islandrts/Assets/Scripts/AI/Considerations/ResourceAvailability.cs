@@ -49,7 +49,7 @@ public class ResourceAvailability : Consideration
         // ~3x a second.
         Vector3 myPos = bb.transform.position;
         float searchSqr = bb.searchRadius * bb.searchRadius;
-        FogOfWar fog = FogOfWar.Instance;
+        FogOfWar fog = bb.faction.IsPlayer ? FogOfWar.Instance : null;   // rivals are omniscient
         float nearestHiddenSqr = float.MaxValue;   // closest same-type node the fog kept off the list
 
         var list = ResourceNode.ActiveList;

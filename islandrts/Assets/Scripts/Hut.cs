@@ -67,7 +67,8 @@ public class Hut : MonoBehaviour, ITargetable, IHousing
         // standing behind it, same as a tree (2026-09-08). It owns no material set of its
         // own, so the cutout is this object's single collector.
         OccluderCutout.AttachTo(gameObject);
-        VisionSource.Attach(gameObject, VisionSource.HutRadius);
+        if (Faction.IsPlayer) VisionSource.Attach(gameObject, VisionSource.HutRadius);
+        else FogVisibility.Attach(gameObject, FogVisibility.Rule.Visible);   // another colony's: shown only on watched ground, sees nothing for the player
 
         healthComponent.destroyOnDeath = true;  // Huts are destroyed when killed
         healthComponent.destroyDelay = 1f;  // Small delay before destruction

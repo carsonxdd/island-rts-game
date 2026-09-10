@@ -52,7 +52,8 @@ public class Watchtower : MonoBehaviour, ITargetable
         // opens a window for any unit behind it (2026-09-08).
         OccluderCutout.AttachTo(gameObject);
         // The tower's second job (2026-09-09): it sees far further than anything else.
-        VisionSource.Attach(gameObject, VisionSource.WatchtowerRadius);
+        if (Faction.IsPlayer) VisionSource.Attach(gameObject, VisionSource.WatchtowerRadius);
+        else FogVisibility.Attach(gameObject, FogVisibility.Rule.Visible);   // another colony's: shown only on watched ground, sees nothing for the player
 
         healthComponent.destroyOnDeath = true;
         healthComponent.destroyDelay = 1f;

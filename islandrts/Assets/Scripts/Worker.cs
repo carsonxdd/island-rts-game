@@ -254,7 +254,8 @@ public class Worker : UnitBase<Worker>
         // values are copied into the AI blackboard below.
         SimOverrides.Apply(this);
 #endif
-        VisionSource.Attach(gameObject, VisionSource.UnitRadius);
+        if (Faction.IsPlayer) VisionSource.Attach(gameObject, VisionSource.UnitRadius);
+        else FogVisibility.Attach(gameObject, FogVisibility.Rule.Visible);   // another colony's: shown only on watched ground, sees nothing for the player
 
         if (FetchAgent())
         {
@@ -508,6 +509,7 @@ public class Worker : UnitBase<Worker>
     void OnMouseDown()
     {
         if (PauseController.BlockGameplayInput || Minimap.PointerOver) return;
+        if (!Faction.IsPlayer) return;   // another colony's people open nothing
         if (hasJob || leaving)
         {
             DevQuests.Signal("worker_click:busy");   // a working colonist opens nothing

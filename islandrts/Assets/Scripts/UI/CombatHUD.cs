@@ -50,11 +50,20 @@ public class CombatHUD : MonoBehaviour
 
     void OnDestroy() { if (instance == this) instance = null; }
 
+    /// <summary>The player's warriors only — a rival's militia (lap step 1) is not this box's business.</summary>
+    static int PlayerWarriors()
+    {
+        int n = 0;
+        var list = Warrior.ActiveList;
+        for (int i = 0; i < list.Count; i++) { Warrior w = list[i]; if (w != null && w.Faction.IsPlayer) n++; }
+        return n;
+    }
+
     void Update()
     {
         if (root == null) Build();
 
-        bool show = Warrior.ActiveList.Count > 0;
+        bool show = PlayerWarriors() > 0;
         if (root.gameObject.activeSelf != show)
         {
             root.gameObject.SetActive(show);
@@ -90,7 +99,7 @@ public class CombatHUD : MonoBehaviour
             MenuBuilder.TintTabs(formationButtons, formation);
         }
 
-        int count = Warrior.ActiveList.Count;
+        int count = PlayerWarriors();
         if (count != lastCount)
         {
             lastCount = count;

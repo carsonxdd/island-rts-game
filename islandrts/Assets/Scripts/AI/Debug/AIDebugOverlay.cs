@@ -161,6 +161,23 @@ public class AIDebugOverlay : MonoBehaviour
         GUI.Label(new Rect(panelX, y, PanelWidth, 20), "AI Debug (F3 to toggle)", headerStyle);
         y += 24;
 
+        // One line per colony (lap step 1): pool, people, warriors, campfire, relation to the player
+        var factions = Factions.All;
+        for (int i = 0; i < factions.Count; i++)
+        {
+            Faction f = factions[i];
+            if (f.IsRaiders) continue;
+            BaseBuilding fire = f.Campfire;
+            ResourcePool r = f.Resources;
+            string line = f.Name + "  " + r.wood + "W " + r.food + "F " + r.stone + "S " + r.metal + "M"
+                + "  pop " + f.Population.GetColonistCount() + "  war " + (fire != null ? fire.GetWarriorCount() : 0)
+                + (fire != null ? "  fire " + Mathf.RoundToInt(fire.GetHealthPercentage() * 100f) + "%" : "  no fire")
+                + (f.IsPlayer ? "" : "  " + Factions.Player.Toward(f));
+            GUI.Label(new Rect(panelX, y, PanelWidth, 16), line, smallLabelStyle);
+            y += 16;
+        }
+        y += 4;
+
         if (selectedBrain == null)
         {
             GUI.Label(new Rect(panelX, y, PanelWidth, 20), "Click a unit to inspect", labelStyle);

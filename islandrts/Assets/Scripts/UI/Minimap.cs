@@ -381,28 +381,28 @@ public class Minimap : MonoBehaviour
 
         // Structures first, units over them
         var walls = Wall.ActiveList;
-        for (int i = 0; i < walls.Count; i++) Stamp(walls[i].transform.position, 1, WallFill);
+        for (int i = 0; i < walls.Count; i++) StampOwned(fog, walls[i], 1, WallFill);
         var gates = Gate.ActiveList;
-        for (int i = 0; i < gates.Count; i++) Stamp(gates[i].transform.position, 1, GateFill);
+        for (int i = 0; i < gates.Count; i++) StampOwned(fog, gates[i], 1, GateFill);
         var sites = ConstructionSite.ActiveList;
-        for (int i = 0; i < sites.Count; i++) Stamp(sites[i].transform.position, 3, SiteFill);
+        for (int i = 0; i < sites.Count; i++) StampOwned(fog, sites[i], 3, SiteFill);
         var huts = Hut.ActiveList;
-        for (int i = 0; i < huts.Count; i++) Stamp(huts[i].transform.position, 3, BuildingFill);
+        for (int i = 0; i < huts.Count; i++) StampOwned(fog, huts[i], 3, BuildingFill);
         var towers = Watchtower.ActiveList;
-        for (int i = 0; i < towers.Count; i++) Stamp(towers[i].transform.position, 3, BuildingFill);
+        for (int i = 0; i < towers.Count; i++) StampOwned(fog, towers[i], 3, BuildingFill);
         var shops = Workshop.ActiveList;
-        for (int i = 0; i < shops.Count; i++) Stamp(shops[i].transform.position, 3, BuildingFill);
+        for (int i = 0; i < shops.Count; i++) StampOwned(fog, shops[i], 3, BuildingFill);
         var yards = Shipyard.ActiveList;
-        for (int i = 0; i < yards.Count; i++) Stamp(yards[i].transform.position, 4, BuildingFill);
+        for (int i = 0; i < yards.Count; i++) StampOwned(fog, yards[i], 4, BuildingFill);
         var fires = BaseBuilding.ActiveList;
-        for (int i = 0; i < fires.Count; i++) Stamp(fires[i].transform.position, 4, CampfireFill);
+        for (int i = 0; i < fires.Count; i++) StampOwned(fog, fires[i], 4, CampfireFill);
 
         if (Time.time - landedAt < LandingMarkSeconds) Ring(landing, 3, LandingMark);
 
         var workers = Worker.ActiveList;
-        for (int i = 0; i < workers.Count; i++) Stamp(workers[i].transform.position, 2, ColonistDot);
+        for (int i = 0; i < workers.Count; i++) StampOwned(fog, workers[i], 2, ColonistDot);
         var warriors = Warrior.ActiveList;
-        for (int i = 0; i < warriors.Count; i++) Stamp(warriors[i].transform.position, 2, WarriorDot);
+        for (int i = 0; i < warriors.Count; i++) StampOwned(fog, warriors[i], 2, WarriorDot);
 
         // Raiders only on watched ground: the same question FogVisibility asks for the body
         var raiders = Enemy.ActiveList;
@@ -433,6 +433,16 @@ public class Minimap : MonoBehaviour
     }
 
     /// <summary>A filled square of <paramref name="size"/> texels centred on a world position.</summary>
+    /// <summary>The player's things in the map's own colours; another colony's in its faction colour, and only on watched ground (like a raider).</summary>
+    void StampOwned<T>(FogOfWar fog, T t, int size, Color32 mine) where T : Component, IOwned
+    {
+        if (t == null) return;
+        Vector3 p = t.transform.position;
+        Faction f = t.Faction;
+        if (f.IsPlayer) { Stamp(p, size, mine); return; }
+        if (fog == null || fog.IsVisible(p)) Stamp(p, size, (Color32)f.Color);
+    }
+
     void Stamp(Vector3 world, int size, Color32 color)
     {
         int cx = WorldToTexel(world.x);

@@ -46,6 +46,7 @@ public class DebugMenu : MonoBehaviour
     private int stoneWorkerCount = 1;
     private int warriorCount = 3;
     private bool spawningColony;
+    private bool spawningRival;
 
     // Cached scene refs — re-found when destroyed (scene reload)
     private DayNightCycle dayNight;
@@ -161,6 +162,7 @@ public class DebugMenu : MonoBehaviour
         StatusSection();
         ResourceSection();
         QuickStartSection();
+        RivalSection();
         TimeSection();
         CheatSection();
 
@@ -568,6 +570,157 @@ public class DebugMenu : MonoBehaviour
         for (int i = 0; i < stoneWorkerCount; i++) fire.AssignWorker(ResourceNode.ResourceType.Stone);
 
         spawningColony = false;
+    }
+
+    // ------------------------------------------------------------------
+    // Rival camp (lap step 1 commit 7): a second colony as a debug stub
+    // ------------------------------------------------------------------
+
+    /// <summary>The debug rival, if one was spawned this scene.</summary>
+    static Faction Rival
+    {
+        get
+        {
+            var all = Factions.All;
+            for (int i = 0; i < all.Count; i++) if (all[i].Type == Faction.Kind.Rival) return all[i];
+            return null;
+        }
+    }
+
+    static readonly Attitude[] Attitudes = { Attitude.Hostile, Attitude.Neutral, Attitude.Allied };
+
+    void RivalSection()
+    {
+        GUILayout.Space(6);
+        GUILayout.Label("Rival camp", sectionStyle);
+
+        Faction rival = Rival;
+        if (rival == null)
+        {
+            GUI.enabled = !spawningRival && Campfire != null && TerrainGrid.Instance != null && GameStartController.Instance != null;
+            if (GUILayout.Button("Spawn rival camp (3 workers, 1 warrior)")) StartCoroutine(SpawnRivalRoutine());
+            GUI.enabled = true;
+            if (Campfire == null) GUILayout.Label("Needs your campfire first.");
+            return;
+        }
+
+        ResourcePool r = rival.Resources;
+        BaseBuilding fire = rival.Campfire;
+        GUILayout.Label(rival.Name + ": " + r.wood + "W " + r.food + "F " + r.stone + "S"
+            + "   pop " + rival.Population.GetColonistCount()
+            + "   war " + (fire != null ? fire.GetWarriorCount() : 0)
+            + (fire == null ? "   (no campfire)" : ""));
+
+        Attitude now = Factions.Player.Toward(rival);
+        GUILayout.BeginHorizontal();
+        GUILayout.Label("Relation: " + now, GUILayout.Width(120));
+        for (int i = 0; i < Attitudes.Length; i++)
+        {
+            GUI.enabled = now != Attitudes[i];
+            if (GUILayout.Button(Attitudes[i].ToString())) Relations.Set(Factions.Player, rival, Attitudes[i]);
+        }
+        GUI.enabled = true;
+        GUILayout.EndHorizontal();
+    }
+
+    /// <summary>
+    /// A second campfire 40 u+ from the player's on buildable, reachable ground, with a
+    /// hut so it houses four, 100W 50F in its own pool, the three gathering jobs and
+    /// Militia known, four survivors landed beside the fire, one armed with a Wooden
+    /// Spear, the other three sent for wood, food and stone. Neutral to the player
+    /// until the relation buttons say otherwise; the Raiders are hostile to it already.
+    /// </summary>
+    IEnumerator SpawnRivalRoutine()
+    {
+        spawningRival = true;
+        BaseBuilding mine = Campfire;
+        GameStartController gsc = GameStartController.Instance;
+        TerrainGrid tg = TerrainGrid.Instance;
+        if (mine == null || gsc == null || gsc.campfirePrefab == null || tg == null)
+        {
+            spawningRival = false;
+            yield break;
+        }
+
+        Vector3 site;
+        if (!FindRivalSite(mine.transform.position, out site))
+        {
+            Debug.LogWarning("DebugMenu: no buildable spot 40 u+ from your campfire for a rival camp.");
+            spawningRival = false;
+            yield break;
+        }
+
+        Faction rival = Factions.Register("Rivals", Faction.Kind.Rival, new Color(0.35f, 0.75f, 0.85f));
+        if (rival == null) { spawningRival = false; yield break; }
+        rival.Resources.Set(100, 50, 0, 0);
+        Knowledge k = rival.Knowledge;
+        k.Grant(Unlocks.Kind.WoodJob); k.Grant(Unlocks.Kind.FoodJob); k.Grant(Unlocks.Kind.StoneJob);
+        k.Grant(Unlocks.Kind.Militia); k.Grant(Unlocks.Kind.Construction);
+
+        tg.FlattenArea(site, 2.2f, 1.6f);
+        site.y = tg.SampleHeight(site);
+        GameObject fireObj = Spawn.Owned(gsc.campfirePrefab, site, Quaternion.identity, rival);
+        fireObj.name = "Campfire (Rivals)";
+        BaseBuilding fire = fireObj.GetComponent<BaseBuilding>();
+        if (fire == null) { spawningRival = false; yield break; }
+        yield return null;   // Start: housing registers, Faction.Campfire is set
+
+        // A hut beside it so the camp sleeps four (the fire alone sleeps three)
+        BuildingData hutData = BuildingDatabase.Instance != null
+            ? BuildingDatabase.Instance.GetBuildingData(BuildingType.Hut) : null;
+        if (hutData != null && hutData.finishedBuildingPrefab != null)
+        {
+            int buildingsLayer = LayerMask.NameToLayer("Buildings");
+            for (int i = 0; i < 16; i++)
+            {
+                float angle = i * 45f * Mathf.Deg2Rad;
+                float radius = 7f + 4f * (i / 8);
+                Vector3 pos = site + new Vector3(Mathf.Cos(angle) * radius, 0f, Mathf.Sin(angle) * radius);
+                pos = GridSnap.SnapXZ(pos, 1f);
+                pos.y = tg.SampleHeight(pos);
+                if (!IsClearForHut(pos)) continue;
+                tg.FlattenArea(pos, 1.8f, 1.4f);
+                pos.y = tg.SampleHeight(pos);
+                GameObject hut = Spawn.Owned(hutData.finishedBuildingPrefab, pos, Quaternion.identity, rival);
+                if (buildingsLayer >= 0) hut.layer = buildingsLayer;
+                break;
+            }
+            yield return null;   // Hut.Start registers its housing
+        }
+
+        Population pop = rival.Population;
+        for (int i = 0; i < 4 && pop.SpawnArrival(true) != null; i++) { }
+        yield return null;   // the colonists' Start
+
+        fire.Stockpile.Add(ItemCatalog.WoodenSpear, 1);
+        fire.SpawnWarrior();
+        fire.AssignWorker(ResourceNode.ResourceType.Wood);
+        fire.AssignWorker(ResourceNode.ResourceType.Food);
+        fire.AssignWorker(ResourceNode.ResourceType.Stone);
+
+        DevQuests.Signal("faction:rival");
+        spawningRival = false;
+    }
+
+    /// <summary>A random buildable, reachable, clear spot 40–70 u (× SizeScale) from <paramref name="from"/>, or false.</summary>
+    bool FindRivalSite(Vector3 from, out Vector3 site)
+    {
+        float scale = TerrainGrid.SizeScale;
+        float min = 40f * scale, max = 70f * scale;
+        for (int attempt = 0; attempt < 200; attempt++)
+        {
+            float angle = Random.Range(0f, 360f) * Mathf.Deg2Rad;
+            float radius = Random.Range(min, max);
+            Vector3 pos = from + new Vector3(Mathf.Cos(angle) * radius, 0f, Mathf.Sin(angle) * radius);
+            pos = GridSnap.SnapXZ(pos, 1f);
+            pos.y = TerrainGrid.Instance.SampleHeight(pos);
+            if (!TerrainGrid.Instance.IsReachable(pos)) continue;
+            if (!IsClearForHut(pos)) continue;
+            site = pos;
+            return true;
+        }
+        site = Vector3.zero;
+        return false;
     }
 
     bool IsClearForHut(Vector3 pos)

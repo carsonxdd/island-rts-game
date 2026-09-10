@@ -27,7 +27,7 @@
 #   fog:node_revealed  fog:raider_revealed  reveal:<on|off>  cheat:stock_full
 #   fog:node_skipped  fog:raider_unseen  fog:ghost  fog:wall  minimap:click  minimap:landing
 #   sky:<sunny|slightly|partly|cloudy|off>  graphics:<preset|custom>
-#   faction:bootstrap  faction:<hostile|neutral|allied>
+#   faction:bootstrap  faction:rival  faction:<hostile|neutral|allied>
 # crowd:split, dropoff:spread and patrol:spread are STATE checks polled by the
 # tracker twice a second while their quest is open; everything else is an event.
 # A finished batch is deleted from here once its report is in; it stays in the
@@ -47,6 +47,15 @@
 - @engage:offensive Warriors on Offensive still hunt raiders across the island
 - Workers still flee to the nearest hut; a raider at a wall still draws DefendWall
 - Campfire destroyed: defeat screen as before (the faction's campfire slot clears)
+- @faction:rival F4 Spawn rival camp: a second fire, a hut and four people 40 u+ away
+- Rival workers chop, forage and quarry, and deliver to THEIR fire, never yours
+- F3 shows a Rivals line: its own wood/food/stone climb, yours do not
+- Rival things are hidden in your fog and show on the minimap in teal when watched
+- A raid lands nearer the rival camp: the raiders go for it, its warrior fights back
+- Relation Hostile: your warriors and theirs fight; Neutral again: they stop
+- Allied: no fighting, and both militias go for the same raiders
+- Left-click a rival fire or colonist: nothing opens; the combat box counts only yours
+- Rival campfire destroyed (F4 raids): no defeat screen for you
 
 ## 2026-09-09 Minimap
 - Map in the top-right shows the island shape; sea, sand, grass, rock read right

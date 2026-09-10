@@ -173,7 +173,8 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         // This colony's campfire (commit 5): the faction's slot, cleared when it dies or goes
         if (Faction.Campfire == null) Faction.Campfire = this;
 
-        VisionSource.Attach(gameObject, VisionSource.CampfireRadius);
+        if (Faction.IsPlayer) VisionSource.Attach(gameObject, VisionSource.CampfireRadius);
+        else FogVisibility.Attach(gameObject, FogVisibility.Rule.Visible);   // another colony's: shown only on watched ground, sees nothing for the player
 
         // Register the campfire as housing (the starting crew's slots)
         housingCollider = GetComponent<Collider>();
@@ -231,6 +232,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         // When clicked, open worker assignment UI (the panel is code-built
         // and self-registering now, so a missing scene reference is fine)
         if (PauseController.BlockGameplayInput || Minimap.PointerOver) return;
+        if (!Faction.IsPlayer) return;   // another colony's fire opens nothing
         WorkerAssignmentUI ui = workerUI != null ? workerUI : WorkerAssignmentUI.Instance;
         if (ui != null)
         {
@@ -653,10 +655,10 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
 
         warrior.baseBuilding = this;
         warrior.weapon = weapon;   // before Start, which copies its stats into the unit
-        DevQuests.Signal(archer ? "archer" : "warrior");
+        if (Faction.IsPlayer) DevQuests.Signal(archer ? "archer" : "warrior");
         activeWarriors.Add(warrior);
         currentWarriors++;
-        if (currentWarriors >= 6) DevQuests.Signal("warrior:6");   // past the old cap of five
+        if (Faction.IsPlayer && currentWarriors >= 6) DevQuests.Signal("warrior:6");   // past the old cap of five
 
         // Same person, new body: swap the roster entry BEFORE destroying the old body,
         // so the worker's OnDestroy → NotifyWorkerRemoved finds nothing to remove.
@@ -755,7 +757,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
     void OnCampfireDestroyed()
     {
         Debug.Log("========================================");
-        Debug.Log("BaseBuilding: CAMPFIRE DESTROYED! GAME OVER!");
+        Debug.Log("BaseBuilding: CAMPFIRE DESTROYED (" + Faction.Name + ")" + (Faction.IsPlayer ? " GAME OVER!" : ""));
         Debug.Log("========================================");
 
         ReleaseHousing();
@@ -780,15 +782,10 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
             col.enabled = false;
         }
 
-        // Trigger game over through GameManager
-        if (GameManager.Instance != null)
-        {
-            GameManager.Instance.TriggerDefeat();
-        }
-        else
-        {
-            Debug.LogError("BaseBuilding: No GameManager found to trigger defeat!");
-        }
+        // Trigger game over through GameManager — the player's fire only; a rival's loss is its own
+        if (!Faction.IsPlayer) { }
+        else if (GameManager.Instance != null) GameManager.Instance.TriggerDefeat();
+        else Debug.LogError("BaseBuilding: No GameManager found to trigger defeat!");
 
         // Disable worker spawning
         enabled = false;

@@ -103,7 +103,8 @@ public class Warrior : UnitBase<Warrior>
         // values are copied into the AI blackboard below.
         SimOverrides.Apply(this);
 #endif
-        VisionSource.Attach(gameObject, VisionSource.UnitRadius);
+        if (Faction.IsPlayer) VisionSource.Attach(gameObject, VisionSource.UnitRadius);
+        else FogVisibility.Attach(gameObject, FogVisibility.Rule.Visible);   // another colony's: shown only on watched ground, sees nothing for the player
 
         // Get NavMeshAgent component
         if (!FetchAgent())

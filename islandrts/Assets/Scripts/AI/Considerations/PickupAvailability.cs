@@ -39,7 +39,7 @@ public class PickupAvailability : Consideration
 
             Vector3 pos = pickup.transform.position;
             // Fog of war: the colony only fetches what it has found (2026-09-09).
-            if (FogOfWar.Instance != null && !FogOfWar.Instance.IsExplored(pos)) continue;
+            if (bb.faction.IsPlayer && FogOfWar.Instance != null && !FogOfWar.Instance.IsExplored(pos)) continue;   // rivals are omniscient
 
             float sqr = (pos - bb.transform.position).sqrMagnitude;
             if (sqr < bestSqr)

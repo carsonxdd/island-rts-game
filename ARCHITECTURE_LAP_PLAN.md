@@ -97,6 +97,10 @@ Other facts that shape the plan:
 
 **Size:** the largest step of the five. Roughly 200 call sites plus the scan rewrites. Budget it as several sessions and land it in the seven commits above, never as one.
 
+### Landed 2026-09-09 (seven commits, one session)
+
+Done as written, with these deviations: the registry is **scene-keyed** (`Factions.EnsureForScene` compares the active `SceneHandle` on every access) rather than `sceneLoaded`-keyed, because the first reader of `Factions.Player` is `ResourceManager.Awake`; **no shims were needed** — each rename was mechanical enough to delete the accessor in the same commit; `LaborPriorities` became an instance class and `GuardStance` / `Formation` keep their logic with the state on the faction; `CraftedUpgrades` is deleted (the three multipliers live on `Knowledge`); the F4 rival gets a hut so the camp sleeps four; rivals are omniscient AND dark (every non-player thing carries `FogVisibility(Visible)` and no `VisionSource`). The commit-5 regression sweep found that the pre-lap baseline was contaminated — unlock and research statics leaked across the sim's scene reloads, so only its first-run rows are a reference (`SimSweeps/baseline-2026-09-09/README.md`); commit 4 fixed the leak as a side effect. Left for step 3: `RaidDirector` prosperity counts every colony's buildings, rival arrivals land at the player's cove, and the harness stall itself.
+
 ---
 
 ## Step 2 — Spatial hash + AI level of detail

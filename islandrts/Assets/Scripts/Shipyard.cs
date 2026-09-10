@@ -76,7 +76,8 @@ public class Shipyard : MonoBehaviour, ITargetable, IMaterialSet
 
         EnsureMaterials();
         OccluderCutout.AttachTo(gameObject);
-        VisionSource.Attach(gameObject, VisionSource.HutRadius);
+        if (Faction.IsPlayer) VisionSource.Attach(gameObject, VisionSource.HutRadius);
+        else FogVisibility.Attach(gameObject, FogVisibility.Rule.Visible);   // another colony's: shown only on watched ground, sees nothing for the player
     }
 
     /// <summary>
