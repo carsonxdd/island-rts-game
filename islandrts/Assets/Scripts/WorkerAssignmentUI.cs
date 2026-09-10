@@ -679,7 +679,7 @@ public class WorkerAssignmentUI : MonoBehaviour
 
     void UpdateColonistsTab()
     {
-        PopulationManager pm = PopulationManager.Instance;
+        Population pm = Factions.Player.Population;
         int housingCap = pm != null ? pm.GetHousingCapacity() : 0;
         int colonists = pm != null ? pm.GetColonistCount() : baseBuilding.GetTotalWorkers();
         int idle = pm != null ? pm.GetIdleCount() : 0;
@@ -779,8 +779,8 @@ public class WorkerAssignmentUI : MonoBehaviour
             lastIdle = idle;
             lastArrival = arrivalKey;
             string line = colonists + (colonists == 1 ? " colonist" : " colonists") + "  ·  " + idle + " idle";
-            if (hunger == (int)PopulationManager.HungerState.Starving) line += "  ·  <color=#" + DangerHex + ">STARVING</color>";
-            else if (hunger == (int)PopulationManager.HungerState.Hungry) line += "  ·  <color=#" + DangerHex + ">HUNGRY</color>";
+            if (hunger == (int)Population.HungerState.Starving) line += "  ·  <color=#" + DangerHex + ">STARVING</color>";
+            else if (hunger == (int)Population.HungerState.Hungry) line += "  ·  <color=#" + DangerHex + ">HUNGRY</color>";
             else if (arrival >= 0) line += "  ·  next survivor in " + arrival + "s";
             else if (colonists < housingCap) line += "  ·  survivors land by day";
             colonistText.text = line;

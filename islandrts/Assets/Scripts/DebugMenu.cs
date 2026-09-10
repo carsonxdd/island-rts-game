@@ -170,7 +170,7 @@ public class DebugMenu : MonoBehaviour
 
     void StatusSection()
     {
-        var pm = PopulationManager.Instance;
+        Population pm = Factions.Player.Population;
         var fire = Campfire;
 
         string clock = DayNight != null
@@ -209,7 +209,7 @@ public class DebugMenu : MonoBehaviour
                 + "   eats " + pm.DailyDrain.ToString("0.#") + "/day"
                 + "   reserve " + (days >= 99f ? "-" : days.ToString("0.0") + " days")
                 + "   left " + pm.ColonistsLeft
-                + "   labor x" + PopulationManager.LaborMultiplier.ToString("0.##"));
+                + "   labor x" + Factions.Player.Population.LaborMultiplier.ToString("0.##"));
         }
         // The island seed is what reproduces a layout bug report — restart
         // keeps it, NEW GAME rolls a fresh one
@@ -396,10 +396,10 @@ public class DebugMenu : MonoBehaviour
         GUI.enabled = true;
 
         // Skip the arrival timer: one survivor lands at the cove now (needs free housing)
-        GUI.enabled = Campfire != null && PopulationManager.Instance != null && PopulationManager.Instance.HasAvailableHousing();
+        GUI.enabled = Campfire != null && Factions.Player.Population != null && Factions.Player.Population.HasAvailableHousing();
         if (GUILayout.Button("Land a Survivor (at the cove)"))
         {
-            PopulationManager.Instance.SpawnArrival(false);
+            Factions.Player.Population.SpawnArrival(false);
         }
         GUI.enabled = true;
 
@@ -443,11 +443,11 @@ public class DebugMenu : MonoBehaviour
         if (GUILayout.Button("+5 Iron Spears (stockpile)")) CheatStock(ItemCatalog.IronSpear, 5);
         if (GUILayout.Button("+5 Bows (stockpile)")) CheatStock(ItemCatalog.Bow, 5);
         if (!string.IsNullOrEmpty(stockNote)) GUILayout.Label(stockNote);
-        GUI.enabled = PopulationManager.Instance != null;
+        GUI.enabled = Factions.Player.Population != null;
         if (GUILayout.Button("Starve the colony (zero food, skip to Starving)"))
         {
             Factions.Player.Resources.food = 0;
-            PopulationManager.Instance.DebugStarve();
+            Factions.Player.Population.DebugStarve();
         }
         // The escape (2026-09-04): skips the Shipyard's confirm, keeps the departure beat
         GUI.enabled = Shipyard.ActiveList.Count > 0 && GameManager.Instance != null && !GameManager.Instance.isGameOver;
@@ -555,7 +555,7 @@ public class DebugMenu : MonoBehaviour
         // 3. People. Colonists are a pool now: land as many survivors as housing
         //    allows (beside the fire, not at the cove), then arm warriors from the
         //    idle pool and hand out jobs. Each step is capped by supply inside.
-        var pm = PopulationManager.Instance;
+        Population pm = Factions.Player.Population;
         if (pm != null)
         {
             int wanted = woodWorkerCount + foodWorkerCount + stoneWorkerCount + warriorCount;

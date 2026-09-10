@@ -38,6 +38,8 @@
 - Restart, then New Game: no error about factions in the console
 - @faction:hostile F4 relation toggle to Hostile fires (rival camp, later commit)
 - HUD chips read 100W 50F 0S 0M at the fire; deposits, builds, refunds move them
+- A survivor still lands ~20 s after the fire and walks to it; a hut brings another
+- @hungry Zero the food (F4 Starve): HUNGRY banner, then a colonist leaves
 
 ## 2026-09-09 Minimap
 - Map in the top-right shows the island shape; sea, sand, grass, rock read right

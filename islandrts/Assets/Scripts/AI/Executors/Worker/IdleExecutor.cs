@@ -61,7 +61,7 @@ public class IdleExecutor : ActionExecutor
     public override void OnEnter(AIBlackboard bb)
     {
         destinationQueued = false;
-        home = PopulationManager.Instance != null ? PopulationManager.Instance.HomeOf(bb.worker) : null;
+        home = bb.faction.Population.HomeOf(bb.worker);
         if (bb.specialty != Worker.Specialty.Any) DevQuests.Signal("specialist:idle");   // a specialist with no work of their trade
 
         if (home != null && AgentReady(bb)

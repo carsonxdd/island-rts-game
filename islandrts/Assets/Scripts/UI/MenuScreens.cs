@@ -1309,7 +1309,7 @@ public class MenuScreens : MonoBehaviour
         MenuBuilder.ValueRow(parent, "Colony at its peak",
             gm.maxWorkers + " workers  ·  " + gm.maxWarriors + " warriors");
         // Starvation departures (2026-09-04) — only when it happened
-        PopulationManager pm = PopulationManager.Instance;
+        Population pm = Factions.Player.Population;
         if (pm != null && pm.ColonistsLeft > 0)
             MenuBuilder.ValueRow(parent, "Colonists who left", pm.ColonistsLeft.ToString(), MenuStyle.TextDanger);
 

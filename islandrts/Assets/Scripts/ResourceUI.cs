@@ -98,16 +98,16 @@ public class ResourceUI : MonoBehaviour
         if (SimHooks.Simulating) { enabled = false; return; }
         Build();
         RaidDirector.OnRaidRolled += OnRaidRolled;
-        PopulationManager.OnHungerChanged += OnHungerChanged;
-        PopulationManager.OnColonistLeft += OnColonistLeft;
+        Factions.Player.Population.OnHungerChanged += OnHungerChanged;
+        Factions.Player.Population.OnColonistLeft += OnColonistLeft;
         UpdateUI();
     }
 
     void OnDestroy()
     {
         RaidDirector.OnRaidRolled -= OnRaidRolled;
-        PopulationManager.OnHungerChanged -= OnHungerChanged;
-        PopulationManager.OnColonistLeft -= OnColonistLeft;
+        Factions.Player.Population.OnHungerChanged -= OnHungerChanged;
+        Factions.Player.Population.OnColonistLeft -= OnColonistLeft;
     }
 
     void Update()
@@ -141,14 +141,14 @@ public class ResourceUI : MonoBehaviour
     }
 
     /// <summary>Hunger crossings flash too (2026-09-04); the Food chip carries the state after that.</summary>
-    void OnHungerChanged(PopulationManager.HungerState state)
+    void OnHungerChanged(Population.HungerState state)
     {
         switch (state)
         {
-            case PopulationManager.HungerState.Hungry:
+            case Population.HungerState.Hungry:
                 Flash("THE COLONY IS HUNGRY  —  gathering and building slowed", MenuStyle.TextAccent, BannerSeconds);
                 break;
-            case PopulationManager.HungerState.Starving:
+            case Population.HungerState.Starving:
                 Flash("STARVING  —  someone leaves every day without food", MenuStyle.TextDanger, BannerSeconds);
                 break;
         }
@@ -440,11 +440,11 @@ public class ResourceUI : MonoBehaviour
         {
             // What the colony eats and how long the stores last (2026-09-04)
             Header("Eating");
-            AddRow("Eaten per day", () => PopulationManager.Instance != null
-                ? "−" + Mathf.RoundToInt(PopulationManager.Instance.DailyDrain) : "0");
+            AddRow("Eaten per day", () => Factions.Player.Population != null
+                ? "−" + Mathf.RoundToInt(Factions.Player.Population.DailyDrain) : "0");
             AddRow("Reserve", () =>
             {
-                PopulationManager pm = PopulationManager.Instance;
+                Population pm = Factions.Player.Population;
                 if (pm == null || pm.DailyDrain <= 0.0001f) return "-";
                 float days = pm.FoodReserveDays;
                 return days >= 10f ? "10+ days" : days.ToString("0.0") + " days";
@@ -463,7 +463,7 @@ public class ResourceUI : MonoBehaviour
     {
         Header("Who sleeps where");
 
-        PopulationManager pm = PopulationManager.Instance;
+        Population pm = Factions.Player.Population;
         if (pm == null || pm.HousingProviders.Count == 0)
         {
             AddRow("No shelter yet", () => "-");
@@ -478,14 +478,14 @@ public class ResourceUI : MonoBehaviour
             string name = HousingName(home, i);
             AddRow(name, () =>
             {
-                PopulationManager p = PopulationManager.Instance;
+                Population p = Factions.Player.Population;
                 if (p == null || home == null || !home.HousingAlive) return "-";
                 return p.OccupantsOf(home) + " / " + home.HousingCapacity;
             });
         }
 
-        AddRow("Homeless", () => PopulationManager.Instance != null
-            ? PopulationManager.Instance.GetHomelessCount().ToString() : "0");
+        AddRow("Homeless", () => Factions.Player.Population != null
+            ? Factions.Player.Population.GetHomelessCount().ToString() : "0");
     }
 
     static string HousingName(IHousing home, int index)
@@ -602,10 +602,10 @@ public class ResourceUI : MonoBehaviour
 
         UpdateFoodChip(rm);
 
-        if (PopulationManager.Instance != null)
+        if (Factions.Player.Population != null)
         {
-            int currentWorkers = PopulationManager.Instance.GetColonistCount();
-            int housingCapacity = PopulationManager.Instance.GetHousingCapacity();
+            int currentWorkers = Factions.Player.Population.GetColonistCount();
+            int housingCapacity = Factions.Player.Population.GetHousingCapacity();
 
             if (currentWorkers != lastPopWorkers || housingCapacity != lastPopCapacity)
             {
@@ -614,7 +614,7 @@ public class ResourceUI : MonoBehaviour
                 popValue.text = currentWorkers + " / " + housingCapacity;
 
                 // Colour code based on housing status
-                if (PopulationManager.Instance.HasHomelessWorkers())
+                if (Factions.Player.Population.HasHomelessWorkers())
                 {
                     popValue.color = MenuStyle.TextDanger;
                     popLabel.text = Caption("Housing", "homeless!");
@@ -697,7 +697,7 @@ public class ResourceUI : MonoBehaviour
     void UpdateFoodChip(ResourcePool rm)
     {
         if (foodChip == null) return;
-        PopulationManager pm = PopulationManager.Instance;
+        Population pm = Factions.Player.Population;
         if (pm == null) return;
 
         int drain = Mathf.RoundToInt(pm.DailyDrain);
@@ -712,12 +712,12 @@ public class ResourceUI : MonoBehaviour
 
         string workers = w == 1 ? "1 worker" : w + " workers";
         string detail = drain > 0 ? workers + " · −" + drain + "/day" : workers;
-        switch ((PopulationManager.HungerState)hunger)
+        switch ((Population.HungerState)hunger)
         {
-            case PopulationManager.HungerState.Hungry:
+            case Population.HungerState.Hungry:
                 foodChip.workers.text = Caption("Hungry!", detail);
                 break;
-            case PopulationManager.HungerState.Starving:
+            case Population.HungerState.Starving:
                 foodChip.workers.text = Caption("Starving", "someone leaves each day");
                 break;
             default:

@@ -142,7 +142,7 @@ public abstract class SimPolicy
         }
 
         if (fire.crafterWorkers > 0) return false;
-        PopulationManager pm = PopulationManager.Instance;
+        Population pm = Factions.Player.Population;
         if (pm == null || pm.GetIdleCount() < 2) return false;   // keep a builder
         return fire.AssignSpecialist(Worker.Specialty.Crafter);
     }
@@ -156,7 +156,7 @@ public abstract class SimPolicy
         // Colonists are a pool (2026-09-02): a job needs an idle colonist, and one is
         // held back as a builder while anything is under construction — sites no
         // longer finish on their own, so a policy that assigns everyone stalls.
-        PopulationManager pm = PopulationManager.Instance;
+        Population pm = Factions.Player.Population;
         if (pm == null) return false;
         int idle = pm.GetIdleCount();
         if (idle <= 0) return false;
@@ -216,8 +216,8 @@ public abstract class SimPolicy
     {
         if (!Unlocks.Has(Unlocks.Kind.Construction)) return false;
         if (SimBuilder.HutCount + SimBuilder.PendingSites(BuildingType.Hut) >= maxHuts) return false;
-        if (PopulationManager.Instance != null
-            && PopulationManager.Instance.GetAvailableHousing() > 0
+        if (Factions.Player.Population != null
+            && Factions.Player.Population.GetAvailableHousing() > 0
             && SimBuilder.PendingSites(BuildingType.Hut) > 0) return false;
         return SimBuilder.PlaceBuilding(BuildingType.Hut, 7f, 16f);
     }
@@ -382,7 +382,7 @@ public struct SimState
     public float Wood, Food, Stone;
     /// <summary>Everyone on the roster (idle, working, crafting, soldiering) — the mouths to feed.</summary>
     public int Colonists;
-    /// <summary>PopulationManager.HungerState as an int: 0 fed, 1 hungry, 2 starving (2026-09-04).</summary>
+    /// <summary>Population.HungerState as an int: 0 fed, 1 hungry, 2 starving (2026-09-04).</summary>
     public int Hunger;
 }
 #endif

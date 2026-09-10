@@ -40,6 +40,9 @@ public sealed class Faction
     /// <summary>The colony's pooled wood / food / stone / metal (commit 2). The player's is filled by <c>ResourceManager.Awake</c> from the scene's starting amounts.</summary>
     public ResourcePool Resources { get; } = new ResourcePool();
 
+    /// <summary>The colony's roster, housing, arrivals and food (commit 3). Ticked by the scene's <c>PopulationManager</c>.</summary>
+    public Population Population { get; }
+
     public bool IsPlayer => Type == Kind.Player;
     public bool IsRaiders => Type == Kind.Raiders;
 
@@ -49,6 +52,7 @@ public sealed class Faction
         Name = name;
         Type = type;
         Color = color;
+        Population = new Population(this);
     }
 
     /// <summary>What this faction thinks of <paramref name="other"/>. Self is Allied. Zero-cost: one matrix read.</summary>

@@ -181,7 +181,7 @@ public class RaidDirector : MonoBehaviour
     {
         float p = 0f;
 
-        PopulationManager pm = PopulationManager.Instance;
+        Population pm = Factions.Player.Population;
         if (pm != null) p += pm.GetColonistCount() * 2f;
 
         BaseBuilding fire = BaseBuilding.ActiveList.Count > 0 ? BaseBuilding.ActiveList[0] : null;

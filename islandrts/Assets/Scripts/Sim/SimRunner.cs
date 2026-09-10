@@ -270,13 +270,11 @@ public class SimRunner : MonoBehaviour
         if (cfg.foodPerDay >= 0f)
         {
             PopulationManager pm = PopulationManager.EnsureExists();
-            if (pm != null)
-            {
-                // 0 is "nobody eats" here, but a non-positive field falls back to
-                // the default in the manager (missing-YAML-key rule), so off is a flag.
-                pm.foodDisabled = cfg.foodPerDay <= 0f;
-                pm.foodPerColonistPerDay = cfg.foodPerDay;
-            }
+            // 0 is "nobody eats" here, but a non-positive field falls back to
+            // the default in the manager (missing-YAML-key rule), so off is a flag
+            // on the player's Population (the sim drives only that one).
+            Factions.Player.Population.foodDisabled = cfg.foodPerDay <= 0f;
+            pm.foodPerColonistPerDay = cfg.foodPerDay;
         }
     }
 
@@ -380,8 +378,8 @@ public class SimRunner : MonoBehaviour
             Wood = rm.wood,
             Food = rm.food,
             Stone = rm.stone,
-            Colonists = PopulationManager.Instance != null ? PopulationManager.Instance.GetColonistCount() : 0,
-            Hunger = PopulationManager.Instance != null ? (int)PopulationManager.Instance.Hunger : 0,
+            Colonists = Factions.Player.Population != null ? Factions.Player.Population.GetColonistCount() : 0,
+            Hunger = Factions.Player.Population != null ? (int)Factions.Player.Population.Hunger : 0,
         };
     }
 
@@ -474,7 +472,7 @@ public class SimRunner : MonoBehaviour
         night.towersDawn = SimBuilder.TowerCount;
         night.campfireHpDawn = fire != null ? fire.GetCurrentHealth() : 0f;
         night.enemiesKilledTotal = GameManager.Instance != null ? GameManager.Instance.totalEnemiesKilled : 0;
-        PopulationManager pm = PopulationManager.Instance;
+        Population pm = Factions.Player.Population;
         night.hungerDawn = pm != null ? (int)pm.Hunger : 0;
         night.leftTotal = pm != null ? pm.ColonistsLeft : 0;
         if (pm != null) metrics.colonistsLeft = pm.ColonistsLeft;

@@ -82,9 +82,9 @@ public class Hut : MonoBehaviour, ITargetable, IHousing
 
         // Register this hut as housing with PopulationManager (homeless colonists move in at once)
         housingCollider = GetComponent<Collider>();
-        if (PopulationManager.Instance != null)
+        if (Factions.Player.Population != null)
         {
-            PopulationManager.Instance.RegisterHousing(this);
+            Factions.Player.Population.RegisterHousing(this);
         }
     }
 
@@ -109,9 +109,9 @@ public class Hut : MonoBehaviour, ITargetable, IHousing
         ReleaseHousing();
 
         // Check if workers are now homeless
-        if (PopulationManager.Instance != null && PopulationManager.Instance.HasHomelessWorkers())
+        if (Factions.Player.Population != null && Factions.Player.Population.HasHomelessWorkers())
         {
-            int homelessCount = PopulationManager.Instance.GetHomelessCount();
+            int homelessCount = Factions.Player.Population.GetHomelessCount();
             Debug.LogWarning($"Hut: {homelessCount} workers are now HOMELESS! Build more huts.");
         }
 
@@ -128,9 +128,9 @@ public class Hut : MonoBehaviour, ITargetable, IHousing
         if (housingReleased) return;
         housingReleased = true;
 
-        if (PopulationManager.Instance != null)
+        if (Factions.Player.Population != null)
         {
-            PopulationManager.Instance.UnregisterHousing(this);
+            Factions.Player.Population.UnregisterHousing(this);
         }
     }
 

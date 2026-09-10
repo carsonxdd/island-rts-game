@@ -184,9 +184,9 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
 
         // Register the campfire as housing (the starting crew's slots)
         housingCollider = GetComponent<Collider>();
-        if (PopulationManager.Instance != null)
+        if (Factions.Player.Population != null)
         {
-            PopulationManager.Instance.RegisterHousing(this);
+            Factions.Player.Population.RegisterHousing(this);
         }
 
         // Get ALL renderers BEFORE creating health text (checks this object AND all children).
@@ -260,8 +260,8 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
     public bool AssignWorker(ResourceNode.ResourceType resourceType)
     {
         if (!Unlocks.HasJob(resourceType)) return false;   // the matching tool has not been crafted yet
-        if (PopulationManager.Instance == null) return false;
-        Worker idle = PopulationManager.Instance.FindIdleColonist(transform.position);
+        if (Factions.Player.Population == null) return false;
+        Worker idle = Factions.Player.Population.FindIdleColonist(transform.position);
         if (idle == null) return false;
 
         idle.SetJob(resourceType);
@@ -300,8 +300,8 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
     {
         if (s == Worker.Specialty.Any) return false;
         if (!Unlocks.Has(UnlockFor(s))) return false;
-        if (PopulationManager.Instance == null) return false;
-        Worker idle = PopulationManager.Instance.FindIdleColonist(transform.position);
+        if (Factions.Player.Population == null) return false;
+        Worker idle = Factions.Player.Population.FindIdleColonist(transform.position);
         if (idle == null) return false;
 
         idle.SetSpecialty(s);
@@ -414,9 +414,9 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         if (!activeWorkers.Remove(worker))
             return;  // Already processed (or never tracked by this building)
 
-        if (PopulationManager.Instance != null)
+        if (Factions.Player.Population != null)
         {
-            PopulationManager.Instance.RemoveColonist(worker);
+            Factions.Player.Population.RemoveColonist(worker);
         }
     }
 
@@ -431,9 +431,9 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         Worker worker = InstantiateColonist(position);
         if (worker == null) return null;
 
-        if (PopulationManager.Instance != null)
+        if (Factions.Player.Population != null)
         {
-            PopulationManager.Instance.AddColonist(worker, home);
+            Factions.Player.Population.AddColonist(worker, home);
         }
         return worker;
     }
@@ -592,7 +592,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         if (maxWarriors > 0 && currentWarriors >= maxWarriors) return false;
         if (Stockpile.Count(SelectedWeapon) <= 0) return false; // nothing to arm them with
         if (Factions.Player.Resources.food < warriorCost_Food) return false;
-        PopulationManager pm = PopulationManager.Instance;
+        Population pm = Factions.Player.Population;
         if (pm == null) return false;
         if (pm.GetIdleCount() > 0) return true;
         // Playtest: everything else is in place and only hands are missing — the
@@ -633,7 +633,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
             return;
         }
 
-        Worker recruit = PopulationManager.Instance.FindIdleColonist(transform.position);
+        Worker recruit = Factions.Player.Population.FindIdleColonist(transform.position);
         if (recruit == null) return;
 
         ItemDef weapon = SelectedWeapon;
@@ -667,7 +667,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
 
         // Same person, new body: swap the roster entry BEFORE destroying the old body,
         // so the worker's OnDestroy → NotifyWorkerRemoved finds nothing to remove.
-        PopulationManager.Instance.ReplaceUnit(recruit, warrior);
+        Factions.Player.Population.ReplaceUnit(recruit, warrior);
         activeWorkers.Remove(recruit);
         Destroy(recruit.gameObject);
     }
@@ -711,9 +711,9 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         if (warrior.weapon != null) Stockpile.Add(warrior.weapon, 1);
 
         Worker colonist = InstantiateColonist(warrior.transform.position);
-        if (colonist != null && PopulationManager.Instance != null)
+        if (colonist != null && Factions.Player.Population != null)
         {
-            PopulationManager.Instance.ReplaceUnit(warrior, colonist);
+            Factions.Player.Population.ReplaceUnit(warrior, colonist);
         }
         Destroy(warrior.gameObject);
         return colonist;
@@ -745,9 +745,9 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         if (warriorComponent != null)
         {
             if (activeWarriors.Remove(warriorComponent)) currentWarriors--;
-            if (PopulationManager.Instance != null)
+            if (Factions.Player.Population != null)
             {
-                PopulationManager.Instance.RemoveColonist(warriorComponent);
+                Factions.Player.Population.RemoveColonist(warriorComponent);
             }
         }
     }
@@ -816,9 +816,9 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
     {
         if (housingReleased) return;
         housingReleased = true;
-        if (PopulationManager.Instance != null)
+        if (Factions.Player.Population != null)
         {
-            PopulationManager.Instance.UnregisterHousing(this);
+            Factions.Player.Population.UnregisterHousing(this);
         }
     }
 

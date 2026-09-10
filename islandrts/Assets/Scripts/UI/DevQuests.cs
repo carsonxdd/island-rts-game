@@ -396,7 +396,7 @@ public static class DevQuests
         string outcome = !gm.isGameOver ? "in progress" : gm.isEscape ? "ESCAPED" : gm.isVictory ? "VICTORY" : "DEFEAT";
         sb.Append(" · ").Append(outcome);
 
-        PopulationManager pm = PopulationManager.Instance;
+        Population pm = Factions.Player.Population;
         BaseBuilding fire = BaseBuilding.FindAlive();
         if (pm != null)
         {
