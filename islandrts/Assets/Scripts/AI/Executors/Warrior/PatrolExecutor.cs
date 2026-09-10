@@ -122,7 +122,7 @@ public class PatrolExecutor : ActionExecutor
     /// <summary>Pick the next post and start walking; the wait at it is re-rolled so posts never change in step.</summary>
     void NextPost(AIBlackboard bb)
     {
-        hasWalls = WallGrid.Instance != null && (Wall.ActiveList.Count > 0 || Gate.ActiveList.Count > 0);
+        hasWalls = WallGrid.Instance != null && CollectOwnedWalls(bb.faction) > 0;   // this colony's walls only (lap step 1)
         currentPatrolPoint = GetRandomPatrolPoint(bb);
         isWaitingAtPatrol = false;
         patrolDestinationSet = false;
@@ -131,6 +131,28 @@ public class PatrolExecutor : ActionExecutor
         walkTimer = 0f;
         if (bb.agent != null && bb.agent.isOnNavMesh) bb.agent.isStopped = false;
         if (bb.stuckResolver != null) bb.stuckResolver.ResetStuckDetection();
+    }
+
+    // The colony's own wall and gate positions, refilled per pick (no allocation after the first)
+    private static readonly System.Collections.Generic.List<Vector3> ownedWalls = new System.Collections.Generic.List<Vector3>(64);
+
+    /// <summary>Fills <see cref="ownedWalls"/> with <paramref name="f"/>'s live walls and gates; returns the count.</summary>
+    static int CollectOwnedWalls(Faction f)
+    {
+        ownedWalls.Clear();
+        var walls = Wall.ActiveList;
+        for (int i = 0; i < walls.Count; i++)
+        {
+            Wall w = walls[i];
+            if (w != null && w.Faction == f) ownedWalls.Add(w.transform.position);
+        }
+        var gates = Gate.ActiveList;
+        for (int i = 0; i < gates.Count; i++)
+        {
+            Gate g = gates[i];
+            if (g != null && g.Faction == f) ownedWalls.Add(g.transform.position);
+        }
+        return ownedWalls.Count;
     }
 
     /// <summary>A post this close to the fire's collider edge would stand on the delivery edge.</summary>
@@ -167,9 +189,7 @@ public class PatrolExecutor : ActionExecutor
     {
         point = Vector3.zero;
 
-        int wallCount = Wall.ActiveList.Count;
-        int gateCount = Gate.ActiveList.Count;
-        int totalCount = wallCount + gateCount;
+        int totalCount = CollectOwnedWalls(bb.faction);
         if (totalCount == 0) return false;
 
         if (!campfireCached)
@@ -180,19 +200,7 @@ public class PatrolExecutor : ActionExecutor
 
         for (int attempts = 0; attempts < 10; attempts++)
         {
-            Vector3 wallPos;
-            int index = Random.Range(0, totalCount);
-            if (index < wallCount)
-            {
-                if (Wall.ActiveList[index] == null) continue;
-                wallPos = Wall.ActiveList[index].transform.position;
-            }
-            else
-            {
-                int gateIndex = index - wallCount;
-                if (Gate.ActiveList[gateIndex] == null) continue;
-                wallPos = Gate.ActiveList[gateIndex].transform.position;
-            }
+            Vector3 wallPos = ownedWalls[Random.Range(0, totalCount)];
 
             Vector3 interiorDir;
             if (cachedCampfire != null)
@@ -230,17 +238,18 @@ public class PatrolExecutor : ActionExecutor
     {
         buildingBuffer.Clear();
 
+        // This colony's buildings only (lap step 1): a warrior guards its own fire, never a rival's
         for (int i = 0; i < BaseBuilding.ActiveList.Count; i++)
         {
             var campfire = BaseBuilding.ActiveList[i];
-            if (campfire != null)
+            if (campfire != null && campfire.Faction == bb.faction)
                 buildingBuffer.Add((campfire.transform, campfire.noBuildRadius + PerimeterPadding));
         }
 
         for (int i = 0; i < Hut.ActiveList.Count; i++)
         {
             var hut = Hut.ActiveList[i];
-            if (hut != null)
+            if (hut != null && hut.Faction == bb.faction)
                 buildingBuffer.Add((hut.transform, hut.noBuildRadius + PerimeterPadding));
         }
 

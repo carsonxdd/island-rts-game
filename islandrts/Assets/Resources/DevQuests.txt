@@ -56,6 +56,8 @@
 - Allied: no fighting, and both militias go for the same raiders
 - Left-click a rival fire or colonist: nothing opens; the combat box counts only yours
 - Rival campfire destroyed (F4 raids): no defeat screen for you
+- Your warriors patrol YOUR fire and huts, never the rival's; theirs stay at theirs
+- Your idle colonists stroll your camp only
 
 ## 2026-09-09 Minimap
 - Map in the top-right shows the island shape; sea, sand, grass, rock read right

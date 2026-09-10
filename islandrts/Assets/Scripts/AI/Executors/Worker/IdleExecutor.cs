@@ -219,7 +219,7 @@ public class IdleExecutor : ActionExecutor
     bool TryPickStrollPoint(AIBlackboard bb, out Vector3 point)
     {
         point = Vector3.zero;
-        CollectBuildings();
+        CollectBuildings(bb.faction);
         if (buildingBuffer.Count == 0) return false;
 
         Vector3 here = bb.transform.position;
@@ -249,33 +249,34 @@ public class IdleExecutor : ActionExecutor
         return false;
     }
 
-    static void CollectBuildings()
+    /// <summary>This colony's standing buildings (lap step 1): a colonist strolls its own camp, never a rival's.</summary>
+    static void CollectBuildings(Faction f)
     {
         buildingBuffer.Clear();
         for (int i = 0; i < BaseBuilding.ActiveList.Count; i++)
         {
             var fire = BaseBuilding.ActiveList[i];
-            if (fire != null) buildingBuffer.Add((fire.transform, fire.noBuildRadius));
+            if (fire != null && fire.Faction == f) buildingBuffer.Add((fire.transform, fire.noBuildRadius));
         }
         for (int i = 0; i < Hut.ActiveList.Count; i++)
         {
             var hut = Hut.ActiveList[i];
-            if (hut != null) buildingBuffer.Add((hut.transform, hut.noBuildRadius));
+            if (hut != null && hut.Faction == f) buildingBuffer.Add((hut.transform, hut.noBuildRadius));
         }
         for (int i = 0; i < Workshop.ActiveList.Count; i++)
         {
             var w = Workshop.ActiveList[i];
-            if (w != null) buildingBuffer.Add((w.transform, w.noBuildRadius));
+            if (w != null && w.Faction == f) buildingBuffer.Add((w.transform, w.noBuildRadius));
         }
         for (int i = 0; i < Watchtower.ActiveList.Count; i++)
         {
             var t = Watchtower.ActiveList[i];
-            if (t != null) buildingBuffer.Add((t.transform, t.noBuildRadius));
+            if (t != null && t.Faction == f) buildingBuffer.Add((t.transform, t.noBuildRadius));
         }
         for (int i = 0; i < Shipyard.ActiveList.Count; i++)
         {
             var s = Shipyard.ActiveList[i];
-            if (s != null) buildingBuffer.Add((s.transform, s.noBuildRadius));
+            if (s != null && s.Faction == f) buildingBuffer.Add((s.transform, s.noBuildRadius));
         }
     }
 

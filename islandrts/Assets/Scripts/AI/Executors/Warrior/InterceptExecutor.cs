@@ -137,7 +137,7 @@ public class InterceptExecutor : ActionExecutor
             for (int i = 0; i < Wall.ActiveList.Count; i++)
             {
                 Wall wall = Wall.ActiveList[i];
-                if (wall == null) continue;
+                if (wall == null || wall.Faction != bb.faction) continue;   // this colony's line, not a rival's
 
                 // Only consider walls roughly in the enemy direction
                 Vector3 wallDir = (wall.transform.position - basePos).normalized;
