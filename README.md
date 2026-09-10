@@ -145,9 +145,9 @@ The console is intentionally quiet — about 65 calls in the whole project. Only
 
 ## Where the project is going
 
-**Right now: feature freeze, then an alpha.** The scope is closed. What remains is playtesting the pile of built-but-unplayed work, a tutorial, a shorter run length for testers, a feedback path, and a build that actually ships the game scene. The full list, in order, with a definition of done: **[`ALPHA_PLAN.md`](ALPHA_PLAN.md)**.
+**Right now: the architecture lap** — factions, then a spatial hash and AI level of detail, then a colony governor with diplomacy and trade, then save/load (dawn checkpoints), then an archipelago of persistent islands. Step by step, with decisions and definitions of done: **[`ARCHITECTURE_LAP_PLAN.md`](ARCHITECTURE_LAP_PLAN.md)** (the reasoning behind the order is in [`docs/SCALING_NOTES.md`](docs/SCALING_NOTES.md)). Months of work; the first player-visible piece is the rival colony in step 3.
 
-**After it ships: the architecture lap** — factions, then a spatial hash and AI level of detail, then a colony governor, then save/load, then multiple islands. Sequenced and argued in the alpha plan's section J, with the reasoning in [`docs/SCALING_NOTES.md`](docs/SCALING_NOTES.md). Months of work with nothing player-visible until the end of it, which is why testers come first.
+**After it: the alpha.** Playtesting the pile of built-but-unplayed work, tuning, a tutorial, a feedback path, and a build handed to testers — **[`ALPHA_PLAN.md`](ALPHA_PLAN.md)**, sections B → G, on the refactored foundation.
 
 Parked with no committed order:
 

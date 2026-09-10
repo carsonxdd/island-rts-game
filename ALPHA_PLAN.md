@@ -30,7 +30,7 @@ That is the bar. Not "polished", not "balanced", not "content-complete".
 
 **Two accepted exceptions, both requested on 2026-09-08 and both before the alpha:** the occluder polish in section H, and fog of war with a minimap in section I. Fog is the larger of the two by a wide margin and the freeze should hold against everything else.
 
-**Also in, after the alpha ships:** the architecture lap in section J — factions, spatial hash and AI level of detail, a colony governor, save/load, multiple islands. Added deliberately, months of work, and sequenced behind the release rather than in front of it.
+**Also in — and now FIRST (decided 2026-09-09):** the architecture lap in section J — factions, spatial hash and AI level of detail, a colony governor, save/load, multiple islands. The user chose to build it now; the alpha's remaining sections ship on the refactored foundation. The detailed shape lives in [`ARCHITECTURE_LAP_PLAN.md`](ARCHITECTURE_LAP_PLAN.md); this page keeps the alpha's definition of done.
 
 **Out, explicitly:** new buildings, new units, new resources, the story, processing chains, families, farming, the Warehouse, building upgrades, enemies wading ashore, the lighting bake. All of it is real and none of it is alpha.
 
@@ -182,13 +182,13 @@ Added at the user's request on 2026-09-08, knowingly pushing the schedule out. T
 
 **The honest cost.** This is months, not sessions, and none of it is visible to a player until the very end of it. Factions alone touches most of the combat, economy and population code, and the whole run of it lands with no new player-facing feature to show for it — which is the hardest kind of work to stay motivated through, and the reason to have testers already talking to you while it happens.
 
-**Where it sits.** After G, not before. The argument for factions-first is that its cost grows with every feature added between now and then — but the alpha adds almost no features, so those weeks cost the refactor very little, while doing the refactor first costs the alpha its entire schedule and risks shipping to testers on freshly destabilised foundations. Ship the build, keep the testers, then start the lap. **If you want factions to jump ahead of the alpha instead, that is the one line to change here.**
+**Where it sits.** ~~After G, not before.~~ **Changed 2026-09-09: before B.** The line below was the one to change, and it was changed — the lap runs now, planned in [`ARCHITECTURE_LAP_PLAN.md`](ARCHITECTURE_LAP_PLAN.md), and B → G follow it. The original reasoning is kept for the record: The argument for factions-first is that its cost grows with every feature added between now and then — but the alpha adds almost no features, so those weeks cost the refactor very little, while doing the refactor first costs the alpha its entire schedule and risks shipping to testers on freshly destabilised foundations. Ship the build, keep the testers, then start the lap. **If you want factions to jump ahead of the alpha instead, that is the one line to change here.**
 
 ---
 
 ## Order and rough shape
 
-**A → B → H → I → C → D and E together → F → G → J.**
+**A → H → I → J → B → C → D and E together → F → G** (J moved ahead of B on 2026-09-09; the original order was A → B → H → I → C → D/E → F → G → J).
 
 A is small and blocks everything. B is the long one and the one most likely to change the plan. H and I are the two accepted scope exceptions and go in before the tuning, because fog changes how a night plays and there is no point tuning raids twice. C wants B's fixes and I's changes behind it. D and E are what make a stranger's run useful and can be built side by side. F and G are the release lap. J runs for months afterwards while the alpha is in testers' hands.
 

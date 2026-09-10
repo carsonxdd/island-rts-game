@@ -26,7 +26,7 @@ The unit AI itself needs almost nothing. Utility AI is the right layer for *"wha
 
 `IslandGenerator` is pure and seeded, so an island is just a seed plus a few parameters. Islands that "load differently" are nearly free, and no scene-per-island is required. `TerrainGrid` doing all of its work in `Awake` under `[DefaultExecutionOrder(-100)]` is the contract that makes this hold: every `Start()`-time system already finds a finished world and a live NavMesh.
 
-**Prefer teardown-and-regenerate inside the single scene over scene loading per island.** Scene loads would resurrect exactly the stale-singleton problems that removing `DontDestroyOnLoad` was meant to fix (see the Phase 6.21 notes). The real prerequisite is *serializable colony state* — leaving an island and returning to it means that colony must persist as data — which is the Phase 11 save/load system. Islands therefore naturally follow save/load rather than preceding it.
+**Amended 2026-09-09:** `ARCHITECTURE_LAP_PLAN.md` step 5 goes the other way — island travel is dematerialise → save → scene reload with the destination seed → materialise, because the inventory found ~30 `Instance` singletons and ~40 game-state statics, and a second teardown path covering every one of them is a worse bet than the reload path save/load already has to make reliable. The sentence below is the original thinking. ~~Prefer teardown-and-regenerate inside the single scene over scene loading per island.~~ Scene loads would resurrect exactly the stale-singleton problems that removing `DontDestroyOnLoad` was meant to fix (see the Phase 6.21 notes). The real prerequisite is *serializable colony state* — leaving an island and returning to it means that colony must persist as data — which is the Phase 11 save/load system. Islands therefore naturally follow save/load rather than preceding it.
 
 ### Where the two features collide
 
@@ -36,4 +36,4 @@ Four AI colonies at ~100 units each is ~400 agents, right at the NavMesh ceiling
 
 **Factions → spatial hash + AI LOD → colony governor → save/load → islands.**
 
-Factions first because their cost grows over time; islands last because they depend on save/load.
+Factions first because their cost grows over time; islands last because they depend on save/load. **Planned in detail on 2026-09-09: [`ARCHITECTURE_LAP_PLAN.md`](../ARCHITECTURE_LAP_PLAN.md).**
