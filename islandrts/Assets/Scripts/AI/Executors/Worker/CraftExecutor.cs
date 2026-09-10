@@ -47,7 +47,7 @@ public class CraftExecutor : ActionExecutor
 
         // Playtest: an unpinned colonist chose a bench over a waiting site because Craft outranks Build.
         if (station != null && bb.specialty == Worker.Specialty.Any
-            && ConstructionSite.ActiveList.Count > 0 && LaborPriorities.Craft > LaborPriorities.Build)
+            && ConstructionSite.ActiveList.Count > 0 && bb.faction.Priorities.Craft > bb.faction.Priorities.Build)
             DevQuests.Signal("priority:craft_wins");
     }
 

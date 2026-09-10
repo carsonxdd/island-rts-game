@@ -15,5 +15,5 @@ public class LaborPriority : Consideration
         this.trade = trade;
     }
 
-    public override float ScoreRaw(AIBlackboard bb) => LaborPriorities.For(trade);
+    public override float ScoreRaw(AIBlackboard bb) => bb.faction.Priorities.For(trade);
 }

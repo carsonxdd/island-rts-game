@@ -28,7 +28,7 @@ public class StanceTargetAvailable : Consideration
 
             float sqr = (e.transform.position - from).sqrMagnitude;
             if (sqr >= bestSqr) continue;                          // cheap cull before the stance test
-            if (!GuardStance.Allows(e, from, bb.baseBuilding)) continue;
+            if (!GuardStance.Allows(e, from, bb.baseBuilding, bb.faction)) continue;
 
             bestSqr = sqr;
             best = e;

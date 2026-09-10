@@ -72,7 +72,7 @@ public class EngageEnemyExecutor : ActionExecutor
         }
         kiting = false;
         engageAnchor = bb.transform.position;
-        switch (GuardStance.Effective)   // playtest: which order the fight started under
+        switch (GuardStance.Effective(bb.faction))   // playtest: which order the fight started under
         {
             case GuardStance.Mode.Follow: DevQuests.Signal("engage:follow"); break;
             case GuardStance.Mode.Offensive: DevQuests.Signal("engage:offensive"); break;
@@ -213,7 +213,7 @@ public class EngageEnemyExecutor : ActionExecutor
             if (distance >= nearestDistance) continue;
 
             // The stance's filter, after the cheap distance cull (2026-09-07)
-            if (!GuardStance.Allows(enemy, from, bb.baseBuilding)) continue;
+            if (!GuardStance.Allows(enemy, from, bb.baseBuilding, bb.faction)) continue;
 
             nearestDistance = distance;
             nearest = enemy;
@@ -228,7 +228,7 @@ public class EngageEnemyExecutor : ActionExecutor
             // Hysteresis: don't switch if we have a valid living target — unless the
             // stance no longer allows the one we have (the player changed orders).
             if (bb.currentTarget != null && bb.IsTargetAlive()
-                && (slotEnemy == null || GuardStance.Allows(slotEnemy, from, bb.baseBuilding)))
+                && (slotEnemy == null || GuardStance.Allows(slotEnemy, from, bb.baseBuilding, bb.faction)))
             {
                 if (Time.time - targetAcquiredTime < minTargetLockDuration)
                     return;
@@ -261,7 +261,7 @@ public class EngageEnemyExecutor : ActionExecutor
     /// </summary>
     bool KiteStep(AIBlackboard bb)
     {
-        bool offensive = GuardStance.Effective == GuardStance.Mode.Offensive;
+        bool offensive = GuardStance.Effective(bb.faction) == GuardStance.Mode.Offensive;
         float trigger = offensive ? GuardStance.KiteTrigger : GuardStance.HoldTrigger;
 
         float threatDist;
@@ -302,7 +302,7 @@ public class EngageEnemyExecutor : ActionExecutor
             if ((pos - engageAnchor).sqrMagnitude >= GuardStance.HoldLeash * GuardStance.HoldLeash)
                 return false;   // stand and shoot; the spearmen have it
             Vector3 home = Vector3.zero;
-            if (GuardStance.Effective == GuardStance.Mode.Follow && PlayerCharacter.Instance != null)
+            if (GuardStance.Effective(bb.faction) == GuardStance.Mode.Follow && PlayerCharacter.Instance != null)
                 home = PlayerCharacter.Instance.transform.position - pos;
             else if (bb.baseBuilding != null)
                 home = bb.baseBuilding.transform.position - pos;

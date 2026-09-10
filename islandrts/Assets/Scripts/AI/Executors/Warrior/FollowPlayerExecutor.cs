@@ -77,7 +77,7 @@ public class FollowPlayerExecutor : ActionExecutor
         // when one is about; the per-warrior bearing when the formation is Loose.
         Vector3 facing = bb.nearestEnemy != null ? bb.nearestEnemy.position - playerPos : pc.transform.forward;
         Vector3 want;
-        if (!Formation.TrySlot(bb.warrior, playerPos, facing, out want))
+        if (!Formation.TrySlot(bb.warrior, bb.faction, playerPos, facing, out want))
             want = playerPos + bearing * Offset;
 
         if (!destinationQueued || (want - lastDestination).sqrMagnitude > RepathMove * RepathMove)

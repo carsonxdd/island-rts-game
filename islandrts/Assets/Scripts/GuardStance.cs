@@ -2,8 +2,8 @@ using UnityEngine;
 
 /// <summary>
 /// The colony-wide order for every warrior (2026-09-07): hold the colony, hunt
-/// raiders across the island, or escort the castaway. One static, like
-/// <see cref="LaborPriorities"/>, read live at the point of decision by the
+/// raiders across the island, or escort the castaway. Per faction
+/// (<c>Faction.Stance</c>), read live at the point of decision by the
 /// warrior considerations (<see cref="StanceAllows"/>, <see cref="StanceTargetAvailable"/>)
 /// and by <c>EngageEnemyExecutor</c>'s target scan, so a change on the campfire
 /// panel steers the whole militia at its next brain tick with nothing to push.
@@ -61,38 +61,28 @@ public static class GuardStance
     /// <summary>...but never ends up further than this from where it started the fight; then it stands and shoots.</summary>
     public const float HoldLeash = 6f;
 
-    public static Mode Active = Mode.Defensive;
-
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    static void ResetStatics() { Active = Mode.Defensive; }
-
-    /// <summary>The one setter every control uses (panel stepper, combat HUD, hotkeys), so the playtest signal fires once per change.</summary>
-    public static void Set(Mode mode)
-    {
-        if (Active == mode) return;
-        Active = mode;
-        DevQuests.Signal("stance:" + Names[(int)mode].ToLowerInvariant());
-    }
+    // The stance itself is per faction since lap step 1 commit 4 (2026-09-09):
+    // Faction.Stance, set through Faction.SetStance (the one setter every control
+    // uses, so the playtest signal fires once per change).
 
     /// <summary>
     /// The stance the AI actually runs: Follow needs a standing character, and
     /// falls back to Defensive without one so the militia never stands around
     /// waiting for someone who is knocked out.
     /// </summary>
-    public static Mode Effective
+    public static Mode Effective(Faction f)
     {
-        get
-        {
-            if (Active != Mode.Follow) return Active;
-            PlayerCharacter pc = PlayerCharacter.Instance;
-            return pc != null && !pc.IsKnockedOut ? Mode.Follow : Mode.Defensive;
-        }
+        Mode m = f != null ? f.Stance : Mode.Defensive;
+        if (m != Mode.Follow) return m;
+        if (!f.IsPlayer) return Mode.Defensive;   // only the player's colony has a castaway to follow
+        PlayerCharacter pc = PlayerCharacter.Instance;
+        return pc != null && !pc.IsKnockedOut ? Mode.Follow : Mode.Defensive;
     }
 
     /// <summary>Whether the effective stance runs this action at all. Zero-cost.</summary>
-    public static bool Permits(Role role)
+    public static bool Permits(Role role, Faction f)
     {
-        switch (Effective)
+        switch (Effective(f))
         {
             case Mode.Offensive:
                 return role != Role.Follow;   // Intercept is the advance, see InterceptExecutor
@@ -110,7 +100,7 @@ public static class GuardStance
     /// scan both call it, so a warrior never fights what the consideration would
     /// not have scored.
     /// </summary>
-    public static bool Allows(Enemy enemy, Vector3 warriorPos, BaseBuilding fire)
+    public static bool Allows(Enemy enemy, Vector3 warriorPos, BaseBuilding fire, Faction f)
     {
         Vector3 pos = enemy.transform.position;
 
@@ -126,7 +116,7 @@ public static class GuardStance
             return false;
         }
 
-        switch (Effective)
+        switch (Effective(f))
         {
             case Mode.Offensive:
                 if ((pos - warriorPos).sqrMagnitude <= OffensiveEngageRadius * OffensiveEngageRadius) return true;

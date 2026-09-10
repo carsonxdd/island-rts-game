@@ -29,9 +29,10 @@ public static class ResearchCatalog
         /// equips now, and the tool recipes are gone from the Craft tab.
         /// </summary>
         public ItemDef tool;
-        /// <summary>Extra effect on completion (the Workshop-tier multipliers).</summary>
-        public Action apply;
-        public bool done;
+        /// <summary>Extra effect on completion (the Workshop-tier multipliers), applied to the completing faction's Knowledge.</summary>
+        public Action<Knowledge> apply;
+        /// <summary>Position in <see cref="All"/>; the per-faction done flag lives at this index in <see cref="Knowledge"/>.</summary>
+        public int index;
 
         public override WorkCategory Category => WorkCategory.Research;
     }
@@ -121,7 +122,7 @@ public static class ResearchCatalog
             woodCost = 15,
             seconds = 10f,
             prerequisites = new[] { "construction" },
-            apply = () => CraftedUpgrades.AddStockpileRoom(40),
+            apply = k => k.StockpileRoom += 40,
         },
 
         // --- Workshop tier ---------------------------------------------------
@@ -132,7 +133,7 @@ public static class ResearchCatalog
             woodCost = 25, stoneCost = 15,
             seconds = 10f,
             prerequisites = new[] { "crafting" },
-            apply = () => CraftedUpgrades.SetGatherRate(1.3f),
+            apply = k => k.GatherRateMult = 1.3f,
         },
         new ResearchDef
         {
@@ -141,7 +142,7 @@ public static class ResearchCatalog
             woodCost = 30, stoneCost = 10,
             seconds = 10f,
             prerequisites = new[] { "construction" },
-            apply = () => CraftedUpgrades.SetBuildSpeed(1.5f),
+            apply = k => k.BuildSpeedMult = 1.5f,
         },
         new ResearchDef
         {
@@ -150,7 +151,7 @@ public static class ResearchCatalog
             woodCost = 30, stoneCost = 10,
             seconds = 12f,
             prerequisites = new[] { "storage_pits" },
-            apply = () => CraftedUpgrades.AddStockpileRoom(80),
+            apply = k => k.StockpileRoom += 80,
         },
         // Metal's first use (2026-09-04, Slice 3): the Iron Spear recipe.
         new ResearchDef
@@ -184,43 +185,16 @@ public static class ResearchCatalog
         },
     };
 
-    /// <summary>Fires after any entry completes. The campfire panel re-labels its locked rows on it.</summary>
-    public static event Action OnChanged;
+    static ResearchCatalog()
+    {
+        for (int i = 0; i < All.Length; i++) All[i].index = i;
+    }
 
     public static ResearchDef Find(string id)
     {
         if (string.IsNullOrEmpty(id)) return null;
         for (int i = 0; i < All.Length; i++)
             if (All[i].id == id) return All[i];
-        return null;
-    }
-
-    /// <summary>True when <paramref name="id"/> is done — or is not a research id at all (an empty requirement is no requirement).</summary>
-    public static bool IsDone(string id)
-    {
-        if (string.IsNullOrEmpty(id)) return true;
-        ResearchDef d = Find(id);
-        return d == null || d.done;
-    }
-
-    /// <summary>Not yet done and every prerequisite is.</summary>
-    public static bool IsAvailable(ResearchDef d)
-    {
-        if (d == null || d.done) return false;
-        for (int i = 0; i < d.prerequisites.Length; i++)
-            if (!IsDone(d.prerequisites[i])) return false;
-        return true;
-    }
-
-    /// <summary>Title of the first prerequisite still outstanding, or null when there is none.</summary>
-    public static string PrerequisiteTitle(ResearchDef d)
-    {
-        for (int i = 0; i < d.prerequisites.Length; i++)
-        {
-            if (IsDone(d.prerequisites[i])) continue;
-            ResearchDef p = Find(d.prerequisites[i]);
-            return p != null ? p.title : d.prerequisites[i];
-        }
         return null;
     }
 
@@ -234,40 +208,5 @@ public static class ResearchCatalog
                 if (grants[g] == kind) return All[i].title;
         }
         return null;
-    }
-
-    public static bool AllDone
-    {
-        get
-        {
-            for (int i = 0; i < All.Length; i++)
-                if (!All[i].done) return false;
-            return true;
-        }
-    }
-
-    /// <summary>Mark done, grant its flags, run its effect. Idempotent.</summary>
-    public static void Complete(ResearchDef d)
-    {
-        if (d == null || d.done) return;
-        d.done = true;
-        DevQuests.Signal("research:" + d.id);
-        for (int i = 0; i < d.grants.Length; i++) Unlocks.Grant(d.grants[i]);
-        d.apply?.Invoke();
-        OnChanged?.Invoke();
-        Debug.Log("Researched " + d.title + " — " + d.description);   // once per entry per run
-    }
-
-    /// <summary>Everything at once — the F4 cheat.</summary>
-    public static void CompleteAll()
-    {
-        for (int i = 0; i < All.Length; i++) Complete(All[i]);
-    }
-
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    static void ResetStatics()
-    {
-        for (int i = 0; i < All.Length; i++) All[i].done = false;
-        OnChanged = null;
     }
 }

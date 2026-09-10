@@ -126,7 +126,7 @@ public class ConstructionSite : MonoBehaviour
 
         lastLaborTime = Time.time;
         // Sturdy Scaffolds speeds it up; a hungry colony slows it down (2026-09-04)
-        timeElapsed += seconds * CraftedUpgrades.BuildSpeedMult * Factions.Player.Population.LaborMultiplier;   // the site's own faction from commit 6
+        timeElapsed += seconds * Factions.Player.Knowledge.BuildSpeedMult * Factions.Player.Population.LaborMultiplier;   // the site's own faction from commit 6
         progress = Mathf.Clamp01(timeElapsed / (Mathf.Max(0.01f, buildTime) * LaborFactor));
 
         if (progress >= 1f)

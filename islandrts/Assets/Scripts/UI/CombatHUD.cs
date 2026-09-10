@@ -67,23 +67,23 @@ public class CombatHUD : MonoBehaviour
         bool capturing = MenuScreens.Instance != null && MenuScreens.Instance.IsCapturingKey;
         if (!PauseController.BlockGameplayInput && !capturing)
         {
-            if (KeyBindings.Down(KeyBindings.Action.StanceDefensive)) GuardStance.Set(GuardStance.Mode.Defensive);
-            else if (KeyBindings.Down(KeyBindings.Action.StanceOffensive)) GuardStance.Set(GuardStance.Mode.Offensive);
+            if (KeyBindings.Down(KeyBindings.Action.StanceDefensive)) Factions.Player.SetStance(GuardStance.Mode.Defensive);
+            else if (KeyBindings.Down(KeyBindings.Action.StanceOffensive)) Factions.Player.SetStance(GuardStance.Mode.Offensive);
             else if (KeyBindings.Down(KeyBindings.Action.StanceFollow))
             {
-                GuardStance.Set(GuardStance.Mode.Follow);
+                Factions.Player.SetStance(GuardStance.Mode.Follow);
                 DevQuests.Signal("stance_key:follow");
             }
         }
 
-        int stance = (int)GuardStance.Active;
+        int stance = (int)Factions.Player.Stance;
         if (stance != lastStance)
         {
             lastStance = stance;
             MenuBuilder.TintTabs(stanceButtons, stance);
         }
 
-        int formation = (int)Formation.Active;
+        int formation = (int)Factions.Player.FormationKind;
         if (formation != lastFormation)
         {
             lastFormation = formation;
@@ -170,11 +170,11 @@ public class CombatHUD : MonoBehaviour
 
         // Line 2: the stances
         stanceButtons = ButtonRow(box.transform, GuardStance.Names, StanceWidth, StanceHeight, MenuStyle.SmallSize + 1f,
-            i => { GuardStance.Set((GuardStance.Mode)i); DevQuests.Signal("combat_box:stance"); });
+            i => { Factions.Player.SetStance((GuardStance.Mode)i); DevQuests.Signal("combat_box:stance"); });
 
         // Line 3: the formations
         formationButtons = ButtonRow(box.transform, Formation.Names, FormationWidth, FormationHeight, MenuStyle.SmallSize - 1f,
-            i => Formation.Set((Formation.Kind)i));
+            i => Factions.Player.SetFormation((Formation.Kind)i));
 
         RefreshKeyHint();
         lastStance = lastFormation = lastCount = -1;

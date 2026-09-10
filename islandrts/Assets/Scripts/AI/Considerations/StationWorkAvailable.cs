@@ -20,7 +20,7 @@ public class StationWorkAvailable : Consideration
     public override float ScoreRaw(AIBlackboard bb)
     {
         bb.targetStation = null;
-        if (!Unlocks.Has(Unlocks.Kind.Crafting)) return 0f;
+        if (!bb.faction.Knowledge.Has(Unlocks.Kind.Crafting)) return 0f;
 
         CraftStation best = null;
         float bestSqr = float.MaxValue;

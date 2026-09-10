@@ -32,7 +32,7 @@ public static class CraftingCatalog
 
         public override WorkCategory Category => category;
 
-        public bool Unlocked => ResearchCatalog.IsDone(requires);
+        public bool UnlockedFor(Knowledge k) => k.IsDone(requires);
 
         /// <summary>Title of the research that lists it, for lock hints.</summary>
         public string RequiredTitle

@@ -126,14 +126,14 @@ public class InterceptExecutor : ActionExecutor
         // centroid, on the colony side, recomputed as they move. Engage takes
         // over for each warrior once a raider is inside OffensiveEngageRadius, so
         // the wedge walks up as one body and breaks into the charge together.
-        if (GuardStance.Effective == GuardStance.Mode.Offensive)
+        if (GuardStance.Effective(bb.faction) == GuardStance.Mode.Offensive)
         {
             Vector3 advance = enemyCentroid - dirToEnemies * GuardStance.AdvanceStandoff;
             DevQuests.Signal("intercept:advance");
             PlaceRally(bb, advance, dirToEnemies, basePos);
             return;
         }
-        if (Formation.Active == Formation.Kind.Auto && Formation.Effective == Formation.Kind.Line)
+        if (bb.faction.FormationKind == Formation.Kind.Auto && Formation.Effective(bb.faction) == Formation.Kind.Line)
             DevQuests.Signal("formation:auto_line");   // Defensive rally under Auto resolved to a Line
 
         // Colony perimeter with no walls: well clear of the fire, so a Line's second
@@ -180,7 +180,7 @@ public class InterceptExecutor : ActionExecutor
     void PlaceRally(AIBlackboard bb, Vector3 center, Vector3 dirToEnemies, Vector3 basePos)
     {
         Vector3 interceptPoint;
-        if (!Formation.TrySlot(bb.warrior, center, dirToEnemies, out interceptPoint))
+        if (!Formation.TrySlot(bb.warrior, bb.faction, center, dirToEnemies, out interceptPoint))
         {
             // Loose: lateral spread so warriors form a line, not a stack
             Vector3 lateral = Vector3.Cross(dirToEnemies, Vector3.up).normalized;

@@ -612,7 +612,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         if (def == null || station == null || knockedOut) return false;
         if (!station.Enqueue(def))
         {
-            SetActivity(def.done ? "Already known" : "Can't research that here", FlashSeconds);
+            SetActivity(Factions.Player.Knowledge.IsDone(def) ? "Already known" : "Can't research that here", FlashSeconds);
             return false;
         }
         if (workStation != station && WalkingToStation != station) WorkAt(station);
@@ -875,7 +875,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
     {
         if (knockedOut) return;
         knockedOut = true;
-        DevQuests.Signal(GuardStance.Active == GuardStance.Mode.Follow ? "knockout:follow" : "knockout");
+        DevQuests.Signal(Factions.Player.Stance == GuardStance.Mode.Follow ? "knockout:follow" : "knockout");
         reviveAt = Time.time + knockoutSeconds;
         hasPendingDestination = false;
         StopWork();

@@ -35,7 +35,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
     /// </summary>
     public const int BaseStockpileCapacity = 60;
 
-    public static int StockpileCapacity => BaseStockpileCapacity + CraftedUpgrades.StockpileRoom;
+    public static int StockpileCapacity => BaseStockpileCapacity + Factions.Player.Knowledge.StockpileRoom;
 
     /// <summary>
     /// The campfire inventory (2026-09-02): sticks and stone chunks the player's
@@ -259,7 +259,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
     /// </summary>
     public bool AssignWorker(ResourceNode.ResourceType resourceType)
     {
-        if (!Unlocks.HasJob(resourceType)) return false;   // the matching tool has not been crafted yet
+        if (!Factions.Player.Knowledge.HasJob(resourceType)) return false;   // the matching tool has not been crafted yet
         if (Factions.Player.Population == null) return false;
         Worker idle = Factions.Player.Population.FindIdleColonist(transform.position);
         if (idle == null) return false;
@@ -299,7 +299,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
     public bool AssignSpecialist(Worker.Specialty s)
     {
         if (s == Worker.Specialty.Any) return false;
-        if (!Unlocks.Has(UnlockFor(s))) return false;
+        if (!Factions.Player.Knowledge.Has(UnlockFor(s))) return false;
         if (Factions.Player.Population == null) return false;
         Worker idle = Factions.Player.Population.FindIdleColonist(transform.position);
         if (idle == null) return false;
@@ -588,7 +588,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
     /// <summary>True when a recruit could happen right now: Spearcraft known, under the cap if there is one, the chosen weapon in stock, the food, and someone idle.</summary>
     public bool CanRecruitWarrior()
     {
-        if (!Unlocks.Has(Unlocks.Kind.Militia)) return false;   // Spearcraft not researched
+        if (!Factions.Player.Knowledge.Has(Unlocks.Kind.Militia)) return false;   // Spearcraft not researched
         if (maxWarriors > 0 && currentWarriors >= maxWarriors) return false;
         if (Stockpile.Count(SelectedWeapon) <= 0) return false; // nothing to arm them with
         if (Factions.Player.Resources.food < warriorCost_Food) return false;

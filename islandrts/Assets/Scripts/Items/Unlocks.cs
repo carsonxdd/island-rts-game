@@ -7,15 +7,8 @@ using UnityEngine;
 /// 2026-09-03; it used to be the first craft of a tool) — knowledge, not
 /// supply: after Woodcutting every colonist may take the Wood job.
 ///
-/// Read at the point of effect, never pushed (the <c>CraftedUpgrades</c> and
-/// <c>Difficulty</c> pattern): <c>BaseBuilding.AssignWorker</c>,
-/// <c>BaseBuilding.CanRecruitWarrior</c>, <c>BuildPlacement.StartPlacement</c>
-/// and the Build / Repair considerations each ask <see cref="Has"/> at the
-/// moment they decide. NOT granted under the balance sim any more: the sim
-/// researches like a player (its policies queue research and drive the
-/// player character to the bench), or it is not measuring the pivot.
-///
-/// Statics reset on play via [RuntimeInitializeOnLoadMethod].
+/// The flags themselves live per faction on <see cref="Knowledge"/> (lap step 1
+/// commit 4, 2026-09-09): this class is the enum and its pure helpers only.
 /// </summary>
 public static class Unlocks
 {
@@ -39,16 +32,6 @@ public static class Unlocks
 
     public static readonly int Count = Enum.GetValues(typeof(Kind)).Length;
 
-    private static readonly bool[] granted = new bool[Count];
-
-    /// <summary>Fires after a grant. The campfire panel re-labels its locked rows on it.</summary>
-    public static event Action OnChanged;
-
-    public static bool Has(Kind kind)
-    {
-        return granted[(int)kind];
-    }
-
     /// <summary>The unlock that opens a gathering job.</summary>
     public static Kind ForJob(ResourceNode.ResourceType type)
     {
@@ -61,36 +44,9 @@ public static class Unlocks
         }
     }
 
-    public static bool HasJob(ResourceNode.ResourceType type) => Has(ForJob(type));
-
-    public static void Grant(Kind kind)
-    {
-        if (granted[(int)kind]) return;
-        granted[(int)kind] = true;
-        OnChanged?.Invoke();
-    }
-
-    /// <summary>Everything at once — the F4 cheat (research rows stay as they are; use ResearchCatalog.CompleteAll for those).</summary>
-    public static void GrantAll()
-    {
-        bool changed = false;
-        for (int i = 0; i < granted.Length; i++)
-        {
-            if (!granted[i]) { granted[i] = true; changed = true; }
-        }
-        if (changed) OnChanged?.Invoke();
-    }
-
     /// <summary>Player-facing name of the research that opens <paramref name="kind"/> ("Woodcutting"), for lock hints.</summary>
     public static string ResearchTitleFor(Kind kind)
     {
         return ResearchCatalog.TitleGranting(kind) ?? kind.ToString();
-    }
-
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    static void ResetStatics()
-    {
-        for (int i = 0; i < granted.Length; i++) granted[i] = false;
-        OnChanged = null;
     }
 }

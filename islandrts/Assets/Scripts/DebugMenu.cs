@@ -119,7 +119,7 @@ public class DebugMenu : MonoBehaviour
         int added = stock.Add(item, count);
         if (added < count && stock.RoomLeft < count - added)
         {
-            CraftedUpgrades.AddStockpileRoom(count - added - stock.RoomLeft);
+            Factions.Player.Knowledge.StockpileRoom += count - added - stock.RoomLeft;
             added += stock.Add(item, count - added);
         }
         if (wasFull && added >= count) DevQuests.Signal("cheat:stock_full");   // the cheat grew the room instead of failing
@@ -428,10 +428,10 @@ public class DebugMenu : MonoBehaviour
         }
 
         // Research / crafting / player character (2026-09-02; research split 2026-09-03)
-        GUI.enabled = !ResearchCatalog.AllDone;
+        GUI.enabled = !Factions.Player.Knowledge.AllDone;
         if (GUILayout.Button("Research Everything"))
         {
-            ResearchCatalog.CompleteAll();
+            Factions.Player.Knowledge.CompleteAll();
         }
         GUI.enabled = Campfire != null;
         if (GUILayout.Button("+10 Sticks & Stones (stockpile)"))

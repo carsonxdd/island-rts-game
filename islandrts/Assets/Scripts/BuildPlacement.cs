@@ -143,7 +143,7 @@ public class BuildPlacement : MonoBehaviour
         // Construction is knowledge the colony has to acquire first (2026-09-02):
         // no build mode until Construction has been researched at the fire. The
         // lock names the research on the character's HUD line instead of failing silently.
-        if (!Unlocks.Has(Unlocks.Kind.Construction))
+        if (!Factions.Player.Knowledge.Has(Unlocks.Kind.Construction))
         {
             if (PlayerCharacter.Instance != null)
                 PlayerCharacter.Instance.SetActivity("Research Construction at the fire to build", 3f);
@@ -219,7 +219,7 @@ public class BuildPlacement : MonoBehaviour
         }
 
         // The Workshop is the Crafting research's building (2026-09-03)
-        if (type == BuildingType.Workshop && !Unlocks.Has(Unlocks.Kind.Crafting))
+        if (type == BuildingType.Workshop && !Factions.Player.Knowledge.Has(Unlocks.Kind.Crafting))
         {
             if (PlayerCharacter.Instance != null)
                 PlayerCharacter.Instance.SetActivity("Research Crafting at the fire to build a Workshop", 3f);
@@ -227,7 +227,7 @@ public class BuildPlacement : MonoBehaviour
         }
 
         // The Shipyard is the Shipwright research's building (2026-09-04, Slice 6)
-        if (type == BuildingType.Shipyard && !Unlocks.Has(Unlocks.Kind.Shipwright))
+        if (type == BuildingType.Shipyard && !Factions.Player.Knowledge.Has(Unlocks.Kind.Shipwright))
         {
             if (PlayerCharacter.Instance != null)
                 PlayerCharacter.Instance.SetActivity("Research Shipwright at the Workshop to build a Shipyard", 3f);

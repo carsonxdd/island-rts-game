@@ -361,13 +361,13 @@ public class WorkerAssignmentUI : MonoBehaviour
         // Priorities (2026-09-07): the colony-wide weights behind that order. Live
         // statics read by every idle colonist's next decision; nothing to refresh.
         sec = MenuBuilder.CollapsibleSection(body, "Priorities", "ui.campfire.priorities", OnSectionToggled).transform;
-        MenuBuilder.SliderRow(sec, "Build", LaborPriorities.Build, v => { LaborPriorities.Build = v; DevQuests.Signal("priority"); });
-        MenuBuilder.SliderRow(sec, "Craft", LaborPriorities.Craft, v => { LaborPriorities.Craft = v; DevQuests.Signal("priority"); });
-        MenuBuilder.SliderRow(sec, "Repair", LaborPriorities.Repair, v => { LaborPriorities.Repair = v; DevQuests.Signal("priority"); });
-        MenuBuilder.SliderRow(sec, "Tidy the beach", LaborPriorities.Forage, v =>
+        MenuBuilder.SliderRow(sec, "Build", Factions.Player.Priorities.Build, v => { Factions.Player.Priorities.Build = v; DevQuests.Signal("priority"); });
+        MenuBuilder.SliderRow(sec, "Craft", Factions.Player.Priorities.Craft, v => { Factions.Player.Priorities.Craft = v; DevQuests.Signal("priority"); });
+        MenuBuilder.SliderRow(sec, "Repair", Factions.Player.Priorities.Repair, v => { Factions.Player.Priorities.Repair = v; DevQuests.Signal("priority"); });
+        MenuBuilder.SliderRow(sec, "Tidy the beach", Factions.Player.Priorities.Forage, v =>
         {
-            if (LaborPriorities.Forage <= 0f && v > 0f) DevQuests.Signal("priority:forage_back");   // was off, back on
-            LaborPriorities.Forage = v;
+            if (Factions.Player.Priorities.Forage <= 0f && v > 0f) DevQuests.Signal("priority:forage_back");   // was off, back on
+            Factions.Player.Priorities.Forage = v;
             DevQuests.Signal("priority");
         });
         MenuBuilder.RowDescription(sec, "What an idle colonist reaches for first, all else equal. Zero switches that work off.");
@@ -391,16 +391,16 @@ public class WorkerAssignmentUI : MonoBehaviour
         warriorCost = MenuBuilder.RowDescription(body, "");
 
         // Stance (2026-09-07): the colony-wide order every warrior reads live
-        // (GuardStance.Active), like the priority sliders. The combat HUD and its
+        // (Faction.Stance), like the priority sliders. The combat HUD and its
         // hotkeys set the same static, so UpdateDisplay keeps the stepper in step.
-        stanceSetter = MenuBuilder.StepperRow(body, "Stance", GuardStance.Names, (int)GuardStance.Active,
-            i => GuardStance.Set((GuardStance.Mode)i));
+        stanceSetter = MenuBuilder.StepperRow(body, "Stance", GuardStance.Names, (int)Factions.Player.Stance,
+            i => Factions.Player.SetStance((GuardStance.Mode)i));
         MenuBuilder.RowDescription(body, "Defensive holds the colony. Offensive hunts raiders anywhere. Follow escorts your castaway.");
 
         // Formation (2026-09-07): how the group stands when it rallies or escorts.
         // Auto follows the stance (Line / Wedge / Ring); the rest force one.
-        formationSetter = MenuBuilder.StepperRow(body, "Formation", Formation.Names, (int)Formation.Active,
-            i => Formation.Set((Formation.Kind)i));
+        formationSetter = MenuBuilder.StepperRow(body, "Formation", Formation.Names, (int)Factions.Player.FormationKind,
+            i => Factions.Player.SetFormation((Formation.Kind)i));
         MenuBuilder.RowDescription(body, "Auto: Line on Defensive, Wedge on Offensive, Ring on Follow. Spearmen in front, archers behind.");
     }
 
@@ -626,14 +626,14 @@ public class WorkerAssignmentUI : MonoBehaviour
     void UpdateDisplay()
     {
         // The stance / formation steppers mirror statics the combat HUD also sets
-        if (stanceSetter != null && stanceShown != (int)GuardStance.Active)
+        if (stanceSetter != null && stanceShown != (int)Factions.Player.Stance)
         {
-            stanceShown = (int)GuardStance.Active;
+            stanceShown = (int)Factions.Player.Stance;
             stanceSetter(stanceShown);
         }
-        if (formationSetter != null && formationShown != (int)Formation.Active)
+        if (formationSetter != null && formationShown != (int)Factions.Player.FormationKind)
         {
-            formationShown = (int)Formation.Active;
+            formationShown = (int)Factions.Player.FormationKind;
             formationSetter(formationShown);
         }
 
@@ -696,7 +696,7 @@ public class WorkerAssignmentUI : MonoBehaviour
             }
 
             // A job the colony has not learned yet says which research opens it
-            bool locked = !Unlocks.HasJob(row.type);
+            bool locked = !Factions.Player.Knowledge.HasJob(row.type);
             int lockState = locked ? 1 : 0;
             if (lockState != row.lockedLast && row.label != null)
             {
@@ -722,7 +722,7 @@ public class WorkerAssignmentUI : MonoBehaviour
             }
 
             Unlocks.Kind gate = BaseBuilding.UnlockFor(row.specialty);
-            bool locked = !Unlocks.Has(gate);
+            bool locked = !Factions.Player.Knowledge.Has(gate);
             int lockState = locked ? 1 : 0;
             if (lockState != row.lockedLast && row.label != null)
             {
@@ -738,7 +738,7 @@ public class WorkerAssignmentUI : MonoBehaviour
         }
 
         // Warriors need Spearcraft, then the chosen weapon in the stockpile
-        bool militia = Unlocks.Has(Unlocks.Kind.Militia);
+        bool militia = Factions.Player.Knowledge.Has(Unlocks.Kind.Militia);
         ItemDef weapon = baseBuilding.SelectedWeapon;
         int inStock = baseBuilding.Stockpile.Count(weapon);
         if (weapon != weaponShown || inStock != weaponStockShown)
@@ -831,7 +831,7 @@ public class WorkerAssignmentUI : MonoBehaviour
             int queued = station.Queued(r);
             // 0 locked (research first), 1 made (once per run), 2 queued once-tool, 3 unaffordable, 4 affordable
             int state;
-            if (!r.Unlocked) state = 0;
+            if (!r.UnlockedFor(Factions.Player.Knowledge)) state = 0;
             else if (r.oncePerRun && r.made) state = 1;
             else if (r.oncePerRun && queued > 0) state = 2;
             else state = r.CanAfford(hands, stock) ? 4 : 3;
@@ -901,8 +901,8 @@ public class WorkerAssignmentUI : MonoBehaviour
 
             // 0 done, 1 prerequisite missing, 2 queued, 3 unaffordable, 4 affordable
             int state;
-            if (d.done) state = 0;
-            else if (!ResearchCatalog.IsAvailable(d)) state = 1;
+            if (Factions.Player.Knowledge.IsDone(d)) state = 0;
+            else if (!Factions.Player.Knowledge.IsAvailable(d)) state = 1;
             else if (CraftStation.IsQueuedAnywhere(d)) state = 2;
             else state = d.CanAfford(hands, stock) ? 4 : 3;
 
@@ -917,7 +917,7 @@ public class WorkerAssignmentUI : MonoBehaviour
                         row.buttonLabel.text = "Done";
                         break;
                     case 1:
-                        row.cost.text = "Needs " + ResearchCatalog.PrerequisiteTitle(d);
+                        row.cost.text = "Needs " + Factions.Player.Knowledge.PrerequisiteTitle(d);
                         row.cost.color = MenuStyle.TextAccent;
                         row.buttonLabel.text = "Research";
                         break;

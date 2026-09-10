@@ -50,8 +50,8 @@ public abstract class SimPolicy
         for (int i = 0; i < ids.Length; i++)
         {
             ResearchCatalog.ResearchDef d = ResearchCatalog.Find(ids[i]);
-            if (d == null || d.done) continue;
-            if (!ResearchCatalog.IsAvailable(d)) continue;   // a prerequisite is still ahead in the list
+            if (d == null || Factions.Player.Knowledge.IsDone(d)) continue;
+            if (!Factions.Player.Knowledge.IsAvailable(d)) continue;   // a prerequisite is still ahead in the list
             if (CraftStation.IsQueuedAnywhere(d)) return false;
 
             CraftStation bench = StationListing(d);
@@ -85,12 +85,12 @@ public abstract class SimPolicy
     {
         BaseBuilding fire = s.Campfire;
         if (fire == null || fire.Station == null) return false;
-        if (!Unlocks.Has(Unlocks.Kind.Militia)) return false;
+        if (!Factions.Player.Knowledge.Has(Unlocks.Kind.Militia)) return false;
 
         CraftingCatalog.Recipe wooden = CraftingCatalog.Find("wooden_spear");
         CraftingCatalog.Recipe iron = CraftingCatalog.Find("iron_spear");
         CraftingCatalog.Recipe bow = CraftingCatalog.Find("bow");
-        bool ironOk = iron != null && iron.Unlocked
+        bool ironOk = iron != null && iron.UnlockedFor(Factions.Player.Knowledge)
                       && Factions.Player.Resources.metal >= iron.metalCost;
         CraftingCatalog.Recipe spear = ironOk ? iron : wooden;
 
@@ -99,7 +99,7 @@ public abstract class SimPolicy
         if (have >= wanted) return false;
 
         // One bow in three once the colony can make them (a third of the garrison shoots)
-        bool bowOk = bow != null && bow.Unlocked && (s.Warriors + have) % 3 == 2;
+        bool bowOk = bow != null && bow.UnlockedFor(Factions.Player.Knowledge) && (s.Warriors + have) % 3 == 2;
         return fire.Station.Enqueue(bowOk ? bow : spear, 1);
     }
 
@@ -130,7 +130,7 @@ public abstract class SimPolicy
     /// </summary>
     protected static bool RunWorkshop(SimState s)
     {
-        if (!Unlocks.Has(Unlocks.Kind.Crafting) || !CanBuild) return false;
+        if (!Factions.Player.Knowledge.Has(Unlocks.Kind.Crafting) || !CanBuild) return false;
         BaseBuilding fire = s.Campfire;
         if (fire == null) return false;
 
@@ -168,16 +168,16 @@ public abstract class SimPolicy
         // The colony eats (2026-09-04): whatever the ratio says, keep one forager
         // per eight mouths so a strategy that ignores food starves on schedule
         // rather than by accident.
-        if (Unlocks.HasJob(ResourceNode.ResourceType.Food)
+        if (Factions.Player.Knowledge.HasJob(ResourceNode.ResourceType.Food)
             && fire.foodWorkers < Mathf.CeilToInt(s.Colonists / 8f))
         {
             return fire.AssignWorker(ResourceNode.ResourceType.Food);
         }
 
         // A job the colony has not researched yet scores nothing (2026-09-03)
-        if (!Unlocks.HasJob(ResourceNode.ResourceType.Wood)) woodShare = 0f;
-        if (!Unlocks.HasJob(ResourceNode.ResourceType.Food)) foodShare = 0f;
-        if (!Unlocks.HasJob(ResourceNode.ResourceType.Stone)) stoneShare = 0f;
+        if (!Factions.Player.Knowledge.HasJob(ResourceNode.ResourceType.Wood)) woodShare = 0f;
+        if (!Factions.Player.Knowledge.HasJob(ResourceNode.ResourceType.Food)) foodShare = 0f;
+        if (!Factions.Player.Knowledge.HasJob(ResourceNode.ResourceType.Stone)) stoneShare = 0f;
 
         // Largest deficit against target share wins. Starts everyone on wood,
         // which is what a player does before the ratio means anything.
@@ -214,7 +214,7 @@ public abstract class SimPolicy
     /// <summary>Build a hut when housing is the thing capping the colony.</summary>
     protected static bool BuildHutIfCapped(SimState s, int maxHuts)
     {
-        if (!Unlocks.Has(Unlocks.Kind.Construction)) return false;
+        if (!Factions.Player.Knowledge.Has(Unlocks.Kind.Construction)) return false;
         if (SimBuilder.HutCount + SimBuilder.PendingSites(BuildingType.Hut) >= maxHuts) return false;
         if (Factions.Player.Population != null
             && Factions.Player.Population.GetAvailableHousing() > 0
@@ -223,7 +223,7 @@ public abstract class SimPolicy
     }
 
     /// <summary>Construction research gates every placement.</summary>
-    protected static bool CanBuild => Unlocks.Has(Unlocks.Kind.Construction);
+    protected static bool CanBuild => Factions.Player.Knowledge.Has(Unlocks.Kind.Construction);
 }
 
 /// <summary>
@@ -355,7 +355,7 @@ public class EcoPolicy : SimPolicy
         if (s.Day >= 12)
         {
             if (Research(s, "shipwright")) return;
-            if (Unlocks.Has(Unlocks.Kind.Shipwright) && CanBuild
+            if (Factions.Player.Knowledge.Has(Unlocks.Kind.Shipwright) && CanBuild
                 && Shipyard.ActiveList.Count == 0 && SimBuilder.PendingSites(BuildingType.Shipyard) == 0)
             {
                 if (SimBuilder.PlaceShoreBuilding(BuildingType.Shipyard, 60f)) return;

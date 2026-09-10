@@ -14,5 +14,5 @@ public class StanceAllows : Consideration
         this.role = role;
     }
 
-    public override float ScoreRaw(AIBlackboard bb) => GuardStance.Permits(role) ? 1f : 0f;
+    public override float ScoreRaw(AIBlackboard bb) => GuardStance.Permits(role, bb.faction) ? 1f : 0f;
 }

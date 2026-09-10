@@ -21,6 +21,9 @@ using UnityEngine;
 /// </summary>
 public class CraftStation : MonoBehaviour
 {
+    /// <summary>Whose bench this is. The host building's faction from commit 5; the player's until then.</summary>
+    public Faction Faction => Factions.Player;
+
     public static IReadOnlyList<CraftStation> ActiveList => ActiveRegistry<CraftStation>.List;
 
     /// <summary>Seconds without labor before the panel says nobody is at the bench.</summary>
@@ -156,7 +159,7 @@ public class CraftStation : MonoBehaviour
     /// </summary>
     public bool Enqueue(CraftingCatalog.Recipe r, int count = 1)
     {
-        if (r == null || count <= 0 || !Lists(r) || !r.Unlocked) return false;
+        if (r == null || count <= 0 || !Lists(r) || !r.UnlockedFor(Faction.Knowledge)) return false;
         if (r.oncePerRun)
         {
             if (r.made || Queued(r) > 0) return false;
@@ -174,7 +177,7 @@ public class CraftStation : MonoBehaviour
     /// <summary>Queue a research entry. False when not listed here, not available, done, or already queued at any station.</summary>
     public bool Enqueue(ResearchCatalog.ResearchDef d)
     {
-        if (d == null || !Lists(d) || !ResearchCatalog.IsAvailable(d)) return false;
+        if (d == null || !Lists(d) || !Faction.Knowledge.IsAvailable(d)) return false;
         if (IsQueuedAnywhere(d)) return false;
 
         queue.Add(new QueueEntry { research = d, remaining = 1 });
@@ -247,7 +250,7 @@ public class CraftStation : MonoBehaviour
         QueueEntry e = queue[0];
 
         // Research finished elsewhere (or a tool made elsewhere) while it waited here
-        if (e.research != null && e.research.done) { queue.RemoveAt(0); status = ""; Version++; return true; }
+        if (e.research != null && Faction.Knowledge.IsDone(e.research)) { queue.RemoveAt(0); status = ""; Version++; return true; }
         if (e.recipe != null && e.recipe.oncePerRun && e.recipe.made) { queue.RemoveAt(0); status = ""; Version++; return true; }
 
         e.progress += dt * Speed(e.Def.Category);
@@ -275,7 +278,7 @@ public class CraftStation : MonoBehaviour
             // A research that carries a tool equips the player with it as it
             // completes — learning to cut wood and making the axe are one step.
             Deliver(e.research.tool, 1, who, stock);
-            ResearchCatalog.Complete(e.research);
+            Faction.Knowledge.Complete(e.research);
             queue.RemoveAt(0);
         }
         else

@@ -35,31 +35,19 @@ public static class Formation
     public const float RingRadius = 3.5f;     // spearmen around the centre
     public const float RingInner = 1.8f;      // archers inside them
 
-    public static Kind Active = Kind.Auto;
+    // The override itself is per faction since lap step 1 commit 4 (2026-09-09):
+    // Faction.FormationKind, set through Faction.SetFormation.
 
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    static void ResetStatics() { Active = Kind.Auto; }
-
-    /// <summary>The one setter every control uses (panel stepper, combat HUD), so the playtest signal fires once per change.</summary>
-    public static void Set(Kind kind)
+    /// <summary>The formation in use: the faction's override, else its stance's own.</summary>
+    public static Kind Effective(Faction f)
     {
-        if (Active == kind) return;
-        Active = kind;
-        DevQuests.Signal("formation:" + Names[(int)kind].ToLowerInvariant());
-    }
-
-    /// <summary>The formation in use: the override, else the stance's own.</summary>
-    public static Kind Effective
-    {
-        get
+        Kind k = f != null ? f.FormationKind : Kind.Auto;
+        if (k != Kind.Auto) return k;
+        switch (GuardStance.Effective(f))
         {
-            if (Active != Kind.Auto) return Active;
-            switch (GuardStance.Effective)
-            {
-                case GuardStance.Mode.Offensive: return Kind.Wedge;
-                case GuardStance.Mode.Follow: return Kind.Ring;
-                default: return Kind.Line;
-            }
+            case GuardStance.Mode.Offensive: return Kind.Wedge;
+            case GuardStance.Mode.Follow: return Kind.Ring;
+            default: return Kind.Line;
         }
     }
 
@@ -69,9 +57,9 @@ public static class Formation
     /// False for Loose, in which case <paramref name="slot"/> is the centre and the
     /// caller uses its own spread. Zero-GC: two passes over Warrior.ActiveList.
     /// </summary>
-    public static bool TrySlot(Warrior warrior, Vector3 center, Vector3 facing, out Vector3 slot)
+    public static bool TrySlot(Warrior warrior, Faction f, Vector3 center, Vector3 facing, out Vector3 slot)
     {
-        Kind kind = Effective;
+        Kind kind = Effective(f);
         if (kind == Kind.Loose || warrior == null)
         {
             slot = center;
