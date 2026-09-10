@@ -174,7 +174,7 @@ public class PatrolExecutor : ActionExecutor
 
         if (!campfireCached)
         {
-            cachedCampfire = BaseBuilding.ActiveList.Count > 0 ? BaseBuilding.ActiveList[0] : null;
+            cachedCampfire = bb.faction.Campfire;
             campfireCached = true;
         }
 

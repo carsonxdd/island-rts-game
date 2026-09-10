@@ -101,7 +101,7 @@ public class DebugMenu : MonoBehaviour
         }
     }
 
-    BaseBuilding Campfire => BaseBuilding.ActiveList.Count > 0 ? BaseBuilding.ActiveList[0] : null;
+    BaseBuilding Campfire => Factions.Player.Campfire;
 
     private string stockNote;
 
@@ -453,7 +453,7 @@ public class DebugMenu : MonoBehaviour
         GUI.enabled = Shipyard.ActiveList.Count > 0 && GameManager.Instance != null && !GameManager.Instance.isGameOver;
         if (GUILayout.Button("Set Sail (needs a finished Shipyard)"))
         {
-            Shipyard yard = Shipyard.ActiveList[0];
+            Shipyard yard = TargetingUtil.FindNearestOwned(Shipyard.ActiveList, Vector3.zero, 0f, Factions.Player, out _);
             if (yard != null) yard.SetSail();
         }
         GUI.enabled = PlayerCharacter.Instance != null && !PlayerCharacter.Instance.IsKnockedOut;

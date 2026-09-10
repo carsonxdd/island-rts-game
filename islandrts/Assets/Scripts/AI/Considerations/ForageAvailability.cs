@@ -46,7 +46,7 @@ public class ForageAvailability : Consideration
         // Job holders forage through PickupAvailability instead.
         if (bb.hasJob) return 0f;
 
-        BaseBuilding fire = BaseBuilding.FindAlive();
+        BaseBuilding fire = bb.faction.Campfire;
         if (fire == null) return 0f;
 
         Vector3 home = fire.transform.position;

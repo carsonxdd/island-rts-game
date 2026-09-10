@@ -12,6 +12,10 @@ using System.Collections.Generic;
 /// </remarks>
 public class Hut : MonoBehaviour, ITargetable, IHousing
 {
+    // Owner (lap step 1 commit 5). Set by Spawn.Owned right after Instantiate
+    // (commit 6); the player's when nothing set it. Read in Start or later, never Awake.
+    Faction owner;
+    public Faction Faction { get => owner ?? (owner = Factions.Player); set => owner = value; }
     // IHousing — PopulationManager derives the colony's capacity from registered providers
     public int HousingCapacity => workerCapacity;
     public bool HousingAlive => !housingReleased && (healthComponent == null || healthComponent.IsAlive);
@@ -82,9 +86,9 @@ public class Hut : MonoBehaviour, ITargetable, IHousing
 
         // Register this hut as housing with PopulationManager (homeless colonists move in at once)
         housingCollider = GetComponent<Collider>();
-        if (Factions.Player.Population != null)
+        if (Faction.Population != null)
         {
-            Factions.Player.Population.RegisterHousing(this);
+            Faction.Population.RegisterHousing(this);
         }
     }
 
@@ -109,9 +113,9 @@ public class Hut : MonoBehaviour, ITargetable, IHousing
         ReleaseHousing();
 
         // Check if workers are now homeless
-        if (Factions.Player.Population != null && Factions.Player.Population.HasHomelessWorkers())
+        if (Faction.Population != null && Faction.Population.HasHomelessWorkers())
         {
-            int homelessCount = Factions.Player.Population.GetHomelessCount();
+            int homelessCount = Faction.Population.GetHomelessCount();
             Debug.LogWarning($"Hut: {homelessCount} workers are now HOMELESS! Build more huts.");
         }
 
@@ -128,9 +132,9 @@ public class Hut : MonoBehaviour, ITargetable, IHousing
         if (housingReleased) return;
         housingReleased = true;
 
-        if (Factions.Player.Population != null)
+        if (Faction.Population != null)
         {
-            Factions.Player.Population.UnregisterHousing(this);
+            Faction.Population.UnregisterHousing(this);
         }
     }
 

@@ -142,7 +142,7 @@ public class DevQuestTracker : MonoBehaviour
     private static void WatchPatrolSpread()
     {
         if (Warrior.ActiveList.Count < 6 || Wall.ActiveList.Count > 0) return;
-        BaseBuilding fire = BaseBuilding.FindAlive();
+        BaseBuilding fire = Factions.Player.Campfire;
         if (fire == null || fire.HousingCollider == null) return;
         var warriors = Warrior.ActiveList;
         for (int i = 0; i < warriors.Count; i++)

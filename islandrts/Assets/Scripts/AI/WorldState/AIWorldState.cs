@@ -3,14 +3,20 @@ using System.Collections.Generic;
 
 /// <summary>
 /// Singleton cache of the world facts that many units would otherwise each compute for
-/// themselves every brain tick: time of day, where enemies are massed, campfire health,
-/// and which walls are being hit.
+/// themselves every brain tick: time of day, where fighters are massed, and which walls
+/// are being hit.
 /// </summary>
 /// <remarks>
 /// Everything here is refreshed on its own schedule and read for free by considerations,
 /// which is the point: one shared scan per interval instead of one per unit per tick.
 /// All storage is pre-allocated, so the refreshes allocate nothing.
 /// Auto-created by the first AIBrain via EnsureExists, so no scene wiring is needed.
+///
+/// Lap step 1 commit 5 (2026-09-09): the density grid is one grid PER FACTION
+/// (raiders and every colony's warriors), and <see cref="GetNearbyHostileCount"/> sums
+/// the grids of the factions hostile to the asker. The walls-under-attack list carries
+/// each wall's owner so a warrior only defends its own colony's walls. The campfire
+/// state that lived here moved to <c>Faction.Campfire</c>. Time of day stays global.
 /// </remarks>
 public class AIWorldState : MonoBehaviour
 {
@@ -21,27 +27,23 @@ public class AIWorldState : MonoBehaviour
     public bool isNight { get; private set; }
     public float dayProgress { get; private set; } // 0 = full night, 1 = full day
 
-    // --- Enemy density grid ---
-    // A coarse bucket count of enemies per cell. GetNearbyEnemyCount then answers
-    // "how dangerous is it here" by summing a 3x3 block (~30x30 world units) instead
-    // of distance-testing every enemy on the field.
+    // --- Fighter density grids, one per faction id ---
+    // A coarse bucket count per cell. GetNearbyHostileCount then answers "how
+    // dangerous is it here for me" by summing a 3x3 block (~30x30 world units) of
+    // every hostile faction's grid instead of distance-testing every fighter.
     private const float CELL_SIZE = 10f;
     private const int GRID_SIZE = 30; // 300x300 world units
     private const int GRID_OFFSET = GRID_SIZE / 2;
-    private readonly int[,] enemyDensityGrid = new int[GRID_SIZE, GRID_SIZE];
+    private readonly int[] densityGrids = new int[Relations.MaxFactions * GRID_SIZE * GRID_SIZE];
     private int densityUpdateFrame = -1;
     private int densityUpdateInterval = 10; // Rebuild every 10 frames - threat shifts slowly
 
-    // --- Campfire state ---
-    public float campfireHealthPercent { get; private set; }
-    public Vector3 campfirePosition { get; private set; }
-    public bool campfireExists { get; private set; }
-
     // --- Walls-under-attack cache ---
-    // Drives the warrior DefendWall action. Inferred from where enemies are HEADING
-    // (their agent destination lands on a wall cell) rather than from damage events, so
-    // warriors start moving while the wall is still being approached.
-    private readonly List<Transform> wallsUnderAttack = new List<Transform>();
+    // Drives the warrior DefendWall action. Inferred from where hostile fighters are
+    // HEADING (their agent destination lands on a wall cell) rather than from damage
+    // events, so warriors start moving while the wall is still being approached.
+    private struct WallHit { public Transform wall; public Faction owner; }
+    private readonly List<WallHit> wallsUnderAttack = new List<WallHit>();
     private float wallAttackCheckTimer = 0f;
     private float wallAttackCheckInterval = 1f;
 
@@ -75,13 +77,12 @@ public class AIWorldState : MonoBehaviour
     void Update()
     {
         UpdateTimeOfDay();
-        UpdateCampfireState();
 
-        // Rebuild enemy density grid periodically
+        // Rebuild the density grids periodically
         if (Time.frameCount - densityUpdateFrame >= densityUpdateInterval)
         {
             densityUpdateFrame = Time.frameCount;
-            RebuildEnemyDensityGrid();
+            RebuildDensityGrids();
         }
 
         // Check walls under attack
@@ -126,141 +127,140 @@ public class AIWorldState : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Polls the campfire from the registry every frame rather than caching it, because
-    /// during the opening sequence the campfire does not exist until the player places it.
-    /// </summary>
-    void UpdateCampfireState()
+    static int Cell(Vector3 pos, out int gx, out int gz)
     {
-        if (BaseBuilding.ActiveList.Count > 0)
-        {
-            BaseBuilding campfire = BaseBuilding.ActiveList[0];
-            if (campfire != null)
-            {
-                campfireExists = true;
-                campfirePosition = campfire.transform.position;
-                campfireHealthPercent = campfire.GetHealthPercentage();
-            }
-            else
-            {
-                campfireExists = false;
-            }
-        }
-        else
-        {
-            campfireExists = false;
-        }
+        gx = Mathf.Clamp(Mathf.FloorToInt(pos.x / CELL_SIZE) + GRID_OFFSET, 0, GRID_SIZE - 1);
+        gz = Mathf.Clamp(Mathf.FloorToInt(pos.z / CELL_SIZE) + GRID_OFFSET, 0, GRID_SIZE - 1);
+        return gx * GRID_SIZE + gz;
     }
 
-    /// <summary>Re-buckets every live enemy into the density grid. Cheap: one pass, no allocation.</summary>
-    void RebuildEnemyDensityGrid()
+    /// <summary>Re-buckets every live fighter into its faction's grid. Cheap: two passes, no allocation.</summary>
+    void RebuildDensityGrids()
     {
-        // Clear grid
-        System.Array.Clear(enemyDensityGrid, 0, GRID_SIZE * GRID_SIZE);
+        System.Array.Clear(densityGrids, 0, densityGrids.Length);
 
-        // Count enemies per cell
-        for (int i = 0; i < Enemy.ActiveList.Count; i++)
+        var enemies = Enemy.ActiveList;
+        for (int i = 0; i < enemies.Count; i++)
         {
-            Enemy enemy = Enemy.ActiveList[i];
-            if (enemy == null) continue;
-
-            Vector3 pos = enemy.transform.position;
-            int gx = Mathf.Clamp(Mathf.FloorToInt(pos.x / CELL_SIZE) + GRID_OFFSET, 0, GRID_SIZE - 1);
-            int gz = Mathf.Clamp(Mathf.FloorToInt(pos.z / CELL_SIZE) + GRID_OFFSET, 0, GRID_SIZE - 1);
-            enemyDensityGrid[gx, gz]++;
+            Enemy e = enemies[i];
+            if (e == null) continue;
+            int gx, gz;
+            densityGrids[e.Faction.Id * GRID_SIZE * GRID_SIZE + Cell(e.transform.position, out gx, out gz)]++;
+        }
+        var warriors = Warrior.ActiveList;
+        for (int i = 0; i < warriors.Count; i++)
+        {
+            Warrior w = warriors[i];
+            if (w == null) continue;
+            int gx, gz;
+            densityGrids[w.Faction.Id * GRID_SIZE * GRID_SIZE + Cell(w.transform.position, out gx, out gz)]++;
         }
     }
 
     /// <summary>
-    /// Get the number of enemies in a 3x3 cell area around the given position.
-    /// O(9) operation replaces O(n) distance scans.
+    /// Fighters hostile to <paramref name="me"/> in the 3x3 cell block around a
+    /// position. O(9 × factions) replaces O(n) distance scans.
     /// </summary>
-    public int GetNearbyEnemyCount(Vector3 position)
+    public int GetNearbyHostileCount(Vector3 position, Faction me)
     {
-        int cx = Mathf.Clamp(Mathf.FloorToInt(position.x / CELL_SIZE) + GRID_OFFSET, 0, GRID_SIZE - 1);
-        int cz = Mathf.Clamp(Mathf.FloorToInt(position.z / CELL_SIZE) + GRID_OFFSET, 0, GRID_SIZE - 1);
+        int cx, cz;
+        Cell(position, out cx, out cz);
 
         int count = 0;
-        for (int dx = -1; dx <= 1; dx++)
+        var all = Factions.All;
+        for (int f = 0; f < all.Count; f++)
         {
-            int gx = cx + dx;
-            if (gx < 0 || gx >= GRID_SIZE) continue;
-            for (int dz = -1; dz <= 1; dz++)
+            Faction other = all[f];
+            if (!me.IsHostileTo(other)) continue;
+            int baseIndex = other.Id * GRID_SIZE * GRID_SIZE;
+            for (int dx = -1; dx <= 1; dx++)
             {
-                int gz = cz + dz;
-                if (gz < 0 || gz >= GRID_SIZE) continue;
-                count += enemyDensityGrid[gx, gz];
+                int gx = cx + dx;
+                if (gx < 0 || gx >= GRID_SIZE) continue;
+                for (int dz = -1; dz <= 1; dz++)
+                {
+                    int gz = cz + dz;
+                    if (gz < 0 || gz >= GRID_SIZE) continue;
+                    count += densityGrids[baseIndex + gx * GRID_SIZE + gz];
+                }
             }
         }
         return count;
     }
 
     /// <summary>
-    /// Rebuilds the walls-under-attack list by asking where each enemy is walking: if its
+    /// Rebuilds the walls-under-attack list by asking where each raider is walking: if its
     /// agent destination maps to a cell holding a wall or gate, that piece is treated as
-    /// under attack.
+    /// under attack, tagged with the wall's owner.
     /// </summary>
     void UpdateWallsUnderAttack()
     {
         wallsUnderAttack.Clear();
+        if (WallGrid.Instance == null) return;
 
-        // Check enemies that are attacking walls
-        for (int i = 0; i < Enemy.ActiveList.Count; i++)
+        var enemies = Enemy.ActiveList;
+        for (int i = 0; i < enemies.Count; i++)
         {
-            Enemy enemy = Enemy.ActiveList[i];
+            Enemy enemy = enemies[i];
             if (enemy == null) continue;
-
-            // We check via the enemy's agent destination against WallGrid
-            UnityEngine.AI.NavMeshAgent enemyAgent = enemy.CachedAgent;
-            if (enemyAgent == null || !enemyAgent.hasPath) continue;
-
-            if (WallGrid.Instance != null)
-            {
-                Vector2Int destGrid = WallGrid.Instance.WorldToGrid(enemyAgent.destination);
-                if (WallGrid.Instance.HasWallAt(destGrid))
-                {
-                    // Find the wall/gate transform at that position
-                    MonoBehaviour wallAtPos = WallGrid.Instance.GetWallAt(destGrid);
-                    if (wallAtPos != null && !wallsUnderAttack.Contains(wallAtPos.transform))
-                    {
-                        wallsUnderAttack.Add(wallAtPos.transform);
-                    }
-                }
-            }
+            AddWallTarget(enemy.CachedAgent);
+        }
+        // Another colony's warriors walking at a wall count too (rival landings, step 3)
+        var warriors = Warrior.ActiveList;
+        for (int i = 0; i < warriors.Count; i++)
+        {
+            Warrior w = warriors[i];
+            if (w == null) continue;
+            AddWallTarget(w.CachedAgent);
         }
     }
 
+    void AddWallTarget(UnityEngine.AI.NavMeshAgent agent)
+    {
+        if (agent == null || !agent.hasPath) return;
+        Vector2Int destGrid = WallGrid.Instance.WorldToGrid(agent.destination);
+        if (!WallGrid.Instance.HasWallAt(destGrid)) return;
+
+        MonoBehaviour wallAtPos = WallGrid.Instance.GetWallAt(destGrid);
+        if (wallAtPos == null) return;
+        for (int i = 0; i < wallsUnderAttack.Count; i++)
+            if (wallsUnderAttack[i].wall == wallAtPos.transform) return;
+
+        IOwned owned = wallAtPos as IOwned;
+        wallsUnderAttack.Add(new WallHit { wall = wallAtPos.transform, owner = owned != null ? owned.Faction : null });
+    }
+
     /// <summary>
-    /// Get the nearest wall/gate that is currently under attack by enemies.
-    /// Returns null if no walls are under attack.
+    /// The nearest wall/gate of <paramref name="me"/>'s that something is walking at.
+    /// Returns null if none of that colony's walls are under attack.
     /// </summary>
-    public Transform GetNearestWallUnderAttack(Vector3 fromPosition, out float distance)
+    public Transform GetNearestWallUnderAttack(Vector3 fromPosition, Faction me, out float distance)
     {
         Transform nearest = null;
         distance = float.MaxValue;
 
         for (int i = 0; i < wallsUnderAttack.Count; i++)
         {
-            Transform wall = wallsUnderAttack[i];
-            if (wall == null) continue;
+            WallHit hit = wallsUnderAttack[i];
+            if (hit.wall == null || hit.owner != me) continue;
 
-            float dist = Vector3.Distance(fromPosition, wall.position);
+            float dist = Vector3.Distance(fromPosition, hit.wall.position);
             if (dist < distance)
             {
                 distance = dist;
-                nearest = wall;
+                nearest = hit.wall;
             }
         }
 
         return nearest;
     }
 
-    /// <summary>
-    /// Check if any walls/gates are currently under attack.
-    /// </summary>
-    public bool AreWallsUnderAttack()
+    /// <summary>Whether any of <paramref name="me"/>'s walls/gates are currently under attack.</summary>
+    public bool AreWallsUnderAttack(Faction me)
     {
-        return wallsUnderAttack.Count > 0;
+        for (int i = 0; i < wallsUnderAttack.Count; i++)
+            if (wallsUnderAttack[i].owner == me && wallsUnderAttack[i].wall != null) return true;
+        return false;
     }
 
     void OnDestroy()

@@ -57,6 +57,13 @@ public class StuckResolver : MonoBehaviour
 
     private NavMeshAgent agent;
 
+    /// <summary>This unit's colony's campfire (the warp-home fallback), via its owner; null for a raider.</summary>
+    BaseBuilding OwnCampfire()
+    {
+        IOwned o = GetComponent<IOwned>();
+        return o != null ? o.Faction.Campfire : null;
+    }
+
     /// <summary>
     /// Fired when the unit has been stuck long enough to give up. Units use it to drop
     /// their current target and force a brain re-evaluation. Invoked from inside
@@ -99,9 +106,9 @@ public class StuckResolver : MonoBehaviour
             {
                 agent.Warp(hit.position);
             }
-            else if (BaseBuilding.ActiveList.Count > 0)
+            else if (OwnCampfire() != null)
             {
-                Vector3 campfirePos = BaseBuilding.ActiveList[0].transform.position;
+                Vector3 campfirePos = OwnCampfire().transform.position;
                 if (NavMesh.SamplePosition(campfirePos, out hit, 5f, NavMesh.AllAreas))
                 {
                     agent.Warp(hit.position);

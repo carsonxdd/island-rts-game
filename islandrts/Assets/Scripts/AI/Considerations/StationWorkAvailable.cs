@@ -30,7 +30,7 @@ public class StationWorkAvailable : Consideration
         for (int i = 0; i < list.Count; i++)
         {
             CraftStation s = list[i];
-            if (s == null || !s.HasWork) continue;
+            if (s == null || !s.HasWork || s.Faction != bb.faction) continue;
 
             float sqr = (s.transform.position - myPos).sqrMagnitude;
             if (sqr >= bestSqr) continue;                 // prune before the claim / alive checks

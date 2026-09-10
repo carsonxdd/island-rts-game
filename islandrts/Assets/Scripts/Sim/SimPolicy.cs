@@ -362,7 +362,7 @@ public class EcoPolicy : SimPolicy
             }
             if (Shipyard.ActiveList.Count > 0)
             {
-                Shipyard yard = Shipyard.ActiveList[0];
+                Shipyard yard = TargetingUtil.FindNearestOwned(Shipyard.ActiveList, Vector3.zero, 0f, Factions.Player, out _);
                 if (yard != null) { yard.SetSail(); return; }
             }
         }

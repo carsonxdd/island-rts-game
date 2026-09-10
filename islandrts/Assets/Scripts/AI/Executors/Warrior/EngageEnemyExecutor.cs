@@ -29,8 +29,9 @@ public class EngageEnemyExecutor : ActionExecutor
 
     private const float SlotStoppingDistance = 0.5f;
 
-    // The attack slot on the current target (2026-09-07)
+    // The attack slot on the current target (2026-09-07); null when the target is another colony's warrior
     private Enemy slotEnemy;
+    private ITargetable currentTargetable;   // the target as its ITargetable, for the stance re-check
     private int slotIndex = -1;
     private float originalStoppingDistance;
     private bool stoppingDistanceSwapped;
@@ -187,36 +188,30 @@ public class EngageEnemyExecutor : ActionExecutor
 
     void FindBestTarget(AIBlackboard bb)
     {
-        if (Enemy.ActiveList.Count == 0)
+        if (Enemy.ActiveList.Count == 0 && Warrior.ActiveList.Count <= 1)
         {
             bb.ClearTarget();
             return;
         }
 
         Vector3 from = bb.transform.position;
-        Enemy nearest = null;
+        ITargetable nearest = null;
         float nearestDistance = float.MaxValue;   // the stance decides reach, not warriorSearchRadius
 
-        for (int i = 0; i < Enemy.ActiveList.Count; i++)
+        // Hostile fighters (commit 5): raider bodies and other colonies' warriors.
+        // The Unity null check happens on the concrete type (an interface reference
+        // to a destroyed component never reads null).
+        var enemies = Enemy.ActiveList;
+        for (int i = 0; i < enemies.Count; i++)
         {
-            Enemy enemy = Enemy.ActiveList[i];
-            if (enemy == null) continue;
-
-            Health enemyHealth = enemy.CachedHealth;
-            if (enemyHealth == null || !enemyHealth.IsAlive) continue;
-
-            float distance = Vector3.Distance(from, enemy.transform.position);
-            bool headingForWall = enemy.IsHeadingForWall();
-
-            // Wall-attack bonus: enemies attacking walls treated as closer
-            if (headingForWall) distance *= 0.5f;
-            if (distance >= nearestDistance) continue;
-
-            // The stance's filter, after the cheap distance cull (2026-09-07)
-            if (!GuardStance.Allows(enemy, from, bb.baseBuilding, bb.faction)) continue;
-
-            nearestDistance = distance;
-            nearest = enemy;
+            Enemy e = enemies[i];
+            if (e != null) Consider(bb, e, from, ref nearest, ref nearestDistance);
+        }
+        var warriors = Warrior.ActiveList;
+        for (int i = 0; i < warriors.Count; i++)
+        {
+            Warrior w = warriors[i];
+            if (w != null && w != bb.warrior) Consider(bb, w, from, ref nearest, ref nearestDistance);
         }
 
         // Also update bb.nearestEnemy for considerations to read
@@ -228,7 +223,7 @@ public class EngageEnemyExecutor : ActionExecutor
             // Hysteresis: don't switch if we have a valid living target — unless the
             // stance no longer allows the one we have (the player changed orders).
             if (bb.currentTarget != null && bb.IsTargetAlive()
-                && (slotEnemy == null || GuardStance.Allows(slotEnemy, from, bb.baseBuilding, bb.faction)))
+                && (currentTargetable == null || GuardStance.Allows(currentTargetable, from, bb.baseBuilding, bb.faction)))
             {
                 if (Time.time - targetAcquiredTime < minTargetLockDuration)
                     return;
@@ -238,17 +233,39 @@ public class EngageEnemyExecutor : ActionExecutor
                     return;
             }
 
-            if (bb.SetTarget(nearest.transform, nearest.gameObject.name))
+            if (bb.SetTarget(nearest.transform, nearest.transform.gameObject.name))
             {
                 targetAcquiredTime = Time.time;
-                TakeSlot(bb, nearest);
+                currentTargetable = nearest;
+                TakeSlot(bb, nearest as Enemy);   // only a raider body has attack slots
             }
         }
         else
         {
             bb.ClearTarget();
+            currentTargetable = null;
             ReleaseSlot(bb);
         }
+    }
+
+    void Consider(AIBlackboard bb, ITargetable t, Vector3 from, ref ITargetable nearest, ref float nearestDistance)
+    {
+        if (!bb.faction.IsHostileTo(t.Faction)) return;
+        Health h = t.CachedHealth;
+        if (h == null || !h.IsAlive) return;
+
+        float distance = Vector3.Distance(from, t.transform.position);
+
+        // Wall-attack bonus: raiders attacking walls treated as closer
+        Enemy raider = t as Enemy;
+        if (raider != null && raider.IsHeadingForWall()) distance *= 0.5f;
+        if (distance >= nearestDistance) return;
+
+        // The stance's filter, after the cheap distance cull (2026-09-07)
+        if (!GuardStance.Allows(t, from, bb.baseBuilding, bb.faction)) return;
+
+        nearestDistance = distance;
+        nearest = t;
     }
 
     // --- Archer kiting (2026-09-07) ---
@@ -265,7 +282,7 @@ public class EngageEnemyExecutor : ActionExecutor
         float trigger = offensive ? GuardStance.KiteTrigger : GuardStance.HoldTrigger;
 
         float threatDist;
-        Enemy threat = TargetingUtil.FindNearest(Enemy.ActiveList, bb.transform.position, trigger + 1.5f, out threatDist);
+        ITargetable threat = TargetingUtil.FindNearestHostileCombatant(bb.transform.position, trigger + 1.5f, bb.faction, out threatDist);
 
         if (kiting)
         {
@@ -330,6 +347,7 @@ public class EngageEnemyExecutor : ActionExecutor
     void TakeSlot(AIBlackboard bb, Enemy enemy)
     {
         ReleaseSlot(bb);
+        if (enemy == null) return;
         slotEnemy = enemy;
         slotIndex = enemy.ClaimAttackSlot(bb.warrior, bb.transform.position);
     }
@@ -355,7 +373,8 @@ public class EngageEnemyExecutor : ActionExecutor
             Enemy e = bb.currentTarget.GetComponent<Enemy>();
             if (e != null) TakeSlot(bb, e);
         }
-        if (slotEnemy == null || slotIndex < 0) return bb.currentTarget.position;
+        if (slotEnemy == null || slotIndex < 0)
+            return TargetingUtil.GetApproachPoint(bb.transform.position, bb.currentTarget, bb.currentTargetCollider);   // a rival warrior: its edge
 
         float reach = Mathf.Max(1f, bb.attackRange - 1f);
         Vector3 want = slotEnemy.AttackSlotPoint(slotIndex, reach);
@@ -394,6 +413,11 @@ public class EngageEnemyExecutor : ActionExecutor
             return;
         }
 
+        if (bb.currentTargetFaction != null && !bb.faction.IsHostileTo(bb.currentTargetFaction))
+        {
+            bb.ClearTarget();   // the relation changed under us: never a spear into a non-hostile
+            return;
+        }
         bb.lastAttackTime = Time.time;
 
         // Watchtower damage buff (bb.damage already carries the weapon's stats)

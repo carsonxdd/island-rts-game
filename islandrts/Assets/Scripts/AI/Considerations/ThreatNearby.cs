@@ -19,7 +19,7 @@ public class ThreatNearby : Consideration
     {
         if (AIWorldState.Instance == null) return 0f;
 
-        int nearbyEnemies = AIWorldState.Instance.GetNearbyEnemyCount(bb.transform.position);
+        int nearbyEnemies = AIWorldState.Instance.GetNearbyHostileCount(bb.transform.position, bb.faction);
         return Mathf.Clamp01(nearbyEnemies / maxThreat);
     }
 }

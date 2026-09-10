@@ -24,6 +24,7 @@ public class RepairAvailable : Consideration
     private BuildingType bestType;
     private float bestSqr;
     private Vector3 myPos;
+    private Faction mine;
 
     public override float ScoreRaw(AIBlackboard bb)
     {
@@ -37,6 +38,7 @@ public class RepairAvailable : Consideration
         bestHealth = null;
         bestSqr = float.MaxValue;
         myPos = bb.transform.position;
+        mine = bb.faction;
 
         Scan(Hut.ActiveList, BuildingType.Hut);
         Scan(Watchtower.ActiveList, BuildingType.Watchtower);
@@ -47,14 +49,14 @@ public class RepairAvailable : Consideration
         for (int i = 0; i < walls.Count; i++)
         {
             Wall w = walls[i];
-            if (w == null) continue;
+            if (w == null || w.Faction != mine) continue;
             Consider(w.transform, w.CachedHealth, RepairCosts.TypeOf(w));
         }
         var gates = Gate.ActiveList;
         for (int i = 0; i < gates.Count; i++)
         {
             Gate g = gates[i];
-            if (g == null) continue;
+            if (g == null || g.Faction != mine) continue;
             Consider(g.transform, g.CachedHealth, RepairCosts.TypeOf(g));
         }
 
@@ -76,7 +78,7 @@ public class RepairAvailable : Consideration
         for (int i = 0; i < list.Count; i++)
         {
             T entry = list[i];
-            if (entry == null) continue;
+            if (entry == null || entry.Faction != mine) continue;
             Consider(entry.transform, entry.CachedHealth, type);
         }
     }

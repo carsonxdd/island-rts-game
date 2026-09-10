@@ -272,7 +272,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         // (2026-09-03). The campfire's collider is a 2x2 box under a wide,
         // flickering silhouette, so aiming at the fire itself was fiddly, and
         // missing it walked the character past the thing they were carrying to.
-        BaseBuilding near = BaseBuilding.FindAlive();
+        BaseBuilding near = Factions.Player.Campfire;
         if (near != null)
         {
             float d = TargetingUtil.EdgeDistance(point, near.transform, near.GetComponent<Collider>());
@@ -730,7 +730,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         int left = count - inventory.Add(item, count);
         if (left > 0)
         {
-            BaseBuilding fire = BaseBuilding.FindAlive();
+            BaseBuilding fire = Factions.Player.Campfire;
             if (fire != null) fire.Stockpile.Add(item, left);
         }
         if (heldItem != null && item.kind == ItemKind.Tool) heldItem.Equip(item);
@@ -936,7 +936,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         if (healthComponent != null) healthComponent.currentHealth = healthComponent.maxHealth;
     }
 
-    static BaseBuilding AliveCampfire() => BaseBuilding.FindAlive();
+    static BaseBuilding AliveCampfire() => Factions.Player.Campfire;
 
     // ------------------------------------------------------------------
     // Label

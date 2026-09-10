@@ -11,11 +11,11 @@ public class WallIntegrity : Consideration
     {
         if (AIWorldState.Instance == null) return 0f;
 
-        if (!AIWorldState.Instance.AreWallsUnderAttack()) return 0f;
+        if (!AIWorldState.Instance.AreWallsUnderAttack(bb.faction)) return 0f;
 
         float distance;
         bb.wallUnderAttack = AIWorldState.Instance.GetNearestWallUnderAttack(
-            bb.transform.position, out distance);
+            bb.transform.position, bb.faction, out distance);
 
         if (bb.wallUnderAttack == null) return 0f;
 

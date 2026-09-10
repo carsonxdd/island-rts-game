@@ -21,6 +21,10 @@ using TMPro;
 /// </remarks>
 public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
 {
+    // Owner (lap step 1 commit 5). Set by Spawn.Owned right after Instantiate
+    // (commit 6); the player's when nothing set it. Read in Start or later, never Awake.
+    Faction owner;
+    public Faction Faction { get => owner ?? (owner = Factions.Player); set => owner = value; }
     public static IReadOnlyList<BaseBuilding> ActiveList => ActiveRegistry<BaseBuilding>.List;
 
     /// <summary>Slots in the campfire's stockpile (materials and equipment; resources go to ResourceManager).</summary>
@@ -35,7 +39,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
     /// </summary>
     public const int BaseStockpileCapacity = 60;
 
-    public static int StockpileCapacity => BaseStockpileCapacity + Factions.Player.Knowledge.StockpileRoom;
+    public int StockpileCapacity => BaseStockpileCapacity + Faction.Knowledge.StockpileRoom;
 
     /// <summary>
     /// The campfire inventory (2026-09-02): sticks and stone chunks the player's
@@ -47,20 +51,6 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
 
     /// <summary>The campfire's bench (runtime-added in Awake): "anything, but slowly" — every category at 1×.</summary>
     public CraftStation Station { get; private set; }
-
-    /// <summary>The living campfire, or null. There is at most one; the registry is polled because it is spawned at runtime.</summary>
-    public static BaseBuilding FindAlive()
-    {
-        var list = ActiveList;
-        for (int i = 0; i < list.Count; i++)
-        {
-            BaseBuilding b = list[i];
-            if (b == null || !b.enabled) continue;
-            if (b.healthComponent != null && !b.healthComponent.IsAlive) continue;
-            return b;
-        }
-        return null;
-    }
 
     // IHousing — the campfire is the colony's first housing (the starting crew's slots)
     public int HousingCapacity => workerCapacity;
@@ -180,13 +170,16 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         healthComponent.hideWhenFull = true;
         healthComponent.onDeath.AddListener(OnCampfireDestroyed);
 
+        // This colony's campfire (commit 5): the faction's slot, cleared when it dies or goes
+        if (Faction.Campfire == null) Faction.Campfire = this;
+
         VisionSource.Attach(gameObject, VisionSource.CampfireRadius);
 
         // Register the campfire as housing (the starting crew's slots)
         housingCollider = GetComponent<Collider>();
-        if (Factions.Player.Population != null)
+        if (Faction.Population != null)
         {
-            Factions.Player.Population.RegisterHousing(this);
+            Faction.Population.RegisterHousing(this);
         }
 
         // Get ALL renderers BEFORE creating health text (checks this object AND all children).
@@ -259,9 +252,9 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
     /// </summary>
     public bool AssignWorker(ResourceNode.ResourceType resourceType)
     {
-        if (!Factions.Player.Knowledge.HasJob(resourceType)) return false;   // the matching tool has not been crafted yet
-        if (Factions.Player.Population == null) return false;
-        Worker idle = Factions.Player.Population.FindIdleColonist(transform.position);
+        if (!Faction.Knowledge.HasJob(resourceType)) return false;   // the matching tool has not been crafted yet
+        if (Faction.Population == null) return false;
+        Worker idle = Faction.Population.FindIdleColonist(transform.position);
         if (idle == null) return false;
 
         idle.SetJob(resourceType);
@@ -299,9 +292,9 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
     public bool AssignSpecialist(Worker.Specialty s)
     {
         if (s == Worker.Specialty.Any) return false;
-        if (!Factions.Player.Knowledge.Has(UnlockFor(s))) return false;
-        if (Factions.Player.Population == null) return false;
-        Worker idle = Factions.Player.Population.FindIdleColonist(transform.position);
+        if (!Faction.Knowledge.Has(UnlockFor(s))) return false;
+        if (Faction.Population == null) return false;
+        Worker idle = Faction.Population.FindIdleColonist(transform.position);
         if (idle == null) return false;
 
         idle.SetSpecialty(s);
@@ -414,9 +407,9 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         if (!activeWorkers.Remove(worker))
             return;  // Already processed (or never tracked by this building)
 
-        if (Factions.Player.Population != null)
+        if (Faction.Population != null)
         {
-            Factions.Player.Population.RemoveColonist(worker);
+            Faction.Population.RemoveColonist(worker);
         }
     }
 
@@ -431,9 +424,9 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         Worker worker = InstantiateColonist(position);
         if (worker == null) return null;
 
-        if (Factions.Player.Population != null)
+        if (Faction.Population != null)
         {
-            Factions.Player.Population.AddColonist(worker, home);
+            Faction.Population.AddColonist(worker, home);
         }
         return worker;
     }
@@ -588,11 +581,11 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
     /// <summary>True when a recruit could happen right now: Spearcraft known, under the cap if there is one, the chosen weapon in stock, the food, and someone idle.</summary>
     public bool CanRecruitWarrior()
     {
-        if (!Factions.Player.Knowledge.Has(Unlocks.Kind.Militia)) return false;   // Spearcraft not researched
+        if (!Faction.Knowledge.Has(Unlocks.Kind.Militia)) return false;   // Spearcraft not researched
         if (maxWarriors > 0 && currentWarriors >= maxWarriors) return false;
         if (Stockpile.Count(SelectedWeapon) <= 0) return false; // nothing to arm them with
-        if (Factions.Player.Resources.food < warriorCost_Food) return false;
-        Population pm = Factions.Player.Population;
+        if (Faction.Resources.food < warriorCost_Food) return false;
+        Population pm = Faction.Population;
         if (pm == null) return false;
         if (pm.GetIdleCount() > 0) return true;
         // Playtest: everything else is in place and only hands are missing — the
@@ -633,12 +626,12 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
             return;
         }
 
-        Worker recruit = Factions.Player.Population.FindIdleColonist(transform.position);
+        Worker recruit = Faction.Population.FindIdleColonist(transform.position);
         if (recruit == null) return;
 
         ItemDef weapon = SelectedWeapon;
         if (Stockpile.Remove(weapon, 1) <= 0) return;
-        Factions.Player.Resources.SpendFood(warriorCost_Food);
+        Faction.Resources.SpendFood(warriorCost_Food);
 
         // Stand the warrior where the colonist stood (a garrisoned colonist is at a
         // hut edge, which is on the NavMesh too)
@@ -667,7 +660,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
 
         // Same person, new body: swap the roster entry BEFORE destroying the old body,
         // so the worker's OnDestroy → NotifyWorkerRemoved finds nothing to remove.
-        Factions.Player.Population.ReplaceUnit(recruit, warrior);
+        Faction.Population.ReplaceUnit(recruit, warrior);
         activeWorkers.Remove(recruit);
         Destroy(recruit.gameObject);
     }
@@ -711,9 +704,9 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         if (warrior.weapon != null) Stockpile.Add(warrior.weapon, 1);
 
         Worker colonist = InstantiateColonist(warrior.transform.position);
-        if (colonist != null && Factions.Player.Population != null)
+        if (colonist != null && Faction.Population != null)
         {
-            Factions.Player.Population.ReplaceUnit(warrior, colonist);
+            Faction.Population.ReplaceUnit(warrior, colonist);
         }
         Destroy(warrior.gameObject);
         return colonist;
@@ -745,9 +738,9 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         if (warriorComponent != null)
         {
             if (activeWarriors.Remove(warriorComponent)) currentWarriors--;
-            if (Factions.Player.Population != null)
+            if (Faction.Population != null)
             {
-                Factions.Player.Population.RemoveColonist(warriorComponent);
+                Faction.Population.RemoveColonist(warriorComponent);
             }
         }
     }
@@ -766,6 +759,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         Debug.Log("========================================");
 
         ReleaseHousing();
+        if (Faction.Campfire == this) Faction.Campfire = null;
 
         // Health component will handle the "DESTROYED!" text display
 
@@ -816,9 +810,9 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
     {
         if (housingReleased) return;
         housingReleased = true;
-        if (Factions.Player.Population != null)
+        if (Faction.Population != null)
         {
-            Factions.Player.Population.UnregisterHousing(this);
+            Faction.Population.UnregisterHousing(this);
         }
     }
 
@@ -826,6 +820,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
     {
         ActiveRegistry<BaseBuilding>.Unregister(this);
         ReleaseHousing();
+        if (owner != null && owner.Campfire == this) owner.Campfire = null;   // never resolve the owner during teardown
     }
 
     // Visual helper in Scene view

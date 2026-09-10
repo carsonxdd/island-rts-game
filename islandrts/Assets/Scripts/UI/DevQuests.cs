@@ -397,7 +397,7 @@ public static class DevQuests
         sb.Append(" · ").Append(outcome);
 
         Population pm = Factions.Player.Population;
-        BaseBuilding fire = BaseBuilding.FindAlive();
+        BaseBuilding fire = Factions.Player.Campfire;
         if (pm != null)
         {
             sb.Append(" · ").Append(pm.GetColonistCount()).Append(" colonists (").Append(pm.GetIdleCount()).Append(" idle)");

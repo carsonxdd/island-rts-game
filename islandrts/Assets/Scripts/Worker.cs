@@ -297,7 +297,7 @@ public class Worker : UnitBase<Worker>
         bb.health = CachedHealth;
         bb.baseBuilding = baseBuilding;
         bb.worker = this;
-        bb.faction = Factions.Player;   // commit 5 reads the unit's own Faction here
+        bb.faction = Faction;
         bb.assignedResourceType = assignedResourceType;
         bb.hasJob = hasJob;
         bb.specialty = specialty;
@@ -514,7 +514,7 @@ public class Worker : UnitBase<Worker>
             return;
         }
         WorkerAssignmentUI ui = WorkerAssignmentUI.Instance;
-        BaseBuilding fire = baseBuilding != null ? baseBuilding : BaseBuilding.FindAlive();
+        BaseBuilding fire = baseBuilding != null ? baseBuilding : Faction.Campfire;
         if (ui == null || fire == null) return;
         ui.OpenColonists(fire);
         DevQuests.Signal("worker_click");

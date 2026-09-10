@@ -21,8 +21,16 @@ using UnityEngine;
 /// </summary>
 public class CraftStation : MonoBehaviour
 {
-    /// <summary>Whose bench this is. The host building's faction from commit 5; the player's until then.</summary>
-    public Faction Faction => Factions.Player;
+    IOwned host;
+    /// <summary>Whose bench this is: the building it sits on (the campfire or a Workshop).</summary>
+    public Faction Faction
+    {
+        get
+        {
+            if (host == null) { host = GetComponent<BaseBuilding>(); if (host == null) host = GetComponent<Workshop>(); }
+            return host != null ? host.Faction : Factions.Player;
+        }
+    }
 
     public static IReadOnlyList<CraftStation> ActiveList => ActiveRegistry<CraftStation>.List;
 
@@ -123,7 +131,7 @@ public class CraftStation : MonoBehaviour
     {
         get
         {
-            BaseBuilding fire = BaseBuilding.FindAlive();
+            BaseBuilding fire = Faction.Campfire;
             return fire != null ? fire.Stockpile : null;
         }
     }

@@ -108,7 +108,7 @@ public class RaidDirector : MonoBehaviour
 
     void HandleDayStart()
     {
-        if (LastRaidDay > 0 && CurrentDay() - LastRaidDay <= 1 && BaseBuilding.FindAlive() != null) DevQuests.Signal("raid_survived");
+        if (LastRaidDay > 0 && CurrentDay() - LastRaidDay <= 1 && Factions.Player.Campfire != null) DevQuests.Signal("raid_survived");
         RollForTonight();
     }
 
@@ -184,7 +184,7 @@ public class RaidDirector : MonoBehaviour
         Population pm = Factions.Player.Population;
         if (pm != null) p += pm.GetColonistCount() * 2f;
 
-        BaseBuilding fire = BaseBuilding.ActiveList.Count > 0 ? BaseBuilding.ActiveList[0] : null;
+        BaseBuilding fire = Factions.Player.Campfire;
         if (fire != null) p += fire.GetWarriorCount() * 1f;   // on top of the 2 they count as colonists
 
         p += Hut.ActiveList.Count * 3f;

@@ -194,7 +194,7 @@ public class WorkerAssignmentUI : MonoBehaviour
     public void OpenStation(CraftStation st)
     {
         if (st == null) return;
-        BaseBuilding fire = BaseBuilding.FindAlive();
+        BaseBuilding fire = Factions.Player.Campfire;
         if (fire == null) return;
         if (st == fire.Station) { OpenPanel(fire); return; }
         Open(fire, st, stationOnly: true);

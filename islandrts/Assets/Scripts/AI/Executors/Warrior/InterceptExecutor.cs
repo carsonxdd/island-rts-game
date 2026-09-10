@@ -93,20 +93,9 @@ public class InterceptExecutor : ActionExecutor
 
     void CalculateRallyPoint(AIBlackboard bb)
     {
-        // Find enemy centroid (average position of all living enemies)
-        Vector3 enemyCentroid = Vector3.zero;
-        int enemyCount = 0;
-
-        for (int i = 0; i < Enemy.ActiveList.Count; i++)
-        {
-            Enemy enemy = Enemy.ActiveList[i];
-            if (enemy == null) continue;
-            Health h = enemy.CachedHealth;
-            if (h != null && !h.IsAlive) continue;
-
-            enemyCentroid += enemy.transform.position;
-            enemyCount++;
-        }
+        // Find the hostile centroid (average position of every living fighter hostile to this colony)
+        int enemyCount;
+        Vector3 enemyCentroid = TargetingUtil.HostileCentroid(bb.faction, out enemyCount);
 
         if (enemyCount == 0 || bb.baseBuilding == null)
         {

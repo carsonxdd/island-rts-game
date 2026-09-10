@@ -100,16 +100,17 @@ public static class GuardStance
     /// scan both call it, so a warrior never fights what the consideration would
     /// not have scored.
     /// </summary>
-    public static bool Allows(Enemy enemy, Vector3 warriorPos, BaseBuilding fire, Faction f)
+    public static bool Allows(ITargetable target, Vector3 warriorPos, BaseBuilding fire, Faction f)
     {
-        Vector3 pos = enemy.transform.position;
+        Vector3 pos = target.transform.position;
 
         // Fog gate (2026-09-09, step 5): a raider nothing of the colony's is looking at
         // is not a target in any stance. This is the ONE filter behind Engage (the
         // consideration and both executor scans), so it is the one place to say so.
         // A raider in melee is inside its warrior's own VisionSource radius, so an
         // engaged target only drops here when it genuinely walks out of sight.
-        FogOfWar fog = FogOfWar.Instance;
+        // The player's warriors only: a rival colony is omniscient by decision (lap step 1).
+        FogOfWar fog = f.IsPlayer ? FogOfWar.Instance : null;
         if (fog != null && !fog.IsVisible(pos))
         {
             if (!fogSignalled) { fogSignalled = true; DevQuests.Signal("fog:raider_unseen"); }
@@ -120,7 +121,7 @@ public static class GuardStance
         {
             case Mode.Offensive:
                 if ((pos - warriorPos).sqrMagnitude <= OffensiveEngageRadius * OffensiveEngageRadius) return true;
-                return ThreatensColony(enemy, pos, fire);
+                return ThreatensColony(target, pos, fire, f);
 
             case Mode.Follow:
             {
@@ -132,16 +133,17 @@ public static class GuardStance
 
             default:
                 if ((pos - warriorPos).sqrMagnitude <= SelfDefenceRadius * SelfDefenceRadius) return true;
-                return ThreatensColony(enemy, pos, fire);
+                return ThreatensColony(target, pos, fire, f);
         }
     }
 
     /// <summary>Near the fire, or walking at a wall: the colony's business in any stance but Follow.</summary>
-    static bool ThreatensColony(Enemy enemy, Vector3 pos, BaseBuilding fire)
+    static bool ThreatensColony(ITargetable target, Vector3 pos, BaseBuilding fire, Faction f)
     {
-        if (fire == null) fire = BaseBuilding.FindAlive();
+        if (fire == null) fire = f.Campfire;
         if (fire == null) return true;   // no colony to hold — fight what is there
         if ((pos - fire.transform.position).sqrMagnitude <= HoldRadius * HoldRadius) return true;
-        return enemy.IsHeadingForWall();
+        Enemy raider = target as Enemy;
+        return raider != null && raider.IsHeadingForWall();
     }
 }

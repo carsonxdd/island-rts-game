@@ -13,6 +13,13 @@ public abstract class UnitBase<T> : MonoBehaviour, ITargetable where T : UnitBas
 {
     public static IReadOnlyList<T> ActiveList => ActiveRegistry<T>.List;
 
+    // Owner (lap step 1 commit 5). Set by Spawn.Owned right after Instantiate (commit 6);
+    // DefaultFaction when nothing set it (the player's colony; Enemy says the Raiders).
+    // Read in Start or later, never Awake.
+    Faction owner;
+    public Faction Faction { get => owner ?? (owner = DefaultFaction); set => owner = value; }
+    protected virtual Faction DefaultFaction => Factions.Player;
+
     [Header("State Display")]
     public bool showStateText = true;
     public float textHeightOffset = 2.5f;

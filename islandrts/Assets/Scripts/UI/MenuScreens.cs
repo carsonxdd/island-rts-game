@@ -433,7 +433,7 @@ public class MenuScreens : MonoBehaviour
     private string StatusLine()
     {
         DayNightCycle dn = FindAnyObjectByType<DayNightCycle>();
-        BaseBuilding fire = BaseBuilding.ActiveList.Count > 0 ? BaseBuilding.ActiveList[0] : null;
+        BaseBuilding fire = Factions.Player.Campfire;
         if (dn == null) return "";
 
         string phase = dn.IsNightTime() ? "Night" : "Day";

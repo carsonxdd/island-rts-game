@@ -186,7 +186,7 @@ public class ReturnToBaseExecutor : ActionExecutor
     {
         if (bb.carryItem == null || bb.carryItemCount <= 0) return;
 
-        BaseBuilding fire = bb.baseBuilding != null ? bb.baseBuilding : BaseBuilding.FindAlive();
+        BaseBuilding fire = bb.baseBuilding != null ? bb.baseBuilding : bb.faction.Campfire;
         if (fire != null) fire.Stockpile.Add(bb.carryItem, bb.carryItemCount);
 
         bb.carryItem = null;

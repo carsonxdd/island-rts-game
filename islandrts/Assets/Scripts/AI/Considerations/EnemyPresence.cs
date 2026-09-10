@@ -25,7 +25,7 @@ public class EnemyPresence : Consideration
         if (bb.enemyScanFrame != Time.frameCount)
         {
             float dist;
-            Enemy nearest = TargetingUtil.FindNearest(Enemy.ActiveList, bb.transform.position, 0f, out dist);
+            ITargetable nearest = TargetingUtil.FindNearestHostileCombatant(bb.transform.position, 0f, bb.faction, out dist);
 
             bb.scannedNearestEnemy = nearest != null ? nearest.transform : null;
             bb.scannedNearestEnemyDist = dist;

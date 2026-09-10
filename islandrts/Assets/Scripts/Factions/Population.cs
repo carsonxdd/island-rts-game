@@ -443,15 +443,9 @@ public sealed class Population
     }
 
     /// <summary>
-    /// This colony's living campfire. <see cref="Faction.Campfire"/> once commit 5
-    /// has the campfire assign itself; until then the player's is the one alive
-    /// campfire in the scene and any other faction has none.
+    /// This colony's living campfire (<see cref="Faction.Campfire"/>, which the campfire assigns itself in Start).
     /// </summary>
-    BaseBuilding Campfire()
-    {
-        if (faction.Campfire != null) return faction.Campfire;
-        return faction.IsPlayer ? BaseBuilding.FindAlive() : null;
-    }
+    BaseBuilding Campfire() => faction.Campfire;
 
     /// <summary>
     /// One survivor comes ashore and is homed to the first building with room.

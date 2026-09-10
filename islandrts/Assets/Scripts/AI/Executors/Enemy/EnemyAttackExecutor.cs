@@ -154,12 +154,12 @@ public class EnemyAttackExecutor : ActionExecutor
         }
 
         // 1. Warriors within detection range
-        Warrior warrior = TargetingUtil.FindNearest(Warrior.ActiveList, myPos, bb.warriorDetectionRange, out unused);
+        Warrior warrior = TargetingUtil.FindNearestHostile(Warrior.ActiveList, myPos, bb.warriorDetectionRange, bb.faction, out unused);
         if (warrior != null) { SetTarget(bb, warrior.transform, warrior.gameObject.name); return; }
 
         // Cache campfire — checked twice: once for proximity commit (pri 2),
         // once as the no-huts fallback (pri 5).
-        Transform campfire = FindLiveCampfire();
+        Transform campfire = FindLiveCampfire(bb, myPos);
 
         // 2. Campfire proximity commit: if we're right on top of the campfire,
         // stop bothering with huts and finish the job.
@@ -179,7 +179,7 @@ public class EnemyAttackExecutor : ActionExecutor
         if (building != null) { SetTarget(bb, building, building.gameObject.name); return; }
 
         // 4. Wall/gate (gates preferred)
-        Transform wallOrGate = FindNearestWallOrGate(myPos);
+        Transform wallOrGate = FindNearestWallOrGate(bb, myPos);
         if (wallOrGate != null) { SetTarget(bb, wallOrGate, wallOrGate.gameObject.name); return; }
 
         // 5. Campfire fallback — no huts alive, no walls to breach. Converge on the base.
@@ -196,10 +196,11 @@ public class EnemyAttackExecutor : ActionExecutor
         // they destroy structures on the way to the campfire instead of jogging past
         // them. Campfire (priority 5) only wins when no huts/towers are alive + reachable.
         float hutDist, towerDist, shopDist, yardDist;
-        Hut hut = TargetingUtil.FindNearest(Hut.ActiveList, myPos, 0f, out hutDist);
-        Watchtower tower = TargetingUtil.FindNearest(Watchtower.ActiveList, myPos, 0f, out towerDist);
-        Workshop shop = TargetingUtil.FindNearest(Workshop.ActiveList, myPos, 0f, out shopDist);
-        Shipyard yard = TargetingUtil.FindNearest(Shipyard.ActiveList, myPos, 0f, out yardDist);   // raiders threaten the escape (2026-09-04)
+        Faction me = bb.faction;
+        Hut hut = TargetingUtil.FindNearestHostile(Hut.ActiveList, myPos, 0f, me, out hutDist);
+        Watchtower tower = TargetingUtil.FindNearestHostile(Watchtower.ActiveList, myPos, 0f, me, out towerDist);
+        Workshop shop = TargetingUtil.FindNearestHostile(Workshop.ActiveList, myPos, 0f, me, out shopDist);
+        Shipyard yard = TargetingUtil.FindNearestHostile(Shipyard.ActiveList, myPos, 0f, me, out yardDist);   // raiders threaten the escape (2026-09-04)
 
         Transform nearest = null;
         float nearestDist = float.MaxValue;
@@ -234,26 +235,23 @@ public class EnemyAttackExecutor : ActionExecutor
         return nearest;
     }
 
-    Transform FindNearestWallOrGate(Vector3 myPos)
+    Transform FindNearestWallOrGate(AIBlackboard bb, Vector3 myPos)
     {
         // Gates get strong preference: 0.3x effective distance so swarms funnel through.
         float wallDist, gateDist;
-        Wall wall = TargetingUtil.FindNearest(Wall.ActiveList, myPos, 0f, out wallDist);
-        Gate gate = TargetingUtil.FindNearest(Gate.ActiveList, myPos, 0f, out gateDist);
+        Wall wall = TargetingUtil.FindNearestHostile(Wall.ActiveList, myPos, 0f, bb.faction, out wallDist);
+        Gate gate = TargetingUtil.FindNearestHostile(Gate.ActiveList, myPos, 0f, bb.faction, out gateDist);
 
         if (gate != null && (wall == null || gateDist * 0.3f < wallDist)) return gate.transform;
         return wall != null ? wall.transform : null;
     }
 
-    Transform FindLiveCampfire()
+    /// <summary>The nearest living campfire of a colony hostile to this raider (two colonies in reach: the nearer).</summary>
+    Transform FindLiveCampfire(AIBlackboard bb, Vector3 myPos)
     {
-        var list = BaseBuilding.ActiveList;
-        if (list.Count == 0) return null;
-        BaseBuilding c = list[0];
-        if (c == null) return null;
-        Health h = c.CachedHealth;
-        if (h == null || !h.IsAlive) return null;
-        return c.transform;
+        float unused;
+        BaseBuilding c = TargetingUtil.FindNearestHostile(BaseBuilding.ActiveList, myPos, 0f, bb.faction, out unused);
+        return c != null ? c.transform : null;
     }
 
     void SetTarget(AIBlackboard bb, Transform t, string name)
@@ -314,6 +312,11 @@ public class EnemyAttackExecutor : ActionExecutor
     void AttemptAttack(AIBlackboard bb)
     {
         if (Time.time - bb.lastAttackTime < bb.attackCooldown) return;
+        if (bb.currentTargetFaction != null && !bb.faction.IsHostileTo(bb.currentTargetFaction))
+        {
+            bb.ClearTarget();   // the relation changed under us: never a spear into a non-hostile
+            return;
+        }
         bb.lastAttackTime = Time.time;
 
         if (CombatEffects.Instance != null)

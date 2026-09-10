@@ -21,8 +21,7 @@ public static class SimBuilder
 {
     private static readonly Collider[] overlap = new Collider[8];
 
-    public static BaseBuilding Campfire =>
-        BaseBuilding.ActiveList.Count > 0 ? BaseBuilding.ActiveList[0] : null;
+    public static BaseBuilding Campfire => Factions.Player.Campfire;
 
     // ---- counts the policies and metrics read -----------------------------
 

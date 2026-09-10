@@ -137,7 +137,7 @@ public class FleeToHutExecutor : ActionExecutor
         }
 
         float unused;
-        Hut hut = TargetingUtil.FindNearest(Hut.ActiveList, bb.transform.position, 0f, out unused);
+        Hut hut = TargetingUtil.FindNearestOwned(Hut.ActiveList, bb.transform.position, 0f, bb.faction, out unused);
         if (hut != null)
         {
             if (hut != shelterHut)

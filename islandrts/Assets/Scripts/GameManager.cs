@@ -83,7 +83,7 @@ public class GameManager : MonoBehaviour
 
         if (campfire == null)
         {
-            campfire = FindAnyObjectByType<BaseBuilding>();
+            campfire = Factions.Player.Campfire;
         }
 
         // Subscribe to day/night events to track progress

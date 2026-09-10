@@ -431,7 +431,7 @@ public class ResourceUI : MonoBehaviour
             if (!item.hudListed || item.hudCategory != type) continue;
             AddRow(item.displayName, () =>
             {
-                BaseBuilding fire = BaseBuilding.FindAlive();
+                BaseBuilding fire = Factions.Player.Campfire;
                 return fire != null ? fire.Stockpile.Count(item).ToString() : "0";
             });
         }
@@ -454,7 +454,7 @@ public class ResourceUI : MonoBehaviour
         Header("Colonists");
         AddRow("On this job", () =>
         {
-            BaseBuilding fire = BaseBuilding.ActiveList.Count > 0 ? BaseBuilding.ActiveList[0] : null;
+            BaseBuilding fire = Factions.Player.Campfire;
             return fire != null ? WorkersOn(fire, type).ToString() : "0";
         });
     }
@@ -559,7 +559,7 @@ public class ResourceUI : MonoBehaviour
     void OpenCampfire()
     {
         if (PauseController.BlockGameplayInput) return;
-        BaseBuilding fire = BaseBuilding.ActiveList.Count > 0 ? BaseBuilding.ActiveList[0] : null;
+        BaseBuilding fire = Factions.Player.Campfire;
         if (fire == null) return;
         WorkerAssignmentUI ui = fire.workerUI != null ? fire.workerUI : WorkerAssignmentUI.Instance;
         if (ui != null) ui.OpenPanel(fire);
@@ -579,7 +579,7 @@ public class ResourceUI : MonoBehaviour
     {
         ResourcePool rm = Factions.Player.Resources;
 
-        BaseBuilding fire = BaseBuilding.ActiveList.Count > 0 ? BaseBuilding.ActiveList[0] : null;
+        BaseBuilding fire = Factions.Player.Campfire;
 
         for (int i = 0; i < chips.Count; i++)
         {

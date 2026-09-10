@@ -13,8 +13,12 @@ using System.Collections.Generic;
 /// attacked. Walls and gates register their cell with WallGrid while still being built, so
 /// a wall line reserves its cells immediately.
 /// </remarks>
-public class ConstructionSite : MonoBehaviour
+public class ConstructionSite : MonoBehaviour, IOwned
 {
+    // Owner (lap step 1 commit 5). Set by Spawn.Owned right after Instantiate
+    // (commit 6); the player's when nothing set it. Read in Start or later, never Awake.
+    Faction owner;
+    public Faction Faction { get => owner ?? (owner = Factions.Player); set => owner = value; }
     public static IReadOnlyList<ConstructionSite> ActiveList => ActiveRegistry<ConstructionSite>.List;
 
     void Awake() { ActiveRegistry<ConstructionSite>.Register(this); }
@@ -126,7 +130,7 @@ public class ConstructionSite : MonoBehaviour
 
         lastLaborTime = Time.time;
         // Sturdy Scaffolds speeds it up; a hungry colony slows it down (2026-09-04)
-        timeElapsed += seconds * Factions.Player.Knowledge.BuildSpeedMult * Factions.Player.Population.LaborMultiplier;   // the site's own faction from commit 6
+        timeElapsed += seconds * Faction.Knowledge.BuildSpeedMult * Faction.Population.LaborMultiplier;
         progress = Mathf.Clamp01(timeElapsed / (Mathf.Max(0.01f, buildTime) * LaborFactor));
 
         if (progress >= 1f)

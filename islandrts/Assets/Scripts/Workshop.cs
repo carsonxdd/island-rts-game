@@ -13,6 +13,10 @@ using System.Collections.Generic;
 /// </summary>
 public class Workshop : MonoBehaviour, ITargetable, IMaterialSet
 {
+    // Owner (lap step 1 commit 5). Set by Spawn.Owned right after Instantiate
+    // (commit 6); the player's when nothing set it. Read in Start or later, never Awake.
+    Faction owner;
+    public Faction Faction { get => owner ?? (owner = Factions.Player); set => owner = value; }
     public static IReadOnlyList<Workshop> ActiveList => ActiveRegistry<Workshop>.List;
 
     [Header("Health")]

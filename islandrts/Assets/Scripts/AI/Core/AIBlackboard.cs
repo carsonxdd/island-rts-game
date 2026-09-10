@@ -13,10 +13,8 @@ public class AIBlackboard
     public Health health;
     public BaseBuilding baseBuilding;
     /// <summary>
-    /// Who this unit fights for (lap step 1). Considerations and executors read
-    /// this, never <c>Factions.Player</c>. Set in the unit's Start; until commit 5
-    /// puts <c>IOwned</c> on the units it is Player for workers and warriors and
-    /// Raiders for enemies.
+    /// Who this unit fights for (lap step 1): the unit's own <c>Faction</c>, copied
+    /// in its Start. Considerations and executors read this, never <c>Factions.Player</c>.
     /// </summary>
     public Faction faction;
 
@@ -82,6 +80,7 @@ public class AIBlackboard
     public Health currentTargetHealth;
     public string currentTargetName;
     public Collider currentTargetCollider;  // Cached for ClosestPoint edge-distance checks (Phase 6.21)
+    public Faction currentTargetFaction;    // The target's owner (commit 5): the hit sites refuse a non-hostile
 
     // Resource node (workers)
     public ResourceNode targetResource;
@@ -201,11 +200,14 @@ public class AIBlackboard
         {
             currentTargetHealth = t.GetComponent<Health>();
             currentTargetCollider = t.GetComponent<Collider>();
+            IOwned owned = t.GetComponent<IOwned>();
+            currentTargetFaction = owned != null ? owned.Faction : null;
         }
         else
         {
             currentTargetHealth = null;
             currentTargetCollider = null;
+            currentTargetFaction = null;
         }
         return true;
     }
@@ -217,6 +219,7 @@ public class AIBlackboard
         currentTargetHealth = null;
         currentTargetName = null;
         currentTargetCollider = null;
+        currentTargetFaction = null;
         isInAttackRange = false;
     }
 

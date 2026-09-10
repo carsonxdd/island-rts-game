@@ -31,7 +31,7 @@ public class ConstructionAvailable : Consideration
         for (int i = 0; i < list.Count; i++)
         {
             ConstructionSite site = list[i];
-            if (site == null || site.IsComplete) continue;
+            if (site == null || site.IsComplete || site.Faction != bb.faction) continue;
 
             float sqr = (site.transform.position - myPos).sqrMagnitude;
             if (sqr >= bestSqr) continue;                 // prune before the list walk below

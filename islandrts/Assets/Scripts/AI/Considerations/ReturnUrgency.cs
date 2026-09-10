@@ -53,7 +53,7 @@ public class ReturnUrgency : Consideration
         float enemyBoost = 0f;
         if (AIWorldState.Instance != null)
         {
-            int nearbyEnemies = AIWorldState.Instance.GetNearbyEnemyCount(bb.transform.position);
+            int nearbyEnemies = AIWorldState.Instance.GetNearbyHostileCount(bb.transform.position, bb.faction);
             float threatLevel = Mathf.Clamp01(nearbyEnemies / maxThreat);
             enemyBoost = carryRatio * threatLevel;
         }

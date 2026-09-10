@@ -14,6 +14,10 @@ using System.Collections.Generic;
 /// </remarks>
 public class Wall : MonoBehaviour, ITargetable
 {
+    // Owner (lap step 1 commit 5). Set by Spawn.Owned right after Instantiate
+    // (commit 6); the player's when nothing set it. Read in Start or later, never Awake.
+    Faction owner;
+    public Faction Faction { get => owner ?? (owner = Factions.Player); set => owner = value; }
     [Header("Wall Type")]
     public bool isStoneWall = false;  // false = wooden wall, true = stone wall
 

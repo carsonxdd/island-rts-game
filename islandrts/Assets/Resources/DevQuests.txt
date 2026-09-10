@@ -43,6 +43,10 @@
 - @research:woodcutting Research Woodcutting: the Wood job unlocks, the axe lands in hand
 - Priority sliders, stance and formation steppers still move the colony as before
 - F4 Research Everything: every row reads Done, Sharpened Tools speeds gathering
+- @raid A raid still walks at your warriors, huts, walls and the fire, in that order
+- @engage:offensive Warriors on Offensive still hunt raiders across the island
+- Workers still flee to the nearest hut; a raider at a wall still draws DefendWall
+- Campfire destroyed: defeat screen as before (the faction's campfire slot clears)
 
 ## 2026-09-09 Minimap
 - Map in the top-right shows the island shape; sea, sand, grass, rock read right
