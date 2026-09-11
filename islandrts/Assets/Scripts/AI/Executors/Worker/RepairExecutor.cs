@@ -172,6 +172,11 @@ public class RepairExecutor : ActionExecutor
         }
 
         health.Heal(hp);
+
+        // Playtest proof (2026-09-10): a gate repaired to full was impossible before
+        // RepairCosts priced gates as their wall. Rare event, so the GetComponent is fine.
+        if (health.currentHealth >= health.maxHealth - 0.01f && target != null)
+            DevQuests.Signal(target.GetComponent<Gate>() != null ? "repair:gate" : "repair");
     }
 
     public override void OnExit(AIBlackboard bb)

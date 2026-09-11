@@ -8,6 +8,11 @@
 # Lines starting with a single # are comments. Anything else that is not a
 # heading, a bullet or an indented continuation is ignored.
 
+## 2026-09-10 — Gates get repaired
+- A chewed gate now gets repaired like a wall. Before, a colonist would never
+  touch one, so a gate that survived a raid stayed at that health for the rest
+  of the game.
+
 ## 2026-09-10 — Raiders that get stuck
 - Raiders sometimes wedged themselves on a rock or a cut-off ledge and stood there
   all night, and the dawn waited on them. They now come ashore only where a path
