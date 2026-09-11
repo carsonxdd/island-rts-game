@@ -1,5 +1,10 @@
 # Colony Expansion Plan
 
+> **Status: parked, nothing built.** Archived here on 2026-09-10 as the source of truth for
+> its locked decisions. Nothing in this document is implemented and it has no committed place
+> in the order of work. Revisit it after the architecture lap and the alpha
+> ([`../ARCHITECTURE_LAP_PLAN.md`](../ARCHITECTURE_LAP_PLAN.md), [`../ALPHA_PLAN.md`](../ALPHA_PLAN.md)).
+
 Design doc for the systems asked for on 2026-09-03 that are bigger than a polish pass:
 gathering territory, settlement tiers, processing chains, families and breeding, livestock
 and farming. Nothing here is implemented. The polish items from the same session (hover

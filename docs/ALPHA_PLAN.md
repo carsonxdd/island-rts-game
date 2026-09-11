@@ -170,7 +170,7 @@ Requested for the alpha on 2026-09-08 and accepted as a scope exception. **This 
 
 ## J. The architecture lap
 
-Added at the user's request on 2026-09-08, knowingly pushing the schedule out. This is the sequence from [`docs/SCALING_NOTES.md`](docs/SCALING_NOTES.md), promoted from "someday" into the plan:
+Added at the user's request on 2026-09-08, knowingly pushing the schedule out. This is the sequence from [`SCALING_NOTES.md`](SCALING_NOTES.md), promoted from "someday" into the plan:
 
 **Factions → spatial hash + AI LOD → colony governor → save/load → islands.**
 

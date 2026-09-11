@@ -1,6 +1,6 @@
 # Scaling Notes — Toward Hundreds of Units, AI Colonies, and Multiple Islands
 
-Design thinking captured while fixing the AI evaluation budget (August 2026), moved out of the README on 2026-09-08. **None of this is alpha scope** — see [`ALPHA_PLAN.md`](../ALPHA_PLAN.md) for what is. Not committed work — a map of what the current architecture supports, what it blocks, and the order the blockers are cheapest to clear.
+Design thinking captured while fixing the AI evaluation budget (August 2026), moved out of the README on 2026-09-08. **None of this is alpha scope** — see [`ALPHA_PLAN.md`](ALPHA_PLAN.md) for what is. Not committed work — a map of what the current architecture supports, what it blocks, and the order the blockers are cheapest to clear.
 
 ### Where the entity ceiling actually is
 
@@ -36,4 +36,4 @@ Four AI colonies at ~100 units each is ~400 agents, right at the NavMesh ceiling
 
 **Factions → spatial hash + AI LOD → colony governor → save/load → islands.**
 
-Factions first because their cost grows over time; islands last because they depend on save/load. **Planned in detail on 2026-09-09: [`ARCHITECTURE_LAP_PLAN.md`](../ARCHITECTURE_LAP_PLAN.md).**
+Factions first because their cost grows over time; islands last because they depend on save/load. **Planned in detail on 2026-09-09: [`ARCHITECTURE_LAP_PLAN.md`](ARCHITECTURE_LAP_PLAN.md).**

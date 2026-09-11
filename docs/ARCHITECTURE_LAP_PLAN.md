@@ -1,6 +1,6 @@
 # Architecture Lap Plan — factions, spatial hash + AI LOD, colony governor, save/load, islands
 
-**Written 2026-09-09. Supersedes the freeze in `ALPHA_PLAN.md`: the lap starts now, the alpha ships on top of it.** The order and the reasoning come from [`docs/SCALING_NOTES.md`](docs/SCALING_NOTES.md) and section J of the alpha plan; this page is the build shape, step by step, with the decisions taken on 2026-09-09 and the ones still open.
+**Written 2026-09-09. Supersedes the freeze in `ALPHA_PLAN.md`: the lap starts now, the alpha ships on top of it.** The order and the reasoning come from [`SCALING_NOTES.md`](SCALING_NOTES.md) and section J of the alpha plan; this page is the build shape, step by step, with the decisions taken on 2026-09-09 and the ones still open.
 
 **Decisions taken 2026-09-09 (with the user):**
 
@@ -223,7 +223,7 @@ Three tiers, decided per faction per island, never per unit:
 
 - The Shipyard's **Set Sail** opens the **Chart** screen instead of ending the run: islands as silhouettes, the current one marked, days-at-sea on the routes, known factions' flags where the fog (of the chart, revealed by trade and by visiting) allows.
 - **Manifest**: the player always sails; up to `shipCapacity` (6, `CraftedUpgrades` can raise it) colonists and warriors chosen on the Colonists tab, plus cargo drawn from the pool into crates (capacity in units). The chosen units leave the roster; the rest stay in the ledger.
-- **Departure = dematerialise → autosave → reload the scene with the destination seed → materialise.** This is one path with step 4, deliberately. `docs/SCALING_NOTES.md` recommended teardown-and-regenerate without a scene load; with ~30 `Instance` singletons and ~40 game-state statics in the inventory, a second teardown path that must cover every one of them is a worse bet than the reload that save/load already made reliable. The scaling note is amended with this reasoning. A **loading screen** (island name, day at sea, thumbnail) covers the reload.
+- **Departure = dematerialise → autosave → reload the scene with the destination seed → materialise.** This is one path with step 4, deliberately. `SCALING_NOTES.md` recommended teardown-and-regenerate without a scene load; with ~30 `Instance` singletons and ~40 game-state statics in the inventory, a second teardown path that must cover every one of them is a worse bet than the reload that save/load already made reliable. The scaling note is amended with this reasoning. A **loading screen** (island name, day at sea, thumbnail) covers the reload.
 - **Arrival**: the ship beaches at the destination's cove; the manifest units walk ashore the way the first colonist does today; the player places a campfire (B) if the island has none, or the existing one is already there if this is a return. Days at sea advance the calendar and every ledger ticks for those days (raids can happen to the home colony while away; the steward handles them in the abstract, and the banner on arrival reports "Your colony on Ashfall was raided on day 12: lost a hut").
 
 ### Rivals across water

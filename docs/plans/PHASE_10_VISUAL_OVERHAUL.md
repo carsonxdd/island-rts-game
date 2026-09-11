@@ -1,5 +1,25 @@
 # Phase 10 — Visual Overhaul
 
+> **Status: superseded, archived 2026-09-10. Read this correction before the document.**
+>
+> This plan was written on 2026-04-30 and the project went a different way on almost every point.
+> It is kept for its anti-patterns and success criteria, which still hold. What it says, and what
+> is actually true:
+>
+> | This document says | What actually shipped |
+> |---|---|
+> | Unity 6000.0.25f1, URP 17.0.3 | Unity 6000.5.9f1, URP 17.5.0 |
+> | Work in `SampleScene` | `MainIsland.unity`. `SampleScene` is unused stock and not in the build |
+> | Stage 2: buy a Synty or Quaternius pack | A procedural low-poly generator was written instead (`Assets/Editor/LowPoly/`), which produces every mesh, material and prefab. No pack was bought |
+> | Stage 3: stylized water in Shader Graph | Hand-written HLSL, fed by a heightfield depth map rather than the camera depth texture |
+> | Stage 1: a post-processing pass on a Global Volume | Shipped, and grown well past this: `LightingPreset` ScriptableObjects, a daily cloud roll with light-cookie shade, a computed near clip with quantised shadow distance, and graphics presets in Options |
+> | Stage 4: lighting bake, SSAO, distance fog | Not done, and SSAO is deliberately off. Still parked |
+>
+> **What is genuinely left of Phase 10 is Stages 3 and 4**, water polish and a lighting bake, both
+> on the README's parked list. The Anti-Patterns section near the bottom is the part still worth
+> reading: its rules about judging lighting at the real RTS camera angle, never baking the water,
+> and not chasing the menu mockup's composition are all live rules in `.claude/CLAUDE.md` today.
+
 **Status:** Planned
 **Owner:** Carson
 **Last updated:** 2026-04-30

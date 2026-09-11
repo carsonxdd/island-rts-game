@@ -4,7 +4,7 @@ using UnityEngine;
 /// Who owns a thing. A plain C# class, not a MonoBehaviour: it survives without a
 /// scene object, it serialises (the save file and the abstract tier of the
 /// architecture lap both write it) and it can be built in a test. Step 1 of
-/// <c>ARCHITECTURE_LAP_PLAN.md</c> (2026-09-09).
+/// <c>docs/ARCHITECTURE_LAP_PLAN.md</c> (2026-09-09).
 /// </summary>
 /// <remarks>
 /// <para>The player's colony, each rival colony and the Raiders are all factions;

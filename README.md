@@ -4,7 +4,7 @@ A Unity real-time-strategy survival game. You are one named character on a proce
 
 **Genre:** Top-down RTS + survival
 **Setting:** A shipwreck on an uncharted island. Deliberately light on fiction for now — the backstory is unwritten and the long-term direction (a single castaway story, or pickable civilizations) is still open.
-**Status:** Pre-alpha, in feature freeze. Everything listed under **Game Systems** below is built. The work between here and a build handed to testers is in [`ALPHA_PLAN.md`](ALPHA_PLAN.md).
+**Status:** Pre-alpha, in feature freeze. Everything listed under **Game Systems** below is built. The work between here and a build handed to testers is in [`docs/ALPHA_PLAN.md`](docs/ALPHA_PLAN.md).
 
 ---
 
@@ -48,7 +48,7 @@ A Unity real-time-strategy survival game. You are one named character on a proce
 
 Every gameplay key is a default, not a fixed binding — *Options → Controls* rebinds all of them with a main and an alternate slot each. Esc, the mouse buttons and the debug keys are reserved.
 
-Full reference: [`docs/CONTROLS_AND_CHECKLIST.md`](docs/CONTROLS_AND_CHECKLIST.md). In game, **Esc → Information** is a field guide built from the game's own catalogs, and in editor and dev builds its **DEV** tab holds the playtest quests — a tracker lists the next ones, most tick and pass themselves the moment the thing happens (only looks and "nothing went wrong" checks are ticked by hand), and SUBMIT REPORT writes a markdown report to `Playtests/`.
+Full reference: [`docs/CONTROLS.md`](docs/CONTROLS.md). In game, **Esc → Information** is a field guide built from the game's own catalogs, and in editor and dev builds its **DEV** tab holds the playtest quests — a tracker lists the next ones, most tick and pass themselves the moment the thing happens (only looks and "nothing went wrong" checks are ticked by hand), and SUBMIT REPORT writes a markdown report to `Playtests/`.
 
 ---
 
@@ -90,6 +90,16 @@ islandrts/Assets/
 tools/
 ├── run-sim.ps1                  # Runs a balance sweep against the headless sim player
 └── verify-scripts.py            # Roslyn compile check of every script in four configs, no Unity launch
+docs/
+├── ALPHA_PLAN.md                # The road to a build in a tester's hands (live)
+├── ARCHITECTURE_LAP_PLAN.md     # Factions, spatial hash, governor, save/load, islands (live)
+├── CONTROLS.md                  # Full control reference
+├── MENU_WIREFRAMES.md           # Every menu screen as a text wireframe, for an artist
+├── PHASE_HISTORY.md             # Session-by-session developer log
+├── SCALING_NOTES.md             # Why the architecture lap is ordered the way it is
+├── SIMULATION.md                # Balance-sim harness guide
+└── plans/                       # Built, superseded and parked design docs, kept for their
+                                #   locked decisions. Each opens with a status banner
 ```
 
 ---
@@ -149,21 +159,21 @@ The console is intentionally quiet — about 65 calls in the whole project. Only
 
 ## Where the project is going
 
-**Right now: the architecture lap** — factions, then a spatial hash and AI level of detail, then a colony governor with diplomacy and trade, then save/load (dawn checkpoints), then an archipelago of persistent islands. Step by step, with decisions and definitions of done: **[`ARCHITECTURE_LAP_PLAN.md`](ARCHITECTURE_LAP_PLAN.md)** (the reasoning behind the order is in [`docs/SCALING_NOTES.md`](docs/SCALING_NOTES.md)). Months of work; the first player-visible piece is the rival colony in step 3. **Step 1 (factions) landed on 2026-09-09:** ownership is data on every unit and building, every scan filters by relation, and the F4 debug menu can spawn a stub rival camp with a Hostile / Neutral / Allied toggle. The next steps are the spatial hash and AI level of detail.
+**Right now: the architecture lap** — factions, then a spatial hash and AI level of detail, then a colony governor with diplomacy and trade, then save/load (dawn checkpoints), then an archipelago of persistent islands. Step by step, with decisions and definitions of done: **[`docs/ARCHITECTURE_LAP_PLAN.md`](docs/ARCHITECTURE_LAP_PLAN.md)** (the reasoning behind the order is in [`docs/SCALING_NOTES.md`](docs/SCALING_NOTES.md)). Months of work; the first player-visible piece is the rival colony in step 3. **Step 1 (factions) landed on 2026-09-09:** ownership is data on every unit and building, every scan filters by relation, and the F4 debug menu can spawn a stub rival camp with a Hostile / Neutral / Allied toggle. The next steps are the spatial hash and AI level of detail.
 
-**After it: the alpha.** Playtesting the pile of built-but-unplayed work, tuning, a tutorial, a feedback path, and a build handed to testers — **[`ALPHA_PLAN.md`](ALPHA_PLAN.md)**, sections B → G, on the refactored foundation.
+**After it: the alpha.** Playtesting the pile of built-but-unplayed work, tuning, a tutorial, a feedback path, and a build handed to testers — **[`docs/ALPHA_PLAN.md`](docs/ALPHA_PLAN.md)**, sections B → G, on the refactored foundation.
 
 Parked with no committed order:
 
-- [`COLONY_EXPANSION_PLAN.md`](COLONY_EXPANSION_PLAN.md) — collector radius and settlement tiers, processing chains, families, livestock and farming
+- [`docs/plans/COLONY_EXPANSION_PLAN.md`](docs/plans/COLONY_EXPANSION_PLAN.md) — collector radius and settlement tiers, processing chains, families, livestock and farming
 - Building upgrades (hut to house, campfire to fortress) and a placeable Warehouse
-- Enemies wading ashore from the shallows, the last unbuilt piece of [`TERRAIN_SYSTEM_PLAN.md`](TERRAIN_SYSTEM_PLAN.md)
-- Phase 10 Stages 3-4: water polish and a lighting bake, [`PHASE_10_VISUAL_OVERHAUL.md`](PHASE_10_VISUAL_OVERHAUL.md)
+- Enemies wading ashore from the shallows, the last unbuilt piece of [`docs/plans/TERRAIN_SYSTEM_PLAN.md`](docs/plans/TERRAIN_SYSTEM_PLAN.md)
+- Phase 10 Stages 3-4: water polish and a lighting bake, [`docs/plans/PHASE_10_VISUAL_OVERHAUL.md`](docs/plans/PHASE_10_VISUAL_OVERHAUL.md)
 - Setting and fiction: whether this stays one castaway's story or becomes pickable civilizations is an open question, not a plan
 
 ### History
 
-The player-facing history is `islandrts/Assets/Resources/Changelog.txt`, which is also the in-game CHANGELOG screen. The developer history — every session, what broke and what it taught — is [`docs/PHASE_HISTORY.md`](docs/PHASE_HISTORY.md). Design plans that are already built are kept for their locked decisions: [`RESEARCH_AND_DAYS_PLAN.md`](RESEARCH_AND_DAYS_PLAN.md), [`CRAFTING_AND_PLAYER_CHARACTER_PLAN.md`](CRAFTING_AND_PLAYER_CHARACTER_PLAN.md), [`TERRAIN_SYSTEM_PLAN.md`](TERRAIN_SYSTEM_PLAN.md).
+The player-facing history is `islandrts/Assets/Resources/Changelog.txt`, which is also the in-game CHANGELOG screen. The developer history — every session, what broke and what it taught — is [`docs/PHASE_HISTORY.md`](docs/PHASE_HISTORY.md). Design plans that are already built are kept for their locked decisions: [`docs/plans/RESEARCH_AND_DAYS_PLAN.md`](docs/plans/RESEARCH_AND_DAYS_PLAN.md), [`docs/plans/CRAFTING_AND_PLAYER_CHARACTER_PLAN.md`](docs/plans/CRAFTING_AND_PLAYER_CHARACTER_PLAN.md), [`docs/plans/TERRAIN_SYSTEM_PLAN.md`](docs/plans/TERRAIN_SYSTEM_PLAN.md).
 
 ---
 

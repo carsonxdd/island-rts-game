@@ -1,5 +1,11 @@
 # Research, Crafting Stations & the 30-Day Calendar — Design Plan
 
+> **Status: built, archived 2026-09-10.** All six delivery slices shipped: the calendar and raids,
+> the research/craft split, the Crafter job (since folded into the idle colonist pool), food and
+> hunger, archers, and the escape ship. The status line below is as written on 2026-09-02 and says
+> slices 3-6 are not started; section 7 carries the real per-slice completion notes. Kept for its
+> locked decisions in sections 8 and 9.
+
 Drafted 2026-09-02. Status: **Slice 1 (calendar + raids) implemented the same evening and
 playtested 2026-09-03 ("a great start", tweaks to follow); Slice 2 (research / craft split,
 stations, spears as equipment) implemented 2026-09-03, pending playtest; Slices 3–6 not started.** Every decision is locked (section 8); section 9

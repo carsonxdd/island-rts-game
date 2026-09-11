@@ -1,5 +1,12 @@
 # Player Character & Campfire Crafting — Design Plan
 
+> **Status: built, archived 2026-09-10.** Slices A-D all shipped. The status line below says
+> "plan only, nothing implemented" because it was written on 2026-09-02 and this document is kept
+> verbatim; read it as a record of the decisions, not of the state. Section 4.8's knowledge-only
+> unlock model was superseded by the research/craft split in
+> [`RESEARCH_AND_DAYS_PLAN.md`](RESEARCH_AND_DAYS_PLAN.md). What actually shipped, including every
+> deviation, is in [`../PHASE_HISTORY.md`](../PHASE_HISTORY.md).
+
 Drafted 2026-09-02. Status: **plan only, nothing implemented.** The design decisions are
 locked (section 9); Slices A–C are the first batch, Slice D follows a playtest.
 
