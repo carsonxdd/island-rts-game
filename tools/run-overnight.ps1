@@ -264,7 +264,8 @@ if (-not ("Win32KeepAwake" -as [type])) {
 public static extern uint SetThreadExecutionState(uint esFlags);
 '@
 }
-[void][Win32KeepAwake]::SetThreadExecutionState([uint32]0x80000000 -bor [uint32]0x00000001)
+# ES_CONTINUOUS (0x80000000) | ES_SYSTEM_REQUIRED (1), in decimal: PowerShell reads 0x80000000 as a negative Int32.
+[void][Win32KeepAwake]::SetThreadExecutionState([uint32]2147483648 -bor [uint32]1)
 
 # Everything printed from here on (the build line, each sweep's summary table,
 # the report's "Wrote" line) also lands in console.log. The dashboard's
@@ -326,7 +327,7 @@ try {
     }
 }
 finally {
-    [void][Win32KeepAwake]::SetThreadExecutionState([uint32]0x80000000)
+    [void][Win32KeepAwake]::SetThreadExecutionState([uint32]2147483648)
 }
 
 # ---- report -------------------------------------------------------------
