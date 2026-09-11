@@ -339,13 +339,23 @@ the people who walked out because the colony starved them (2026-09-04).
 workers/warriors/huts/walls/towers at dusk AND dawn,
 enemies_spawned, enemies_killed_total,
 campfire_hp_dusk, campfire_hp_min, campfire_hp_dawn,
-hunger_dawn, left_total, archers_dawn
+hunger_dawn, left_total, archers_dawn,
+idle_dawn, weapons_dawn, sticks_dawn, chunks_dawn, queue_dawn, warriors_lost, ring_holes
 ```
 
 `hunger_dawn` is 0 fed / 1 hungry / 2 starving at that dawn; `left_total` is
 cumulative; `archers_dawn` is how many of `warriors_dawn` carry a bow. A run whose `hunger_dawn` is 2 for several days in a row is losing
 to its own kitchen, not to the raiders. Sweeps from before food consumption
 (2026-09-04) are not comparable: every colonist now eats one food a day.
+
+The last seven (2026-09-10) are what a wiped colony rebuilds with: `idle_dawn`
+jobless colonists at the fire, `weapons_dawn` weapons in the stockpile,
+`sticks_dawn` / `chunks_dawn` the spear kit, `queue_dawn` the campfire bench's
+"Waiting for 2 Stick" (empty when nothing is held), `warriors_lost` warriors
+that died between that dusk and dawn, and `ring_holes` ring cells the sim
+builder could neither wall nor notch around (a hole is a gap raiders walk
+through). A defeat row with idle colonists, wood and no weapons is a spear-kit
+famine, not a raid too big.
 
 `campfire_hp_min` is the single most useful column — **on rows where `raid` is
 1**. Quiet nights are still written (that is the economy curve), but their

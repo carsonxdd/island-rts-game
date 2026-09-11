@@ -40,6 +40,14 @@ public class SimMetrics
         public int hungerDawn;                       // 0 fed, 1 hungry, 2 starving (2026-09-04)
         public int leftTotal;                        // colonists who walked out, cumulative at dawn
         public int archersDawn;                      // bow-armed warriors among warriorsDawn (2026-09-04)
+        // The third lab of 2026-09-10 could only INFER why a wiped colony never
+        // re-armed (12 idle colonists, 0 warriors, 6,000 wood at the defeat):
+        public int idleDawn;                         // jobless colonists at the fire
+        public int weaponsDawn;                      // weapons in the stockpile
+        public int sticksDawn, chunksDawn;           // the spear kit in the stockpile
+        public string queueDawn = "";                // the campfire station's "Waiting for 2 Stick", else empty
+        public int warriorsLost;                     // warriors that died between dusk and dawn
+        public int ringHoles;                        // ring cells the sim builder could not wall or notch
         public bool survived;
     }
 
@@ -100,7 +108,8 @@ public class SimMetrics
                 "workers_dawn,warriors_dawn,huts_dawn,walls_dawn,towers_dawn," +
                 "enemies_spawned,enemies_killed_total," +
                 "campfire_hp_dusk,campfire_hp_min,campfire_hp_dawn," +
-                "hunger_dawn,left_total,archers_dawn\n");
+                "hunger_dawn,left_total,archers_dawn," +
+                "idle_dawn,weapons_dawn,sticks_dawn,chunks_dawn,queue_dawn,warriors_lost,ring_holes\n");
         }
     }
 
@@ -153,7 +162,14 @@ public class SimMetrics
               .Append(F(n.campfireHpDawn)).Append(',')
               .Append(n.hungerDawn).Append(',')
               .Append(n.leftTotal).Append(',')
-              .Append(n.archersDawn).Append('\n');
+              .Append(n.archersDawn).Append(',')
+              .Append(n.idleDawn).Append(',')
+              .Append(n.weaponsDawn).Append(',')
+              .Append(n.sticksDawn).Append(',')
+              .Append(n.chunksDawn).Append(',')
+              .Append(Csv(n.queueDawn ?? "")).Append(',')
+              .Append(n.warriorsLost).Append(',')
+              .Append(n.ringHoles).Append('\n');
         }
         if (sb.Length > 0) File.AppendAllText(Path.Combine(dir, DaysFile), sb.ToString());
     }

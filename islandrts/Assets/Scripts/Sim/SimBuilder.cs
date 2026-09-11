@@ -29,6 +29,23 @@ public static class SimBuilder
     public static int WallCount => Wall.ActiveList.Count + Gate.ActiveList.Count;
     public static int TowerCount => Watchtower.ActiveList.Count;
 
+    // ---- the ring the policy is building (2026-09-10) ---------------------
+    // Ring cells the builder could neither wall nor notch around; a hole is a
+    // gap raiders walk through, and the third lab's Turtle lost every run whose
+    // ring had one (seed 1042: 2 holes, 4711: 8) and won the one with none.
+    private static readonly HashSet<Vector2Int> holeCells = new HashSet<Vector2Int>();
+    public static int RingHoles => holeCells.Count;
+    /// <summary>Half-extent of the ring the policy builds, 0 = none; keeps huts off its line and out of its gate corridors.</summary>
+    public static int RingHalf { get; private set; }
+    public static void SetRing(int halfExtent) => RingHalf = halfExtent;
+
+    /// <summary>Per-run state; SimRunner calls it before every run.</summary>
+    public static void ResetRun()
+    {
+        holeCells.Clear();
+        RingHalf = 0;
+    }
+
     /// <summary>Construction sites of one type currently in flight (so a policy doesn't double-order).</summary>
     public static int PendingSites(BuildingType type)
     {
@@ -70,6 +87,7 @@ public static class SimBuilder
                 pos.y = GroundY(pos);
 
                 if (!IsClear(pos, data.buildingSize)) continue;
+                if (BlocksRing(pos)) continue;
 
                 Spawn(data, type, pos, flatten: true);
                 return true;
@@ -116,10 +134,75 @@ public static class SimBuilder
         int placed = 0;
         for (int i = 0; i < cells.Count && placed < maxSites; i++)
         {
-            if (!TryPlaceWallCell(data, wallType, cells[i])) continue;
-            placed++;
+            Vector2Int cell = cells[i];
+            if (holeCells.Contains(cell)) continue;
+            CellResult r = TryPlaceWallCell(data, wallType, cell);
+            if (r == CellResult.Placed) { placed++; continue; }
+            if (r != CellResult.Unbuildable) continue;   // exists, unaffordable, or unexplored (retried later)
+            placed += Notch(data, wallType, cell, center, halfExtent, maxSites - placed);
         }
         return placed;
+    }
+
+    /// <summary>
+    /// A ring cell that cannot take a wall (water, a slope, a node) is bypassed
+    /// one cell inward with a three-cell U (2026-09-10): the inward cell plus its
+    /// two neighbours along the side, so the ring stays orthogonally connected.
+    /// A corner, or a notch cell that is itself unbuildable, is a hole and is
+    /// counted; an unexplored notch cell is left for a later call.
+    /// </summary>
+    private static int Notch(BuildingData data, BuildingType wallType, Vector2Int cell,
+                             Vector2Int center, int halfExtent, int budget)
+    {
+        int dx = cell.x - center.x, dy = cell.y - center.y;
+        bool onRow = Mathf.Abs(dy) == halfExtent;
+        bool onCol = Mathf.Abs(dx) == halfExtent;
+        if (onRow && onCol) { holeCells.Add(cell); return 0; }   // corner
+
+        Vector2Int inward = onRow ? new Vector2Int(0, dy > 0 ? -1 : 1) : new Vector2Int(dx > 0 ? -1 : 1, 0);
+        Vector2Int tangent = onRow ? new Vector2Int(1, 0) : new Vector2Int(0, 1);
+        Vector2Int n0 = cell + inward, n1 = n0 + tangent, n2 = n0 - tangent;
+
+        // All three must be walled, buildable or (for now) unexplored before any is ordered.
+        Vector2Int[] notch = { n0, n1, n2 };
+        for (int i = 0; i < notch.Length; i++)
+        {
+            if (WallGrid.Instance.HasWallAt(notch[i])) continue;
+            Vector3 pos = WallGrid.Instance.GridToWorld(notch[i]);
+            pos.y = GroundY(pos);
+            if (TerrainGrid.Instance != null && !TerrainGrid.Instance.IsBuildable(pos)) { holeCells.Add(cell); return 0; }
+            if (FogOfWar.Instance != null && !FogOfWar.Instance.IsExplored(pos)) return 0;
+        }
+
+        int placed = 0;
+        for (int i = 0; i < notch.Length && placed < budget; i++)
+            if (TryPlaceWallCell(data, wallType, notch[i]) == CellResult.Placed) placed++;
+        return placed;
+    }
+
+    /// <summary>
+    /// True when a non-wall building at <paramref name="pos"/> would sit on the
+    /// ring's line or in a gate corridor (2026-09-10). Watched in the third lab:
+    /// huts placed on the 7-16 m spiral landed IN the openings of a 9-cell ring,
+    /// which sealed it, locked the militia outside and let the raid land inside.
+    /// The band is two cells either side of the line; a corridor is five cells
+    /// deep on both sides of each opening.
+    /// </summary>
+    private static bool BlocksRing(Vector3 pos)
+    {
+        if (RingHalf <= 0 || Campfire == null || WallGrid.Instance == null) return false;
+        Vector2Int c = WallGrid.Instance.WorldToGrid(Campfire.transform.position);
+        Vector2Int g = WallGrid.Instance.WorldToGrid(pos);
+        int dx = Mathf.Abs(g.x - c.x), dy = Mathf.Abs(g.y - c.y);
+        int cheb = Mathf.Max(dx, dy);
+        if (cheb >= RingHalf - 2 && cheb <= RingHalf + 2) return true;
+        // Openings sit at offsets 0 and 1 along each side (IsOpeningOffset).
+        int ox = g.x - c.x, oy = g.y - c.y;
+        bool nearX = ox >= -2 && ox <= 3, nearY = oy >= -2 && oy <= 3;
+        int deep = RingHalf + 5, shallow = RingHalf - 5;
+        if (nearX && dy >= shallow && dy <= deep) return true;
+        if (nearY && dx >= shallow && dx <= deep) return true;
+        return false;
     }
 
     /// <summary>The two cells of each side's opening: offsets 0 and 1 along the side.</summary>
@@ -160,7 +243,7 @@ public static class SimBuilder
     private static int GateCell(BuildingData data, BuildingType wallType, Vector2Int cell)
     {
         MonoBehaviour occupant = WallGrid.Instance.GetWallAt(cell);
-        if (occupant == null) return TryPlaceWallCell(data, wallType, cell) ? 1 : 0;
+        if (occupant == null) return TryPlaceWallCell(data, wallType, cell) == CellResult.Placed ? 1 : 0;
 
         Wall wall = occupant as Wall;
         if (wall == null) return 0;   // a site still building, or already a gate
@@ -170,20 +253,22 @@ public static class SimBuilder
         return 1;
     }
 
+    private enum CellResult { Placed, Occupied, Unaffordable, Unbuildable, Unexplored }
+
     /// <summary>One wall site at a grid cell, the WallLinePlacer.CellBlocked tests included.</summary>
-    private static bool TryPlaceWallCell(BuildingData data, BuildingType wallType, Vector2Int cell)
+    private static CellResult TryPlaceWallCell(BuildingData data, BuildingType wallType, Vector2Int cell)
     {
-        if (!Factions.Player.Resources.CanAfford(data.woodCost, data.foodCost, data.stoneCost)) return false;
-        if (WallGrid.Instance.HasWallAt(cell)) return false;
+        if (WallGrid.Instance.HasWallAt(cell)) return CellResult.Occupied;
+        if (!Factions.Player.Resources.CanAfford(data.woodCost, data.foodCost, data.stoneCost)) return CellResult.Unaffordable;
 
         Vector3 pos = WallGrid.Instance.GridToWorld(cell);
         pos.y = GroundY(pos);
-        if (TerrainGrid.Instance != null && !TerrainGrid.Instance.IsBuildable(pos)) return false;
-        if (FogOfWar.Instance != null && !FogOfWar.Instance.IsExplored(pos)) return false;   // WallLinePlacer.CellBlocked
+        if (TerrainGrid.Instance != null && !TerrainGrid.Instance.IsBuildable(pos)) return CellResult.Unbuildable;
+        if (FogOfWar.Instance != null && !FogOfWar.Instance.IsExplored(pos)) return CellResult.Unexplored;   // WallLinePlacer.CellBlocked
 
         // Walls deliberately do NOT flatten — they follow the terrain per cell.
         Spawn(data, wallType, pos, flatten: false);
-        return true;
+        return CellResult.Placed;
     }
 
     // ---- shared internals -------------------------------------------------
@@ -215,6 +300,7 @@ public static class SimBuilder
 
                 if (!TerrainGrid.Instance.IsNearWater(pos, GhostPlacer.ShoreRadius)) continue;
                 if (!IsClear(pos, data.buildingSize)) continue;
+                if (BlocksRing(pos)) continue;
 
                 Spawn(data, type, pos, flatten: true);
                 return true;

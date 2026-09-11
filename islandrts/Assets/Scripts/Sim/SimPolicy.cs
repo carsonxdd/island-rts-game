@@ -397,7 +397,7 @@ public class TurtlePolicy : SimPolicy
     private const float WoodReserve = 120f;
     private const int MaxHuts = 6;
     private const int WorkerFloor = 8;
-    private const int RingHalf = 9;
+    private const int RingHalf = 12;   // 9 until 2026-09-10: huts need room inside, clear of the gate corridors
 
     private bool ringOrdered;
 
@@ -407,6 +407,7 @@ public class TurtlePolicy : SimPolicy
         // a wall with nobody behind it only delays it. Then the ring's stone,
         // then Bowyery so the men behind the wall can shoot over it.
         if (ManageStance(s)) return;
+        SimBuilder.SetRing(RingHalf);   // huts stay off the ring line and out of its gate corridors (2026-09-10)
         if (Research(s, "woodcutting", "foraging", "spearcraft", "construction", "quarrying",
                         "crafting", "bowyery")) return;
 
@@ -488,13 +489,14 @@ public class EcoPolicy : SimPolicy
 
     private const int MaxHuts = 8;
     private const int WorkerFloor = 10;
-    private const int RingHalf = 8;
+    private const int RingHalf = 12;   // 8 until 2026-09-10: huts need room inside, clear of the gate corridors
 
     public override void Tick(SimState s)
     {
         // Spearcraft before Construction (2026-09-10): the first raid does not
         // wait for the economy to finish.
         if (ManageStance(s)) return;
+        SimBuilder.SetRing(RingHalf);   // huts stay off the ring line and out of its gate corridors (2026-09-10)
         if (Research(s, "woodcutting", "foraging", "spearcraft", "construction", "quarrying",
                         "crafting", "mining", "iron_work", "bowyery")) return;
 

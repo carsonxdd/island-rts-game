@@ -71,6 +71,9 @@ public class SimRunner : MonoBehaviour
     private int runStartFrame;
     private float policyTimer;
     private int lastEnemyCount;
+    private int warriorsLostThisNight;   // Warrior.OnAnyWarriorDied between dusk and dawn (2026-09-10)
+
+    private void OnWarriorDied(Vector3 at) { if (night != null) warriorsLostThisNight++; }
 
     // ---- bootstrap --------------------------------------------------------
 
@@ -174,6 +177,7 @@ public class SimRunner : MonoBehaviour
         SceneManager.sceneLoaded += OnSceneLoaded;
         DayNightCycle.OnNightStart += OnNightStart;
         DayNightCycle.OnDayStart += OnDayStart;
+        Warrior.OnAnyWarriorDied += OnWarriorDied;
     }
 
     private void OnDestroy()
@@ -181,6 +185,7 @@ public class SimRunner : MonoBehaviour
         SceneManager.sceneLoaded -= OnSceneLoaded;
         DayNightCycle.OnNightStart -= OnNightStart;
         DayNightCycle.OnDayStart -= OnDayStart;
+        Warrior.OnAnyWarriorDied -= OnWarriorDied;
         Time.captureDeltaTime = 0f;
         UnityEngine.Rendering.OnDemandRendering.renderFrameInterval = 1;
     }
@@ -237,6 +242,7 @@ public class SimRunner : MonoBehaviour
         metrics.strategy = policy.Name;
         night = null;
         lastEnemyCount = 0;
+        SimBuilder.ResetRun();
         policyTimer = 0f;
 
         if (alreadyLoaded)
@@ -583,6 +589,7 @@ public class SimRunner : MonoBehaviour
             campfireHpMin = fire != null ? fire.GetCurrentHealth() : 0f
         };
         lastEnemyCount = Enemy.ActiveList.Count;
+        warriorsLostThisNight = 0;
         metrics.dayReached = night.day;
         if (night.raid) metrics.raids++;
     }
@@ -632,6 +639,15 @@ public class SimRunner : MonoBehaviour
         var warriors = Warrior.ActiveList;
         for (int i = 0; i < warriors.Count; i++) if (warriors[i] != null && warriors[i].IsRanged) archers++;
         night.archersDawn = archers;
+
+        // What a wiped colony has to rebuild with (2026-09-10)
+        night.idleDawn = pm != null ? pm.GetIdleCount() : 0;
+        night.weaponsDawn = fire != null ? fire.WeaponsInStock() : 0;
+        night.sticksDawn = fire != null ? fire.Stockpile.Count(ItemCatalog.Stick) : 0;
+        night.chunksDawn = fire != null ? fire.Stockpile.Count(ItemCatalog.StoneChunk) : 0;
+        night.queueDawn = fire != null && fire.Station != null ? fire.Station.Status : "";
+        night.warriorsLost = warriorsLostThisNight;
+        night.ringHoles = SimBuilder.RingHoles;
     }
 
     private void EndRun()
