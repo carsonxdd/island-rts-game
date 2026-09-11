@@ -338,14 +338,18 @@ One command before bed (2026-09-11). `run-overnight.ps1` keeps the machine
 awake (`SetThreadExecutionState`; the dev box sleeps after an hour otherwise),
 rebuilds the sim player in batchmode (`SimTools.BuildSimPlayerBatch`, so **the
 editor must be closed** — it tests whether `Temp/UnityLockfile` is held, not
-whether it exists), refuses to continue unless `Assembly-CSharp.dll` is newer
-than the build started, then plays four headless sweeps through `run-sim.ps1
+whether it exists), refuses to continue unless the build log says `Build
+Finished, Result: Success` and `Assembly-CSharp.dll` is at least as new as every
+`.cs` under `Assets` (Bee copies the DLL with its compile time, so "newer than
+the build started" failed a good build), then plays four headless sweeps through `run-sim.ps1
 -Parallel 8` and files each under `SimLogs/overnight-<date>/<sweep>/` (its
 `runs.csv`, `days.csv`, `player-N.log`) next to the `<sweep>.sweep.json` it
 played and a `<sweep>.manifest.csv` mapping every config id to its cell
 (variant, strategy, island). When the last sweep ends, `summarize-sim.ps1`
 writes **`REPORT.md`** beside them — that is the morning read. A failed build
-stops everything; a failed sweep is logged and the next one runs.
+stops everything; a failed sweep is logged and the next one runs. After the
+report the script counts down 60 s and puts the machine to sleep (Ctrl+C or
+`-NoSleep` keeps it on; a build failure never sleeps it).
 
 | Sweep | Cells | Runs | Question |
 |---|---|---|---|

@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Unattended overnight batch: rebuild the sim player, run several headless
     sweeps back to back, write one report.
@@ -10,11 +10,15 @@
 
     It keeps the machine awake, rebuilds the headless sim player from the
     working tree (the editor must be CLOSED - batchmode cannot open a project
-    another editor holds), verifies the script DLL is fresh, then runs each
+    another editor holds), verifies the script DLL is at least as new as every
+    .cs under Assets (Bee copies it with the COMPILE time, not the build time,
+    so "newer than the build started" was a false failure), then runs each
     sweep through run-sim.ps1 with -Parallel processes and files the results
     under SimLogs/overnight-<date>/<sweep>/. When the last sweep ends it runs
     summarize-sim.ps1, which writes REPORT.md beside them - that is the file
-    to open in the morning.
+    to open in the morning - and then puts the machine to SLEEP after a 60 s
+    countdown (Ctrl+C cancels it; -NoSleep leaves the box on). A build or
+    precondition failure never sleeps the machine: you are still at the desk.
 
     A failed build stops everything (a stale player would answer last night's
     question). A failed SWEEP is logged and the next one runs; the report names
@@ -54,6 +58,9 @@
     Path to Unity.exe. Default: the version in ProjectSettings/ProjectVersion.txt
     under D:\Programs\unity editor\.
 
+.PARAMETER NoSleep
+    Leave the machine on when the batch finishes instead of sleeping it.
+
 .EXAMPLE
     .\tools\run-overnight.ps1 -DryRun
     .\tools\run-overnight.ps1
@@ -67,7 +74,8 @@ param(
     [string[]]$Sweeps = @("baseline", "raids", "difficulty", "islands"),
     [switch]$SkipBuild,
     [switch]$DryRun,
-    [string]$UnityExe = ""
+    [string]$UnityExe = "",
+    [switch]$NoSleep
 )
 
 $ErrorActionPreference = "Stop"
@@ -283,11 +291,22 @@ try {
                        "-executeMethod", "SimTools.BuildSimPlayerBatch",
                        "-logFile", "`"$buildLog`"")
         $p = Start-Process -FilePath $UnityExe -ArgumentList $buildArgs -PassThru -Wait -NoNewWindow
-        $fresh = (Test-Path $dll) -and ((Get-Item $dll).LastWriteTime -gt $buildStart)
-        if ($p.ExitCode -ne 0 -or -not $fresh) {
-            throw "Sim player build failed (exit $($p.ExitCode), DLL fresh: $fresh). See $buildLog"
+        # Bee copies Assembly-CSharp.dll into the player with the timestamp of
+        # its COMPILE, which an unchanged incremental build leaves alone - so
+        # "newer than the build started" failed a good build (2026-09-11).
+        # Fresh = at least as new as every .cs under Assets, and Unity's own
+        # result line says Success.
+        $newestSrc = Get-ChildItem (Join-Path $project "Assets") -Recurse -Filter "*.cs" |
+            Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        $dllTime = if (Test-Path $dll) { (Get-Item $dll).LastWriteTime } else { [datetime]::MinValue }
+        $fresh = (Test-Path $dll) -and ($null -eq $newestSrc -or $dllTime -ge $newestSrc.LastWriteTime.AddSeconds(-2))
+        $success = (Test-Path $buildLog) -and [bool](Select-String -Path $buildLog -Pattern "Build Finished, Result: Success" -Quiet)
+        if ($p.ExitCode -ne 0 -or -not $success -or -not $fresh) {
+            $why = "exit $($p.ExitCode), log says success: $success, DLL fresh: $fresh"
+            if (-not $fresh -and $newestSrc) { $why += " (DLL $($dllTime.ToString('HH:mm:ss')) older than $($newestSrc.Name) $($newestSrc.LastWriteTime.ToString('HH:mm:ss')))" }
+            throw "Sim player build failed ($why). See $buildLog"
         }
-        Log ("Build OK in {0:mm\:ss}; DLL {1:HH:mm:ss}" -f ((Get-Date) - $buildStart), (Get-Item $dll).LastWriteTime)
+        Log ("Build OK in {0:mm\:ss}; DLL {1:HH:mm:ss}" -f ((Get-Date) - $buildStart), $dllTime)
     }
 
     # ---- sweeps -----------------------------------------------------------
@@ -341,4 +360,23 @@ try {
 
 Log ("=== DONE in {0:hh\:mm\:ss} ===" -f ((Get-Date) - $startedAt))
 $results | Format-Table name, ok, rows, expected, bad, elapsed -AutoSize
-try { Stop-Transcript | Out-Null } catch { }
+
+# ---- sleep --------------------------------------------------------------
+# Reached only after the sweeps ran (a build failure throws above and leaves
+# the box on - you are still at the desk when that happens). Keep-awake is
+# already cleared by the finally; the countdown is the Ctrl+C window.
+if ($NoSleep) {
+    Log "Sleep     : skipped (-NoSleep)"
+    try { Stop-Transcript | Out-Null } catch { }
+}
+else {
+    Log "Sleep     : machine sleeps in 60 s (Ctrl+C to stay on, -NoSleep next time)"
+    try { Stop-Transcript | Out-Null } catch { }
+    for ($i = 60; $i -gt 0; $i -= 10) {
+        Write-Host ("  sleeping in {0} s..." -f $i)
+        Start-Sleep -Seconds 10
+    }
+    Add-Type -AssemblyName System.Windows.Forms
+    # Suspend (not Hibernate), no forced close of other apps, wake events allowed.
+    [void][System.Windows.Forms.Application]::SetSuspendState([System.Windows.Forms.PowerState]::Suspend, $false, $false)
+}
