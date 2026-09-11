@@ -270,15 +270,21 @@ public class RaidDirector : MonoBehaviour
         BaseBuilding fire = Factions.Player.Campfire;
         if (fire != null) p += fire.GetWarriorCount() * 1f;   // on top of the 2 they count as colonists
 
-        p += Hut.ActiveList.Count * 3f;
-        p += Watchtower.ActiveList.Count * 6f;
-        p += Workshop.ActiveList.Count * 4f;
-        p += Shipyard.ActiveList.Count * 8f;   // a ship on the slipway is worth raiding (2026-09-04)
+        // OWNED, not global (2026-09-11). These read the registries flat, so every
+        // hut a RIVAL colony put up was enlarging the player's nightly raid - a
+        // difficulty spike the player can neither see nor control, and it grows
+        // with the rival. Population and stockpile above were already per-faction;
+        // the buildings were the half that was missed.
+        Faction me = Factions.Player;
+        p += TargetingUtil.CountOwned(Hut.ActiveList, me) * 3f;
+        p += TargetingUtil.CountOwned(Watchtower.ActiveList, me) * 6f;
+        p += TargetingUtil.CountOwned(Workshop.ActiveList, me) * 4f;
+        p += TargetingUtil.CountOwned(Shipyard.ActiveList, me) * 8f;   // a ship on the slipway is worth raiding (2026-09-04)
         // Walls count HALF of what they used to (0.3 until 2026-09-11). A wall
         // is wood and stone the colony spent, not loot sitting there for the
         // taking, and at 0.3 the 94-wall ring of the 2026-09-11 lab was handing
         // the raiders two extra men a night for the privilege of being defended.
-        p += (Wall.ActiveList.Count + Gate.ActiveList.Count) * 0.15f;
+        p += (TargetingUtil.CountOwned(Wall.ActiveList, me) + TargetingUtil.CountOwned(Gate.ActiveList, me)) * 0.15f;
 
         // The hoard is CAPPED (2026-09-11). It is meant to say "a colony sitting
         // on a pile is a fatter target", but the overnight batch found it saying

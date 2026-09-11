@@ -49,6 +49,25 @@ public static class TargetingUtil
         return Scan(list, from, maxRange, owner, Attitude.Allied, true, out distance);
     }
 
+    /// <summary>
+    /// How many living entries <paramref name="owner"/> owns (2026-09-11). The
+    /// registries are global by design, so a per-faction COUNT is a filter on the
+    /// list like every other ownership question - never a second list. Called once
+    /// a dawn by the raid roll and once a second by a governor, so the loop is fine.
+    /// </summary>
+    public static int CountOwned<T>(IReadOnlyList<T> list, Faction owner)
+        where T : Component, ITargetable
+    {
+        if (owner == null) return 0;
+        int n = 0;
+        for (int i = 0; i < list.Count; i++)
+        {
+            T item = list[i];
+            if (item != null && item.Faction == owner) n++;
+        }
+        return n;
+    }
+
     /// <summary>Nearest living entry whose faction is Hostile to <paramref name="me"/>.</summary>
     public static T FindNearestHostile<T>(IReadOnlyList<T> list, Vector3 from, float maxRange, Faction me, out float distance)
         where T : Component, ITargetable

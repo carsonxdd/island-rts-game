@@ -141,6 +141,17 @@ Three tiers, decided per faction per island, never per unit:
 
 **Goal:** a rival colony plays the game on its own, has an attitude toward the player, and can trade. This is the first player-visible step. It also collapses `SimPolicy` and `SimBuilder` into the governor, ending the "mirror `GhostPlacer` by hand" obligation.
 
+### Castaway arrival, territory and measurement (decided 2026-09-11)
+
+These four answers replace the step's original "debug-spawned rival beside the player" assumption. A rival is a castaway story, not a spawner.
+
+- **Rivals wash ashore on a schedule, not at world start.** A `RivalLandingDirector` lands one rival colony on an announced day (banner + `DevQuests` signal), the way the player's own run opens. The player gets a head start, first contact is an event with a date, and the sim can put the arrival day in `days.csv`. The mid-run difficulty step this creates is the cost, and it is deliberate: the schedule is the tuning knob.
+- **They settle where they land, and they land far away.** The landing cove is chosen at a minimum distance from the player's cove, scaled by `TerrainGrid.SizeScale`, so a Small island holds fewer rivals than a Large one. The colony is founded near its own beach, not near the player's - the existing `DebugMenu.SpawnRivalRoutine` places a rival 40-70 u from the PLAYER's fire and that is exactly what this replaces. Reuse `TerrainGrid`'s cove/campfire-site anchors so a rival's opening is as safe as the player's.
+- **Territory is a preference, not a wall.** Each colony gathers inside its own home radius around its campfire and only reaches beyond it when its own nodes are exhausted. Crossing is therefore possible but uncommon, which is what makes it *mean* something when it happens: that is the trigger surface for the opinion drain below, and the reason a land war can start at all. A hard claim was rejected for removing the pressure entirely; a free-for-all was rejected as unbalanceable.
+- **The harness measures rivals from the start.** `SimConfig` gains a rival count (0 / 1 / 2) and the rival personality; `days.csv` gains the arrival day, contact, opinion and any rival landing. The 2026-09-11 overnight batch is the argument: 450 runs turned "Turtle loses to walls" into four unrelated bugs, none of which was walls, and a feature this size should not be balanced by feel.
+
+**Prosperity was fixed ahead of this step (2026-09-11).** `RaidDirector.Prosperity` read `Hut`/`Watchtower`/`Workshop`/`Shipyard`/`Wall` from the global registries while reading population and stockpile per faction, so every building a rival raised enlarged the PLAYER's nightly raid. It now counts through `TargetingUtil.CountOwned`. Any new prosperity term must be owner-filtered.
+
 ### Governor
 
 - **`Governor`** — plain C# per AI faction, ticked at 1 Hz from a single `GovernorRunner` MonoBehaviour (one `Update`, staggered offsets). Reads faction stats (live counts from `FactionCounts` when materialised, the `ColonyLedger` when abstract) and writes **goals**, which are exactly the surfaces the unit AI already reads per faction: job assignments via `Campfire.AssignWorker`, `LaborPriorities`, `GuardStance`, `Formation`, the craft/research queue, and a build order.
