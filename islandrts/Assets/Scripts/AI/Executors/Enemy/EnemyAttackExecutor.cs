@@ -153,8 +153,16 @@ public class EnemyAttackExecutor : ActionExecutor
             bb.forcedTarget = null;
         }
 
-        // 1. Warriors within detection range
+        // 1. Warriors within detection range — only one a path reaches (2026-09-10).
+        // A warrior on the far side of a sealed ring held every raider in "Moving
+        // to Warrior" at the wall all night; nobody hit the wall because the wall
+        // is tier 4 and tier 1 had answered. Throttled path = accept optimistically.
         Warrior warrior = TargetingUtil.FindNearestHostile(Warrior.ActiveList, myPos, bb.warriorDetectionRange, bb.faction, out unused);
+        if (warrior != null && !IsPathable(myPos, warrior.transform.position))
+        {
+            DevQuests.Signal("raider:wall_over_warrior");
+            warrior = null;
+        }
         if (warrior != null) { SetTarget(bb, warrior.transform, warrior.gameObject.name); return; }
 
         // Cache campfire — checked twice: once for proximity commit (pri 2),
@@ -187,6 +195,17 @@ public class EnemyAttackExecutor : ActionExecutor
 
         // Nothing to attack
         bb.ClearTarget();
+    }
+
+    /// <summary>
+    /// False only when a computed path to <paramref name="to"/> is not complete.
+    /// A throttled CalculatePath (2/frame globally) answers true, like the
+    /// building tier: worst case the raider walks and StuckResolver re-picks.
+    /// </summary>
+    bool IsPathable(Vector3 from, Vector3 to)
+    {
+        if (!AINavHelper.TryCalculatePath(from, to, NavMesh.AllAreas, reachabilityPath)) return true;
+        return reachabilityPath.status == NavMeshPathStatus.PathComplete;
     }
 
     Transform FindNearestReachableBuilding(AIBlackboard bb, Vector3 myPos)

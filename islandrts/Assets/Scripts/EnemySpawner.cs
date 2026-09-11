@@ -195,23 +195,57 @@ public class EnemySpawner : MonoBehaviour
         TerrainGrid terrain = TerrainGrid.Instance;
         if (terrain == null) return false;
 
+        // The walk never crosses a wall line (2026-09-10). When huts sat in the
+        // ring's gate openings the fire had no path from anywhere outside, so
+        // the walk stepped straight through the wall to the first point that
+        // did — the raid landed INSIDE the ring with the militia locked out, and
+        // the 20 s watchdog warped the rest in after it. Now the first dry
+        // NavMesh point on the near side of a wall is the answer when nothing
+        // there reaches the fire: the raiders land and go for the wall.
         Vector3 dir = toward - from;
         dir.y = 0f;
         Vector3 step = dir.sqrMagnitude > 0.01f ? dir.normalized * 4f : Vector3.zero;
         Vector3 position = from;
+        Vector3 fallback = from;
+        bool haveFallback = false;
         for (int i = 0; i < 12; i++)
         {
             position.y = terrain.SampleHeight(position) + 0.1f;
             NavMeshHit navHit;
             if (terrain.SampleHeight(position) > TerrainGrid.DeepWaterY
-                && NavMesh.SamplePosition(position, out navHit, 4f, NavMesh.AllAreas)
-                && CanReachFire(navHit.position))
+                && NavMesh.SamplePosition(position, out navHit, 4f, NavMesh.AllAreas))
             {
-                result = navHit.position;
-                return true;
+                if (CanReachFire(navHit.position))
+                {
+                    result = navHit.position;
+                    return true;
+                }
+                if (!haveFallback) { fallback = navHit.position; haveFallback = true; }
             }
-            if (step == Vector3.zero) return false;
+            if (step == Vector3.zero) break;
+            if (CrossesWall(position, position + step))
+            {
+                DevQuests.Signal("raider:wall_stop");
+                break;
+            }
             position += step;
+        }
+        result = fallback;
+        return haveFallback;
+    }
+
+    /// <summary>True when the segment passes over a wall, gate or wall site cell (half-metre samples).</summary>
+    static bool CrossesWall(Vector3 a, Vector3 b)
+    {
+        WallGrid grid = WallGrid.Instance;
+        if (grid == null) return false;
+        Vector3 d = b - a;
+        d.y = 0f;
+        int samples = Mathf.Max(1, Mathf.CeilToInt(d.magnitude / 0.5f));
+        for (int i = 1; i <= samples; i++)
+        {
+            Vector3 p = a + d * (i / (float)samples);
+            if (grid.HasWallAt(grid.WorldToGrid(p))) return true;
         }
         return false;
     }

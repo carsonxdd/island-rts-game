@@ -28,11 +28,16 @@
 #   fog:node_skipped  fog:raider_unseen  fog:ghost  fog:wall  minimap:click  minimap:landing
 #   sky:<sunny|slightly|partly|cloudy|off>  graphics:<preset|custom>
 #   faction:bootstrap  faction:rival  faction:<hostile|neutral|allied>
-#   repair  repair:gate  raid:rested
+#   repair  repair:gate  raid:rested  raider:wall_stop  raider:wall_over_warrior
 # crowd:split, dropoff:spread and patrol:spread are STATE checks polled by the
 # tracker twice a second while their quest is open; everything else is an event.
 # A finished batch is deleted from here once its report is in; it stays in the
 # changelog and the phase history.
+
+## 2026-09-10 Raiders stay outside
+- @raider:wall_stop Seal the ring (huts in the gate openings): the raid lands outside it
+- @raider:wall_over_warrior Warriors inside, raiders out: they hit the wall, not stare
+- No raider ever appears inside a closed ring, landing or stuck-warp
 
 ## 2026-09-10 Raid breather
 - @raid:rested The dawn after a raid rolls no raid: two quiet nights are owed

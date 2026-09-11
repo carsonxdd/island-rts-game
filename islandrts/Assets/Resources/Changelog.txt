@@ -8,6 +8,13 @@
 # Lines starting with a single # are comments. Anything else that is not a
 # heading, a bullet or an indented continuation is ignored.
 
+## 2026-09-10 — Raiders stay outside the wall
+- A raid never lands inside a closed ring any more, and a raider that gets
+  stuck is never moved through a wall. When nothing outside reaches your fire,
+  they come ashore on the near side and go for the wall.
+- A raider that cannot reach a warrior (say, behind a wall) no longer stands
+  at the wall staring at them all night; it attacks the wall instead.
+
 ## 2026-09-10 — A breather after every raid
 - Raiders never come two nights running any more. After a raid the colony is
   owed two quiet nights before the next can roll, so a night that cost half the

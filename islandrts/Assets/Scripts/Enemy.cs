@@ -184,11 +184,12 @@ public class Enemy : UnitBase<Enemy>
 
         BaseBuilding fire = Factions.Player.Campfire;
         if (fire == null) return;
-        Vector3 dir = fire.transform.position - p;
-        dir.y = 0f;
-        Vector3 start = p + (dir.sqrMagnitude > 0.01f ? dir.normalized * 4f : Vector3.zero);
+        // The walk starts where the raider stands (2026-09-10), so its first
+        // step is checked against the wall line like every other: starting a
+        // step ahead skipped that check and warped a raider parked at a wall
+        // to the far side of it.
         Vector3 dest;
-        if (!EnemySpawner.FindReachableToward(start, fire.transform.position, out dest)) return;
+        if (!EnemySpawner.FindReachableToward(p, fire.transform.position, out dest)) return;
         if ((dest - p).sqrMagnitude < 1f) return;   // already on good ground: something else is wrong
 
         agent.Warp(dest);
