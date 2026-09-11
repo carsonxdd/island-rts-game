@@ -38,6 +38,13 @@ public class RaidDirector : MonoBehaviour
     public const float DefaultBaseSize = 2f;
     public const float DefaultSizePerDay = 0.4f;
     public const float DefaultSizePerProsperity = 0.08f;
+
+    /// <summary>
+    /// Ceiling on what stock on hand contributes to <see cref="Prosperity"/>, per
+    /// pool group (2026-09-11): about 600 pooled resources, or 100 metal, is as
+    /// rich as a hoard ever reads. Five extra raiders is the most a bank may buy.
+    /// </summary>
+    public const float MaxHoardProsperity = 10f;
     public const int DefaultMinSize = 2;
 
     [Header("Schedule")]
@@ -267,12 +274,26 @@ public class RaidDirector : MonoBehaviour
         p += Watchtower.ActiveList.Count * 6f;
         p += Workshop.ActiveList.Count * 4f;
         p += Shipyard.ActiveList.Count * 8f;   // a ship on the slipway is worth raiding (2026-09-04)
-        p += (Wall.ActiveList.Count + Gate.ActiveList.Count) * 0.3f;
+        // Walls count HALF of what they used to (0.3 until 2026-09-11). A wall
+        // is wood and stone the colony spent, not loot sitting there for the
+        // taking, and at 0.3 the 94-wall ring of the 2026-09-11 lab was handing
+        // the raiders two extra men a night for the privilege of being defended.
+        p += (Wall.ActiveList.Count + Gate.ActiveList.Count) * 0.15f;
 
+        // The hoard is CAPPED (2026-09-11). It is meant to say "a colony sitting
+        // on a pile is a fatter target", but the overnight batch found it saying
+        // something else: a colony with more wood than it can spend, which is
+        // every colony past day 10, summons raiders forever. Rush reached 3,000
+        // wood on day 16 - 50 prosperity, four extra raiders a night - with no
+        // building left to buy and no chunks to make a spear with. The stock term
+        // now tops out, so a raid grows with what the colony HAS BUILT, which it
+        // can defend, and not with what it failed to spend.
         ResourcePool rm = Factions.Player.Resources;
         {
-            p += (rm.wood + rm.food + rm.stone) / 60f;
-            p += rm.metal / 10f;
+            float stock = (rm.wood + rm.food + rm.stone) / 60f;
+            if (stock > MaxHoardProsperity) DevQuests.Signal("raid:hoard_capped");
+            p += Mathf.Min(stock, MaxHoardProsperity);
+            p += Mathf.Min(rm.metal / 10f, MaxHoardProsperity);
         }
         return p;
     }

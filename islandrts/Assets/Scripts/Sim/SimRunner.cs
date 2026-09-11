@@ -259,6 +259,7 @@ public class SimRunner : MonoBehaviour
         night = null;
         lastEnemyCount = 0;
         SimBuilder.ResetRun();
+        SimPlayerDriver.ResetRun();
         policyTimer = 0f;
 
         if (alreadyLoaded)
@@ -673,6 +674,24 @@ public class SimRunner : MonoBehaviour
         night.queueDawn = fire != null && fire.Station != null ? fire.Station.Status : "";
         night.warriorsLost = warriorsLostThisNight;
         night.ringHoles = SimBuilder.RingHoles;
+        night.chunksLoose = LooseChunks();
+    }
+
+    /// <summary>
+    /// Stone chunks lying on the island (2026-09-11). Nothing can MAKE one without
+    /// the Stone Pick that Quarrying grants, and Quarrying costs three, so a run
+    /// that finds none can never quarry, never re-arm and never win.
+    /// </summary>
+    static int LooseChunks()
+    {
+        int n = 0;
+        var list = GroundPickup.ActiveList;
+        for (int i = 0; i < list.Count; i++)
+        {
+            GroundPickup p = list[i];
+            if (p != null && p.Item == ItemCatalog.StoneChunk) n++;
+        }
+        return n;
     }
 
     private void EndRun()

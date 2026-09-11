@@ -58,8 +58,80 @@ public static class SimPlayerDriver
         }
 
         GroundPickup pickup = NearestPickup(missing, pc);
-        if (pickup != null) pc.CommandCollect(pickup);
-        // else: nothing on the island right now — wait for the trickle respawn
+        if (pickup != null) { exploring = false; pc.CommandCollect(pickup); return; }
+
+        // Nothing of it is known. Go and LOOK (2026-09-11). Waiting for the
+        // trickle was a deadlock: a colony cannot make a stone chunk without the
+        // Stone Pick that Quarrying grants, Quarrying costs three chunks, and the
+        // 2026-09-11 lab watched island 101 sit at 0 chunks and 58 sticks for a
+        // whole run with the bench stuck and the castaway standing still. A human
+        // player walks off to find some, so the driver does too.
+        Explore(pc);
+    }
+
+    // ---- exploring for something the colony cannot make --------------------
+
+    private static Vector3 exploreTarget;
+    private static bool exploring;
+    private static float exploreDeadline;
+
+    /// <summary>How close counts as arrived, and how long one leg may take.</summary>
+    private const float ArriveDistance = 5f;
+    private const float LegSeconds = 45f;
+
+    /// <summary>Per-run state; the driver is static and the sim reloads the scene.</summary>
+    public static void ResetRun()
+    {
+        exploring = false;
+        exploreDeadline = 0f;
+    }
+
+    /// <summary>
+    /// Walk to the nearest unexplored ground, which reveals what is on it. One leg
+    /// at a time: re-issued only on arrival or when the leg times out, so the
+    /// character is not re-ordered every tick.
+    /// </summary>
+    static void Explore(PlayerCharacter pc)
+    {
+        Vector3 from = pc.transform.position;
+        if (exploring && Time.time < exploreDeadline
+            && (exploreTarget - from).sqrMagnitude > ArriveDistance * ArriveDistance) return;
+
+        if (!FindUnexplored(from, out Vector3 target)) { exploring = false; return; }
+
+        exploreTarget = target;
+        exploring = true;
+        exploreDeadline = Time.time + LegSeconds;
+        pc.CommandAt(null, target);
+    }
+
+    /// <summary>
+    /// The nearest reachable point on ground the colony has not seen, searched as
+    /// rings outward from the character. Null-safe: no fog means nothing to find.
+    /// </summary>
+    static bool FindUnexplored(Vector3 from, out Vector3 target)
+    {
+        target = from;
+        FogOfWar fog = FogOfWar.Instance;
+        TerrainGrid grid = TerrainGrid.Instance;
+        if (fog == null || grid == null) return false;
+
+        for (float radius = 12f; radius <= 150f * TerrainGrid.SizeScale; radius += 8f)
+        {
+            int steps = Mathf.Max(8, Mathf.RoundToInt(radius * 0.6f));
+            float offset = radius * 0.7f;   // so later rings do not sample the same bearings
+            for (int i = 0; i < steps; i++)
+            {
+                float angle = (i * (Mathf.PI * 2f / steps)) + offset;
+                Vector3 pos = from + new Vector3(Mathf.Cos(angle) * radius, 0f, Mathf.Sin(angle) * radius);
+                pos.y = grid.SampleHeight(pos);
+                if (fog.IsExplored(pos)) continue;
+                if (!grid.IsReachable(pos)) continue;
+                target = pos;
+                return true;
+            }
+        }
+        return false;
     }
 
     static bool HasDeposit(Inventory inv)

@@ -34,6 +34,12 @@
 # A finished batch is deleted from here once its report is in; it stays in the
 # changelog and the phase history.
 
+## 2026-09-11 Hoard cap and byproducts
+- @raid:hoard_capped Bank 600+ wood: the raid stops growing with the pile
+- @byproduct:third Work one tree hard: three sticks may lie around it
+- @craft:wooden_spear Re-arm after a bad night without waiting on sticks
+- Raids past day 15 feel sized to the colony, not to its bank
+
 ## 2026-09-10 Raiders stay outside
 - @raider:wall_stop Seal the ring (huts in the gate openings): the raid lands outside it
 - @raider:wall_over_warrior Warriors inside, raiders out: they hit the wall, not stare

@@ -206,7 +206,7 @@ The schema is `Assets/Scripts/Sim/SimConfig.cs`; if a knob is missing here, that
 
 ### Reading the results
 
-`runs.csv` is one row per game (outcome, day reached, raids, kills, peaks, finals, wall time). `days.csv` is one row per calendar day: resources and population at dusk and dawn, raid size, `campfire_hp_min` (200 or 5 — the fire dies in one night or not at all), `idle_dawn`, `weapons_dawn`, `sticks_dawn`, `chunks_dawn`, `queue_dawn`, `warriors_lost`, `ring_holes`. Read error/timeout rows first — those are harness problems, not balance — and never call a one-or-two-run difference a finding: runs are comparable, not reproducible (async NavMesh, job order), and n = 12 is about ±13 pp on a win rate.
+`runs.csv` is one row per game (outcome, day reached, raids, kills, peaks, finals, wall time). `days.csv` is one row per calendar day: resources and population at dusk and dawn, raid size, `campfire_hp_min` (200 or 5 — the fire dies in one night or not at all), `idle_dawn`, `weapons_dawn`, `sticks_dawn`, `chunks_dawn`, `queue_dawn`, `warriors_lost`, `ring_holes`, `chunks_loose`. Read error/timeout rows first — those are harness problems, not balance — and never call a one-or-two-run difference a finding: runs are comparable, not reproducible (async NavMesh, job order), and n = 12 is about ±13 pp on a win rate.
 
 ---
 

@@ -48,6 +48,11 @@ public class SimMetrics
         public string queueDawn = "";                // the campfire station's "Waiting for 2 Stick", else empty
         public int warriorsLost;                     // warriors that died between dusk and dawn
         public int ringHoles;                        // ring cells the sim builder could not wall or notch
+        // Stone chunks lying on the island at dawn (2026-09-11). A colony cannot
+        // MAKE a chunk without the Stone Pick that Quarrying grants, and Quarrying
+        // costs three chunks, so a run that finds none is unwinnable. The lab could
+        // only see the empty stockpile; this says whether the island had any.
+        public int chunksLoose;
         public bool survived;
     }
 
@@ -109,7 +114,7 @@ public class SimMetrics
                 "enemies_spawned,enemies_killed_total," +
                 "campfire_hp_dusk,campfire_hp_min,campfire_hp_dawn," +
                 "hunger_dawn,left_total,archers_dawn," +
-                "idle_dawn,weapons_dawn,sticks_dawn,chunks_dawn,queue_dawn,warriors_lost,ring_holes\n");
+                "idle_dawn,weapons_dawn,sticks_dawn,chunks_dawn,queue_dawn,warriors_lost,ring_holes,chunks_loose\n");
         }
     }
 
@@ -169,7 +174,8 @@ public class SimMetrics
               .Append(n.chunksDawn).Append(',')
               .Append(Csv(n.queueDawn ?? "")).Append(',')
               .Append(n.warriorsLost).Append(',')
-              .Append(n.ringHoles).Append('\n');
+              .Append(n.ringHoles).Append(',')
+              .Append(n.chunksLoose).Append('\n');
         }
         if (sb.Length > 0) File.AppendAllText(Path.Combine(dir, DaysFile), sb.ToString());
     }

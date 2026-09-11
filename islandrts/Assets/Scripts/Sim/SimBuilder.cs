@@ -35,6 +35,16 @@ public static class SimBuilder
     // ring had one (seed 1042: 2 holes, 4711: 8) and won the one with none.
     private static readonly HashSet<Vector2Int> holeCells = new HashSet<Vector2Int>();
     public static int RingHoles => holeCells.Count;
+    /// <summary>
+    /// A hole is given up on for this sweep only (2026-09-11). The overnight batch
+    /// lost every one of Turtle's 36 baseline runs with ~12 permanent holes in an
+    /// 85-wall ring: the set was written once and never revisited, so ground that
+    /// was merely unexplored, occupied by a node that later depleted, or flattened
+    /// by a neighbouring pad stayed a gap for the whole run. The sweep clears it so
+    /// every hole is re-examined, and the count at dawn is the last sweep's verdict.
+    /// </summary>
+    private const float HoleRetrySeconds = 45f;
+    private static float nextHoleSweep;
     /// <summary>Half-extent of the ring the policy builds, 0 = none; keeps huts off its line and out of its gate corridors.</summary>
     public static int RingHalf { get; private set; }
     public static void SetRing(int halfExtent) => RingHalf = halfExtent;
@@ -43,6 +53,7 @@ public static class SimBuilder
     public static void ResetRun()
     {
         holeCells.Clear();
+        nextHoleSweep = 0f;
         RingHalf = 0;
     }
 
@@ -113,6 +124,15 @@ public static class SimBuilder
         if (data == null || data.constructionSitePrefab == null) return 0;
         if (Campfire == null || WallGrid.Instance == null) return 0;
 
+        // Re-examine every abandoned cell periodically; ground changes under a
+        // colony (fog lifts, nodes deplete, pads flatten) and a hole left forever
+        // is a hole raiders walk through forever.
+        if (Time.time >= nextHoleSweep)
+        {
+            holeCells.Clear();
+            nextHoleSweep = Time.time + HoleRetrySeconds;
+        }
+
         Vector2Int center = WallGrid.Instance.WorldToGrid(Campfire.transform.position);
         List<Vector2Int> cells = new List<Vector2Int>();
 
@@ -146,38 +166,87 @@ public static class SimBuilder
 
     /// <summary>
     /// A ring cell that cannot take a wall (water, a slope, a node) is bypassed
-    /// one cell inward with a three-cell U (2026-09-10): the inward cell plus its
-    /// two neighbours along the side, so the ring stays orthogonally connected.
-    /// A corner, or a notch cell that is itself unbuildable, is a hole and is
-    /// counted; an unexplored notch cell is left for a later call.
+    /// with a detour INWARD, tried at depth 1 first and deepening to
+    /// <see cref="MaxDetourDepth"/> (2026-09-11; depth 1 only until then, which
+    /// left ~12 permanent holes in every Turtle ring of the overnight batch).
+    ///
+    /// On a side the detour is a U: the two neighbouring offsets run inward to
+    /// the depth and a crossbar closes them there, so the ring stays orthogonally
+    /// connected. On a CORNER it is an L cutting across the corner at that depth -
+    /// a corner used to be an instant hole, and a square ring has four of them.
+    ///
+    /// A depth is usable when every one of its cells is already walled, buildable,
+    /// or still unexplored; unexplored ground defers the whole cell to a later call
+    /// rather than condemning it. Only when no depth works is the cell a hole.
     /// </summary>
+    private const int MaxDetourDepth = 4;
+    private static readonly List<Vector2Int> detour = new List<Vector2Int>();
+
     private static int Notch(BuildingData data, BuildingType wallType, Vector2Int cell,
                              Vector2Int center, int halfExtent, int budget)
     {
         int dx = cell.x - center.x, dy = cell.y - center.y;
         bool onRow = Mathf.Abs(dy) == halfExtent;
         bool onCol = Mathf.Abs(dx) == halfExtent;
-        if (onRow && onCol) { holeCells.Add(cell); return 0; }   // corner
+
+        for (int depth = 1; depth <= MaxDetourDepth && depth < halfExtent; depth++)
+        {
+            BuildDetour(cell, center, halfExtent, depth, onRow, onCol);
+            if (detour.Count == 0) continue;
+
+            bool blocked = false, unexplored = false;
+            for (int i = 0; i < detour.Count; i++)
+            {
+                if (WallGrid.Instance.HasWallAt(detour[i])) continue;
+                Vector3 pos = WallGrid.Instance.GridToWorld(detour[i]);
+                pos.y = GroundY(pos);
+                if (TerrainGrid.Instance != null && !TerrainGrid.Instance.IsBuildable(pos)) { blocked = true; break; }
+                if (FogOfWar.Instance != null && !FogOfWar.Instance.IsExplored(pos)) unexplored = true;
+            }
+            if (blocked) continue;          // try one cell deeper
+            if (unexplored) return 0;       // come back once it is seen
+
+            int placed = 0;
+            for (int i = 0; i < detour.Count && placed < budget; i++)
+                if (TryPlaceWallCell(data, wallType, detour[i]) == CellResult.Placed) placed++;
+            return placed;
+        }
+
+        holeCells.Add(cell);
+        return 0;
+    }
+
+    /// <summary>The cells of one detour attempt, written into <see cref="detour"/> so a call allocates nothing.</summary>
+    private static void BuildDetour(Vector2Int cell, Vector2Int center, int halfExtent, int depth,
+                                    bool onRow, bool onCol)
+    {
+        detour.Clear();
+        int dx = cell.x - center.x, dy = cell.y - center.y;
+
+        if (onRow && onCol)
+        {
+            // Corner: an L cutting across it at this depth. One arm ends beside
+            // the ring's row, the other beside its column, so both stay connected.
+            int sx = dx > 0 ? 1 : -1, sy = dy > 0 ? 1 : -1;
+            int inset = halfExtent - depth;
+            for (int a = inset; a <= halfExtent - 1; a++)
+                detour.Add(new Vector2Int(center.x + sx * a, center.y + sy * inset));
+            for (int b = inset; b <= halfExtent - 1; b++)
+                detour.Add(new Vector2Int(center.x + sx * inset, center.y + sy * b));
+            return;
+        }
 
         Vector2Int inward = onRow ? new Vector2Int(0, dy > 0 ? -1 : 1) : new Vector2Int(dx > 0 ? -1 : 1, 0);
         Vector2Int tangent = onRow ? new Vector2Int(1, 0) : new Vector2Int(0, 1);
-        Vector2Int n0 = cell + inward, n1 = n0 + tangent, n2 = n0 - tangent;
 
-        // All three must be walled, buildable or (for now) unexplored before any is ordered.
-        Vector2Int[] notch = { n0, n1, n2 };
-        for (int i = 0; i < notch.Length; i++)
+        // Two stiles running inward from the neighbouring offsets, joined by a
+        // crossbar at the far end.
+        for (int j = 1; j <= depth; j++)
         {
-            if (WallGrid.Instance.HasWallAt(notch[i])) continue;
-            Vector3 pos = WallGrid.Instance.GridToWorld(notch[i]);
-            pos.y = GroundY(pos);
-            if (TerrainGrid.Instance != null && !TerrainGrid.Instance.IsBuildable(pos)) { holeCells.Add(cell); return 0; }
-            if (FogOfWar.Instance != null && !FogOfWar.Instance.IsExplored(pos)) return 0;
+            detour.Add(cell + tangent + inward * j);
+            detour.Add(cell - tangent + inward * j);
         }
-
-        int placed = 0;
-        for (int i = 0; i < notch.Length && placed < budget; i++)
-            if (TryPlaceWallCell(data, wallType, notch[i]) == CellResult.Placed) placed++;
-        return placed;
+        detour.Add(cell + inward * depth);
     }
 
     /// <summary>

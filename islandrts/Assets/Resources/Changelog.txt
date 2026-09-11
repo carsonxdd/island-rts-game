@@ -8,6 +8,17 @@
 # Lines starting with a single # are comments. Anything else that is not a
 # heading, a bullet or an indented continuation is ignored.
 
+## 2026-09-11 — Smaller raids for a full storehouse, more sticks underfoot
+- A big bank of wood, food and stone no longer makes raids grow without limit.
+  A hoard still draws attention, but only up to a point, so a colony that has
+  run out of things to build is not punished for it night after night.
+- Worked trees, bushes and rocks shed sticks and chunks a little faster, and
+  three may now lie around a node instead of two. Arming a militia after a bad
+  night no longer waits on the forest.
+- Your walls now draw half as much raider attention as they used to. A wall is
+  wood and stone you already spent, not treasure sitting out for the taking, so
+  fortifying no longer costs you extra raiders on top of the build.
+
 ## 2026-09-10 — Raiders stay outside the wall
 - A raid never lands inside a closed ring any more, and a raider that gets
   stuck is never moved through a wall. When nothing outside reaches your fire,

@@ -101,7 +101,7 @@ PrefabInstance:
     m_AddedGameObjects:
     - targetCorrespondingSourceObject: {fileID: -8679921383154817045, guid: 2f508ae278300a441b4df0706bed35b3, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 506077635440837417}
+      addedObject: {fileID: 4506791749849437851}
     m_AddedComponents:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 2f508ae278300a441b4df0706bed35b3, type: 3}
       insertIndex: -1
@@ -146,8 +146,8 @@ MonoBehaviour:
   shakeDegrees: 1
   shakeFrequency: 7
   minShakeSpacing: 0.15
-  byproductEvery: 4
-  maxLooseByproducts: 2
+  byproductEvery: 3
+  maxLooseByproducts: 3
 --- !u!65 &7586755601665726530
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -206,7 +206,7 @@ MonoBehaviour:
   variantMeshes: []
   minScale: 0.9
   maxScale: 1.12
---- !u!1001 &7243295957097632423
+--- !u!1001 &6704732371855640341
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -263,8 +263,8 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: c9f6346b35e17ea47a886928c0509daf, type: 3}
---- !u!4 &506077635440837417 stripped
+--- !u!4 &4506791749849437851 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 7169917138359767438, guid: c9f6346b35e17ea47a886928c0509daf, type: 3}
-  m_PrefabInstance: {fileID: 7243295957097632423}
+  m_PrefabInstance: {fileID: 6704732371855640341}
   m_PrefabAsset: {fileID: 0}

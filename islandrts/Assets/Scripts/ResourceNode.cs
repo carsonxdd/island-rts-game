@@ -39,9 +39,13 @@ public class ResourceNode : MonoBehaviour, IMaterialSet
 
     [Header("Byproducts")]
     [Tooltip("Resource units that must come out of this node before it sheds one ground pickup - a stick from a tree or bush, a chunk from a rock. 0 disables.")]
-    public float byproductEvery = 4f;
+    public float byproductEvery = 3f;       // 4 until 2026-09-11, see maxLooseByproducts
     [Tooltip("How many shed pickups may lie around this node at once, so a well-worked forest litters instead of drowning.")]
-    public int maxLooseByproducts = 2;
+    // 2 until 2026-09-11. A spear is 3 sticks and a chunk, and the overnight batch
+    // showed every strategy re-arming at a dawn weapon count of ~0.4 while sitting
+    // on thousands of unspendable wood. The cap counts EVERY pickup near the node,
+    // not only shed ones, so a node beside a spawner drop was throttled to nothing.
+    public int maxLooseByproducts = 3;
 
     public static IReadOnlyList<ResourceNode> ActiveList => ActiveRegistry<ResourceNode>.List;
 
@@ -534,7 +538,9 @@ public class ResourceNode : MonoBehaviour, IMaterialSet
     public bool ShedOneByproduct()
     {
         if (PickupSpawner.Instance == null) return false;
-        if (CountLooseByproducts() >= maxLooseByproducts) return false;
+        int loose = CountLooseByproducts();
+        if (loose >= maxLooseByproducts) return false;
+        if (loose == 2) DevQuests.Signal("byproduct:third");   // the cap went 2 -> 3 on 2026-09-11
 
         // Rock throws off more slabs than pebbles; a worked tree mostly sheds twigs.
         float bigChance = (resourceType == ResourceType.Stone || resourceType == ResourceType.Metal) ? 0.65f : 0.15f;

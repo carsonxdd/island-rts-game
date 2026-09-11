@@ -247,6 +247,20 @@ public abstract class SimPolicy
             return true;
         }
 
+        // A spear is 3 sticks and a CHUNK, and a chunk only ever falls off a
+        // worked rock (2026-09-11). The overnight batch caught Rush hiring at a
+        // stone share of 0 for the whole run: 57 sticks, 2 chunks and 2600 wood
+        // on day 13, an army that could not re-arm a single loss, and a dawn
+        // weapon count pinned at zero. So one quarryman is held the same way one
+        // forager is, whatever the ratio says, once the colony can craft at all.
+        if (Factions.Player.Knowledge.HasJob(ResourceNode.ResourceType.Stone)
+            && fire.stoneWorkers < 1)
+        {
+            if (!fire.AssignWorker(ResourceNode.ResourceType.Stone)) return false;
+            Did("hire quarryman");
+            return true;
+        }
+
         // A job the colony has not researched yet scores nothing (2026-09-03)
         if (!Factions.Player.Knowledge.HasJob(ResourceNode.ResourceType.Wood)) woodShare = 0f;
         if (!Factions.Player.Knowledge.HasJob(ResourceNode.ResourceType.Food)) foodShare = 0f;
@@ -411,7 +425,13 @@ public class TurtlePolicy : SimPolicy
         if (Research(s, "woodcutting", "foraging", "spearcraft", "construction", "quarrying",
                         "crafting", "bowyery")) return;
 
-        int wantedWarriors = WantedWarriors(s, 0.6f, 2) + (s.RaidTonight ? 1 : 0);
+        // A man per raider, not 0.6 of one (2026-09-11). The 2026-09-11 lab
+        // watched this colony hold at 9 warriors from day 6 to day 11 with 43
+        // sticks and 17 chunks banked - fourteen spears it never made - because
+        // 0.6x of a 14-raider night is 9. The raiders-per-warrior threshold the
+        // second lab measured is ~1.0, so a turtle at 0.6 is built to lose. The
+        // wall is meant to be the edge on top of parity, not a substitute for it.
+        int wantedWarriors = WantedWarriors(s, 1f, 2) + (s.RaidTonight ? 1 : 0);
         int wantedWorkers = WantedWorkers(s, WorkerFloor);
         SetGoal(s, wantedWarriors, wantedWorkers,
             ringOrdered ? $"ring up · gates {SimBuilder.GateCount}/8" : "ring pending");
@@ -462,19 +482,23 @@ public class RushPolicy : SimPolicy
         // Spearcraft third, then the beds, then the Workshop tier for Iron Spears
         // and Bows — a rush colony sits on the wood for them.
         if (ManageStance(s)) return;
+        // Quarrying was MISSING from this list until 2026-09-11, and Mining
+        // requires it: Research skips an id whose prerequisite is unmet, so the
+        // last three entries here were unreachable for the whole run and Rush
+        // never learned to quarry, never saw a chunk, and never re-armed a loss.
         if (Research(s, "woodcutting", "foraging", "spearcraft", "construction",
-                        "crafting", "mining", "iron_work", "bowyery")) return;
+                        "crafting", "quarrying", "mining", "iron_work", "bowyery")) return;
 
         int wantedWarriors = WantedWarriors(s, 1f, 2) + (s.RaidTonight ? 1 : 0);
         int wantedWorkers = WantedWorkers(s, WorkerFloor);   // grows with the army it feeds (2026-09-10)
         SetGoal(s, wantedWarriors, wantedWorkers);
 
         // Minimum viable economy, then everything into warriors.
-        if (s.Workers < 3) { if (HireWorker(s, 2f, 2f, 0f)) return; }
+        if (s.Workers < 3) { if (HireWorker(s, 2f, 2f, 1f)) return; }
         if (KeepHousing(s, MaxHuts, wantedWorkers + wantedWarriors + BuilderReserve(s))) return;
         if (KeepArmy(s, wantedWarriors)) return;
         if (RunWorkshop(s)) return;
-        if (s.Workers < wantedWorkers) { if (HireWorker(s, 2f, 2f, 0f, 1f)) return; }
+        if (s.Workers < wantedWorkers) { if (HireWorker(s, 2f, 2f, 1f, 1f)) return; }
     }
 }
 
