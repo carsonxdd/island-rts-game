@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.AI;
 using System.Collections.Generic;
 
 /// <summary>
@@ -148,24 +149,71 @@ public class EnemySpawner : MonoBehaviour
         // is a different shape every run, so the ring can land in the sea
         // or on a cut-off outcrop on the short axis — walk the point inward
         // toward the campfire site until it is on reachable ground.
-        TerrainGrid terrain = TerrainGrid.Instance;
-        if (terrain != null)
-        {
-            Vector3 inward = -new Vector3(position.x, 0f, position.z).normalized * 4f;
-            for (int step = 0; step < 12; step++)
-            {
-                position.y = terrain.SampleHeight(position) + 0.1f;
-                UnityEngine.AI.NavMeshHit navHit;
-                if (terrain.IsReachable(position) && terrain.SampleHeight(position) > TerrainGrid.DeepWaterY
-                    && UnityEngine.AI.NavMesh.SamplePosition(position, out navHit, 4f, UnityEngine.AI.NavMesh.AllAreas))
-                {
-                    return navHit.position;
-                }
-                position += inward;
-            }
-        }
+        // "Reachable" here is a real NavMesh path to the campfire (2026-09-10),
+        // not the terrain flood fill: IsReachable joins cells across 0.9 m steps
+        // while the bake stops at 45°, so a cliff-face vertex read reachable and
+        // the 4 m NavMesh snap dropped raiders on a disconnected sliver of mesh.
+        // They stood there all night, held dawn to the cap and parked the sim's
+        // camera on empty ground.
+        BaseBuilding fire = Factions.Player.Campfire;
+        Vector3 toward = fire != null ? fire.transform.position : Vector3.zero;
+        Vector3 found;
+        if (FindReachableToward(position, toward, out found)) return found;
 
         return position;
+    }
+
+    // ---- ground a raider can fight from (2026-09-10) -----------------------
+
+    private static NavMeshPath reachPath;
+
+    /// <summary>
+    /// True when a NavMesh path runs from <paramref name="from"/> to the player's
+    /// campfire (its nearest NavMesh point; the fire carves). No campfire = true,
+    /// so the opening sequence and a dead colony never refuse every spot.
+    /// </summary>
+    public static bool CanReachFire(Vector3 from)
+    {
+        BaseBuilding fire = Factions.Player.Campfire;
+        if (fire == null) return true;
+        NavMeshHit fireHit;
+        if (!NavMesh.SamplePosition(fire.transform.position, out fireHit, 8f, NavMesh.AllAreas)) return true;
+        if (reachPath == null) reachPath = new NavMeshPath();
+        return NavMesh.CalculatePath(from, fireHit.position, NavMesh.AllAreas, reachPath)
+               && reachPath.status == NavMeshPathStatus.PathComplete;
+    }
+
+    /// <summary>
+    /// Walks 4 m steps from <paramref name="from"/> toward <paramref name="toward"/>
+    /// (twelve at most) and returns the first NavMesh point on dry ground with a
+    /// path to the fire. Used by the spawn ring and by a raider that has given
+    /// up on where it stands (<see cref="Enemy"/>'s progress watchdog).
+    /// </summary>
+    public static bool FindReachableToward(Vector3 from, Vector3 toward, out Vector3 result)
+    {
+        result = from;
+        TerrainGrid terrain = TerrainGrid.Instance;
+        if (terrain == null) return false;
+
+        Vector3 dir = toward - from;
+        dir.y = 0f;
+        Vector3 step = dir.sqrMagnitude > 0.01f ? dir.normalized * 4f : Vector3.zero;
+        Vector3 position = from;
+        for (int i = 0; i < 12; i++)
+        {
+            position.y = terrain.SampleHeight(position) + 0.1f;
+            NavMeshHit navHit;
+            if (terrain.SampleHeight(position) > TerrainGrid.DeepWaterY
+                && NavMesh.SamplePosition(position, out navHit, 4f, NavMesh.AllAreas)
+                && CanReachFire(navHit.position))
+            {
+                result = navHit.position;
+                return true;
+            }
+            if (step == Vector3.zero) return false;
+            position += step;
+        }
+        return false;
     }
 
     void DespawnAllEnemies()

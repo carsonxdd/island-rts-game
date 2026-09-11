@@ -62,6 +62,10 @@ public class SimRunner : MonoBehaviour
     private SimVisualOverlay.Frame lastFrame;
 
     private bool runActive;
+    private float sweepStartRealTime;
+    private float lastGameTimeSeen = -1f;
+    private float lastGameAdvanceReal;
+    private const float FrozenClockSeconds = 60f;
     private float runStartGameTime;
     private float runStartRealTime;
     private int runStartFrame;
@@ -154,6 +158,7 @@ public class SimRunner : MonoBehaviour
         AudioListener.volume = 0f;
         AudioListener.pause = true;
         Time.captureDeltaTime = sweep.captureDeltaTime;
+        sweepStartRealTime = Time.realtimeSinceStartup;
 
         // A visual run still SIMULATES every frame - captureDeltaTime pins the
         // step, so the frame-based AI budget and NavMesh throttles are untouched.
@@ -322,6 +327,8 @@ public class SimRunner : MonoBehaviour
         runActive = true;
         runStartGameTime = Time.time;
         runStartRealTime = Time.realtimeSinceStartup;
+        lastGameTimeSeen = -1f;
+        lastGameAdvanceReal = Time.realtimeSinceStartup;
         runStartFrame = Time.frameCount;
 
         // 1. Get past the opening sequence and get a campfire on the ground.
@@ -364,15 +371,31 @@ public class SimRunner : MonoBehaviour
                 break;
             }
 
-            // Failsafe in REAL seconds: the check above is measured in game
-            // time, so anything that freezes the game clock would spin here
-            // forever. Never let one bad run eat a whole sweep.
+            // Failsafe for a FROZEN clock (2026-09-10): the check above is in game
+            // time, so a stray timeScale 0 or a paused DayNightCycle would spin
+            // here forever. The old flat wall-clock cap (900 s) could not tell a
+            // frozen run from a slow one - it cut five winning day-25 colonies
+            // out of the first 4x lab. Now: game time that has not advanced for
+            // FrozenClockSeconds of real time is frozen; anything else is allowed
+            // to take as long as it takes, under maxWallSecondsPerRun as a
+            // last-ditch ceiling.
             float wall = Time.realtimeSinceStartup - runStartRealTime;
+            if (Time.time > lastGameTimeSeen + 0.001f)
+            {
+                lastGameTimeSeen = Time.time;
+                lastGameAdvanceReal = Time.realtimeSinceStartup;
+            }
+            else if (Time.realtimeSinceStartup - lastGameAdvanceReal > FrozenClockSeconds)
+            {
+                metrics.outcome = "timeout";
+                metrics.note = $"game clock frozen for {FrozenClockSeconds:F0}s real at {elapsed:F0}s game " +
+                               $"(timeScale {Time.timeScale:0.##})";
+                break;
+            }
             if (wall > sweep.maxWallSecondsPerRun)
             {
                 metrics.outcome = "timeout";
-                metrics.note = $"wall-clock guard at {wall:F0}s real ({elapsed:F0}s game) " +
-                               $"- game clock may be frozen (timeScale {Time.timeScale:0.##})";
+                metrics.note = $"wall-clock ceiling at {wall:F0}s real ({elapsed:F0}s game)";
                 break;
             }
             if (gm != null && gm.isGameOver)
@@ -396,7 +419,16 @@ public class SimRunner : MonoBehaviour
                 SimState state = BuildState();
                 SimPlayerDriver.Tick(state);   // the character's legs: materials + bench labor
                 policy.Tick(state);
-                if (SimHooks.Visual) PushOverlay(cfg, state);
+                if (SimHooks.Visual)
+                {
+                    PushOverlay(cfg, state);
+                    // Skim the quiet day, watch the fight (2026-09-10): the draw
+                    // interval is the ONE speed knob that leaves decisions alone,
+                    // so it is the one that follows the raid. Once a second is
+                    // plenty; raiders take seconds to land and to die.
+                    UnityEngine.Rendering.OnDemandRendering.renderFrameInterval =
+                        state.Enemies > 0 ? sweep.renderFrameIntervalRaid : sweep.renderFrameInterval;
+                }
             }
 
             yield return null;
@@ -435,6 +467,10 @@ public class SimRunner : MonoBehaviour
             campfireHp = fire != null ? fire.GetCurrentHealth() : 0f,
             campfireHpMax = fire != null ? fire.maxHealth : 0f,
             hunger = state.Hunger,
+            goal = SimPolicy.Goal,
+            intent = SimPolicy.Intent,
+            castaway = CastawayLine(),
+            nextRaidSize = state.NextRaidSize,
         };
 
         SimVisualOverlay.Push(lastFrame);
@@ -454,6 +490,8 @@ public class SimRunner : MonoBehaviour
             Campfire = fire,
             Day = dn != null ? dn.GetCurrentDay() : 1,
             RaidTonight = RaidDirector.Instance != null && RaidDirector.Instance.RaidTonight,
+            RaidLurking = RaidDirector.Instance != null && RaidDirector.Instance.RaidLurking,
+            NextRaidSize = NextRaidSize(dn != null ? dn.GetCurrentDay() : 1),
             Workers = fire != null ? fire.GetTotalWorkers() : 0,
             Warriors = fire != null ? fire.GetWarriorCount() : 0,
             Enemies = Enemy.ActiveList.Count,
@@ -463,6 +501,36 @@ public class SimRunner : MonoBehaviour
             Colonists = Factions.Player.Population != null ? Factions.Player.Population.GetColonistCount() : 0,
             Hunger = Factions.Player.Population != null ? (int)Factions.Player.Population.Hunger : 0,
         };
+    }
+
+    /// <summary>What the castaway is doing right now, for the caption (2026-09-10).</summary>
+    private static string CastawayLine()
+    {
+        PlayerCharacter pc = PlayerCharacter.Instance;
+        if (pc == null) return "";
+        if (pc.IsKnockedOut) return "knocked out";
+        if (pc.WorkingStation != null)
+        {
+            CraftStation.QueueEntry e = pc.WorkingStation.Active;
+            return e != null ? $"working: {e.Def.title} {Mathf.RoundToInt(e.Progress01 * 100f)}%" : "at the bench";
+        }
+        if (pc.BuildingSite != null) return "building " + pc.BuildingSite.buildingType;
+        if (pc.WalkingToStation != null) return "walking to the bench";
+        string a = pc.Activity;
+        return string.IsNullOrEmpty(a) ? "idle" : a.ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// The raid the policy should be standing ready for (2026-09-10): tonight's
+    /// committed size when the dawn roll said raiders land, else what a roll
+    /// tomorrow would land against the colony as it stands. A player reads the
+    /// same two things off the banner and the day counter.
+    /// </summary>
+    private static int NextRaidSize(int day)
+    {
+        RaidDirector rd = RaidDirector.Instance;
+        if (rd == null) return 0;
+        return rd.RaidTonight ? rd.PlannedSize : rd.EstimateRaidSize(day + 1);
     }
 
     private void Sample()
@@ -602,7 +670,28 @@ public class SimRunner : MonoBehaviour
             SimStatus.Write(outputDir, lastFrame, metrics.outcome);
         }
 
+        QueueRespawn(queue[index], metrics.outcome);
         BeginNextRun(alreadyLoaded: false);
+    }
+
+    /// <summary>
+    /// A lost cell plays again while the sweep is inside its respawn budget
+    /// (2026-09-10): the same config, one attempt higher, queued right behind
+    /// itself. Only a DEFEAT respawns — a victory, escape, timeout or error is
+    /// the cell's answer.
+    /// </summary>
+    private void QueueRespawn(SimConfig cfg, string outcome)
+    {
+        if (sweep.respawnWallMinutes <= 0f || outcome != "defeat") return;
+        float minutes = (Time.realtimeSinceStartup - sweepStartRealTime) / 60f;
+        if (minutes >= sweep.respawnWallMinutes) return;
+
+        SimConfig again = JsonUtility.FromJson<SimConfig>(JsonUtility.ToJson(cfg));
+        again.attempt = cfg.attempt + 1;
+        string baseId = cfg.attempt > 1 ? cfg.id.Substring(0, cfg.id.LastIndexOf("_try", System.StringComparison.Ordinal)) : cfg.id;
+        again.id = $"{baseId}_try{again.attempt}";
+        queue.Insert(index + 1, again);
+        Debug.Log($"[Sim] {cfg.id} lost at {minutes:F1} min into the sweep - respawning as {again.id}");
     }
 
     private void Finish()

@@ -20,7 +20,7 @@
 #   formation:<line|wedge|ring|loose|auto>  formation:auto_line  collapse  collapse:restored
 #   rebind:militia  engage:<follow|offensive>  intercept:advance  kite:<offensive|hold>
 #   attack_slots:3  patrol:archer  patrol:spread  arrow_hit  knockout  knockout:follow
-#   dawn:held  dawn:released  dawn:quiet  garrison
+#   dawn:held  dawn:released  dawn:quiet  garrison  raid:lurking  raider:warped
 #   gearup  gearup:job  gearup:idle  gearup:delivered  gearup:after_flee
 #   stroll  stroll:home  stroll:interrupted  stroll:campfire_only
 #   crowd:split  dropoff:spread  forage:shed  pickup:unreachable  shed:stone  pickup:player:stone
@@ -32,6 +32,17 @@
 # tracker twice a second while their quest is open; everything else is an event.
 # A finished batch is deleted from here once its report is in; it stays in the
 # changelog and the phase history.
+
+## 2026-09-10 Lurking raiders
+- @raid:lurking A raid stalls: "Raiders lurking" and a banner naming the Offensive key
+- @raider:warped A raider wedged for 20 s pops onto ground with a path to the fire
+- Go Offensive on a lurking raid: the militia walks out and finishes it
+- Dawn no longer waits three minutes on one stuck raider
+
+## 2026-09-10 Watchtower watches
+- @build:watchtower Place a Watchtower: it stands, shows a health bar when hit
+- A tower lifts the fog further out than a hut or a colonist does
+- Warriors fighting beside a tower show no "(Tower Buff)" label
 
 ## 2026-09-10 Castaway builds
 - @build:player Right-click a construction site: the castaway walks over and builds

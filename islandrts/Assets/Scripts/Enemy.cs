@@ -94,7 +94,7 @@ public class Enemy : UnitBase<Enemy>
     {
         aiBrain = gameObject.AddComponent<AIBrain>();
 
-        var bb = new AIBlackboard();
+        bb = new AIBlackboard();
         bb.transform = transform;
         bb.agent = agent;
         bb.health = healthComponent;
@@ -149,6 +149,56 @@ public class Enemy : UnitBase<Enemy>
         {
             UpdateStateText();
         }
+        WatchProgress();
+    }
+
+    // ---- progress watchdog (2026-09-10) -----------------------------------
+    // A raider wedged on a rock, in a tree cluster or on a cut-off sliver of
+    // NavMesh could hold the night to the dawn cap: StuckResolver only re-picks
+    // targets and warps to the NEAREST mesh point, which is the same sliver. A
+    // raider that has neither moved a metre nor been in reach of anything for
+    // GiveUpSeconds is warped toward the fire onto ground that has a path to it
+    // (decision 2026-09-10: warp, not leave, so the raid keeps its size).
+
+    private AIBlackboard bb;
+    /// <summary>In reach of a target and swinging (a wall counts) — RaidDirector's lurking tracker reads it.</summary>
+    public bool IsFighting => bb != null && bb.isInAttackRange;
+    private Vector3 progressPos;
+    private float progressTime;
+    private const float GiveUpSeconds = 20f;
+    private const float ProgressMetre = 1f;
+
+    void WatchProgress()
+    {
+        if (bb == null || agent == null) return;
+        Vector3 p = transform.position;
+        if (bb.isInAttackRange || (p - progressPos).sqrMagnitude >= ProgressMetre * ProgressMetre)
+        {
+            progressPos = p;
+            progressTime = Time.time;
+            return;
+        }
+        if (Time.time - progressTime < GiveUpSeconds) return;
+        progressPos = p;
+        progressTime = Time.time;
+
+        BaseBuilding fire = Factions.Player.Campfire;
+        if (fire == null) return;
+        Vector3 dir = fire.transform.position - p;
+        dir.y = 0f;
+        Vector3 start = p + (dir.sqrMagnitude > 0.01f ? dir.normalized * 4f : Vector3.zero);
+        Vector3 dest;
+        if (!EnemySpawner.FindReachableToward(start, fire.transform.position, out dest)) return;
+        if ((dest - p).sqrMagnitude < 1f) return;   // already on good ground: something else is wrong
+
+        agent.Warp(dest);
+        bb.currentTarget = null;
+        bb.currentTargetHealth = null;
+        bb.currentTargetCollider = null;
+        bb.isInAttackRange = false;
+        agent.avoidancePriority = Random.Range(30, 70);
+        if (aiBrain != null) aiBrain.ForceReeval();
+        DevQuests.Signal("raider:warped");
     }
 
     void Die()

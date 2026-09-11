@@ -106,6 +106,54 @@ public class RaidDirector : MonoBehaviour
         if (cycle != null && !cycle.IsNightTime()) RollForTonight();
     }
 
+    // ---- lurking (2026-09-10) -------------------------------------------
+    // Raiders alive, and for LurkSeconds no raider has died, the fire has not
+    // been hit and the count has not changed: they are wedged somewhere, or
+    // circling. The HUD tells the player to go Offensive; the balance sim does
+    // it on its own. One tracker, read by both.
+
+    public const float LurkSeconds = 30f;
+    private float lastFightTime;
+    private int lastAlive, lastKills;
+    private float lastFireHp;
+    private bool lurkSignalled;
+
+    /// <summary>True while a raid is on the island but nothing has happened for <see cref="LurkSeconds"/>.</summary>
+    public bool RaidLurking { get; private set; }
+
+    void Update()
+    {
+        int alive = 0;
+        bool fighting = false;
+        var list = Enemy.ActiveList;
+        for (int i = 0; i < list.Count; i++)
+        {
+            Enemy e = list[i];
+            if (e == null || e.CachedHealth == null || !e.CachedHealth.IsAlive) continue;
+            alive++;
+            if (e.IsFighting) fighting = true;   // a wall being chewed is a fight the fire never feels
+        }
+        int kills = GameManager.Instance != null ? GameManager.Instance.totalEnemiesKilled : 0;
+        BaseBuilding fire = Factions.Player.Campfire;
+        float fireHp = fire != null ? fire.GetCurrentHealth() : 0f;
+
+        if (alive == 0)
+        {
+            RaidLurking = false;
+            lurkSignalled = false;
+        }
+        else
+        {
+            if (fighting || lastAlive == 0 || alive != lastAlive || kills != lastKills || fireHp < lastFireHp - 0.01f)
+                lastFightTime = Time.time;
+            RaidLurking = Time.time - lastFightTime > LurkSeconds;
+            if (RaidLurking && !lurkSignalled) { lurkSignalled = true; DevQuests.Signal("raid:lurking"); }
+        }
+        lastAlive = alive;
+        lastKills = kills;
+        lastFireHp = fireHp;
+    }
+
     void HandleDayStart()
     {
         if (LastRaidDay > 0 && CurrentDay() - LastRaidDay <= 1 && Factions.Player.Campfire != null) DevQuests.Signal("raid_survived");
@@ -165,7 +213,20 @@ public class RaidDirector : MonoBehaviour
     public int ComputeRaidSize(int day)
     {
         LastProsperity = Prosperity();
-        float raw = baseSize + sizePerDay * day + sizePerProsperity * LastProsperity;
+        return SizeFor(day, LastProsperity);
+    }
+
+    /// <summary>
+    /// What a roll on <paramref name="day"/> would land against the colony as it
+    /// stands, without touching <see cref="LastProsperity"/> (2026-09-10). The
+    /// balance sim's policies size their army against tomorrow's raid with it,
+    /// the way a player reads the day counter and the size of their own colony.
+    /// </summary>
+    public int EstimateRaidSize(int day) => SizeFor(day, Prosperity());
+
+    int SizeFor(int day, float prosperity)
+    {
+        float raw = baseSize + sizePerDay * day + sizePerProsperity * prosperity;
         int count = Mathf.RoundToInt(raw * Difficulty.EnemyCountMultiplier);
         return Mathf.Max(minSize, count);
     }

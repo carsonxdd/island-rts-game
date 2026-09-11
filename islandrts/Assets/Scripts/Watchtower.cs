@@ -30,6 +30,12 @@ public class Watchtower : MonoBehaviour, ITargetable
     [Tooltip("Damage multiplier for warriors in range (1.25 = 25% buff)")]
     public float damageMultiplier = 1.25f;
 
+    /// <summary>
+    /// True while the Watchtower is a pure vision building (2026-09-10). Flipped
+    /// to false by the archer-tower upgrade path, not by a setting.
+    /// </summary>
+    public const bool AuraDisabled = true;
+
     public static IReadOnlyList<Watchtower> ActiveList => ActiveRegistry<Watchtower>.List;
 
     void Awake() { ActiveRegistry<Watchtower>.Register(this); }
@@ -77,6 +83,13 @@ public class Watchtower : MonoBehaviour, ITargetable
     {
         float bestMultiplier = 1f;
 
+        // Vision only (2026-09-10): the tower sees and warns, it does not fight.
+        // The aura fields stay serialized because the same numbers become the
+        // archer-tower upgrade (Watchtower -> archer tower -> cannon tower) when
+        // that path exists; until then no warrior hits harder for standing here.
+#pragma warning disable 0162   // the const gate makes the scan unreachable on purpose
+        if (AuraDisabled) return bestMultiplier;
+
         for (int i = 0; i < ActiveList.Count; i++)
         {
             Watchtower tower = ActiveList[i];
@@ -91,6 +104,7 @@ public class Watchtower : MonoBehaviour, ITargetable
         }
 
         return bestMultiplier;
+#pragma warning restore 0162
     }
 
     void OnDestroy()

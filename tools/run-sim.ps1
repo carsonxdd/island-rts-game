@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Runs a balance-simulation sweep against the headless sim player.
 
@@ -47,10 +47,21 @@
     Comma-separated strategies, one per lab column. Default "Turtle,Rush,Eco".
 
 .PARAMETER RenderInterval
-    Frames simulated per frame DRAWN in visual mode. 0 (default) means 8, about
-    3x realtime: fast enough to get through a 30-day run, slow enough to read
-    what the colony is doing. Raise it to skim, lower it to study a fight. It
-    never affects what a run decides, only how much wall time a run takes.
+    Frames simulated per frame DRAWN in visual mode while the island is quiet.
+    0 (default) means 11, about 4x realtime: fast enough to get through a 30-day
+    run. Raise it to skim, lower it to study. It never affects what a run
+    decides, only how much wall time a run takes.
+
+.PARAMETER RaidRenderInterval
+    The draw interval while raiders are on the island (2026-09-10). 0 (default)
+    means 5, about 2x realtime, so a fight plays slow enough to read while the
+    day it follows skims past. Same rule: the decisions never change.
+
+.PARAMETER RespawnMinutes
+    Lab only (2026-09-10). A window whose colony falls before the lab has run this
+    many real minutes starts the same island again (id suffixed _try2, _try3…),
+    so nine windows keep teaching instead of going dark one by one. After the
+    budget a defeat is final. Every try is its own runs.csv row. 0 turns it off.
 
 .PARAMETER Parallel
     Number of concurrent player processes. Each gets its own output subfolder;
@@ -74,7 +85,9 @@ param(
     [switch]$Lab,
     [string]$Seeds = "1042,8851,4711",
     [string]$Strategies = "Turtle,Rush,Eco",
-    [int]$RenderInterval = 0
+    [int]$RenderInterval = 0,
+    [int]$RaidRenderInterval = 0,
+    [double]$RespawnMinutes = 10
 )
 
 $ErrorActionPreference = "Stop"
@@ -120,10 +133,14 @@ if ($Lab) {
     )
 
     $sweepJson = [pscustomobject]@{
-        outputDir        = "SimLogs"
-        captureDeltaTime = 0.016666668
-        repeats          = 1
-        runs             = $labRuns
+        outputDir            = "SimLogs"
+        captureDeltaTime     = 0.016666668
+        repeats              = 1
+        # A watched 30-day run at ~4x is twenty-odd minutes of wall clock; the
+        # headless guard (900 s) would call that a frozen clock and cut it.
+        maxWallSecondsPerRun = 3600
+        respawnWallMinutes   = $RespawnMinutes
+        runs                 = $labRuns
     }
     $sweepPath = "<lab: $($labSeeds.Count) seeds x $($labStrats.Count) strategies>"
     $Visual = $true
@@ -162,19 +179,24 @@ if ($Visual) {
 # How much wall time a visual run takes. The draw rate used to scale with the
 # window count, which made a full lab run about 7x realtime - too fast to read
 # what a colony was doing, which is the only reason to watch at all (2026-09-10).
-# It is now a flat 8, roughly 3x realtime, whatever the window count. This never
+# It is now two flat rates whatever the window count (2026-09-10): about 4x
+# while the island is quiet and about 2x while raiders are on it, switched by
+# the player process itself as raiders land and die. This never
 # touches the simulation step: captureDeltaTime is unchanged and every window
 # still gets 60 simulated frames per game-second, so the decisions are the same
 # ones the headless sweep makes.
 $renderEvery = 1
+$renderEveryRaid = 1
 if ($Visual) {
-    $renderEvery = if ($RenderInterval -gt 0) { $RenderInterval } else { 8 }
+    # Day ~4x, raid ~2x (2026-09-10): calibrated from the flat 8 that ran ~3x.
+    $renderEvery = if ($RenderInterval -gt 0) { $RenderInterval } else { 11 }
+    $renderEveryRaid = if ($RaidRenderInterval -gt 0) { $RaidRenderInterval } else { 5 }
 }
 
 Write-Host "Sim player : $exe"
 Write-Host "Sweep      : $sweepPath"
 Write-Host "Processes  : $Parallel"
-if ($Visual) { Write-Host "Mode       : VISUAL ${winW}x${winH}, draw 1 frame in $renderEvery (decisions identical to headless)" }
+if ($Visual) { Write-Host "Mode       : VISUAL ${winW}x${winH}, draw 1 frame in $renderEvery by day, 1 in $renderEveryRaid during a raid (decisions identical to headless)" }
 else         { Write-Host "Mode       : headless" }
 Write-Host ""
 
@@ -377,6 +399,7 @@ for ($i = 0; $i -lt $Parallel; $i++) {
     # Add-Member -Force rather than assignment: a hand-written sweep need not have
     # the property at all, and assigning to one a PSCustomObject lacks throws.
     $shard | Add-Member -NotePropertyName renderFrameInterval -NotePropertyValue $renderEvery -Force
+    $shard | Add-Member -NotePropertyName renderFrameIntervalRaid -NotePropertyValue $renderEveryRaid -Force
 
     $shardFile = Join-Path $shardDir "sweep-$i.json"
     $shard | ConvertTo-Json -Depth 10 | Set-Content $shardFile -Encoding utf8

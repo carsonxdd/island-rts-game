@@ -78,7 +78,7 @@ one and the weapon comes back; lose one and it is gone.
 - There is no fixed limit on warriors. Each one keeps their bed and comes from the idle pool, so housing and spare hands are what bound the militia.
 - A colonist armed with a bow is an archer: they shoot over walls from a distance and never charge in.
 - A warrior with a wooden spear fetches a better spear from the stockpile on their own when there is one and no raid is near.
-- A watchtower makes warriors around it hit harder.
+- A watchtower is eyes, not arms: it sees further than anything else and shows a raid coming, but nobody hits harder for standing near it. Towers that shoot come later, as an upgrade.
 - Once you have a warrior, a militia box in the bottom-right corner carries the stance and formation buttons, and the stances are on keys (F5, F8, F9 by default; rebindable).
 - The Stance row on the panel gives every warrior one order. Defensive: hold the colony and fight only what comes near it. Offensive: hunt raiders anywhere on the island. Follow: escort your castaway and fight what comes near them. A hurt escort still walks home to heal.
 - Warriors going for the same raider come at it from different sides instead of queueing up on one path.

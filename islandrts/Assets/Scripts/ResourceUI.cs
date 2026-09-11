@@ -132,8 +132,11 @@ public class ResourceUI : MonoBehaviour
     }
 
     /// <summary>The dawn roll came back: flash the warning for a few seconds. The chip carries it all day.</summary>
+    private bool lurkFlashed;
+
     void OnRaidRolled(bool raid)
     {
+        lurkFlashed = false;   // one lurking banner per raid
         if (!raid) return;
         Flash("RAIDERS SIGHTED  —  they land tonight", MenuStyle.TextDanger, BannerSeconds);
         lastCalKey = -1;   // repaint the chip now rather than on the next tick
@@ -656,14 +659,29 @@ public class ResourceUI : MonoBehaviour
         int size = raid ? rd.PlannedSize : 0;
         bool night = dayNight.IsNightTime();
         bool held = dayNight.DawnHeld;   // the night is waiting on the last raider (2026-09-07)
+        bool lurking = rd != null && rd.RaidLurking;   // alive, but nothing has happened for a while (2026-09-10)
 
-        int key = ((((day * 128 + total) * 2 + (night ? 1 : 0)) * 2 + (raid ? 1 : 0)) * 2 + (held ? 1 : 0)) * 64 + Mathf.Min(size, 63);
+        int key = (((((day * 128 + total) * 2 + (night ? 1 : 0)) * 2 + (raid ? 1 : 0)) * 2 + (held ? 1 : 0)) * 2 + (lurking ? 1 : 0)) * 64 + Mathf.Min(size, 63);
         if (key == lastCalKey) return;
         lastCalKey = key;
 
         calValue.text = (night ? "Night " : "Day ") + day;
 
-        if (held)
+        if (lurking)
+        {
+            // The hint (2026-09-10): raiders out there but not coming. A player who
+            // sees this goes Offensive; the banner names the key once per raid.
+            calValue.color = MenuStyle.TextDanger;
+            calLabel.color = MenuStyle.TextDanger;
+            calLabel.text = "Raiders lurking";
+            if (!lurkFlashed)
+            {
+                lurkFlashed = true;
+                string key8 = KeyBindings.Name(KeyBindings.Get(KeyBindings.Action.StanceOffensive).primary);
+                Flash("RAIDERS LURKING  —  go Offensive (" + key8 + ") and hunt them down", MenuStyle.TextDanger, BannerSeconds);
+            }
+        }
+        else if (held)
         {
             calValue.color = MenuStyle.TextDanger;
             calLabel.color = MenuStyle.TextDanger;

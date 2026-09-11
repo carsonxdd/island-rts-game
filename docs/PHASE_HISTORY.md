@@ -1258,3 +1258,68 @@ User: launching all nine lab windows took the machine's audio driver down. `SimR
 
 **Edited:** Editor/Sim/SimTools.cs, Sim/SimRunner.cs, docs/SIMULATION.md, CLAUDE.md.
 
+### 2026-09-10 — First lab read: the army, the tower that was never there, day/raid draw rates
+
+User: read the nine lab runs and play smarter; the policies were spamming Watchtowers instead of people and an army. Watchtowers do nothing; the army is the defence. Later: archer towers, upgrades to cannon towers.
+
+**Read:** 9/9 defeats (backed up to `SimLogs/lab-2026-09-10/`). Rush reached day 12 and 19 but sat at 8 warriors — campfire 3 + two huts × 4 beds — with 2000+ wood hoarded, which prosperity counts, so raids grew to 13-17 against 8 spears. Eco died day 4-5: Spearcraft fifth on its list, 0-2 warriors vs an 8-raider first raid. Turtle's ring only delayed (day 3-10).
+
+**The tower spam was a missing script.** The file on disk was `WatchTower.cs`, the class `Watchtower`, the git index `Watchtower.cs`; `core.ignorecase` hid it and Unity's case-sensitive check made the prefab's component a missing script in the build (`The referenced script on this Behaviour (Game Object 'WatchTower') is missing!` ×21 per log, `Spawn.Owned: no IOwned`). `SimBuilder.TowerCount` never left 0, so every policy placed a tower each tick it had the stone. In the real game the tower has had no health, no sight and no aura since the case flipped (a `WatchTower.cs.bak` from 09-08 sits beside it, ignored). Renamed on disk (no diff); the sim player rebuilt at 21:57 that night — AFTER the lab — still showed it, so it needs one more rebuild.
+
+**Decisions:** army changes go into the existing three strategies (they stay Turtle / Rush / Eco; military is in all three at different ratios). The tower is a pure vision building until the archer-tower path — `Watchtower.AuraDisabled` const, the aura fields kept for the upgrade. The lab draws at ~4× by day and ~2× while raiders are on the island.
+
+**Built:** `RaidDirector.EstimateRaidSize(day)` (pure); `SimState.NextRaidSize` (tonight's `PlannedSize`, else the estimate for tomorrow); `SimPolicy.WantedWarriors` / `KeepHousing` / `KeepArmy`; the three policies rewritten (Spearcraft third everywhere, beds ahead of arrivals, Turtle 0.6× / Eco 0.7× / Rush 1.0× of the next raid, Rush and Turtle take the Workshop tier, no towers); `SimConfig.renderFrameIntervalRaid` switched by `SimRunner` once a second on `state.Enemies`; `run-sim.ps1 -RenderInterval` (11) / `-RaidRenderInterval` (5). Speed answer: headless is already CPU-bound at the fixed 1/60 step; only the draw interval may move.
+
+**Not done:** the sim player rebuild (editor was open) and the regression lab on the new policies. Green in the four Roslyn configs.
+
+**Edited:** Watchtower.cs (renamed), RaidDirector.cs, Sim/SimConfig.cs, Sim/SimRunner.cs, Sim/SimPolicy.cs, tools/run-sim.ps1, Information.txt, Changelog.txt, DevQuests.txt, docs/SIMULATION.md, CLAUDE.md.
+
+### 2026-09-10 (later) — Spectating: castaway close-ups, the caption says what is next, respawning cells, metal
+
+User (with the second lab running): zoom in more by day, on the castaway; show what the run is working on and what happens next; restart a sim when it dies, but only inside a 10-minute window; nobody mines metal; the camera gets stuck on something that is not the focus until the next day.
+
+**Camera stuck = the Raiders centroid.** A night lasts until the last raider dies, so one raider wedged on a rock plus the fight at the wall put the centroid on empty ground until the dawn-hold cap. Raiders now follows the raider nearest the fire and drops out after 6 s without a metre of movement; Battle needs raiders AND warriors in the cluster. New Castaway shot (zoom 8, only on an errand, never with raiders alive); Colony pulled in to 13.
+
+**Caption:** `SimPolicy.Goal` (army x/y · workers x/y · beds free, plus a strategy note) set at the top of every tick, `SimPolicy.Intent` stamped by every shared move that did something, `castaway:` from the character's station / site / activity. Overlay grew two lines and prints the next raid's size.
+
+**Respawn:** `SimSweep.respawnWallMinutes`, `SimConfig.attempt` (NonSerialized); `SimRunner.QueueRespawn` inserts a copy `_tryN` behind a DEFEAT while the process is under budget. Lab sends `-RespawnMinutes` 10 and `maxWallSecondsPerRun` 3600 (a watched 30-day run is ~20 min; the 900 s guard would have cut it as a frozen clock).
+
+**Metal:** `HireWorker` takes a metal share (Rush 1, Eco 1, Turtle 0.5), zeroed until Mining is known.
+
+Green in the four Roslyn configs. Not run: the lab was mid-flight on the previous build; rebuild the sim player and run it again.
+
+**Edited:** Sim/SimSpectatorCamera.cs, Sim/SimVisualOverlay.cs, Sim/SimRunner.cs, Sim/SimConfig.cs, Sim/SimPolicy.cs, tools/run-sim.ps1, docs/SIMULATION.md, CLAUDE.md.
+
+### 2026-09-10 (later still) — Stuck raiders, lurking raids, the wall-clock guard
+
+User: raiders get stuck in forests / objects / mountains and the sim never goes Offensive on them; warp the stuck raider (decision); the "Offensive" hint on the raid banner (decision); and fix the five `wall-clock guard at 900s` timeouts.
+
+**Read:** those five reached 3,500-4,050 game seconds = day 24-27, winning; the flat 900 s cap cut them because a watched run at ~4x is slower than the cap assumed.
+
+**Built:** `EnemySpawner.CanReachFire` / `FindReachableToward` — the spawn ring needs a real NavMesh path to the fire (the flood-fill `IsReachable` + 4 m snap put raiders on disconnected slivers); `Enemy.WatchProgress` warps a raider with no movement and no target in reach for 20 s toward the fire onto pathable ground (`raider:warped`); `RaidDirector.RaidLurking` + `LurkSeconds` 30 (kills, fire HP, `Enemy.IsFighting`, count); HUD: calendar "Raiders lurking" + one banner per raid naming the Offensive key (`raid:lurking`); `SimPolicy.ManageStance` Offensive on lurking, Defensive at dawn; `SimRunner` frozen-clock guard (60 s of no game-time advance) with `maxWallSecondsPerRun` default 3600 as a ceiling. Changelog + DevQuests batch "Lurking raiders". Green in the four Roslyn configs, unplaytested; rebuild the sim player.
+
+**Edited:** EnemySpawner.cs, Enemy.cs, RaidDirector.cs, ResourceUI.cs, Sim/SimPolicy.cs, Sim/SimRunner.cs, Sim/SimConfig.cs, DevQuests.txt, Changelog.txt, docs/SIMULATION.md, CLAUDE.md.
+
+### 2026-09-10 (night) — Second lab read: 12 runs, 4 wins, one failure shape
+
+User: "12 runs just passed, let's learn from them." Lab of seeds 1042 / 8851 / 4711 × Turtle / Rush / Eco with the respawn window (`SimLogs/shards/`), on the rebuilt sim player with the army-first policies. 12 rows: Eco escaped 3/3 (day 11, 28, 12), Rush won 1/5 (8851 to day 30; 1042 lost on the day-30 raid, 4711 lost twice), Turtle lost 5/5 (day 12–20).
+
+**One failure shape.** `campfire_hp_min` is 200 on every survived night and 5 on every lost one — the fire is never chipped, it dies in one night or not at all (200 HP against a 20-raider body is ~1.5 s once they commit). The eco_8851 day-28 loss is the clean case: 15 warriors at dusk, 12 alive at dawn, fire dead — the militia was still standing when the fire went. Defeat is a breach, not attrition.
+
+**The threshold is raiders-per-warrior at dusk.** Every raid at ≤ 1.0 (Rush) was held with 0–6 losses; 1.3–1.5 (Turtle 0.6×, Eco 0.7×) bled 4–7 warriors a night and every death night was ≥ 1.4. Turtle's 60–68 walls never took a hit (`walls_dawn == walls_dusk` all lab long) — raiders path through the ring's gaps, so walls buy nothing in the sim.
+
+**Rush dies of food, not raiders.** Workers pinned at 5 by `WantedWorkers`; 25 warriors at 15 food each drain food to single digits by day 24–26, the army is not rebuilt (28 → 12), and the day-30 raid (size 30) walks in. Turtle caps 8 workers, Eco 10 and escapes — the Shipyard is the only reliable win.
+
+**Gaps in the CSV:** no metal column, no warriors-lost or walls-lost per night, no time from first fire hit to death, no shipyard progress (why eco_8851 took until day 28 is invisible).
+
+Nothing built this entry. Candidates: campfire HP / raider-vs-building damage so a breach is a fight; policies scale workers with the army; log the missing columns.
+
+### 2026-09-10 (night, cont.) — Gated openings and workers that follow the army
+
+User: a breach is not really a breach, the raiders walk through the gates; the sim should put two gates side by side (pathing); and yes, workers scale with the army so Rush stops starving. Decisions: one double-gate opening per side (8 gates); workers = half the army, capped by the campfire's 10.
+
+**Read:** the ring's openings were bare cells (`PlaceWallRing` skipped `d == 0` and placed nothing there) and `ConvertGates(2)` gated the two NEWEST walls in `Wall.ActiveList` wherever they stood — its "nearest the cardinal openings" comment was untrue. A gate itself is sound: no obstacle, and its trigger calls `Enemy.ForceAttackGate`, so a raider in the doorway fights the gate. The sim just never put one in a doorway.
+
+**Built:** `SimBuilder.PlaceWallRing` leaves a two-cell opening per side (offsets 0 and 1); `SimBuilder.GateOpenings(wallType, half)` walks the eight opening cells each tick — empty → wall site, finished `Wall` → `UpgradeToGate` (5 wood), site or `Gate` → leave — and `GateCount` for the caption; `ConvertGates` deleted; `TryPlaceWallCell` is the shared cell placement. `SimPolicy.WantedWorkers(s, floor)` = `clamp(max(floor, ceil(warriors × 0.5)), floor, campfire.maxWorkers)`; the three policies' `WantedWorkers` consts became `WorkerFloor` (8 / 5 / 10) and feed housing, hiring and the goal caption. Turtle gates as soon as `ringOrdered`; Eco gates once its ring call places nothing. Green in the four Roslyn configs; the sim player needs a rebuild before the next lab.
+
+**Edited:** Sim/SimBuilder.cs, Sim/SimPolicy.cs, docs/SIMULATION.md, CLAUDE.md.

@@ -118,6 +118,13 @@ public class SimConfig
     {
         return string.IsNullOrEmpty(id) ? $"run{index:D4}" : id;
     }
+
+    /// <summary>
+    /// Which try of its cell this run is (2026-09-10): 1 for the run the sweep
+    /// listed, 2+ for the restarts <see cref="SimSweep.respawnWallMinutes"/>
+    /// queues after a defeat. Never read from JSON.
+    /// </summary>
+    [System.NonSerialized] public int attempt = 1;
 }
 
 /// <summary>
@@ -145,17 +152,36 @@ public class SimSweep
     /// </summary>
     public int renderFrameInterval = 6;
 
+    /// <summary>
+    /// VISUAL runs only: the draw interval while raiders are on the island
+    /// (2026-09-10), so a fight is watched slower than the quiet day it follows.
+    /// The lab runs the day at ~4x (interval 11) and a raid at ~2x (5). -1 or 0
+    /// = same as <see cref="renderFrameInterval"/>. Ignored headless.
+    /// </summary>
+    public int renderFrameIntervalRaid = -1;
+
     /// <summary>Repeat the whole config list this many times, incrementing seeds.</summary>
     public int repeats = 1;
 
     /// <summary>
-    /// Real-seconds failsafe per run. The per-run <c>maxGameSeconds</c> stop is
-    /// measured in GAME time, so anything that freezes the game clock (a stray
-    /// Time.timeScale = 0, a paused DayNightCycle) would hang a sweep forever
-    /// without this. A 30-day run at ~25x realtime is about three minutes of
-    /// wall clock, so the default is loose enough never to fire on a healthy run.
+    /// Restart a cell that lost (2026-09-10): while the sweep has been running
+    /// for fewer than this many REAL minutes, a defeat queues the same run again
+    /// (same strategy, seed and island, id suffixed <c>_try2</c>, <c>_try3</c>…)
+    /// straight after itself, so a lab keeps learning on the same nine islands
+    /// instead of going dark one window at a time. Past the budget a run that
+    /// dies stays dead. 0 = off. Every try is its own runs.csv row.
     /// </summary>
-    public float maxWallSecondsPerRun = 900f;
+    public float respawnWallMinutes = 0f;
+
+    /// <summary>
+    /// Real-seconds CEILING per run. A frozen game clock is caught separately
+    /// (SimRunner: 60 s of real time with no game-time advance), so this only
+    /// has to stop a run that is merely absurdly slow. A watched 30-day run at
+    /// ~4x is twenty-odd minutes; headless is three. 900 used to be the only
+    /// guard and cut five winning day-25 colonies out of the first 4x lab
+    /// (2026-09-10).
+    /// </summary>
+    public float maxWallSecondsPerRun = 3600f;
 
     public List<SimConfig> runs = new List<SimConfig>();
 
@@ -166,6 +192,7 @@ public class SimSweep
         if (sweep.repeats < 1) sweep.repeats = 1;
         if (sweep.captureDeltaTime <= 0f) sweep.captureDeltaTime = 1f / 60f;
         if (sweep.renderFrameInterval < 1) sweep.renderFrameInterval = 6;
+        if (sweep.renderFrameIntervalRaid < 1) sweep.renderFrameIntervalRaid = sweep.renderFrameInterval;
         if (sweep.maxWallSecondsPerRun <= 0f) sweep.maxWallSecondsPerRun = 900f;
         return sweep;
     }

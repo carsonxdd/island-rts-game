@@ -12,8 +12,11 @@ using UnityEngine;
 /// Shots, most urgent first:
 ///   Campfire  — the fire lost HP in the last few seconds. Nothing outranks it.
 ///   Landing   — raiders just came ashore (EnemySpawner.OnRaidLanded).
-///   Battle    — the densest cluster of hostile bodies near friendly ones.
-///   Raiders   — enemies alive but not yet in contact; watch them walk in.
+///   Battle    — the densest cluster of raiders AND the player's warriors.
+///   Raiders   — enemies alive but not yet in contact; watch the one nearest the
+///               fire walk in. A raider that stops moving stops being a shot.
+///   Castaway  — by day (2026-09-10): the character on an errand, close in. The
+///               policy's caption says what it is doing; this shows it.
 ///   Colony    — the default: framed on the campfire, zoomed to fit the base.
 ///
 /// It reads nothing but positions and health, drives nothing but the camera, and
@@ -29,23 +32,30 @@ using UnityEngine;
 /// suppressed via <see cref="CameraController.SuppressInput"/>. Framing goes
 /// through CenterOn each frame on a SmoothDamp'd focus point, which is what makes
 /// a cut glide instead of teleport.
+///
+/// The "camera stuck on nothing until dawn" bug (2026-09-10): the Raiders shot
+/// framed the CENTROID of every living raider, and a night lasts until the last
+/// raider dies (DayNightCycle holds dawn). One raider wedged on a rock somewhere
+/// and one at the wall put the centroid on empty ground between them, and it
+/// stayed there until the dawn-hold cap despawned the straggler. The shot now
+/// frames the raider nearest the fire and drops out when that raider has not
+/// moved for <see cref="StaleSeconds"/>; Battle needs both sides present.
 /// </remarks>
 public class SimSpectatorCamera : MonoBehaviour
 {
     // --- shot kinds, in priority order -------------------------------------
 
-    public enum Shot { Colony, Raiders, Battle, Landing, Campfire }
+    public enum Shot { Colony, Castaway, Raiders, Battle, Landing, Campfire }
 
     /// <summary>
     /// Orthographic size per shot. Tighter = more of a fight, less of an island.
-    /// Pulled in about a third on 2026-09-10: a lab cell is a third of the screen
-    /// wide, and at the old sizes a battle was a scatter of specks. The floor is
-    /// CameraController.minOrthoSize 5, so there is room to go tighter still.
+    /// Pulled in on 2026-09-10 (a lab cell is a third of the screen wide): the
+    /// colony at 13, the castaway at 8. The floor is CameraController.minOrthoSize 5.
     /// </summary>
-    private static readonly float[] ShotZoom = { 18f, 15f, 9f, 12f, 8f };
+    private static readonly float[] ShotZoom = { 13f, 8f, 12f, 9f, 12f, 8f };
 
     /// <summary>Score per shot when its trigger is live. Ordering, not a curve.</summary>
-    private static readonly float[] ShotScore = { 1f, 30f, 55f, 80f, 110f };
+    private static readonly float[] ShotScore = { 1f, 5f, 30f, 55f, 80f, 110f };
 
     // --- tuning ------------------------------------------------------------
 
@@ -70,6 +80,10 @@ public class SimSpectatorCamera : MonoBehaviour
     /// <summary>How fast the focus point chases the shot's target.</summary>
     private const float FocusSmoothTime = 0.55f;
 
+    /// <summary>A watched raider that moves less than <see cref="StaleMove"/> in this long is stuck, not a shot.</summary>
+    private const float StaleSeconds = 6f;
+    private const float StaleMove = 1f;
+
     // --- state -------------------------------------------------------------
 
     private CameraController rig;
@@ -86,6 +100,11 @@ public class SimSpectatorCamera : MonoBehaviour
     private float lastDamageTime = -999f;
     private Vector3 lastLanding;
     private float lastLandingTime = -999f;
+
+    // The raider the Raiders shot is following, and where it was when it last moved.
+    private Enemy watched;
+    private Vector3 watchedPos;
+    private float watchedMovedTime;
 
     /// <summary>What the director is currently watching. The overlay prints it.</summary>
     public Shot CurrentShot => current;
@@ -129,6 +148,7 @@ public class SimSpectatorCamera : MonoBehaviour
         if (rig == null) return;
 
         WatchCampfire();
+        WatchRaider();
 
         if (Time.time >= nextPick)
         {
@@ -166,12 +186,59 @@ public class SimSpectatorCamera : MonoBehaviour
         lastCampfireHp = hp;
     }
 
+    /// <summary>
+    /// Keep a finger on the raider nearest the fire: which one it is, and when it
+    /// last covered a metre. A new nearest raider restarts the clock, so a fresh
+    /// wave is never judged by a straggler's stillness.
+    /// </summary>
+    private void WatchRaider()
+    {
+        Enemy nearest = NearestRaider();
+        if (nearest != watched)
+        {
+            watched = nearest;
+            if (nearest != null) watchedPos = nearest.transform.position;
+            watchedMovedTime = Time.time;
+            return;
+        }
+        if (nearest == null) return;
+
+        Vector3 p = nearest.transform.position;
+        if ((p - watchedPos).sqrMagnitude >= StaleMove * StaleMove)
+        {
+            watchedPos = p;
+            watchedMovedTime = Time.time;
+        }
+    }
+
+    private bool RaiderStale => watched == null || Time.time - watchedMovedTime > StaleSeconds;
+
+    private static Enemy NearestRaider()
+    {
+        var enemies = Enemy.ActiveList;
+        if (enemies.Count == 0) return null;
+
+        BaseBuilding fire = Factions.Player.Campfire;
+        Vector3 from = fire != null ? fire.transform.position : Vector3.zero;
+
+        Enemy best = null;
+        float bestSq = float.MaxValue;
+        for (int i = 0; i < enemies.Count; i++)
+        {
+            Enemy e = enemies[i];
+            if (e == null) continue;
+            float d = (e.transform.position - from).sqrMagnitude;
+            if (d < bestSq) { bestSq = d; best = e; }
+        }
+        return best;
+    }
+
     private void Pick()
     {
         Shot best = Shot.Colony;
         float bestScore = ShotScore[(int)Shot.Colony];
 
-        for (int s = (int)Shot.Raiders; s <= (int)Shot.Campfire; s++)
+        for (int s = (int)Shot.Castaway; s <= (int)Shot.Campfire; s++)
         {
             if (!Live((Shot)s)) continue;
             if (ShotScore[s] > bestScore)
@@ -209,7 +276,15 @@ public class SimSpectatorCamera : MonoBehaviour
             case Shot.Battle:
                 return ClusterCentre(out _) >= 3;
             case Shot.Raiders:
-                return Enemy.ActiveList.Count > 0;
+                return Enemy.ActiveList.Count > 0 && !RaiderStale;
+            case Shot.Castaway:
+            {
+                // Only an errand is worth the close-up; an idle castaway stands
+                // at the fire, which the Colony shot already frames.
+                PlayerCharacter pc = PlayerCharacter.Instance;
+                return pc != null && !pc.IsKnockedOut && Enemy.ActiveList.Count == 0
+                       && (pc.HasTask || pc.WorkingStation != null || pc.BuildingSite != null);
+            }
             default:
                 return true;
         }
@@ -234,14 +309,12 @@ public class SimSpectatorCamera : MonoBehaviour
                 break;
             }
             case Shot.Raiders:
+                if (watched != null) return watched.transform.position;
+                break;
+            case Shot.Castaway:
             {
-                var enemies = Enemy.ActiveList;
-                if (enemies.Count > 0)
-                {
-                    Vector3 sum = Vector3.zero;
-                    for (int i = 0; i < enemies.Count; i++) sum += enemies[i].transform.position;
-                    return sum / enemies.Count;
-                }
+                PlayerCharacter pc = PlayerCharacter.Instance;
+                if (pc != null) return pc.transform.position;
                 break;
             }
         }
@@ -251,9 +324,11 @@ public class SimSpectatorCamera : MonoBehaviour
 
     /// <summary>
     /// The densest fight: for each raider, how many bodies (raiders and the
-    /// player's warriors) sit within <see cref="ClusterRadius"/>. Returns the best
-    /// count and its centroid. O(enemies × (enemies + warriors)), which at raid
-    /// sizes of ~22 is nothing, and it only runs twice a second.
+    /// player's warriors) sit within <see cref="ClusterRadius"/>. A cluster
+    /// counts only with BOTH sides in it (2026-09-10) — three raiders walking in
+    /// together are a Raiders shot, not a battle. Returns the best count and its
+    /// centroid. O(enemies × (enemies + warriors)), which at raid sizes of ~22 is
+    /// nothing, and it only runs twice a second.
     /// </summary>
     private int ClusterCentre(out Vector3 centre)
     {
@@ -261,7 +336,7 @@ public class SimSpectatorCamera : MonoBehaviour
 
         var enemies = Enemy.ActiveList;
         var warriors = Warrior.ActiveList;
-        if (enemies.Count == 0) return 0;
+        if (enemies.Count == 0 || warriors.Count == 0) return 0;
 
         float sqrRadius = ClusterRadius * ClusterRadius;
         int bestCount = 0;
@@ -271,6 +346,7 @@ public class SimSpectatorCamera : MonoBehaviour
             Vector3 seed = enemies[i].transform.position;
             Vector3 sum = Vector3.zero;
             int count = 0;
+            int friends = 0;
 
             for (int e = 0; e < enemies.Count; e++)
             {
@@ -285,9 +361,10 @@ public class SimSpectatorCamera : MonoBehaviour
                 if ((p - seed).sqrMagnitude > sqrRadius) continue;
                 sum += p;
                 count++;
+                friends++;
             }
 
-            if (count > bestCount)
+            if (friends > 0 && count > bestCount)
             {
                 bestCount = count;
                 centre = sum / count;

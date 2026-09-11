@@ -30,6 +30,9 @@ public class SimVisualOverlay : MonoBehaviour
         public float wood, food, stone, metal;
         public float campfireHp, campfireHpMax;
         public int hunger;
+        /// <summary>What the policy is trying to reach this second, what it last did, what the castaway is doing (2026-09-10).</summary>
+        public string goal, intent, castaway;
+        public int nextRaidSize;
     }
 
     private static Frame frame;
@@ -89,7 +92,7 @@ public class SimVisualOverlay : MonoBehaviour
 
         const float pad = 8f;
         float w = Mathf.Min(360f, Screen.width - pad * 2f);
-        float h = 96f;
+        float h = 150f;
         Rect box = new Rect(pad, Screen.height - h - pad, w, h);
 
         GUI.DrawTexture(box, backdrop);
@@ -116,7 +119,12 @@ public class SimVisualOverlay : MonoBehaviour
 
         GUILayout.Label(
             $"colonists {frame.colonists}   workers {frame.workers}   " +
-            $"warriors {frame.warriors}   raiders {frame.enemies}", line);
+            $"warriors {frame.warriors}   raiders {frame.enemies}   next raid ~{frame.nextRaidSize}", line);
+
+        // What the run is working on (2026-09-10): the policy's goal for this
+        // second, the last move it made, and the castaway's own errand.
+        GUILayout.Label("goal: " + (frame.goal ?? ""), line);
+        GUILayout.Label("last: " + (frame.intent ?? "") + "   castaway: " + (frame.castaway ?? ""), line);
 
         GUILayout.EndArea();
     }

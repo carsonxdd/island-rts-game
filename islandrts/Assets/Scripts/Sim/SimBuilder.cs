@@ -80,8 +80,12 @@ public static class SimBuilder
 
     /// <summary>
     /// Orders a square wall perimeter at <paramref name="halfExtent"/> cells from
-    /// the campfire, leaving a one-cell gap mid-way along each side. The gaps are
-    /// load-bearing: a sealed carving ring would trap every worker inside it.
+    /// the campfire, leaving a TWO-cell opening mid-way along each side. The
+    /// openings are load-bearing: a sealed carving ring would trap every worker
+    /// inside it. They are filled later by <see cref="GateOpenings"/>, which walls
+    /// each cell and converts it to a gate the tick it finishes — two gates side
+    /// by side per side (2026-09-10) so a column of workers or warriors paths
+    /// through without queueing on one cell.
     /// Returns how many sites were placed (0 if unaffordable or fully blocked).
     /// </summary>
     public static int PlaceWallRing(BuildingType wallType, int halfExtent, int maxSites)
@@ -96,7 +100,7 @@ public static class SimBuilder
 
         for (int d = -halfExtent; d <= halfExtent; d++)
         {
-            bool gap = d == 0;   // one opening per side, dead centre
+            bool gap = IsOpeningOffset(d);
             if (!gap)
             {
                 cells.Add(new Vector2Int(center.x + d, center.y + halfExtent));
@@ -112,39 +116,74 @@ public static class SimBuilder
         int placed = 0;
         for (int i = 0; i < cells.Count && placed < maxSites; i++)
         {
-            if (!Factions.Player.Resources.CanAfford(data.woodCost, data.foodCost, data.stoneCost)) break;
-            if (WallGrid.Instance.HasWallAt(cells[i])) continue;
-
-            Vector3 pos = WallGrid.Instance.GridToWorld(cells[i]);
-            pos.y = GroundY(pos);
-            if (TerrainGrid.Instance != null && !TerrainGrid.Instance.IsBuildable(pos)) continue;
-            if (FogOfWar.Instance != null && !FogOfWar.Instance.IsExplored(pos)) continue;   // WallLinePlacer.CellBlocked
-
-            // Walls deliberately do NOT flatten — they follow the terrain per cell.
-            Spawn(data, wallType, pos, flatten: false);
+            if (!TryPlaceWallCell(data, wallType, cells[i])) continue;
             placed++;
         }
         return placed;
     }
 
+    /// <summary>The two cells of each side's opening: offsets 0 and 1 along the side.</summary>
+    private static bool IsOpeningOffset(int d) => d == 0 || d == 1;
+
     /// <summary>
-    /// Upgrades up to <paramref name="count"/> finished walls into gates (5 wood
-    /// each), preferring the ones nearest the campfire's cardinal openings.
+    /// Fills the ring's openings with gates, one step per cell per call: an empty
+    /// opening cell gets a wall site (a gate is only ever converted from a finished
+    /// wall, like the player's G key), a finished wall in one is converted (5 wood),
+    /// a site is left to finish, a gate is done. The lab of 2026-09-10 showed why
+    /// this exists: the old ConvertGates turned the two NEWEST walls into gates
+    /// wherever they stood and left the openings as bare holes, so raiders walked
+    /// the ring's gaps and no wall took a hit all lab long. Returns how many
+    /// cells it acted on this call (0 = nothing to do or unaffordable).
     /// </summary>
-    public static int ConvertGates(int count)
+    public static int GateOpenings(BuildingType wallType, int halfExtent)
     {
-        int done = 0;
-        var walls = Wall.ActiveList;
-        for (int i = walls.Count - 1; i >= 0 && done < count; i--)
+        BuildingData data = BuildingDatabase.Instance != null
+            ? BuildingDatabase.Instance.GetBuildingData(wallType) : null;
+        if (data == null || data.constructionSitePrefab == null) return 0;
+        if (Campfire == null || WallGrid.Instance == null) return 0;
+
+        Vector2Int center = WallGrid.Instance.WorldToGrid(Campfire.transform.position);
+        int acted = 0;
+        for (int d = 0; d <= 1; d++)
         {
-            Wall w = walls[i];
-            if (w == null) continue;
-            if (!Factions.Player.Resources.CanAfford(5, 0, 0)) break;
-            Factions.Player.Resources.SpendResources(5, 0, 0);
-            w.UpgradeToGate();
-            done++;
+            acted += GateCell(data, wallType, new Vector2Int(center.x + d, center.y + halfExtent));
+            acted += GateCell(data, wallType, new Vector2Int(center.x + d, center.y - halfExtent));
+            acted += GateCell(data, wallType, new Vector2Int(center.x + halfExtent, center.y + d));
+            acted += GateCell(data, wallType, new Vector2Int(center.x - halfExtent, center.y + d));
         }
-        return done;
+        return acted;
+    }
+
+    /// <summary>Gates standing. The ring's eight opening cells are the only place the sim makes them.</summary>
+    public static int GateCount => Gate.ActiveList.Count;
+
+    private static int GateCell(BuildingData data, BuildingType wallType, Vector2Int cell)
+    {
+        MonoBehaviour occupant = WallGrid.Instance.GetWallAt(cell);
+        if (occupant == null) return TryPlaceWallCell(data, wallType, cell) ? 1 : 0;
+
+        Wall wall = occupant as Wall;
+        if (wall == null) return 0;   // a site still building, or already a gate
+        if (!Factions.Player.Resources.CanAfford(5, 0, 0)) return 0;
+        Factions.Player.Resources.SpendResources(5, 0, 0);   // BuildPlacement's G cost
+        wall.UpgradeToGate();
+        return 1;
+    }
+
+    /// <summary>One wall site at a grid cell, the WallLinePlacer.CellBlocked tests included.</summary>
+    private static bool TryPlaceWallCell(BuildingData data, BuildingType wallType, Vector2Int cell)
+    {
+        if (!Factions.Player.Resources.CanAfford(data.woodCost, data.foodCost, data.stoneCost)) return false;
+        if (WallGrid.Instance.HasWallAt(cell)) return false;
+
+        Vector3 pos = WallGrid.Instance.GridToWorld(cell);
+        pos.y = GroundY(pos);
+        if (TerrainGrid.Instance != null && !TerrainGrid.Instance.IsBuildable(pos)) return false;
+        if (FogOfWar.Instance != null && !FogOfWar.Instance.IsExplored(pos)) return false;   // WallLinePlacer.CellBlocked
+
+        // Walls deliberately do NOT flatten — they follow the terrain per cell.
+        Spawn(data, wallType, pos, flatten: false);
+        return true;
     }
 
     // ---- shared internals -------------------------------------------------

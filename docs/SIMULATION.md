@@ -43,9 +43,13 @@ game's own Utility AI, untouched. That is what makes the output worth reading.
 
 | Strategy | Shape | The question it asks |
 |---|---|---|
-| **Turtle** | 4 workers → wooden wall ring (r9, one gap per side) → 2 gates → tower | Is fortification a viable substitute for an army? Is wall HP vs enemy DPS sane? |
-| **Rush** | 3 workers, 2 huts, everything else into warriors | Does warrior cost/DPS keep pace with raids that grow with the day and the colony's prosperity? |
-| **Eco** | Huts to 6, workers to 10 (3:2:1 wood:food:stone), ~1 warrior per day (spends the reserve when a raid is announced), late tower + partial wall | The baseline the other two are read against |
+| **Turtle** | 4→8 workers, wooden wall ring (r9, a two-cell opening per side → two gates side by side in each), army at 0.6× the next raid, Bowyery for the wall | Does fortification let a SMALLER army hold? Is wall HP vs enemy DPS sane? |
+| **Rush** | 3→5 workers, huts as the army needs beds (to 8), army at 1.0× the next raid, Workshop tier for Iron Spears and Bows | Does warrior cost/DPS keep pace with raids that grow with the day and the colony's prosperity? |
+| **Eco** | Huts as needed (to 8), workers to 10 (3:2:1 wood:food:stone), army at 0.7× the next raid (spends the reserve when a raid is announced), gated wall ring (r8), escape from day 12 | The baseline the other two are read against |
+
+Those worker counts are floors (2026-09-10): every policy wants `max(floor, warriors / 2)` workers, capped at the campfire's job cap of 10, because the second lab lost Rush to food — five workers feeding 25 warriors. The ring's openings are the only place the sim makes gates: `SimBuilder.GateOpenings` walls each opening cell and converts it to a gate the tick it finishes (a gate is only ever converted from a finished wall, like the player's G). The first two labs left the openings as bare holes, and no wall took a hit in twelve runs.
+
+Every strategy sizes its militia against `SimState.NextRaidSize` (2026-09-10): tonight's committed size when the dawn roll said raiders land, else `RaidDirector.EstimateRaidSize(day + 1)`, what a roll tomorrow would land against the colony as it stands. Spearcraft is third on every research list, beds go up ahead of the arrivals the army needs (`KeepHousing`), and nobody builds a Watchtower — it is a vision building until the archer-tower path exists. The 2026-09-10 lab (`SimLogs/lab-2026-09-10/`) lost all nine runs before this: Rush pinned at 8 warriors by two huts' beds with 2000 wood hoarded, Eco met an 8-raider first raid with two spears, Turtle's ring only delayed.
 
 Since 2026-09-02 the run is a **30-day calendar** with raids rolled at dawn
 (`RaidDirector`), not a wave every night. Policies read `SimState.RaidTonight`,
@@ -153,10 +157,13 @@ the rows read; the `survived` tally comes from the shards' `runs.csv`, the real
 record. Headless sweeps write no heartbeat: nobody is watching, and six processes
 touching a file every second is cost for nothing.
 
-**Draw rate is a flat 8, about 3x realtime** (2026-09-10). It used to scale with
-the window count, up to one frame in 24, which ran a lab at roughly 7x realtime —
-too fast to read what a colony was doing, which is the only reason to watch one.
-Override it with `-RenderInterval`: higher skims, lower studies a fight. Watch for
+**Draw rate follows the raid** (2026-09-10): one frame in 11 while the island is
+quiet (about 4x realtime) and one in 5 while raiders are on it (about 2x), switched
+by the player process once a second on `Enemy.ActiveList`. Before that it was a
+flat 8 (~3x), and before that it scaled with the window count up to one in 24
+(~7x) — too fast to read what a colony was doing, which is the only reason to watch
+one. Override with `-RenderInterval` (day) and `-RaidRenderInterval` (raid):
+higher skims, lower studies a fight. Watch for
 drift if you take it low with nine windows on one GPU — they share it, and a
 window that cannot keep up falls behind the others in *game* time, which ruins the
 comparison the lab exists to make. It never touches the simulation step.
@@ -198,7 +205,8 @@ Two divergences had to be closed to make that true:
 Visual mode keeps `captureDeltaTime`, so the simulation still steps 60 frames per
 game-second and the frame-based AI budget is untouched. What it skips is the
 *draw*: `OnDemandRendering.renderFrameInterval` (the sweep's
-`renderFrameInterval`, default 8 from `run-sim.ps1`) renders one frame in every N. Never reach for
+`renderFrameInterval` by day and `renderFrameIntervalRaid` while raiders are on
+the island; `run-sim.ps1` sends 11 and 5) renders one frame in every N. Never reach for
 `Time.timeScale` to speed a visual run up - that is the exact mistake the
 headless harness exists to avoid.
 
@@ -207,23 +215,60 @@ understand a result, not to gather one.
 
 ### The spectator camera
 
-`SimSpectatorCamera` re-scores five shots twice a second and holds the winner for
+`SimSpectatorCamera` re-scores six shots twice a second and holds the winner for
 at least four seconds, most urgent first:
 
-| Shot | Trigger |
-|---|---|
-| Campfire | the fire lost HP in the last 5 s |
-| Landing | raiders just came ashore (`EnemySpawner.OnRaidLanded`) |
-| Battle | the densest cluster of raiders and warriors within 18 m |
-| Raiders | enemies alive but not yet in contact |
-| Colony | default: the campfire, leaned toward where the colonists are |
+| Shot | Trigger | Zoom |
+|---|---|---|
+| Campfire | the fire lost HP in the last 5 s | 8 |
+| Landing | raiders just came ashore (`EnemySpawner.OnRaidLanded`) | 12 |
+| Battle | the densest cluster within 18 m that holds raiders AND the player's warriors | 9 |
+| Raiders | the raider nearest the fire, while it is still moving | 12 |
+| Castaway | by day (2026-09-10): the character on an errand, close in | 8 |
+| Colony | default: the campfire, leaned toward where the colonists are | 13 |
+
+**The camera used to strand itself until dawn** (2026-09-10): Raiders framed the
+centroid of every living raider, and a night lasts until the last raider dies. One
+raider wedged on a rock and one at the wall put the centroid on empty ground
+between them until the dawn-hold cap despawned the straggler. Raiders now follows
+the raider nearest the fire and drops out once that raider has not moved a metre
+in 6 s, and Battle needs both sides in the cluster.
 
 It does not take the camera over wholesale. `CameraController` keeps running its
 zoom smoothing and its per-frame clip-plane fit (a fixed near clip starves the
 ground of shadow texels); only the input half is suppressed, via
 `CameraController.SuppressInput`. The caption under the window is
 `SimVisualOverlay`, IMGUI on purpose so a dev readout never touches the game's
-own uGUI.
+own uGUI. Since 2026-09-10 it also says what the run is working on: the policy's
+**goal** this second (`army 4/6 · workers 5/8 · beds 1 free`), the **last** move it
+made (`recruit warrior`, `place hut`, `research Mining`; bracketed once it is 30 s
+old) and what the **castaway** is doing (`working: Spearcraft 40%`, `fetching
+stick`, `building Hut`). `SimPolicy.Goal` / `Intent` are written by the policies'
+shared moves and read by nothing that decides.
+
+### Respawning a lost cell
+
+`respawnWallMinutes` on a sweep (the lab sends `-RespawnMinutes`, default 10):
+while the process has been running for fewer real minutes than that, a DEFEAT
+queues the same config again straight behind itself — same strategy, seed and
+island, id suffixed `_try2`, `_try3`… — so nine windows keep teaching instead of
+going dark one at a time. Past the budget a defeat is final; a victory, escape,
+timeout or error never respawns. Every try is its own `runs.csv` row, so a cell's
+tries are read side by side. The lab also sends `maxWallSecondsPerRun` 3600.
+
+**The frozen-clock guard is a real one now** (2026-09-10): a run whose GAME time
+has not advanced for 60 real seconds is cut as `timeout` / "game clock frozen";
+`maxWallSecondsPerRun` (default 3600) is only a last-ditch ceiling. The old flat
+900 s cap could not tell frozen from slow and cut five winning day-25 colonies
+out of the first 4x lab.
+
+**Lurking raids** (2026-09-10): `RaidDirector.RaidLurking` goes true when raiders
+are alive but for 30 s nothing has died, the fire has not been hit, nobody is in
+attack range and the count has not changed. Every policy's `ManageStance` then
+goes Offensive and stands down at dawn — the same hint the HUD gives a player.
+Raiders also spawn only where a NavMesh path to the fire exists, and one that
+makes no progress for 20 s is warped toward the fire (`Enemy.WatchProgress`), so
+the "one straggler holds dawn for three minutes" nights should be gone.
 
 ---
 
@@ -236,7 +281,8 @@ point; `Tools > … > Write Example Sweep` regenerates it.
 {
   "outputDir": "SimLogs",
   "captureDeltaTime": 0.0166667,
-  "renderFrameInterval": 6,  // visual mode only: draw 1 frame in 6
+  "renderFrameInterval": 6,  // visual mode only: draw 1 frame in 6 while quiet
+  "renderFrameIntervalRaid": 3,  // ...and 1 in 3 while raiders are on the island (-1 = same as above)
   "repeats": 3,              // repeat the whole list, seed += 1 each time
   "runs": [
     { "id": "eco_raids_big", "strategy": "Eco", "seed": 1,

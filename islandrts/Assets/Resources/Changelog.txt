@@ -8,6 +8,22 @@
 # Lines starting with a single # are comments. Anything else that is not a
 # heading, a bullet or an indented continuation is ignored.
 
+## 2026-09-10 — Raiders that get stuck
+- Raiders sometimes wedged themselves on a rock or a cut-off ledge and stood there
+  all night, and the dawn waited on them. They now come ashore only where a path
+  to your fire exists, and one that stops making progress for twenty seconds is
+  moved onto ground it can fight from.
+- When raiders are on the island but nothing has happened for half a minute, the
+  day counter reads "Raiders lurking" and a banner names the Offensive key, so you
+  can send the militia out to finish the night instead of waiting for it.
+
+## 2026-09-10 — Watchtowers watch
+- The Watchtower is a vision building for now: it sees further than anything else and
+  shows a raid coming, and that is all it does. The damage aura it used to promise
+  never actually worked, so it is gone until towers that shoot arrive as an upgrade.
+- Under the hood the tower's script had stopped loading, so a placed tower had no
+  health and no sight either. Fixed.
+
 ## 2026-09-10 — Your castaway can build
 - Right-click a construction site and your castaway walks over and raises it, the
   same as a colonist would. Standing at the site is the work; walking away pauses it.
