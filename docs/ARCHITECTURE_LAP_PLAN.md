@@ -143,6 +143,10 @@ Three tiers, decided per faction per island, never per unit:
 
 ### Castaway arrival, territory and measurement (decided 2026-09-11)
 
+**The working detail for this step lives in [`docs/RIVAL_COLONIES_PLAN.md`](RIVAL_COLONIES_PLAN.md)**, which splits it
+into Slice A (arrival + territory, on top of the existing debug rival) and Slice B (the governor refactor). Build A
+first: it makes the landing and the territory watchable before the refactor churns the policies.
+
 These four answers replace the step's original "debug-spawned rival beside the player" assumption. A rival is a castaway story, not a spawner.
 
 - **Rivals wash ashore on a schedule, not at world start.** A `RivalLandingDirector` lands one rival colony on an announced day (banner + `DevQuests` signal), the way the player's own run opens. The player gets a head start, first contact is an event with a date, and the sim can put the arrival day in `days.csv`. The mid-run difficulty step this creates is the cost, and it is deliberate: the schedule is the tuning knob.
