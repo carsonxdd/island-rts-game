@@ -99,7 +99,7 @@ public class FogOfWar : MonoBehaviour
         visSmooth = new float[count];
         expSmooth = new float[count];
 
-        if (!SimHooks.Simulating)
+        if (!SimHooks.Headless)
         {
             edgeFade = new float[count];
             for (int z = 0; z < n; z++)
@@ -147,7 +147,7 @@ public class FogOfWar : MonoBehaviour
         // depth map uses (TerrainGrid.PushWaterProperties).
         float a = 1f / (cellSize * n);
         float b = (half / cellSize + 0.5f) / n;
-        Shader.SetGlobalVector(ParamsId, new Vector4(a, b, 0f, SimHooks.Simulating ? 0f : 1f));
+        Shader.SetGlobalVector(ParamsId, new Vector4(a, b, 0f, SimHooks.Headless ? 0f : 1f));
         Shader.SetGlobalVector(LookId, new Vector4(unexploredBrightness, shroudBrightness, shroudDesaturation, 0f));
         // Re-bind the mask with the params: anything that clears the global (a scene
         // teardown racing this one) would otherwise leave the map unfogged for good.
@@ -196,7 +196,7 @@ public class FogOfWar : MonoBehaviour
             + (t != null && mask != null && t != mask ? " (NOT OURS)" : "")
             + " explored=" + exploredCells + "/" + explored.Length
             + " sources=" + VisionSource.ActiveList.Count
-            + " sim=" + SimHooks.Simulating;
+            + " sim=" + SimHooks.Simulating + " headless=" + SimHooks.Headless;
     }
 
     /// <summary>Explored flag of a cell by grid coordinates (minimap).</summary>
@@ -216,7 +216,7 @@ public class FogOfWar : MonoBehaviour
         lastUpdate = Time.time;
 
         Stamp();
-        if (!SimHooks.Simulating)
+        if (!SimHooks.Headless)
         {
             Smooth(dt);
             mask.SetPixelData(pixels, 0);
@@ -320,7 +320,7 @@ public static class FogMaterials
     /// </summary>
     public static Material For(Material source)
     {
-        if (source == null || SimHooks.Simulating) return source;
+        if (source == null || SimHooks.Headless) return source;
         if (copies.TryGetValue(source, out Material copy) && copy != null) return copy;
 
         if (!looked)
@@ -341,7 +341,7 @@ public static class FogMaterials
     /// <summary>Swap every renderer under <paramref name="root"/> onto fog-aware copies of its shared materials.</summary>
     public static void Apply(GameObject root)
     {
-        if (root == null || SimHooks.Simulating) return;
+        if (root == null || SimHooks.Headless) return;
         MeshRenderer[] renderers = root.GetComponentsInChildren<MeshRenderer>(true);
         for (int r = 0; r < renderers.Length; r++)
         {

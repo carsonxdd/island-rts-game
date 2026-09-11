@@ -116,7 +116,62 @@ public static class SimTools
         EditorApplication.Exit(ok ? 0 : 1);
     }
 
+    /// <summary>
+    /// Builds with Unity audio switched off at the project level, then puts the
+    /// setting back (2026-09-10).
+    ///
+    /// <c>AudioListener.volume = 0</c> in SimRunner silences a run but the engine
+    /// has already opened an output device by then, and nine lab windows each
+    /// grabbing one was enough to take the machine's audio driver down. The only
+    /// switch that stops the device being opened at all is "Disable Unity Audio"
+    /// in Project Settings, which is baked into the player at build time — so it
+    /// is flipped for the duration of this build and restored in a finally, which
+    /// is why a cancelled or failed build still leaves the project as it was.
+    /// The sim player has no use for sound in either mode.
+    /// </summary>
     private static BuildReport BuildSimPlayerInternal()
+    {
+        bool restore = false;
+        try
+        {
+            restore = SetProjectAudioDisabled(true);
+            return BuildSimPlayerPlayer();
+        }
+        finally
+        {
+            if (restore) SetProjectAudioDisabled(false);
+        }
+    }
+
+    /// <summary>
+    /// Writes ProjectSettings/AudioManager.asset's <c>m_DisableAudio</c>. Returns
+    /// true when the value actually changed, so the caller knows to put it back.
+    /// </summary>
+    private static bool SetProjectAudioDisabled(bool disabled)
+    {
+        Object[] assets = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/AudioManager.asset");
+        if (assets == null || assets.Length == 0 || assets[0] == null)
+        {
+            Debug.LogWarning("[Sim] Could not open AudioManager.asset — the sim player will open an audio device.");
+            return false;
+        }
+
+        SerializedObject so = new SerializedObject(assets[0]);
+        SerializedProperty prop = so.FindProperty("m_DisableAudio");
+        if (prop == null)
+        {
+            Debug.LogWarning("[Sim] AudioManager.asset has no m_DisableAudio — the sim player will open an audio device.");
+            return false;
+        }
+        if (prop.boolValue == disabled) return false;
+
+        prop.boolValue = disabled;
+        so.ApplyModifiedPropertiesWithoutUndo();
+        AssetDatabase.SaveAssets();
+        return true;
+    }
+
+    private static BuildReport BuildSimPlayerPlayer()
     {
         string outDir = Path.Combine(ProjectRoot, BuildDir);
         Directory.CreateDirectory(outDir);

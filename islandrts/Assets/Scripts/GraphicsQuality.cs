@@ -49,7 +49,7 @@ public static class GraphicsQuality
     /// <summary>Push every graphics setting into the live pipeline. Safe to call per frame — every write is change-guarded.</summary>
     public static void Apply()
     {
-        if (SimHooks.Simulating) return;
+        if (SimHooks.Headless) return;
 
         var asset = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
         if (asset != null)

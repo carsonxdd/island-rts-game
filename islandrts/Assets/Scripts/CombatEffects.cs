@@ -51,7 +51,7 @@ public class CombatEffects : MonoBehaviour
             cachedParticleMaterial = new Material(Shader.Find("Sprites/Default"));
             // A headless balance run reads CSVs, not particles. These cost real
             // CPU per hit and change nothing a metric can see.
-            if (SimHooks.Simulating)
+            if (SimHooks.Headless)
             {
                 enableAttackEffects = false;
                 enableHitEffects = false;

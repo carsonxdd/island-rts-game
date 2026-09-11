@@ -1,17 +1,41 @@
 /// <summary>
-/// Global switch the balance-simulation harness flips before a headless run.
+/// Global switches the balance-simulation harness flips before a run.
 ///
-/// It exists so a handful of purely cosmetic systems (VFX, damage numbers,
-/// floating state text, health bars) can opt out during simulation — they cost
-/// real CPU and produce nothing a CSV can read. Every consumer is a single
-/// early-return; nothing about gameplay, AI, or pathing is touched, so a
-/// simulated run takes the same decisions a played run would.
+/// TWO flags, because "the harness is driving" and "nothing is being drawn" are
+/// different questions and only one of them is allowed to change a decision:
 ///
-/// Always compiled (a static bool is free), but only ever set by
+/// <see cref="Simulating"/> is policy. It suppresses things that would make a
+/// simulated run diverge from a played one or from another simulated run — the
+/// difficulty snapshot, the name popup, the end screen, dev quests, saved
+/// PlayerPrefs, mouse-driven UI. Every consumer of it is a deliberate "the
+/// harness decides this instead".
+///
+/// <see cref="Headless"/> is capability. It is true only when the process has no
+/// camera and no window, and it guards things that are purely DRAWN — VFX,
+/// health bars, floating state text, the fog mask upload, the occluder cutout,
+/// the unit hole mask, decor scatter, the HUD. Skipping them saves real CPU in a
+/// sweep and changes nothing a CSV can read.
+///
+/// The split exists so the VISUAL sim (SimRunner's -simvisual mode) can render a
+/// run you can actually watch while taking the same decisions as the headless
+/// sweep it is meant to explain. If a guard would change what the game DOES it
+/// belongs on Simulating; if it only changes what the game LOOKS LIKE it belongs
+/// on Headless. Nothing may read Headless to decide anything.
+///
+/// Always compiled (two static bools are free), but only ever set by
 /// <see cref="SimRunner"/>, which is editor/dev-build only.
 /// </summary>
 public static class SimHooks
 {
-    /// <summary>True while a headless balance run is driving the game.</summary>
+    /// <summary>True while a balance run is driving the game, headless or visual.</summary>
     public static bool Simulating;
+
+    /// <summary>
+    /// True while a balance run is driving the game AND nothing is being
+    /// rendered. Read ONLY to skip drawing work, never to decide gameplay.
+    /// </summary>
+    public static bool Headless;
+
+    /// <summary>True while a balance run is driving a rendered, watchable window.</summary>
+    public static bool Visual => Simulating && !Headless;
 }

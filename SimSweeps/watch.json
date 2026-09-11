@@ -1,0 +1,9 @@
+{
+    "outputDir": "SimLogs/watch",
+    "captureDeltaTime": 0.016666668,
+    "renderFrameInterval": 6,
+    "repeats": 1,
+    "runs": [
+        { "id": "watch_turtle", "strategy": "Turtle", "seed": 1, "terrainSeed": 1, "daysToSurvive": 30, "maxGameSeconds": 6000 }
+    ]
+}

@@ -8,6 +8,12 @@
 # Lines starting with a single # are comments. Anything else that is not a
 # heading, a bullet or an indented continuation is ignored.
 
+## 2026-09-10 — Your castaway can build
+- Right-click a construction site and your castaway walks over and raises it, the
+  same as a colonist would. Standing at the site is the work; walking away pauses it.
+- This is the way out of a stuck colony: if all your colonists are on gathering jobs
+  there is nobody to build, and until now the hut you paid for would wait forever.
+
 ## 2026-09-09 — Minimap
 - A north-up map of the island sits in the top-right corner. Unexplored ground is
   dark, ground nobody is watching is dim, watched ground shows its true colours.

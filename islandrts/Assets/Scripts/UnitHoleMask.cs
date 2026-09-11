@@ -59,7 +59,7 @@ public class UnitHoleMask : MonoBehaviour
     public static void Ensure()
     {
         if (instance != null) return;
-        if (SimHooks.Simulating) return;  // headless: no camera, and this is pure cosmetics
+        if (SimHooks.Headless) return;  // headless: no camera, and this is pure cosmetics
 
         GameObject go = new GameObject("_UnitHoleMask");
         instance = go.AddComponent<UnitHoleMask>();

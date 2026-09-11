@@ -116,7 +116,7 @@ public class CloudSystem : MonoBehaviour
     /// <summary>Create the system for this scene's sun. No-op under the sim or if one exists.</summary>
     public static void EnsureExists(Light sunLight)
     {
-        if (Instance != null || SimHooks.Simulating || sunLight == null) return;
+        if (Instance != null || SimHooks.Headless || sunLight == null) return;
         var go = new GameObject("CloudSystem");
         var cs = go.AddComponent<CloudSystem>();
         cs.sun = sunLight;
@@ -193,7 +193,7 @@ public class CloudSystem : MonoBehaviour
     {
         float total = 0f;
         for (int i = 0; i < conditionWeights.Length; i++) total += Mathf.Max(0f, conditionWeights[i]);
-        float r = Random.value * Mathf.Max(total, 0.0001f);
+        float r = CosmeticRng.Value * Mathf.Max(total, 0.0001f);
         int pick = 0;
         for (int i = 0; i < conditionWeights.Length; i++)
         {
@@ -240,9 +240,9 @@ public class CloudSystem : MonoBehaviour
 
     void Spawn(Puff p, bool upwind)
     {
-        p.radius = Random.Range(puffRadiusMin, puffRadiusMax);
-        p.seed = Random.Range(0f, 1000f);
-        p.windScale = Random.Range(0.75f, 1.25f);
+        p.radius = CosmeticRng.Range(puffRadiusMin, puffRadiusMax);
+        p.seed = CosmeticRng.Range(0f, 1000f);
+        p.windScale = CosmeticRng.Range(0.75f, 1.25f);
         p.targetOpacity = 1f;
         p.opacity = 0f;
         // A re-entry off the upwind edge fades in over 8 s; a condition change
@@ -252,11 +252,11 @@ public class CloudSystem : MonoBehaviour
         Vector2 perp = new Vector2(-dir.y, dir.x);
         if (upwind)
         {
-            p.pos = -dir * (fieldRadius + p.radius) + perp * Random.Range(-fieldRadius, fieldRadius);
+            p.pos = -dir * (fieldRadius + p.radius) + perp * CosmeticRng.Range(-fieldRadius, fieldRadius);
         }
         else
         {
-            p.pos = Random.insideUnitCircle * fieldRadius;
+            p.pos = CosmeticRng.InsideUnitCircle * fieldRadius;
         }
     }
 

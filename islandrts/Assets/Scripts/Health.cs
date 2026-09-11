@@ -65,7 +65,7 @@ public class Health : MonoBehaviour
         cachedCamera = Camera.main;
 
         // Create health text display
-        if (showHealthText && !SimHooks.Simulating)
+        if (showHealthText && !SimHooks.Headless)
         {
             CreateHealthText();
         }

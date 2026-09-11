@@ -9,7 +9,7 @@
 # the proof, so a quest only stays manual when nothing in code can see it (a
 # look, a feel, a "nothing bad happened over time"). Signals come from
 # DevQuests.Signal(...) at the point of effect; the set in use:
-#   research:<id>  craft:<id>  build:<buildingtype>  specialist:<trade>
+#   research:<id>  craft:<id>  build:<buildingtype>  build:player  specialist:<trade>
 #   specialist:idle  specialist:locked  warrior  archer  warrior:6  rearm  picker
 #   recruit:no_idle  recruit:housing_full  hungry  starving  colonist_left
 #   raid  raid_survived  victory  escape  defeat  continue  continue:escape
@@ -32,6 +32,13 @@
 # tracker twice a second while their quest is open; everything else is an event.
 # A finished batch is deleted from here once its report is in; it stays in the
 # changelog and the phase history.
+
+## 2026-09-10 Castaway builds
+- @build:player Right-click a construction site: the castaway walks over and builds
+- The site's percentage climbs while they stand there, stops when they walk off
+- @build:hut Finish a hut with the castaway alone, no colonist helping
+- Give every colonist a job, place a hut: it still goes up (no more stuck colony)
+- A colonist and the castaway on one site build it faster than either alone
 
 ## 2026-09-09 Factions step 1
 - @faction:bootstrap Game scene loads: Castaways and Raiders factions exist

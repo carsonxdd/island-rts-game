@@ -136,6 +136,15 @@ public class SimSweep
     /// </summary>
     public float captureDeltaTime = 1f / 60f;
 
+    /// <summary>
+    /// VISUAL runs only: draw one frame in every N simulated ones
+    /// (UnityEngine.Rendering.OnDemandRendering). The simulation still steps 60
+    /// frames per game-second either way, so this buys wall-clock speed without
+    /// touching a single AI or NavMesh decision - which Time.timeScale would.
+    /// 6 lands around 10 visual fps at the harness's usual pace. Ignored headless.
+    /// </summary>
+    public int renderFrameInterval = 6;
+
     /// <summary>Repeat the whole config list this many times, incrementing seeds.</summary>
     public int repeats = 1;
 
@@ -156,6 +165,7 @@ public class SimSweep
         if (sweep == null || sweep.runs == null || sweep.runs.Count == 0) return null;
         if (sweep.repeats < 1) sweep.repeats = 1;
         if (sweep.captureDeltaTime <= 0f) sweep.captureDeltaTime = 1f / 60f;
+        if (sweep.renderFrameInterval < 1) sweep.renderFrameInterval = 6;
         if (sweep.maxWallSecondsPerRun <= 0f) sweep.maxWallSecondsPerRun = 900f;
         return sweep;
     }

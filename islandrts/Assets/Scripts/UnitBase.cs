@@ -86,7 +86,7 @@ public abstract class UnitBase<T> : MonoBehaviour, ITargetable where T : UnitBas
         // player's Interface setting decides whether labels are drawn, and it is
         // read live inside FloatingText so toggling it affects units that
         // already exist rather than only ones spawned afterwards.
-        if (!showStateText || SimHooks.Simulating) return;
+        if (!showStateText || SimHooks.Headless) return;
         floatingText = gameObject.AddComponent<FloatingText>();
         floatingText.heightOffset = textHeightOffset;
         floatingText.fontSize = fontSize;

@@ -77,9 +77,14 @@ public class PropScatter : MonoBehaviour
             ScatterSettings.Rule rule = settings.rules[r];
             if (rule == null || rule.prefab == null) continue;
             bool gameplay = rule.gatherable || rule.salvage;
-            // Under the balance sim only the gameplay rules matter - the rest is decor,
-            // and the sim has no camera to see it with.
-            if (SimHooks.Simulating && !gameplay) continue;
+            // A headless run has no camera, so decor is pure cost. It is skipped at
+            // the INSTANTIATE, never at the rule: every decor candidate still draws
+            // its three numbers from the rng and still claims its spacing slot.
+            // Skipping the rule outright shortens the shared random stream and frees
+            // the ground the decor was standing on, which moves every gatherable node
+            // placed after it - so a headless island would stop being the island a
+            // visual run or a played game generates from the same seed.
+            bool drawDecor = gameplay || !SimHooks.Headless;
 
             if (gameplay && nodeRoot == null) nodeRoot = new GameObject(RootName + "_Nodes");
 
@@ -135,7 +140,7 @@ public class PropScatter : MonoBehaviour
                     {
                         if (!SpawnSalvage(rule, group, p, yaw, scale)) continue;
                     }
-                    else
+                    else if (drawDecor)
                     {
                         GameObject decor = Instantiate(rule.prefab, p, Quaternion.Euler(0f, yaw, 0f), group);
                         decor.transform.localScale = new Vector3(scale, scale, scale);

@@ -49,8 +49,8 @@ public class FogVisibility : MonoBehaviour
 
     void Start()
     {
-        if (SimHooks.Simulating) { enabled = false; return; }
-        nextCheck = Time.time + Random.Range(0f, CheckInterval);
+        if (SimHooks.Headless) { enabled = false; return; }
+        nextCheck = Time.time + CosmeticRng.Range(0f, CheckInterval);
         Collect();
         Check(force: true);
     }

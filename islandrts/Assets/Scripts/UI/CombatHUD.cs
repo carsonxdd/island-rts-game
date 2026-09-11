@@ -41,7 +41,7 @@ public class CombatHUD : MonoBehaviour
     /// <summary>Create the box for this scene if it does not exist yet. Skipped under the sim.</summary>
     public static void Ensure()
     {
-        if (instance != null || SimHooks.Simulating) return;
+        if (instance != null || SimHooks.Headless) return;
         GameObject go = new GameObject("[CombatHUD]");
         instance = go.AddComponent<CombatHUD>();
     }

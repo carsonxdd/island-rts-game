@@ -153,14 +153,17 @@ public abstract class SimPolicy
         BaseBuilding fire = s.Campfire;
         if (fire == null) return false;
 
-        // Colonists are a pool (2026-09-02): a job needs an idle colonist, and one is
-        // held back as a builder while anything is under construction — sites no
-        // longer finish on their own, so a policy that assigns everyone stalls.
+        // Colonists are a pool (2026-09-02): a job needs an idle colonist, and a
+        // builder is held back PERMANENTLY, not only while a site stands
+        // (2026-09-10). The old "only when ConstructionSite.ActiveList is not
+        // empty" guard came too late: every policy employed all three starting
+        // colonists before Construction was even researched, and a colony with
+        // no jobless colonist can never finish a hut, never gain housing, and so
+        // never get a jobless colonist back — every run of the 2026-09-10 lab
+        // sweep died on day 4-7 with 3 colonists, 0 buildings and 400+ wood.
         Population pm = Factions.Player.Population;
         if (pm == null) return false;
-        int idle = pm.GetIdleCount();
-        if (idle <= 0) return false;
-        if (ConstructionSite.ActiveList.Count > 0 && idle <= 1) return false;
+        if (pm.GetIdleCount() <= BuilderReserve(s)) return false;
 
         int total = fire.GetTotalWorkers();
         if (total >= fire.maxWorkers) return false;
@@ -198,11 +201,24 @@ public abstract class SimPolicy
         return fire.GetTotalWorkers() > before;
     }
 
+    /// <summary>
+    /// Colonists held out of every job so something can always be built
+    /// (2026-09-10). One from the first day, two once the colony is past six.
+    /// </summary>
+    protected static int BuilderReserve(SimState s) => s.Colonists > 6 ? 2 : 1;
+
     /// <summary>Arm an idle colonist with a spear from the stockpile (the campfire checks food, cap and research).</summary>
     protected static bool Recruit(SimState s)
     {
         BaseBuilding fire = s.Campfire;
         if (fire == null) return false;
+
+        // A recruit spends the same idle colonist a site needs, so the reserve
+        // holds here too — until raiders land tonight, when a player would arm
+        // the builder and finish the hut tomorrow.
+        Population pop = Factions.Player.Population;
+        if (!s.RaidTonight && pop != null && pop.GetIdleCount() <= BuilderReserve(s)) return false;
+
         PickRecruitWeapon(s);
         if (!fire.CanRecruitWarrior()) return false;
 

@@ -37,6 +37,13 @@ public class SimRunner : MonoBehaviour
 {
     public const string Arg = "-simconfig";
 
+    /// <summary>
+    /// Flag arg: render the run in a window instead of running headless.
+    /// Implied whenever the process was not launched with -batchmode, so the
+    /// editor's "Run Sweep In Editor" is visual without asking for it.
+    /// </summary>
+    public const string VisualArg = "-simvisual";
+
     /// <summary>Set by the editor menu to queue a sweep on the next Play.</summary>
     public static string QueuedSweepPath;
 
@@ -51,6 +58,8 @@ public class SimRunner : MonoBehaviour
     private SimPolicy policy;
     private SimMetrics metrics;
     private SimMetrics.DayRow night;   // the row for the night in progress (dusk → dawn)
+
+    private SimVisualOverlay.Frame lastFrame;
 
     private bool runActive;
     private float runStartGameTime;
@@ -96,6 +105,10 @@ public class SimRunner : MonoBehaviour
             : Path.Combine(Directory.GetCurrentDirectory(), parsed.outputDir);
 
         SimHooks.Simulating = true;
+        // Headless is a CAPABILITY flag, never a policy one: it only ever turns
+        // drawing off. A visual run therefore takes the same decisions as the
+        // sweep it is explaining - see SimHooks for the split.
+        SimHooks.Headless = Application.isBatchMode && !HasArg(VisualArg);
         SimMetrics.EnsureHeaders(instance.outputDir);
 
         // Run 0's unit and terrain knobs must be live before the very first
@@ -106,6 +119,16 @@ public class SimRunner : MonoBehaviour
         go.SetActive(true);
 
         Debug.Log($"[Sim] Sweep loaded: {instance.queue.Count} runs -> {instance.outputDir}");
+    }
+
+    private static bool HasArg(string name)
+    {
+        string[] args = System.Environment.GetCommandLineArgs();
+        for (int i = 0; i < args.Length; i++)
+        {
+            if (args[i] == name) return true;
+        }
+        return false;
     }
 
     private static string ArgValue(string name)
@@ -124,8 +147,23 @@ public class SimRunner : MonoBehaviour
     {
         QualitySettings.vSyncCount = 0;
         Application.targetFrameRate = -1;
+        // Silence, but not the thing that keeps nine windows off the audio driver:
+        // by the time this runs the engine has already opened an output device.
+        // That is switched off at BUILD time instead - SimTools flips the project's
+        // "Disable Unity Audio" for the sim player build (2026-09-10).
         AudioListener.volume = 0f;
+        AudioListener.pause = true;
         Time.captureDeltaTime = sweep.captureDeltaTime;
+
+        // A visual run still SIMULATES every frame - captureDeltaTime pins the
+        // step, so the frame-based AI budget and NavMesh throttles are untouched.
+        // What it does not do is DRAW every frame: OnDemandRendering skips the
+        // render loop on all but every Nth frame, which is the only honest way to
+        // buy speed back. Never reach for Time.timeScale here (see SIMULATION.md).
+        UnityEngine.Rendering.OnDemandRendering.renderFrameInterval =
+            SimHooks.Headless ? 1 : Mathf.Max(1, sweep.renderFrameInterval);
+
+        if (SimHooks.Visual) SimVisualOverlay.Ensure();
 
         sceneName = SceneManager.GetActiveScene().name;
         SceneManager.sceneLoaded += OnSceneLoaded;
@@ -139,6 +177,7 @@ public class SimRunner : MonoBehaviour
         DayNightCycle.OnNightStart -= OnNightStart;
         DayNightCycle.OnDayStart -= OnDayStart;
         Time.captureDeltaTime = 0f;
+        UnityEngine.Rendering.OnDemandRendering.renderFrameInterval = 1;
     }
 
     private void Start()
@@ -309,6 +348,10 @@ public class SimRunner : MonoBehaviour
 
         yield return null;   // let Hut/BaseBuilding Start register housing
 
+        // The camera rig is a scene object, so it is only findable now. Headless
+        // runs skip this entirely; Ensure no-ops off the visual path anyway.
+        SimSpectatorCamera.Ensure();
+
         // 2. Play until the game ends, times out, or the campfire falls.
         GameManager gm = GameManager.Instance;
         while (true)
@@ -353,12 +396,51 @@ public class SimRunner : MonoBehaviour
                 SimState state = BuildState();
                 SimPlayerDriver.Tick(state);   // the character's legs: materials + bench labor
                 policy.Tick(state);
+                if (SimHooks.Visual) PushOverlay(cfg, state);
             }
 
             yield return null;
         }
 
         EndRun();
+    }
+
+    /// <summary>
+    /// Mirror the second's state onto the on-screen caption. Visual runs only,
+    /// and it reads nothing the policy did not already read.
+    /// </summary>
+    private void PushOverlay(SimConfig cfg, SimState state)
+    {
+        BaseBuilding fire = SimBuilder.Campfire;
+        ResourcePool pool = Factions.Player.Resources;
+
+        lastFrame = new SimVisualOverlay.Frame
+        {
+            runId = metrics.configId,
+            strategy = metrics.strategy,
+            seed = cfg.seed,
+            runIndex = index,
+            runCount = queue.Count,
+            day = state.Day,
+            daysToSurvive = cfg.daysToSurvive,
+            raidTonight = state.RaidTonight,
+            colonists = state.Colonists,
+            workers = state.Workers,
+            warriors = state.Warriors,
+            enemies = state.Enemies,
+            wood = pool.wood,
+            food = pool.food,
+            stone = pool.stone,
+            metal = pool.metal,
+            campfireHp = fire != null ? fire.GetCurrentHealth() : 0f,
+            campfireHpMax = fire != null ? fire.maxHealth : 0f,
+            hunger = state.Hunger,
+        };
+
+        SimVisualOverlay.Push(lastFrame);
+        // The launcher's dashboard reads this: neither CSV exists until the run
+        // is over, so a live view has nowhere else to read from.
+        SimStatus.Write(outputDir, lastFrame, "");
     }
 
     private SimState BuildState()
@@ -509,6 +591,17 @@ public class SimRunner : MonoBehaviour
         metrics.Append(outputDir);
         Debug.Log(metrics.Summary());
 
+        // Leave the outcome standing in the heartbeat: the next run overwrites it
+        // a second after it starts, and if this was the last one the dashboard's
+        // final redraw shows how the window ended rather than a stale mid-run row.
+        if (SimHooks.Visual)
+        {
+            lastFrame.runId = metrics.configId;
+            lastFrame.strategy = metrics.strategy;
+            lastFrame.day = metrics.dayReached;
+            SimStatus.Write(outputDir, lastFrame, metrics.outcome);
+        }
+
         BeginNextRun(alreadyLoaded: false);
     }
 
@@ -517,6 +610,8 @@ public class SimRunner : MonoBehaviour
         Debug.Log($"[Sim] Sweep complete: {queue.Count} runs written to {outputDir}");
         SimOverrides.Active = null;
         SimHooks.Simulating = false;
+        SimHooks.Headless = false;
+        UnityEngine.Rendering.OnDemandRendering.renderFrameInterval = 1;
         QueuedSweepPath = null;
         Time.captureDeltaTime = 0f;
 

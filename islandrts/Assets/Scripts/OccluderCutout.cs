@@ -65,7 +65,7 @@ public class OccluderCutout : MonoBehaviour
     void Apply()
     {
         applied = true;
-        if (SimHooks.Simulating) return;   // headless: nothing renders, keep the sim's materials stock
+        if (SimHooks.Headless) return;   // headless: nothing renders, keep the sim's materials stock
 
         if (!shaderLooked)
         {

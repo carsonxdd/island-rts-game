@@ -95,7 +95,7 @@ public class ResourceUI : MonoBehaviour
 
     void Start()
     {
-        if (SimHooks.Simulating) { enabled = false; return; }
+        if (SimHooks.Headless) { enabled = false; return; }
         Build();
         RaidDirector.OnRaidRolled += OnRaidRolled;
         Factions.Player.Population.OnHungerChanged += OnHungerChanged;

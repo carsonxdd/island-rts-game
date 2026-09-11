@@ -64,7 +64,7 @@ public class HoverGlow : MonoBehaviour
     /// </summary>
     public static HoverGlow Attach(GameObject go, Material[] mats, float idle, float hover, float gold = 0.55f)
     {
-        if (go == null || SimHooks.Simulating) return null;
+        if (go == null || SimHooks.Headless) return null;
 
         HoverGlow glow = go.GetComponent<HoverGlow>();
         if (glow == null) glow = go.AddComponent<HoverGlow>();
@@ -77,7 +77,7 @@ public class HoverGlow : MonoBehaviour
 
     void Awake()
     {
-        phase = Random.value * Mathf.PI * 2f;
+        phase = CosmeticRng.Value * Mathf.PI * 2f;
     }
 
     /// <summary>Use these material instances rather than collecting our own.</summary>

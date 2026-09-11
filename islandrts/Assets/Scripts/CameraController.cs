@@ -114,12 +114,27 @@ public class CameraController : MonoBehaviour
         targetOrthoSize = startOrthoSize;
     }
 
+    /// <summary>
+    /// Set by the visual balance sim's spectator director, which drives the view
+    /// itself through <see cref="CenterOn"/> and <see cref="SetZoom"/>. Only the
+    /// INPUT half is suppressed: zoom smoothing and the clip-plane fit still run,
+    /// because a fixed near clip starves the ground of shadow texels.
+    /// </summary>
+    public static bool SuppressInput;
+
     void Update()
     {
         // Menus own input while paused/open (PauseController.BlockGameplayInput).
         if (PauseController.BlockGameplayInput) return;
         if (cam == null) return;
         float dt = Time.unscaledDeltaTime;
+
+        if (SuppressInput)
+        {
+            UpdateZoom(dt);
+            UpdateClipPlanes();
+            return;
+        }
 
         UpdateZoom(dt);
         UpdateFreeLook(dt);
@@ -150,6 +165,15 @@ public class CameraController : MonoBehaviour
     /// taken at the target's own height so a character on a hill lands in the
     /// middle of the screen, not a few metres downhill of it.
     /// </summary>
+    /// <summary>
+    /// Request an orthographic size. Goes through the same smoothed target the
+    /// wheel writes, so a director's framing change eases rather than snaps.
+    /// </summary>
+    public void SetZoom(float orthoSize)
+    {
+        targetOrthoSize = Mathf.Clamp(orthoSize, minOrthoSize, maxOrthoSize);
+    }
+
     public void CenterOn(Vector3 worldPos)
     {
         if (cam == null) return;

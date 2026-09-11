@@ -402,7 +402,7 @@ public static class GameSettings
         GraphicsQuality.Apply();
 
         CombatEffects fx = CombatEffects.Instance;
-        if (fx != null) fx.showDamageNumbers = DamageNumbers && !SimHooks.Simulating;
+        if (fx != null) fx.showDamageNumbers = DamageNumbers && !SimHooks.Headless;
 
         MenuScaler.Apply(UIScale);
     }

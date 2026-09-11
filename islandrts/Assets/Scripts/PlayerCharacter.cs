@@ -58,6 +58,15 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
 
     // Hand-harvest: slower than a worker with a tool, and generous enough that
     // clearing one bush is a few seconds rather than a chore.
+    // Building by hand (2026-09-10): the castaway is labour on a construction
+    // site exactly like a jobless colonist, so a colony that has put every
+    // colonist on a job can still raise its first hut. Reach is a shade more
+    // generous than BuildExecutor's 1.2 because the player aims with a mouse.
+    const float BuildEdgeDistance = 1.7f;
+    const float BuildDriftSlack = 0.9f;
+    /// <summary>Seconds of labour per second standing at a site - one colonist's worth.</summary>
+    const float BuildLaborRate = 1f;
+
     const float HarvestPerSecond = 1.2f;
     /// <summary>Resource units harvested by hand per material that comes off with them.</summary>
     const float HarvestByproductEvery = 3f;
@@ -70,13 +79,15 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
     private bool hasPendingDestination;
 
     // The one thing the character is walking to do
-    enum TaskKind { None, Collect, Deposit, Work, Harvest }
+    enum TaskKind { None, Collect, Deposit, Work, Harvest, Build }
     private TaskKind task;
     private GroundPickup taskPickup;
     private BaseBuilding taskFire;
     private Collider taskFireCollider;
     private CraftStation taskStation;
     private ResourceNode taskNode;
+    private ConstructionSite taskSite;
+    private Collider taskSiteCollider;
     private float stallTimer;
 
     // Harvesting a node by hand (standing at it). The node owns its own depletion;
@@ -88,6 +99,12 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
 
     // Working a station's queue (standing at its bench). The station owns the
     // progress and charges costs on completion, so walking away loses nothing.
+    // Building a construction site (standing at it). The site owns the progress;
+    // this side only hands it labour while the character stands there.
+    private ConstructionSite buildSite;
+    private Collider buildSiteCollider;
+    private int buildPercentShown = -1;
+
     private CraftStation workStation;
     private string workTitleShown;
     private int workPercentShown = -1;
@@ -118,6 +135,9 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
 
     /// <summary>The station the character is standing at and working, or null.</summary>
     public CraftStation WorkingStation => workStation;
+
+    /// <summary>The construction site the character is standing at and building, or null.</summary>
+    public ConstructionSite BuildingSite => buildSite;
 
     /// <summary>The station the character is walking to in order to work, or null.</summary>
     public CraftStation WalkingToStation => task == TaskKind.Work ? taskStation : null;
@@ -204,6 +224,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         UpdateTask();
         UpdateHarvest();
         UpdateWork();
+        UpdateBuild();
         RegenNearCampfire();
 
         // Right-click commands, once the colony is running. During the intro the
@@ -251,6 +272,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         if (knockedOut) return;
         StopWork();      // any new order leaves the bench (nothing has been paid yet)
         StopHarvest();
+        StopBuild();
 
         if (hitCollider != null)
         {
@@ -259,6 +281,10 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
 
             ResourceNode node = hitCollider.GetComponentInParent<ResourceNode>();
             if (node != null) { CommandHarvest(node); return; }
+
+            // Before the BaseBuilding test: a site is not a finished building yet
+            ConstructionSite site = hitCollider.GetComponentInParent<ConstructionSite>();
+            if (site != null) { CommandBuild(site); return; }
 
             BaseBuilding fire = hitCollider.GetComponentInParent<BaseBuilding>();
             if (fire != null) { CommandDeposit(fire); return; }
@@ -289,6 +315,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         if (knockedOut || pickup == null) return;
         StopWork();
         StopHarvest();
+        StopBuild();
         ClearTask();
 
         if (pickup.IsClaimedByOther(this))
@@ -316,6 +343,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         if (knockedOut || fire == null) return;
         StopWork();
         StopHarvest();
+        StopBuild();
         ClearTask();
 
         task = TaskKind.Deposit;
@@ -357,6 +385,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         if (knockedOut || node == null) return;
         StopWork();
         StopHarvest();
+        StopBuild();
         ClearTask();
 
         if (!node.HasResources())
@@ -556,6 +585,25 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
                 break;
             }
 
+            case TaskKind.Build:
+            {
+                if (taskSite == null || taskSite.IsComplete) { ClearTask(); return; }   // finished without us
+
+                float siteEdge = TargetingUtil.EdgeDistance(transform.position, taskSite.transform, taskSiteCollider);
+                if (siteEdge <= BuildEdgeDistance || (Stalled() && siteEdge <= StallReach))
+                {
+                    ConstructionSite arrived = taskSite;
+                    ClearTask();
+                    BeginBuild(arrived);
+                }
+                else if (Stalled())
+                {
+                    ClearTask();
+                    SetActivity("Can't reach that site", FlashSeconds);
+                }
+                break;
+            }
+
             case TaskKind.Harvest:
             {
                 if (taskNode == null) { ClearTask(); return; }   // depleted while we walked
@@ -578,6 +626,114 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
     }
 
     string TaskStationName() => taskStation != null ? taskStation.displayName.ToLowerInvariant() : "bench";
+
+    // ------------------------------------------------------------------
+    // Building (2026-09-10): the character is labour on a construction site
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Walk to a construction site and raise it. Public for the balance sim's
+    /// player driver.
+    ///
+    /// A site advances only while somebody works it, and until now that somebody
+    /// had to be a jobless colonist - so a colony that had put all three starting
+    /// colonists on gathering jobs could never finish its first hut, never gain
+    /// housing, and never get a jobless colonist back. The castaway's own hands
+    /// are the way out of that corner. Deliberately does NOT take one of the
+    /// site's builder slots: those are the colonists' queue.
+    /// </summary>
+    public void CommandBuild(ConstructionSite site)
+    {
+        if (knockedOut || site == null) return;
+        StopWork();
+        StopHarvest();
+        StopBuild();
+        ClearTask();
+
+        if (site.IsComplete)
+        {
+            SetActivity("That one is finished", FlashSeconds);
+            return;
+        }
+
+        Collider col = site.GetComponent<Collider>();
+        if (TargetingUtil.EdgeDistance(transform.position, site.transform, col) <= BuildEdgeDistance)
+        {
+            BeginBuild(site);
+            return;
+        }
+
+        task = TaskKind.Build;
+        taskSite = site;
+        taskSiteCollider = col;
+        stallTimer = 0f;
+        SetActivity("Going to build");
+        // Sites carve the NavMesh, so the destination is the carve-safe approach point
+        MoveTo(TargetingUtil.GetApproachPoint(transform.position, site.transform, col));
+    }
+
+    void BeginBuild(ConstructionSite site)
+    {
+        buildSite = site;
+        buildSiteCollider = site.GetComponent<Collider>();
+        buildPercentShown = -1;
+        if (agent != null && agent.isOnNavMesh) agent.ResetPath();
+        hasPendingDestination = false;
+        DevQuests.Signal("build:player");
+    }
+
+    /// <summary>Leave the site. It keeps the progress it has, the same as a colonist walking off.</summary>
+    public void StopBuild()
+    {
+        if (buildSite == null) return;
+        buildSite = null;
+        buildSiteCollider = null;
+        buildPercentShown = -1;
+        SetActivity("");
+    }
+
+    void UpdateBuild()
+    {
+        if (buildSite == null) return;
+
+        if (buildSite.IsComplete)
+        {
+            string finished = buildSite.buildingType.ToString();
+            StopBuild();
+            SetActivity(finished + " finished", FlashSeconds);
+            return;
+        }
+
+        // Shoved off the site (a crowd, a raider): walk back in, labour pauses meanwhile
+        float edge = TargetingUtil.EdgeDistance(transform.position, buildSite.transform, buildSiteCollider);
+        if (edge > BuildEdgeDistance + BuildDriftSlack)
+        {
+            ConstructionSite site = buildSite;
+            StopBuild();
+            CommandBuild(site);
+            return;
+        }
+
+        // The site destroys itself the moment it completes, so remember what it
+        // was before handing it the frame's labour (a destroyed object reads null).
+        BuildingType raising = buildSite.buildingType;
+        buildSite.AddLabor(BuildLaborRate * Time.deltaTime);
+        if (buildSite == null || buildSite.IsComplete)
+        {
+            buildSite = null;
+            buildSiteCollider = null;
+            buildPercentShown = -1;
+            SetActivity(raising + " finished", FlashSeconds);
+            return;
+        }
+
+        int pct = Mathf.Min(99, Mathf.FloorToInt(buildSite.progress * 100f));
+        if (pct != buildPercentShown)
+        {
+            buildPercentShown = pct;
+            SetActivity("Building " + buildSite.buildingType + "  " + pct + "%");
+        }
+    }
 
     // ------------------------------------------------------------------
     // Working a station (2026-09-03): the character is labor on its queue
@@ -630,6 +786,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
 
         StopWork();
         StopHarvest();
+        StopBuild();
         ClearTask();
 
         float edge = TargetingUtil.EdgeDistance(transform.position, station.transform, station.ApproachCollider);
@@ -805,6 +962,8 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         taskFireCollider = null;
         taskStation = null;
         taskNode = null;
+        taskSite = null;
+        taskSiteCollider = null;
         stallTimer = 0f;
         if (activityExpires < 0f) SetActivity("");   // keep a flash, drop a "Fetching…"
     }
@@ -828,6 +987,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         if (knockedOut) return;
         StopWork();
         StopHarvest();
+        StopBuild();
 
         NavMeshHit hit;
         if (NavMesh.SamplePosition(worldPos, out hit, 4f, NavMesh.AllAreas))
@@ -880,6 +1040,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         hasPendingDestination = false;
         StopWork();
         StopHarvest();
+        StopBuild();
         ClearTask();
         SetActivity("Knocked out");
 

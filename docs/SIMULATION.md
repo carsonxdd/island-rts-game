@@ -84,6 +84,149 @@ parallel (`-Parallel 4`) for more throughput.
 
 ---
 
+## Watching a run (visual mode)
+
+A sweep tells you *that* Turtle died on day 22. Watching tells you *why*. Visual
+mode plays a run in a window instead of headless, with a spectator camera that
+frames whatever currently matters.
+
+```powershell
+.\tools\run-sim.ps1 -Sweep SimSweeps\watch.json -Visual
+.\tools\run-sim.ps1 -Sweep SimSweeps\watch.json -Visual -WindowSize 800x450
+```
+
+Under the hood it drops `-batchmode -nographics` and adds `-simvisual`, plus
+`-screen-width` / `-screen-height` / `-popupwindow`. Unity can set a window's
+size from the command line but **not its position**, so `run-sim.ps1` tiles the
+windows afterwards through `user32!MoveWindow`. That part is cosmetic - if the
+handle never appears the runs still play, just stacked.
+
+Pressing Play in the editor with a queued sweep is visual too: `-simvisual` is
+implied whenever the process was not launched with `-batchmode`.
+
+### The lab: nine windows at once
+
+```powershell
+.\tools\run-sim.ps1 -Lab
+.\tools\run-sim.ps1 -Lab -Seeds 7,8,9 -WindowSize 480x270
+```
+
+`-Lab` builds the sweep itself rather than reading one. Every seed in `-Seeds` is
+a **row** and every strategy in `-Strategies` a **column**, emitted row-major so
+the tiler puts one island's three players side by side:
+
+```
+TURTLE seed 1042 | RUSH seed 1042 | ECO seed 1042
+TURTLE seed 8851 | RUSH seed 8851 | ECO seed 8851
+TURTLE seed 4711 | RUSH seed 4711 | ECO seed 4711
+```
+
+`terrainSeed` tracks the seed, so a row really is one island and one set of raid
+rolls played three ways. That is a far cleaner question than nine unrelated games:
+*given exactly this map and exactly these raids, what does the strategy change?*
+
+**The cell size is computed from the grid, not fixed** (2026-09-10): with no
+`-WindowSize`, the desktop's working area is divided by the grid's columns and
+rows, so nine cells cover a 1920x1080 screen edge to edge. Pass `-WindowSize` to
+go back to fixed cells and leave room for the terminal, which is where the
+dashboard draws:
+
+```
+SIMULATION LAB      elapsed 04:12      5 of 6 windows running
+
+window              day   pop  food   war  fire  state
+TURTLE/1042        8/30    10    63     0  100%
+RUSH/1042          9/30    11    56     1   91%  raid tonight
+ECO/1042          10/30    12    49     2   82%
+TURTLE/8851       11/30    13    42     3   73%  raid tonight
+RUSH/8851         12/30    14    35     4   64%  under attack (6)
+ECO/8851          13/30    15    28     5   55%  raid tonight
+
+survived: Eco 1/1
+```
+
+It redraws once a second in place. Neither CSV can feed it — `runs.csv` and
+`days.csv` are both appended when a run *ends*, so during the twenty minutes a run
+takes they say nothing at all. Each visual process instead overwrites a one-line
+`status.csv` in its own shard directory once a second (`SimStatus`), which is what
+the rows read; the `survived` tally comes from the shards' `runs.csv`, the real
+record. Headless sweeps write no heartbeat: nobody is watching, and six processes
+touching a file every second is cost for nothing.
+
+**Draw rate is a flat 8, about 3x realtime** (2026-09-10). It used to scale with
+the window count, up to one frame in 24, which ran a lab at roughly 7x realtime —
+too fast to read what a colony was doing, which is the only reason to watch one.
+Override it with `-RenderInterval`: higher skims, lower studies a fight. Watch for
+drift if you take it low with nine windows on one GPU — they share it, and a
+window that cannot keep up falls behind the others in *game* time, which ruins the
+comparison the lab exists to make. It never touches the simulation step.
+
+---
+
+### It is the same run
+
+This is what makes visual mode worth having rather than a toy. A rendered run
+takes the **same decisions** as the headless sweep it is explaining, because
+rendering is gated on a different flag from policy:
+
+| Flag | Means | Guards |
+|---|---|---|
+| `SimHooks.Simulating` | the harness is driving | difficulty snapshot, name popup, end screen, dev quests, PlayerPrefs, mouse-driven UI, terrain seed |
+| `SimHooks.Headless` | nothing is being drawn | VFX, health bars, state text, fog mask upload, occluder cutout, unit hole mask, decor scatter, HUD, minimap, clouds |
+
+The rule: **if a guard changes what the game DOES it belongs on `Simulating`; if
+it only changes what the game LOOKS LIKE it belongs on `Headless`. Nothing may
+read `Headless` to decide anything.** `SimHooks.Visual` is the pair of them.
+
+Two divergences had to be closed to make that true:
+
+- **`PropScatter` skips decor at the `Instantiate`, never at the rule.** All the
+  scatter rules share one `System.Random` and one spacing hash, so dropping the
+  decor rules shortened the stream and freed ground - which moved every
+  gatherable node placed after them. A headless island was not the island the
+  same seed produced with a camera attached.
+- **Cosmetics draw from `CosmeticRng`, not `UnityEngine.Random`.** Clouds, hover
+  shimmer and the fog-visibility timer used the global stream that the harness
+  seeds and that AI stagger and spawn jitter draw from. Systems that only exist
+  when something is rendered must not move gameplay's numbers.
+
+> Both fixes change headless node layouts. **Baselines taken before 2026-09-10
+> are not comparable** to runs after it - re-run them.
+
+### Speed
+
+Visual mode keeps `captureDeltaTime`, so the simulation still steps 60 frames per
+game-second and the frame-based AI budget is untouched. What it skips is the
+*draw*: `OnDemandRendering.renderFrameInterval` (the sweep's
+`renderFrameInterval`, default 8 from `run-sim.ps1`) renders one frame in every N. Never reach for
+`Time.timeScale` to speed a visual run up - that is the exact mistake the
+headless harness exists to avoid.
+
+Expect visual runs to be several times slower than headless. Use them to
+understand a result, not to gather one.
+
+### The spectator camera
+
+`SimSpectatorCamera` re-scores five shots twice a second and holds the winner for
+at least four seconds, most urgent first:
+
+| Shot | Trigger |
+|---|---|
+| Campfire | the fire lost HP in the last 5 s |
+| Landing | raiders just came ashore (`EnemySpawner.OnRaidLanded`) |
+| Battle | the densest cluster of raiders and warriors within 18 m |
+| Raiders | enemies alive but not yet in contact |
+| Colony | default: the campfire, leaned toward where the colonists are |
+
+It does not take the camera over wholesale. `CameraController` keeps running its
+zoom smoothing and its per-frame clip-plane fit (a fixed near clip starves the
+ground of shadow texels); only the input half is suppressed, via
+`CameraController.SuppressInput`. The caption under the window is
+`SimVisualOverlay`, IMGUI on purpose so a dev readout never touches the game's
+own uGUI.
+
+---
+
 ## Sweep files
 
 A sweep is a JSON list of runs. `SimSweeps/example.json` is a working starting
@@ -93,6 +236,7 @@ point; `Tools > … > Write Example Sweep` regenerates it.
 {
   "outputDir": "SimLogs",
   "captureDeltaTime": 0.0166667,
+  "renderFrameInterval": 6,  // visual mode only: draw 1 frame in 6
   "repeats": 3,              // repeat the whole list, seed += 1 each time
   "runs": [
     { "id": "eco_raids_big", "strategy": "Eco", "seed": 1,
@@ -191,6 +335,12 @@ Two fidelity caveats on what it *does* test:
   single early-returns and touch no gameplay decision — but they do mean a sim
   run is not a perf measurement of a real one.
 
+**The sim player has no audio at all** (2026-09-10). `SimTools` builds it with the
+project's "Disable Unity Audio" flipped on and restores the setting afterwards, so
+no process ever opens an output device. Silencing the `AudioListener` at runtime is
+too late for that: nine lab windows each opening a device was enough to take a
+machine's audio driver down.
+
 ---
 
 ## Files
@@ -204,9 +354,13 @@ Two fidelity caveats on what it *does* test:
 | `Assets/Scripts/Sim/SimConfig.cs` | Sweep + run JSON schema |
 | `Assets/Scripts/Sim/SimOverrides.cs` | Per-unit knobs, applied from unit `Start` |
 | `Assets/Scripts/Sim/SimMetrics.cs` | The two CSVs |
-| `Assets/Scripts/Sim/SimHooks.cs` | `Simulating` flag the cosmetic systems check |
+| `Assets/Scripts/Sim/SimHooks.cs` | `Simulating` (policy) and `Headless` (capability) - see "It is the same run" |
+| `Assets/Scripts/Sim/SimSpectatorCamera.cs` | Visual mode's camera director |
+| `Assets/Scripts/Sim/SimVisualOverlay.cs` | Visual mode's IMGUI metrics caption |
+| `Assets/Scripts/Sim/SimStatus.cs` | The once-a-second `status.csv` heartbeat the lab dashboard reads |
+| `Assets/Scripts/CosmeticRng.cs` | The random stream cosmetics draw from instead of the global one |
 | `Assets/Editor/Sim/SimTools.cs` | Menu items + the headless player build |
-| `tools/run-sim.ps1` | Launch the player, wait, summarise |
+| `tools/run-sim.ps1` | Launch the player (`-Visual` to watch), wait, summarise |
 
 Hooks added to existing scripts (all guarded, all one-liners): `Worker.Start`,
 `Warrior.Start`, `Enemy.Start`, `TerrainGrid.Awake` (overrides);

@@ -95,7 +95,7 @@ public class Minimap : MonoBehaviour
     /// <summary>Create the map for this scene if there is none. Skipped under the sim.</summary>
     public static void Ensure()
     {
-        if (instance != null || SimHooks.Simulating) return;
+        if (instance != null || SimHooks.Headless) return;
         GameObject go = new GameObject("[Minimap]");
         instance = go.AddComponent<Minimap>();
     }

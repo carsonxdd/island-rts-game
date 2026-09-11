@@ -30,7 +30,14 @@ public static class SimPlayerDriver
         if (!station.HasWork)
         {
             // Nothing to do at the bench — bring home whatever is in hand
-            if (!pc.Inventory.IsEmpty && HasDeposit(pc.Inventory)) pc.CommandDeposit(fire);
+            if (!pc.Inventory.IsEmpty && HasDeposit(pc.Inventory)) { pc.CommandDeposit(fire); return; }
+
+            // ...then go swing a mallet (2026-09-10). The character builds like a
+            // jobless colonist now, and an idle bench is exactly when a player
+            // would walk over to the half-built hut.
+            if (pc.BuildingSite != null) return;   // already on one
+            ConstructionSite site = NearestSite(pc);
+            if (site != null) pc.CommandBuild(site);
             return;
         }
 
@@ -63,6 +70,24 @@ public static class SimPlayerDriver
             if (!slot.IsEmpty && slot.item.kind != ItemKind.Tool) return true;
         }
         return false;
+    }
+
+    /// <summary>The nearest unfinished construction site of the player's own colony, or null.</summary>
+    static ConstructionSite NearestSite(PlayerCharacter pc)
+    {
+        ConstructionSite best = null;
+        float bestSq = float.MaxValue;
+        Vector3 from = pc.transform.position;
+        var list = ConstructionSite.ActiveList;
+        for (int i = 0; i < list.Count; i++)
+        {
+            ConstructionSite site = list[i];
+            if (site == null || site.IsComplete) continue;
+            if (site.Faction != Factions.Player) continue;
+            float d = (site.transform.position - from).sqrMagnitude;
+            if (d < bestSq) { bestSq = d; best = site; }
+        }
+        return best;
     }
 
     static GroundPickup NearestPickup(ItemDef item, PlayerCharacter pc)

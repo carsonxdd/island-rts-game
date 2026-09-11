@@ -4,7 +4,7 @@ A Unity real-time-strategy survival game. You are one named character on a proce
 
 **Genre:** Top-down RTS + survival
 **Setting:** A shipwreck on an uncharted island. Deliberately light on fiction for now — the backstory is unwritten and the long-term direction (a single castaway story, or pickable civilizations) is still open.
-**Status:** Pre-alpha, in feature freeze. Everything listed under **Game Systems** below is built. The work between here and a build handed to testers is in [`docs/ALPHA_PLAN.md`](docs/ALPHA_PLAN.md).
+**Status:** Pre-alpha, mid-way through the architecture lap ([`docs/ARCHITECTURE_LAP_PLAN.md`](docs/ARCHITECTURE_LAP_PLAN.md)). Everything listed under **Game Systems** below is built. The work between the lap and a build handed to testers is in [`docs/ALPHA_PLAN.md`](docs/ALPHA_PLAN.md).
 
 ---
 
@@ -22,7 +22,7 @@ A Unity real-time-strategy survival game. You are one named character on a proce
 1. **NEW GAME** → difficulty (Normal is the intended balance) → **BEGIN**, then name your castaway.
 2. Right-click sticks and stones on the beach to gather them, right-click to walk ashore, then **B** and click to place the campfire. It is free and one-time.
 3. Right-click the fire to deposit, then use the panel's **Research** tab. Woodcutting teaches the colony to cut wood *and* hands you the Stone Axe; Quarrying does the same with the Stone Pick; Construction opens build mode; Spearcraft opens spears. Your character has to stand at the bench while the queue runs.
-4. Survivors land while there is free housing (the campfire sleeps 3, a hut 2). The **Colonists** tab hands them the jobs you have researched. Press **B** to build huts — a site only rises while an idle colonist works it, so keep one or two unassigned.
+4. Survivors land while there is free housing (the campfire sleeps 3, a hut 2). The **Colonists** tab hands them the jobs you have researched. Press **B** to build huts — a site only rises while someone works it: an idle colonist, or your castaway when you right-click the site. Keep one or two colonists unassigned anyway; a colony where everyone gathers has nobody to build.
 5. Watch the calendar chip. The first two nights are always quiet; from day 3 a dawn can turn it red with "Raid tonight · N raiders". That is your day to craft spears and arm warriors.
 6. Reach the dawn after day 30 and the rescue ship arrives.
 
@@ -39,7 +39,7 @@ A Unity real-time-strategy survival game. You are one named character on a proce
 | **G** · **R** · **Shift** | Wall to gate · toggle wall path or rotate · diagonal wall path |
 | **Delete / X** | Demolish, 50% refund |
 | **F5 / F8 / F9** | Militia stance: Defensive / Offensive / Follow |
-| **Right-click** | Command your character: fetch, hand-harvest, deposit and work the queue, work a bench, or walk |
+| **Right-click** | Command your character: fetch, hand-harvest, deposit and work the queue, work a bench, build a site, or walk |
 | **Left-click** | Open a building's panel. The only gesture that opens UI |
 | **Space** | Centre the camera on your character |
 | **Left-click / drag the minimap** | Centre the camera there (the north-up map in the top-right corner) |
@@ -76,19 +76,20 @@ islandrts/Assets/
 │   ├── UI/                      # Runtime uGUI menus, HUD, settings, keybindings, difficulty, dev quests
 │   ├── Items/                   # ItemCatalog, Inventory, ResearchCatalog, CraftingCatalog, Unlocks
 │   ├── Terrain/                 # TerrainGrid, IslandGenerator, IslandSettings, PropScatter
-│   ├── Sim/                     # Headless balance-simulation harness
+│   ├── Sim/                     # Balance-simulation harness: headless sweeps, visual runs, the lab
 │   └── *.cs                     # Units, buildings, economy, day/night, combat, camera, clouds
 ├── Editor/
 │   ├── LowPoly/                 # Procedural low-poly art generator, plumber, scatter table
-│   ├── Sim/                     # Sweep runner + headless sim player build
+│   ├── Sim/                     # Sweep runner + the silent sim player build
 │   └── FullSetup.cs             # Runs all eight setup steps in dependency order
 ├── Art/  Prefabs/  Materials/  Audio/  Settings/  Shaders/
 ├── Resources/                   # Changelog, Information, DevQuests text + cloud materials
 ├── MainMenu.unity               # Entry point
 ├── MainIsland.unity             # The game scene
 └── Scenes/SampleScene.unity     # Stock Unity scene, unused
+SimSweeps/                       # Sweep definitions (JSON) and kept baselines
 tools/
-├── run-sim.ps1                  # Runs a balance sweep against the headless sim player
+├── run-sim.ps1                  # Runs a balance sweep; -Visual watches it, -Lab tiles nine windows
 └── verify-scripts.py            # Roslyn compile check of every script in four configs, no Unity launch
 docs/
 ├── ALPHA_PLAN.md                # The road to a build in a tester's hands (live)
@@ -118,7 +119,8 @@ Workers, warriors and enemies all run a scoring-based Utility AI — no state ma
 ### Key patterns
 
 - **`ActiveRegistry<T>`** — static O(1) lists for every unit, building, node and pickup. The codebase contains zero `FindObjectsByType` scans.
-- **Singletons** — ResourceManager, PopulationManager, AudioManager, WallGrid, AIWorldState, GameManager, BuildingDatabase. No `DontDestroyOnLoad`, so nothing goes stale across a restart.
+- **Ownership is data** — every unit and building has a `Faction` (resources, population, knowledge, priorities, stance), and every scan filters by relation rather than keeping a second list.
+- **Singletons** — AudioManager, WallGrid, AIWorldState, GameManager, BuildingDatabase. No `DontDestroyOnLoad`, so nothing goes stale across a restart.
 - **Point-of-effect reads** — difficulty, settings and unlocks are read where they take effect, never pushed.
 - **Zero GC in hot paths**, throttled NavMesh calls, dirty-checked UI text.
 - **Buildings are data** — `BuildingData` ScriptableObjects define costs, prefabs and placement rules. Walls draw as lines and auto-connect with procedural meshes.
@@ -132,12 +134,12 @@ Deeper technical notes, the gotcha list and the session log: [`.claude/CLAUDE.md
 | System | Description |
 |--------|-------------|
 | **Opening** | Name your castaway, land at the wreck, gather beach materials, walk ashore and place the campfire. The clock is held until the fire is lit. |
-| **Your character** | Yours for the whole run. Never a colonist, takes no housing, eats nothing, ignored by enemies. Right-click fetches pickups into a six-slot inventory, picks a bush bare-handed, works a tree or rock once research hands over the matching tool, and deposits at the fire. Knocked out rather than killed. Losing the campfire is the only defeat. |
+| **Your character** | Yours for the whole run. Never a colonist, takes no housing, eats nothing, ignored by enemies. Right-click fetches pickups into a six-slot inventory, picks a bush bare-handed, works a tree or rock once research hands over the matching tool, deposits at the fire, and builds a construction site by standing at it. Knocked out rather than killed. Losing the campfire is the only defeat. |
 | **Economy** | Wood, food, stone, metal. Workers gather autonomously, spread themselves over nearby nodes rather than piling onto one, and fan out around the campfire to hand in. Every tree on the island is choppable and the big boulders are quarryable. Metal is deliberately scarce. |
 | **World** | A new island every game: size, terrain style and an optional seed are picked on New Game and locked for the run. Plateaus, cliffs, ramps, ponds; every plateau is reachable. |
 | **Pickups** | Sticks and small piles of stone that trickle-respawn, plus finite salvage along the shore. Single small rocks are scenery. Job workers detour for nearby ones; idle colonists haul anything within 70 m of the fire by day, 30 m after dusk. |
 | **Colonists** | People are a pool, not a purchase. Survivors land while housing has room. Idle colonists are the colony's utility labour — build, then craft, then repair, then tidy — weighted by four priority sliders, with Builder / Crafter / Repairer specialists to pin one. With nothing to do they stroll the village by day and stay home at night. Warriors are idle colonists taking up a spear. |
-| **Building** | Hut, Wooden and Stone Wall, Gate, Watchtower, Workshop, Shipyard. Placement flattens a pad. A site only rises while a colonist works it. Repair costs a quarter of the build price. |
+| **Building** | Hut, Wooden and Stone Wall, Gate, Watchtower, Workshop, Shipyard. Placement flattens a pad. A site only rises while a colonist or your castaway works it. Repair costs a quarter of the build price. |
 | **Research and crafting** | Research is one-time and opens jobs, build mode, weapons and the Workshop, and hands your character the matching tool. Recipes are repeatable and gated behind research. Both live on stations with a queue that only moves while someone stands at the bench. Costs are paid on completion; a short entry waits rather than failing. |
 | **Storage** | Materials, spears and tools live in the campfire stockpile, 60 items to start, raised by research. The four pooled resources are uncapped. |
 | **Combat** | The militia takes one colony-wide stance — Defensive, Offensive or Follow — and stands in a Line, Wedge or Ring. Warriors converge on a raider from different sides; archers keep their distance. Watchtowers buff nearby damage. Housing is the only cap on army size. |
@@ -147,7 +149,7 @@ Deeper technical notes, the gotcha list and the session log: [`.claude/CLAUDE.md
 | **Weather and light** | A sky condition rolled each dawn: drifting cloud puffs whose shade slides across the island as the sun's light cookie. Graphics presets in Options. |
 | **Fog of war** | The island starts dark and clears for good as your people and buildings see it; ground nobody is watching sits in a grey shroud. Raiders show only while something of yours can see them, so a raid can be an ambush and the Watchtower's long sight is its second job. Colonists only gather and fetch on explored ground, warriors only fight raiders something of yours can see, and nothing can be placed in the dark. A north-up minimap in the top-right corner draws the explored island, your buildings, walls and people, raiders on watched ground, the camera's footprint, and a red pulse where the last raid came ashore; click or drag it to move the camera. |
 | **Readability** | Anything standing between the camera and one of your people (a tree, hut, tower, workshop, shipyard or wall) stays solid but opens a soft see-through window right where they are, so nobody is ever lost behind a canopy. Hover glow is emissive so it works through it. |
-| **Balance sim** | Headless autoplay: scripted strategies play full games and write CSVs, so balance is measured rather than guessed. See [`docs/SIMULATION.md`](docs/SIMULATION.md). |
+| **Balance sim** | Scripted strategies play full games and write CSVs, so balance is measured rather than guessed. Headless for sweeps; `-Visual` renders the same run with a spectator camera, and `-Lab` tiles nine windows — three islands, each played three ways side by side — with a live dashboard in the terminal. See [`docs/SIMULATION.md`](docs/SIMULATION.md). |
 
 ---
 

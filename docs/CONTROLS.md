@@ -59,7 +59,7 @@ and the debug keys F3 / F4 / F6 / F7.
 | Input | Action |
 |---|---|
 | Name popup | Names your character (Enter or BEGIN confirms; no Esc — the run cannot start unnamed) |
-| Right click | Smart command for your character, for the whole run: on a stick / stone / crate → fetch it; on a bush → pick it by hand; on a tree, rock or ore boulder → work it, once the matching tool is in hand; on the campfire (or the ground beside it) → deposit everything and work its queue, without opening the panel; on a Workshop → work its queue; anywhere else → walk there |
+| Right click | Smart command for your character, for the whole run: on a stick / stone / crate → fetch it; on a bush → pick it by hand; on a tree, rock or ore boulder → work it, once the matching tool is in hand; on the campfire (or the ground beside it) → deposit everything and work its queue, without opening the panel; on a Workshop → work its queue; on a construction site → walk over and build it, the same as a colonist; anywhere else → walk there |
 | Space | Centre the camera on your character |
 | Left-click / drag the minimap | Centre the camera there (the top-right map; right-click on it does nothing) |
 | B | Show the campfire ghost (free, one-time; must be ≤6u from your character, on buildable ground) |

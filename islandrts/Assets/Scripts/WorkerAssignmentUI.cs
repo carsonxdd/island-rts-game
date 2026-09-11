@@ -151,7 +151,7 @@ public class WorkerAssignmentUI : MonoBehaviour
 
     void Start()
     {
-        if (SimHooks.Simulating) { enabled = false; return; }
+        if (SimHooks.Headless) { enabled = false; return; }
         Build();
         panel.gameObject.SetActive(false);
     }
@@ -202,7 +202,7 @@ public class WorkerAssignmentUI : MonoBehaviour
 
     void Open(BaseBuilding fire, CraftStation st, bool stationOnly)
     {
-        if (SimHooks.Simulating) return;
+        if (SimHooks.Headless) return;
         if (panel == null) Build();
 
         bool changed = baseBuilding != fire || station != st || this.stationOnly != stationOnly;
