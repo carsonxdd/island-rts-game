@@ -293,6 +293,7 @@ public class SimRunner : MonoBehaviour
                 if (cfg.raidBaseChance >= 0f) rd.baseChance = cfg.raidBaseChance;
                 if (cfg.raidChancePerQuietDay >= 0f) rd.chancePerQuietDay = cfg.raidChancePerQuietDay;
                 if (cfg.raidMaxQuietDays >= 0) rd.maxQuietDays = cfg.raidMaxQuietDays;
+                if (cfg.raidMinQuietNights >= 0) rd.minQuietNights = cfg.raidMinQuietNights;
                 if (cfg.raidBaseSize >= 0f) rd.baseSize = cfg.raidBaseSize;
                 if (cfg.raidSizePerDay >= 0f) rd.sizePerDay = cfg.raidSizePerDay;
                 if (cfg.raidSizePerProsperity >= 0f) rd.sizePerProsperity = cfg.raidSizePerProsperity;

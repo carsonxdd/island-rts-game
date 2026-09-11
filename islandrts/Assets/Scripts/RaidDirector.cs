@@ -34,6 +34,7 @@ public class RaidDirector : MonoBehaviour
     public const float DefaultBaseChance = 0.15f;
     public const float DefaultChancePerQuietDay = 0.2f;
     public const int DefaultMaxQuietDays = 5;
+    public const int DefaultMinQuietNights = 2;
     public const float DefaultBaseSize = 2f;
     public const float DefaultSizePerDay = 0.4f;
     public const float DefaultSizePerProsperity = 0.08f;
@@ -48,6 +49,8 @@ public class RaidDirector : MonoBehaviour
     public float chancePerQuietDay = DefaultChancePerQuietDay;
     [Tooltip("A raid is guaranteed once this many nights have passed without one.")]
     public int maxQuietDays = DefaultMaxQuietDays;
+    [Tooltip("Quiet nights owed after every raid before another can roll. The final night ignores it.")]
+    public int minQuietNights = DefaultMinQuietNights;
 
     [Header("Size")]
     public float baseSize = DefaultBaseSize;
@@ -183,6 +186,9 @@ public class RaidDirector : MonoBehaviour
         return LastRaidDay == 0 ? day - firstRaidDay : day - LastRaidDay - 1;
     }
 
+    /// <summary>The calendar's last night; victory is the dawn after it.</summary>
+    static int FinalDay() => GameManager.Instance != null ? GameManager.Instance.daysToSurvive : 30;
+
     void RollForTonight()
     {
         int day = CurrentDay();
@@ -192,6 +198,15 @@ public class RaidDirector : MonoBehaviour
         if (day < firstRaidDay)
         {
             raid = false;
+        }
+        else if (LastRaidDay > 0 && QuietNights(day) < minQuietNights && day < FinalDay())
+        {
+            // The colony is owed a breather (2026-09-10): the third lab lost two
+            // runs to a raid landing the night after one that had cost half the
+            // army, before a single spear could be made. The last night of the
+            // calendar is exempt so the finale can still come.
+            raid = false;
+            DevQuests.Signal("raid:rested");
         }
         else
         {

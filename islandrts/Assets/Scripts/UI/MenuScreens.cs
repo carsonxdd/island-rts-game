@@ -1207,6 +1207,7 @@ public class MenuScreens : MonoBehaviour
         float baseChance = rd != null ? rd.baseChance : RaidDirector.DefaultBaseChance;
         float perQuiet = rd != null ? rd.chancePerQuietDay : RaidDirector.DefaultChancePerQuietDay;
         int maxQuiet = rd != null ? rd.maxQuietDays : RaidDirector.DefaultMaxQuietDays;
+        int minQuiet = rd != null ? rd.minQuietNights : RaidDirector.DefaultMinQuietNights;
         float baseSize = rd != null ? rd.baseSize : RaidDirector.DefaultBaseSize;
         float perDay = rd != null ? rd.sizePerDay : RaidDirector.DefaultSizePerDay;
         float perProsperity = rd != null ? rd.sizePerProsperity : RaidDirector.DefaultSizePerProsperity;
@@ -1220,6 +1221,7 @@ public class MenuScreens : MonoBehaviour
             "Nothing lands before day " + firstDay + ".",
             "Each dawn after that: " + Mathf.RoundToInt(baseChance * 100f) + "% chance, plus " + Mathf.RoundToInt(perQuiet * 100f)
                 + "% for every quiet night since the last raid, times the difficulty. Certain after " + maxQuiet + " quiet nights.",
+            "After a raid the colony is owed " + minQuiet + " quiet nights before another can come. Only the last night of the calendar ignores that.",
             "Raiders: " + baseSize.ToString("0.#") + " + " + perDay.ToString("0.##") + " per day + " + perProsperity.ToString("0.##")
                 + " per point of prosperity, times the difficulty, never fewer than " + minSize + ". Every colonist, hut, tower, the Workshop and the Shipyard add prosperity.",
             "With nothing built: day " + Mathf.Max(firstDay, 5) + " brings " + Size(Mathf.Max(firstDay, 5)) + ", day 20 brings " + Size(20) + ", day 30 brings " + Size(30) + ".",

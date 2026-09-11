@@ -8,6 +8,12 @@
 # Lines starting with a single # are comments. Anything else that is not a
 # heading, a bullet or an indented continuation is ignored.
 
+## 2026-09-10 — A breather after every raid
+- Raiders never come two nights running any more. After a raid the colony is
+  owed two quiet nights before the next can roll, so a night that cost half the
+  militia leaves time to arm replacements. Only the last night of the calendar
+  ignores the rule.
+
 ## 2026-09-10 — Gates get repaired
 - A chewed gate now gets repaired like a wall. Before, a colonist would never
   touch one, so a gate that survived a raid stayed at that health for the rest

@@ -54,6 +54,7 @@ public class SimConfig
     public float raidBaseChance = -1f;
     public float raidChancePerQuietDay = -1f;
     public int raidMaxQuietDays = -1;
+    public int raidMinQuietNights = -1;   // quiet nights owed after a raid (2026-09-10)
     public float raidBaseSize = -1f;
     public float raidSizePerDay = -1f;
     public float raidSizePerProsperity = -1f;
