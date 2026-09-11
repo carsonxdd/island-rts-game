@@ -38,4 +38,30 @@ public static class SimHooks
 
     /// <summary>True while a balance run is driving a rendered, watchable window.</summary>
     public static bool Visual => Simulating && !Headless;
+
+    /// <summary>
+    /// The run's rule-set choices under the sim (2026-09-11), as the names the
+    /// menu would show: a <see cref="Difficulty.Level"/> name, an
+    /// <see cref="IslandOptions.Size"/> name and an
+    /// <see cref="IslandSettings.Style"/> name. Empty = the sweep's defaults
+    /// (Normal, Medium, Terraced). Set by <see cref="SimRunner"/> from the
+    /// run's <c>SimConfig</c> BEFORE the scene loads, because
+    /// <c>ResourceManager.Awake</c> reads the difficulty and
+    /// <c>TerrainGrid.Awake</c> the island; read by <see cref="Difficulty.Active"/>
+    /// and <see cref="IslandOptions.Active"/> in place of the developer's saved
+    /// menu choices, which a sweep must never see. Strings rather than enums so
+    /// this file stays free of the sim-only types.
+    /// </summary>
+    public static string Difficulty = "";
+    public static string IslandSize = "";
+    public static string IslandStyle = "";
+
+    /// <summary>Case-insensitive lookup of a name in a name table; -1 when empty or unknown.</summary>
+    public static int IndexOfName(string[] names, string name)
+    {
+        if (string.IsNullOrEmpty(name)) return -1;
+        for (int i = 0; i < names.Length; i++)
+            if (string.Equals(names[i], name.Trim(), System.StringComparison.OrdinalIgnoreCase)) return i;
+        return -1;
+    }
 }

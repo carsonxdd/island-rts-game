@@ -136,6 +136,8 @@ public static class Difficulty
     public static Level Selected = Level.Normal;
 
     private static Preset activeRun;
+    private static string simName;
+    private static Preset simPreset;
 
     /// <summary>
     /// The rules in force right now.
@@ -153,7 +155,19 @@ public static class Difficulty
     {
         get
         {
-            if (SimHooks.Simulating) return Get(Level.Normal);
+            if (SimHooks.Simulating)
+            {
+                // The sweep names its preset (2026-09-11); anything else is Normal.
+                // Resolved once per name: this is read per frame by the food tick
+                // and LevelNames allocates.
+                if (!ReferenceEquals(simName, SimHooks.Difficulty))
+                {
+                    simName = SimHooks.Difficulty;
+                    int i = SimHooks.IndexOfName(LevelNames, simName);
+                    simPreset = Get(i >= 0 && i < (int)Level.Custom ? (Level)i : Level.Normal);
+                }
+                return simPreset;
+            }
             return activeRun ?? Get(Selected);
         }
     }

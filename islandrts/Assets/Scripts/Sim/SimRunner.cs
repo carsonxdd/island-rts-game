@@ -120,7 +120,7 @@ public class SimRunner : MonoBehaviour
 
         // Run 0's unit and terrain knobs must be live before the very first
         // scene Awake — TerrainGrid builds the island AND the NavMesh there.
-        SimOverrides.Active = instance.queue[0];
+        Activate(instance.queue[0]);
         Random.InitState(instance.queue[0].seed);
 
         go.SetActive(true);
@@ -211,6 +211,21 @@ public class SimRunner : MonoBehaviour
 
     // ---- run control ------------------------------------------------------
 
+    /// <summary>
+    /// Makes a config the live one: the unit/terrain knobs through
+    /// <see cref="SimOverrides.Active"/> and the rule-set names through
+    /// <see cref="SimHooks"/> (2026-09-11). Must run BEFORE the run's scene
+    /// loads - ResourceManager.Awake reads the difficulty, TerrainGrid.Awake the
+    /// island - which is why run 0 does it from Bootstrap.
+    /// </summary>
+    private static void Activate(SimConfig cfg)
+    {
+        SimOverrides.Active = cfg;
+        SimHooks.Difficulty = cfg.difficulty ?? "";
+        SimHooks.IslandSize = cfg.islandSize ?? "";
+        SimHooks.IslandStyle = cfg.islandStyle ?? "";
+    }
+
     private void BeginNextRun(bool alreadyLoaded)
     {
         index++;
@@ -221,7 +236,7 @@ public class SimRunner : MonoBehaviour
         }
 
         SimConfig cfg = queue[index];
-        SimOverrides.Active = cfg;
+        Activate(cfg);
         Random.InitState(cfg.seed);
 
         // GameManager pauses the game on victory/defeat with Time.timeScale = 0,

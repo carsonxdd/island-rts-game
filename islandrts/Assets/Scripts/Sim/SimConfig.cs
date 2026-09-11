@@ -115,6 +115,20 @@ public class SimConfig
     public float dayLengthSeconds = -1f;
     public float nightLengthSeconds = -1f;
 
+    [Header("Rule set (2026-09-11)")]
+    /// <summary>
+    /// Difficulty preset by name (Peaceful / Relaxed / Normal / Hard / Brutal);
+    /// empty = Normal. Applies every multiplier the menu's preset would (raid
+    /// size and frequency, enemy stats, night length, starting resources, food)
+    /// EXCEPT the calendar length: <see cref="daysToSurvive"/> stays the sweep's
+    /// own, so a Peaceful row wants 20 written into it to match the shipped rule.
+    /// </summary>
+    public string difficulty = "";
+    /// <summary>Island size by name (Small / Medium / Large); empty = Medium.</summary>
+    public string islandSize = "";
+    /// <summary>Terrain style by name (Rolling / Terraced / Rugged); empty = Terraced.</summary>
+    public string islandStyle = "";
+
     public string Label(int index)
     {
         return string.IsNullOrEmpty(id) ? $"run{index:D4}" : id;

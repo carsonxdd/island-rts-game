@@ -77,7 +77,17 @@ public static class IslandOptions
         get
         {
             if (SimHooks.Simulating)
-                return new Snapshot { size = Size.Medium, style = IslandSettings.Style.Terraced, seed = 0 };
+            {
+                // The sweep names its island (2026-09-11); anything else is the standard one.
+                int s = SimHooks.IndexOfName(SizeNames, SimHooks.IslandSize);
+                int t = SimHooks.IndexOfName(IslandSettings.StyleNames, SimHooks.IslandStyle);
+                return new Snapshot
+                {
+                    size = s >= 0 ? (Size)s : Size.Medium,
+                    style = t >= 0 ? (IslandSettings.Style)t : IslandSettings.Style.Terraced,
+                    seed = 0,
+                };
+            }
             if (activeRun.HasValue) return activeRun.Value;
             return new Snapshot { size = SelectedSize, style = SelectedStyle, seed = SelectedSeed };
         }

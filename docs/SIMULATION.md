@@ -310,11 +310,64 @@ these. Every field defaults to `-1`, so a run only has to name what it varies.
 | `dayLengthSeconds`, `nightLengthSeconds` | `DayNightCycle` |
 | `foodPerDay` | `PopulationManager` — food each colonist eats per calendar day (2026-09-04); `0` switches eating off, `-1` keeps the shipping 1 |
 | `daysToSurvive`, `maxGameSeconds` | `GameManager` / the run's hard stop (a 30-day run is 4500 s of game time at the shipping clock) |
+| `difficulty` | the preset by name (`Peaceful` / `Relaxed` / `Normal` / `Hard` / `Brutal`, 2026-09-11) — `Difficulty.Active` reads it under the sim through `SimHooks.Difficulty`, so every multiplier the menu's preset carries applies (raid size and frequency, enemy stats, night length, starting resources, food) EXCEPT the calendar: `daysToSurvive` stays the run's own, so a Peaceful row wants `20` written into it. Empty = Normal |
+| `islandSize`, `islandStyle` | the island by name (`Small` / `Medium` / `Large`, `Rolling` / `Terraced` / `Rugged`, 2026-09-11) — `IslandOptions.Active` reads them under the sim through `SimHooks.IslandSize` / `IslandStyle`. Empty = Medium · Terraced |
+
+The three names are published by `SimRunner.Activate` next to `SimOverrides.Active`,
+BEFORE the run's scene loads: `ResourceManager.Awake` reads the difficulty and
+`TerrainGrid.Awake` the island, and run 0 gets them from `Bootstrap`.
 
 Unit knobs can't be applied by patching the prefab (a `public float` on a unit
 script is dead data — the prefab wins — and unit `Start`s copy the value into the
 AI blackboard immediately). So each unit calls `SimOverrides.Apply(this)` at the
 top of its `Start`, guarded by `UNITY_EDITOR || DEVELOPMENT_BUILD`.
+
+---
+
+## The overnight batch
+
+```powershell
+.\tools\run-overnight.ps1 -DryRun     # writes the sweep files, checks the build, prints the run count
+.\tools\run-overnight.ps1             # close the editor first
+```
+
+One command before bed (2026-09-11). `run-overnight.ps1` keeps the machine
+awake (`SetThreadExecutionState`; the dev box sleeps after an hour otherwise),
+rebuilds the sim player in batchmode (`SimTools.BuildSimPlayerBatch`, so **the
+editor must be closed** — it tests whether `Temp/UnityLockfile` is held, not
+whether it exists), refuses to continue unless `Assembly-CSharp.dll` is newer
+than the build started, then plays four headless sweeps through `run-sim.ps1
+-Parallel 8` and files each under `SimLogs/overnight-<date>/<sweep>/` (its
+`runs.csv`, `days.csv`, `player-N.log`) next to the `<sweep>.sweep.json` it
+played and a `<sweep>.manifest.csv` mapping every config id to its cell
+(variant, strategy, island). When the last sweep ends, `summarize-sim.ps1`
+writes **`REPORT.md`** beside them — that is the morning read. A failed build
+stops everything; a failed sweep is logged and the next one runs.
+
+| Sweep | Cells | Runs | Question |
+|---|---|---|---|
+| `baseline` | Turtle / Rush / Eco × 12 islands × 3 repeats | 108 | the fresh win-rate baseline (every pre-09-10 one is invalid) |
+| `raids` | `raidSizePerDay` 0.25 / 0.55 / 0.70, `raidMinQuietNights` 1 / 3, `raidSizePerProsperity` 0.04 / 0.12, `raidBaseSize` 3 — one knob at a time × 3 strategies × 6 islands | 144 | where each strategy's win rate crosses 50%; the shipped cell is the baseline |
+| `difficulty` | Peaceful (20 days) / Relaxed (20) / Normal / Hard / Brutal × 3 × 6 islands | 90 | ladder spacing |
+| `islands` | 3 sizes × 3 styles × 3 × 4 islands | 108 | a `SizeScale`- or style-dependent stall |
+
+Ids are `<variant>__<strategy>__<island>` (repeats append `_s<seed>`, which
+`Cell-Of` strips), and `terrainSeed` = `seed` throughout, so an island number
+is the same island in every sweep. Headless runs at 15–30× realtime here, so
+the 450 runs are roughly five hours at eight processes. Any one sweep replays
+alone with `run-sim.ps1 -Sweep SimLogs\overnight-<date>\raids.sweep.json`, and
+the report can be regenerated any time with `summarize-sim.ps1 -Dir <folder>`.
+
+**Reading `REPORT.md`:** the *At a glance* table first, then each sweep's
+variant × strategy table — `n`, wins, win rate with a Wilson 95% interval
+(n = 6 is ±35 pp, n = 36 is ±15 pp; a one-cell difference inside the interval
+is not a finding), mean loss day, raid nights, mean `campfire_hp_min` on raid
+nights, warriors lost, mean `weapons_dawn`, `ring_holes`, hungry dawns, and
+error/timeout rows. **Read err/timeout first** — those are harness problems,
+and a sweep short of its expected count means a process died (see
+`overnight.log`). The baseline also gets an island × strategy grid with the
+loss day in each cell: an island every strategy loses on the same early day is
+a map problem, not a policy one.
 
 ---
 
@@ -417,6 +470,8 @@ machine's audio driver down.
 | `Assets/Scripts/CosmeticRng.cs` | The random stream cosmetics draw from instead of the global one |
 | `Assets/Editor/Sim/SimTools.cs` | Menu items + the headless player build |
 | `tools/run-sim.ps1` | Launch the player (`-Visual` to watch), wait, summarise |
+| `tools/run-overnight.ps1` | The unattended batch: keep awake, rebuild, four sweeps, report (2026-09-11) |
+| `tools/summarize-sim.ps1` | `REPORT.md` for a folder of sweep results — rerunnable on its own |
 
 Hooks added to existing scripts (all guarded, all one-liners): `Worker.Start`,
 `Warrior.Start`, `Enemy.Start`, `TerrainGrid.Awake` (overrides);

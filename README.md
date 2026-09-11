@@ -90,6 +90,8 @@ islandrts/Assets/
 SimSweeps/                       # Sweep definitions (JSON) and kept baselines
 tools/
 ├── run-sim.ps1                  # Runs a balance sweep; -Visual watches it, -Lab tiles nine windows
+├── run-overnight.ps1            # Unattended batch: rebuild, four sweeps, REPORT.md
+├── summarize-sim.ps1            # REPORT.md for any folder of sweep results
 └── verify-scripts.py            # Roslyn compile check of every script in four configs, no Unity launch
 docs/
 ├── ALPHA_PLAN.md                # The road to a build in a tester's hands (live)
@@ -150,6 +152,61 @@ Deeper technical notes, the gotcha list and the session log: [`.claude/CLAUDE.md
 | **Fog of war** | The island starts dark and clears for good as your people and buildings see it; ground nobody is watching sits in a grey shroud. Raiders show only while something of yours can see them, so a raid can be an ambush and the Watchtower's long sight is its second job. Colonists only gather and fetch on explored ground, warriors only fight raiders something of yours can see, and nothing can be placed in the dark. A north-up minimap in the top-right corner draws the explored island, your buildings, walls and people, raiders on watched ground, the camera's footprint, and a red pulse where the last raid came ashore; click or drag it to move the camera. |
 | **Readability** | Anything standing between the camera and one of your people (a tree, hut, tower, workshop, shipyard or wall) stays solid but opens a soft see-through window right where they are, so nobody is ever lost behind a canopy. Hover glow is emissive so it works through it. |
 | **Balance sim** | Scripted strategies play full games and write CSVs, so balance is measured rather than guessed. Headless for sweeps; `-Visual` renders the same run with a spectator camera, and `-Lab` tiles nine windows — three islands, each played three ways side by side — with a live dashboard in the terminal. See [`docs/SIMULATION.md`](docs/SIMULATION.md). |
+
+---
+
+## Simulation
+
+Scripted strategies (Turtle / Rush / Eco) play whole games without a human and write CSVs. Full guide: [`docs/SIMULATION.md`](docs/SIMULATION.md). Everything below runs from the repo root in PowerShell and needs the sim player built once (`Tools > Island RTS > Simulation > Build Headless Sim Player`, or let the overnight script do it). **Rebuild the sim player after any code change** — a script-only build rewrites `Build/SimPlayer/islandrts-sim_Data/Managed/Assembly-CSharp.dll`, so check that file's date, not the exe's.
+
+### The four ways to run it
+
+| Command | What you get |
+|---|---|
+| `.\tools\run-sim.ps1 -Sweep SimSweeps\baseline.json -Parallel 4` | **Headless sweep.** Numbers only, 15–30× realtime per process. `runs.csv` + `days.csv` in `SimLogs/`. |
+| `.\tools\run-sim.ps1 -Sweep SimSweeps\watch.json -Visual` | **Watch one.** Same decisions as headless, drawn in a window with a spectator camera and a metrics caption. ~4× by day, ~2× during a raid. |
+| `.\tools\run-sim.ps1 -Lab` | **The lab.** Nine tiled windows: three islands (rows) each played three ways (columns), a live dashboard in the terminal, lost cells respawn for the first `-RespawnMinutes` 10. `-Seeds 7,8,9`, `-Strategies Eco`, `-WindowSize 480x270`. |
+| `.\tools\run-overnight.ps1` | **Overnight batch.** Close the editor first. Keeps the PC awake, rebuilds the sim player, plays `baseline` / `raids` / `difficulty` / `islands` headless at `-Parallel 8` (~450 runs, ~5 h), writes `SimLogs/overnight-<date>/REPORT.md`. `-DryRun` to preview, `-SkipBuild`, `-Sweeps baseline,raids`. |
+
+Afterwards: `.\tools\summarize-sim.ps1 -Dir SimLogs\overnight-<date>` regenerates the report for any folder of sweep results. `SimSweeps/smoke.json` is a two-minute sanity run; `Tools > Island RTS > Simulation > Run Sweep In Editor…` plays a sweep inside the editor.
+
+### Writing a sweep
+
+A sweep is a JSON file: process-wide options plus a list of runs. Every knob defaults to `-1` = "don't override", so a run only names what it varies.
+
+```json
+{
+  "outputDir": "SimLogs", "captureDeltaTime": 0.016666668,
+  "repeats": 3, "maxWallSecondsPerRun": 2400, "respawnWallMinutes": 0,
+  "runs": [
+    { "id": "hard_eco", "strategy": "Eco", "seed": 1042, "terrainSeed": 1042,
+      "difficulty": "Hard", "islandSize": "Large", "islandStyle": "Rugged",
+      "raidSizePerDay": 0.55 }
+  ]
+}
+```
+
+Sweep-level: `repeats` (the whole list again with `seed + 1`, ids suffixed `_s<seed>`; `terrainSeed` is kept, so a repeat is the same island with different dice), `maxWallSecondsPerRun` (real-seconds ceiling; a frozen clock is caught separately), `respawnWallMinutes` (replay a lost run while the sweep is younger than this), `renderFrameInterval` / `renderFrameIntervalRaid` (visual draw rate only, never a decision).
+
+Per run:
+
+| Group | Fields |
+|---|---|
+| Identity | `id`, `strategy` (Turtle / Rush / Eco), `seed` (all RNG), `terrainSeed` (the island; `-1` = the scene's), `daysToSurvive`, `maxGameSeconds` |
+| Rule set | `difficulty` (Peaceful / Relaxed / Normal / Hard / Brutal — every preset multiplier, but NOT the calendar: write `daysToSurvive` 20 for the gentle two yourself), `islandSize` (Small / Medium / Large), `islandStyle` (Rolling / Terraced / Rugged) |
+| Economy | `startingWood`, `startingFood`, `startingStone`, `workerGatherRate`, `workerCarryCapacity`, `foodPerDay` (0 = nobody eats) |
+| Raids, when | `raidFirstDay`, `raidBaseChance`, `raidChancePerQuietDay`, `raidMaxQuietDays`, `raidMinQuietNights` |
+| Raids, how big | `raidBaseSize`, `raidSizePerDay`, `raidSizePerProsperity` — size = `base + perDay × day + perProsperity × prosperity` |
+| Raiders | `enemyHealth`, `enemyDamage`, `enemyMoveSpeed`, `enemyAttackCooldown`, `enemyWarriorDetectionRange`, `spawnInterval`, `spawnDelay`, `spawnDistance` |
+| Militia | `warriorHealth`, `warriorDamage`, `warriorMoveSpeed`, `warriorAttackCooldown`, `warriorCostFood`, `maxWarriors` (0 = no cap), `warriorSearchRadius`, `warriorPatrolRadius`, `warriorHealRate` |
+| Buildings | `hutHealth`, `campfireHealth`, `watchtowerHealth`, `watchtowerDamageMultiplier`, `watchtowerBuffRadius` |
+| Clock | `dayLengthSeconds`, `nightLengthSeconds` |
+
+The schema is `Assets/Scripts/Sim/SimConfig.cs`; if a knob is missing here, that file is the truth. Ready-made sweeps live in `SimSweeps/` and every overnight sweep is saved next to its results, so any of them replays alone with `run-sim.ps1 -Sweep <file>`.
+
+### Reading the results
+
+`runs.csv` is one row per game (outcome, day reached, raids, kills, peaks, finals, wall time). `days.csv` is one row per calendar day: resources and population at dusk and dawn, raid size, `campfire_hp_min` (200 or 5 — the fire dies in one night or not at all), `idle_dawn`, `weapons_dawn`, `sticks_dawn`, `chunks_dawn`, `queue_dawn`, `warriors_lost`, `ring_holes`. Read error/timeout rows first — those are harness problems, not balance — and never call a one-or-two-run difference a finding: runs are comparable, not reproducible (async NavMesh, job order), and n = 12 is about ±13 pp on a win rate.
 
 ---
 
