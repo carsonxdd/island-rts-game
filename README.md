@@ -151,7 +151,7 @@ Deeper technical notes, the gotcha list and the session log: [`.claude/CLAUDE.md
 | **Weather and light** | A sky condition rolled each dawn: drifting cloud puffs whose shade slides across the island as the sun's light cookie. Graphics presets in Options. |
 | **Fog of war** | The island starts dark and clears for good as your people and buildings see it; ground nobody is watching sits in a grey shroud. Raiders show only while something of yours can see them, so a raid can be an ambush and the Watchtower's long sight is its second job. Colonists only gather and fetch on explored ground, warriors only fight raiders something of yours can see, and nothing can be placed in the dark. A north-up minimap in the top-right corner draws the explored island, your buildings, walls and people, raiders on watched ground, the camera's footprint, and a red pulse where the last raid came ashore; click or drag it to move the camera. |
 | **Readability** | Anything standing between the camera and one of your people (a tree, hut, tower, workshop, shipyard or wall) stays solid but opens a soft see-through window right where they are, so nobody is ever lost behind a canopy. Hover glow is emissive so it works through it. |
-| **Balance sim** | Scripted strategies play full games and write CSVs, so balance is measured rather than guessed. Headless for sweeps; `-Visual` renders the same run with a spectator camera, and `-Lab` tiles nine windows — three islands, each played three ways side by side — with a live dashboard in the terminal. See [`docs/SIMULATION.md`](docs/SIMULATION.md). |
+| **Balance sim** | Scripted strategies play full games and write CSVs, so balance is measured rather than guessed. Headless for sweeps, with a live dashboard in the terminal; `-Visual` renders the same run with a spectator camera, `-Lab` tiles nine windows — three islands, each played three ways side by side — and `run-overnight.ps1` plays four sweeps unattended and writes a report. See the **Simulation** section below and [`docs/SIMULATION.md`](docs/SIMULATION.md). |
 
 ---
 
@@ -163,7 +163,7 @@ Scripted strategies (Turtle / Rush / Eco) play whole games without a human and w
 
 | Command | What you get |
 |---|---|
-| `.\tools\run-sim.ps1 -Sweep SimSweeps\baseline.json -Parallel 4` | **Headless sweep.** Numbers only, 15–30× realtime per process. `runs.csv` + `days.csv` in `SimLogs/`. |
+| `.\tools\run-sim.ps1 -Sweep SimSweeps\baseline.json -Parallel 4` | **Headless sweep.** No windows, 15–30× realtime per process; the terminal shows a live dashboard (one row per process: day, colonists, food, warriors, campfire, state; a finished-runs counter; the survive tally). `runs.csv` + `days.csv` in `SimLogs/`. |
 | `.\tools\run-sim.ps1 -Sweep SimSweeps\watch.json -Visual` | **Watch one.** Same decisions as headless, drawn in a window with a spectator camera and a metrics caption. ~4× by day, ~2× during a raid. |
 | `.\tools\run-sim.ps1 -Lab` | **The lab.** Nine tiled windows: three islands (rows) each played three ways (columns), a live dashboard in the terminal, lost cells respawn for the first `-RespawnMinutes` 10. `-Seeds 7,8,9`, `-Strategies Eco`, `-WindowSize 480x270`. |
 | `.\tools\run-overnight.ps1` | **Overnight batch.** Close the editor first. Keeps the PC awake, rebuilds the sim player, plays `baseline` / `raids` / `difficulty` / `islands` headless at `-Parallel 8` (~450 runs, ~5 h), writes `SimLogs/overnight-<date>/REPORT.md`. `-DryRun` to preview, `-SkipBuild`, `-Sweeps baseline,raids`. |
