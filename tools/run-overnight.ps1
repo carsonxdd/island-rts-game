@@ -266,6 +266,11 @@ public static extern uint SetThreadExecutionState(uint esFlags);
 }
 [void][Win32KeepAwake]::SetThreadExecutionState([uint32]0x80000000 -bor [uint32]0x00000001)
 
+# Everything printed from here on (the build line, each sweep's summary table,
+# the report's "Wrote" line) also lands in console.log. The dashboard's
+# in-place redraws are console cursor writes and are not transcribed.
+try { Start-Transcript -Path (Join-Path $outPath "console.log") -Append | Out-Null } catch { }
+
 $results = @()
 try {
     # ---- build ------------------------------------------------------------
@@ -293,7 +298,11 @@ try {
 
         $ok = $true
         try {
-            & $runSim -Sweep $plan.file -Parallel $Parallel *>&1 | ForEach-Object { Add-Content -Path $logFile -Value ("    " + $_) -Encoding utf8 }
+            # Not captured: run-sim.ps1 draws its live dashboard on the console
+            # (one row per process, day / pop / food / warriors / fire / state,
+            # a finished-runs counter and the survive tally), the same one the
+            # lab shows. The transcript started above keeps its printed summary.
+            & $runSim -Sweep $plan.file -Parallel $Parallel
         } catch {
             $ok = $false
             Log ("!!! {0} FAILED: {1}" -f $plan.name, $_.Exception.Message)
@@ -323,7 +332,7 @@ finally {
 # ---- report -------------------------------------------------------------
 Log "Writing report"
 try {
-    & $summarize -Dir $outPath -Commit $commit -Started $startedAt *>&1 | ForEach-Object { Add-Content -Path $logFile -Value ("    " + $_) -Encoding utf8 }
+    & $summarize -Dir $outPath -Commit $commit -Started $startedAt
     Log "Report    : $(Join-Path $outPath 'REPORT.md')"
 } catch {
     Log ("!!! report FAILED: {0}" -f $_.Exception.Message)
@@ -331,3 +340,4 @@ try {
 
 Log ("=== DONE in {0:hh\:mm\:ss} ===" -f ((Get-Date) - $startedAt))
 $results | Format-Table name, ok, rows, expected, bad, elapsed -AutoSize
+try { Stop-Transcript | Out-Null } catch { }

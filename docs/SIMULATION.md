@@ -151,11 +151,14 @@ survived: Eco 1/1
 
 It redraws once a second in place. Neither CSV can feed it — `runs.csv` and
 `days.csv` are both appended when a run *ends*, so during the twenty minutes a run
-takes they say nothing at all. Each visual process instead overwrites a one-line
-`status.csv` in its own shard directory once a second (`SimStatus`), which is what
-the rows read; the `survived` tally comes from the shards' `runs.csv`, the real
-record. Headless sweeps write no heartbeat: nobody is watching, and six processes
-touching a file every second is cost for nothing.
+takes they say nothing at all. Each process instead overwrites a one-line
+`status.csv` in its own shard directory once a REAL second (`SimStatus`, throttled
+in `SimRunner.PushOverlay` because a headless process plays 15–30 game seconds a
+second), which is what the rows read; the `survived` tally and the finished-runs
+counter in the title line come from the shards' `runs.csv`, the real record.
+Since 2026-09-11 the dashboard runs in every mode — a headless sweep (and each
+sweep of the overnight batch) shows its eight processes the same way the lab
+shows nine windows, titled `SIMULATION HEADLESS`.
 
 **Draw rate follows the raid** (2026-09-10): one frame in 11 while the island is
 quiet (about 4x realtime) and one in 5 while raiders are on it (about 2x), switched

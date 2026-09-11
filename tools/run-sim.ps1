@@ -306,7 +306,7 @@ function Format-SimRow {
 }
 
 function Watch-SimRuns {
-    param($Procs, [string[]]$ShardDirs, $Started)
+    param($Procs, [string[]]$ShardDirs, $Started, [int]$TotalRuns = 0, [string]$Title = "SIMULATION LAB")
 
     # Redrawing in place needs a console with a real cursor. Anything redirected
     # (a CI log, a pipe) silently does not, so fall back to waiting quietly.
@@ -317,7 +317,7 @@ function Watch-SimRuns {
         return
     }
 
-    $header = "{0,-16} {1,6} {2,5} {3,5} {4,5} {5,5}  {6}" -f "window", "day", "pop", "food", "war", "fire", "state"
+    $header = "{0,-16} {1,6} {2,5} {3,5} {4,5} {5,5}  {6}" -f "process", "day", "pop", "food", "war", "fire", "state"
     $blockLines = $Procs.Count + 5
 
     for ($i = 0; $i -lt $blockLines; $i++) { Write-Host "" }
@@ -330,7 +330,15 @@ function Watch-SimRuns {
 
             $lines = New-Object System.Collections.Generic.List[string]
             $elapsed = (Get-Date) - $Started
-            $lines.Add(("SIMULATION LAB      elapsed {0:mm\:ss}      {1} of {2} windows running" -f $elapsed, $alive, $Procs.Count))
+            # Finished runs come from the shards' runs.csv (appended only when a
+            # run ENDS), so the counter and the tally below agree by construction.
+            $finished = 0
+            foreach ($d in $ShardDirs) {
+                $f = Join-Path $d "runs.csv"
+                if (Test-Path $f) { try { $finished += @(Import-Csv $f -ErrorAction Stop).Count } catch { } }
+            }
+            $progress = if ($TotalRuns -gt 0) { "{0} of {1} runs finished" -f $finished, $TotalRuns } else { "{0} runs finished" -f $finished }
+            $lines.Add(("{0,-18} elapsed {1:hh\:mm\:ss}   {2} of {3} processes running   {4}" -f $Title, $elapsed, $alive, $Procs.Count, $progress))
             $lines.Add("")
             $lines.Add($header)
 
@@ -416,7 +424,11 @@ for ($i = 0; $i -lt $Parallel; $i++) {
     }
     else {
         $shardArgs = @("-batchmode", "-nographics", "-simconfig", $shardFile, "-logFile", $log)
-        $proc = Start-Process -FilePath $exe -ArgumentList $shardArgs -PassThru -NoNewWindow -WorkingDirectory $root
+        # A batchmode player shares this console and prints Unity's memory-setup
+        # banner into it, which would scroll the dashboard off the screen eight
+        # times over. Its stdout goes to a file beside the shard instead.
+        $stdout = Join-Path $shardDir "stdout-$i.log"
+        $proc = Start-Process -FilePath $exe -ArgumentList $shardArgs -PassThru -NoNewWindow -WorkingDirectory $root -RedirectStandardOutput $stdout
     }
     $jobs += $proc
     $shardOutDirs += (Join-Path $logDir "shards\$i")
@@ -425,8 +437,13 @@ for ($i = 0; $i -lt $Parallel; $i++) {
 
 if ($Visual) { Place-SimWindows -Procs $jobs -CellW $winW -CellH $winH -Cols $gridCols }
 
-if ($Visual) { Watch-SimRuns -Procs $jobs -ShardDirs $shardOutDirs -Started $started }
-else         { $jobs | ForEach-Object { $_.WaitForExit() } }
+# The dashboard runs in both modes (2026-09-11): a headless process writes the
+# same status.csv heartbeat, so an overnight sweep shows its eight processes
+# the way the lab shows its nine windows. Redirected consoles fall back to a
+# quiet wait inside Watch-SimRuns.
+$totalRuns = $allRuns.Count * [Math]::Max(1, [int]$sweepJson.repeats)
+$title = if ($Lab) { "SIMULATION LAB" } elseif ($Visual) { "SIMULATION VISUAL" } else { "SIMULATION HEADLESS" }
+Watch-SimRuns -Procs $jobs -ShardDirs $shardOutDirs -Started $started -TotalRuns $totalRuns -Title $title
 $elapsed = (Get-Date) - $started
 Write-Host ""
 Write-Host ("Finished in {0:mm\:ss}" -f $elapsed)

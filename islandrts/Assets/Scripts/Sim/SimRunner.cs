@@ -60,6 +60,7 @@ public class SimRunner : MonoBehaviour
     private SimMetrics.DayRow night;   // the row for the night in progress (dusk → dawn)
 
     private SimVisualOverlay.Frame lastFrame;
+    private float lastStatusWriteReal = -10f;
 
     private bool runActive;
     private float sweepStartRealTime;
@@ -441,9 +442,9 @@ public class SimRunner : MonoBehaviour
                 SimState state = BuildState();
                 SimPlayerDriver.Tick(state);   // the character's legs: materials + bench labor
                 policy.Tick(state);
+                PushOverlay(cfg, state);
                 if (SimHooks.Visual)
                 {
-                    PushOverlay(cfg, state);
                     // Skim the quiet day, watch the fight (2026-09-10): the draw
                     // interval is the ONE speed knob that leaves decisions alone,
                     // so it is the one that follows the raid. Once a second is
@@ -460,8 +461,12 @@ public class SimRunner : MonoBehaviour
     }
 
     /// <summary>
-    /// Mirror the second's state onto the on-screen caption. Visual runs only,
-    /// and it reads nothing the policy did not already read.
+    /// Mirror the second's state onto the on-screen caption and the launcher's
+    /// heartbeat file. Both modes since 2026-09-11 (the overnight batch shows the
+    /// same dashboard as the lab); it reads nothing the policy did not already
+    /// read. The FILE write is throttled to one per real second: this runs once
+    /// per GAME second, and headless that is 15-30 times a real second per
+    /// process, eight processes at a time.
     /// </summary>
     private void PushOverlay(SimConfig cfg, SimState state)
     {
@@ -498,7 +503,12 @@ public class SimRunner : MonoBehaviour
         SimVisualOverlay.Push(lastFrame);
         // The launcher's dashboard reads this: neither CSV exists until the run
         // is over, so a live view has nowhere else to read from.
-        SimStatus.Write(outputDir, lastFrame, "");
+        float now = Time.realtimeSinceStartup;
+        if (now - lastStatusWriteReal >= 1f)
+        {
+            lastStatusWriteReal = now;
+            SimStatus.Write(outputDir, lastFrame, "");
+        }
     }
 
     private SimState BuildState()
@@ -693,14 +703,11 @@ public class SimRunner : MonoBehaviour
 
         // Leave the outcome standing in the heartbeat: the next run overwrites it
         // a second after it starts, and if this was the last one the dashboard's
-        // final redraw shows how the window ended rather than a stale mid-run row.
-        if (SimHooks.Visual)
-        {
-            lastFrame.runId = metrics.configId;
-            lastFrame.strategy = metrics.strategy;
-            lastFrame.day = metrics.dayReached;
-            SimStatus.Write(outputDir, lastFrame, metrics.outcome);
-        }
+        // final redraw shows how the process ended rather than a stale mid-run row.
+        lastFrame.runId = metrics.configId;
+        lastFrame.strategy = metrics.strategy;
+        lastFrame.day = metrics.dayReached;
+        SimStatus.Write(outputDir, lastFrame, metrics.outcome);
 
         QueueRespawn(queue[index], metrics.outcome);
         BeginNextRun(alreadyLoaded: false);

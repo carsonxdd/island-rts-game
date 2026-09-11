@@ -12,9 +12,10 @@ using UnityEngine;
 /// files say nothing at all. So a visual run overwrites `status.csv` in its own
 /// output directory once a second with the state the policy just acted on.
 ///
-/// Visual runs only. A headless sweep writes nothing here: there is no one
-/// watching, and six processes hammering a file every second is cost for
-/// nothing.
+/// Both modes since 2026-09-11: the overnight batch shows the same dashboard
+/// for a headless sweep. SimRunner throttles the write to one per REAL second
+/// (a headless process runs 15-30 game seconds a second), so eight processes
+/// cost eight small writes a second between them.
 /// </summary>
 public static class SimStatus
 {
