@@ -8,6 +8,12 @@ using UnityEngine;
 /// Any worker job qualifies: sticks and stones cover wood and stone, and
 /// salvage crates put food on the shore. A job with no matching pickup on the
 /// island (metal) simply finds nothing and scores 0.
+///
+/// Territory (2026-09-11, lap step 3): a pickup outside the colony's own patch
+/// counts as <see cref="Territory.OutsideHomePenalty"/> metres further away.
+/// Since that is far wider than <see cref="AttractRange"/>, the practical effect
+/// is that a job worker tidies its own colony's ground and leaves a neighbour's
+/// litter alone - which is the rule, stated from the worker's end.
 /// </summary>
 public class PickupAvailability : Consideration
 {
@@ -26,7 +32,7 @@ public class PickupAvailability : Consideration
             return 0f;
 
         GroundPickup best = null;
-        float bestSqr = AttractRange * AttractRange;
+        float bestDistance = AttractRange;   // linear, because the territory penalty is in metres
 
         var list = GroundPickup.ActiveList;
         for (int i = 0; i < list.Count; i++)
@@ -42,9 +48,12 @@ public class PickupAvailability : Consideration
             if (bb.faction.IsPlayer && FogOfWar.Instance != null && !FogOfWar.Instance.IsExplored(pos)) continue;   // rivals are omniscient
 
             float sqr = (pos - bb.transform.position).sqrMagnitude;
-            if (sqr < bestSqr)
+            if (sqr > bestDistance * bestDistance) continue;   // cheap cull before the territory read
+
+            float distance = Mathf.Sqrt(sqr) + Territory.PenaltyAt(pos, bb.faction);
+            if (distance < bestDistance)
             {
-                bestSqr = sqr;
+                bestDistance = distance;
                 best = pickup;
             }
         }
@@ -52,6 +61,6 @@ public class PickupAvailability : Consideration
         bb.bestPickup = best;
         if (best == null) return 0f;
 
-        return Mathf.Clamp01(1f - Mathf.Sqrt(bestSqr) / AttractRange);
+        return Mathf.Clamp01(1f - bestDistance / AttractRange);
     }
 }

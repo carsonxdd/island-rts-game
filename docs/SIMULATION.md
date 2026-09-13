@@ -314,6 +314,7 @@ these. Every field defaults to `-1`, so a run only has to name what it varies.
 | `foodPerDay` | `PopulationManager` — food each colonist eats per calendar day (2026-09-04); `0` switches eating off, `-1` keeps the shipping 1 |
 | `daysToSurvive`, `maxGameSeconds` | `GameManager` / the run's hard stop (a 30-day run is 4500 s of game time at the shipping clock) |
 | `difficulty` | the preset by name (`Peaceful` / `Relaxed` / `Normal` / `Hard` / `Brutal`, 2026-09-11) — `Difficulty.Active` reads it under the sim through `SimHooks.Difficulty`, so every multiplier the menu's preset carries applies (raid size and frequency, enemy stats, night length, starting resources, food) EXCEPT the calendar: `daysToSurvive` stays the run's own, so a Peaceful row wants `20` written into it. Empty = Normal |
+| `rivalCount` | rival colonies scheduled to land, 0—2 (2026-09-11, lap step 3). **NOT a `-1` sentinel** — 0 is the meaningful default, and a sweep that leaves it there plays the game every baseline before rivals existed played. `run-sim.ps1 -Lab -Rivals 1` sets it for a whole lab. `rivalStrategy` is reserved for slice B's governor and is read by nothing yet |
 | `islandSize`, `islandStyle` | the island by name (`Small` / `Medium` / `Large`, `Rolling` / `Terraced` / `Rugged`, 2026-09-11) — `IslandOptions.Active` reads them under the sim through `SimHooks.IslandSize` / `IslandStyle`. Empty = Medium · Terraced |
 
 The three names are published by `SimRunner.Activate` next to `SimOverrides.Active`,

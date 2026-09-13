@@ -376,6 +376,10 @@ public class MenuScreens : MonoBehaviour
             i => { IslandOptions.SelectedStyle = (IslandSettings.Style)i; IslandOptions.Save(); Rebuild(); },
             IslandSettings.StyleBlurbs[(int)IslandOptions.SelectedStyle]);
 
+        MenuBuilder.StepperRow(col.transform, "Rivals", IslandOptions.RivalCountNames, IslandOptions.SelectedRivalCount,
+            i => { IslandOptions.SelectedRivalCount = i; IslandOptions.Save(); Rebuild(); },
+            IslandOptions.RivalCountBlurbs[IslandOptions.SelectedRivalCount]);
+
         MenuBuilder.InputRow(col.transform, "Seed", IslandOptions.SelectedSeedText, "random",
             v => { IslandOptions.SelectedSeedText = v; IslandOptions.Save(); },
             "Leave empty for a new island every game. A number or a word replays the same one.");

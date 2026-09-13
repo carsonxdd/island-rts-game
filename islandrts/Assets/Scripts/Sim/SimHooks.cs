@@ -56,6 +56,17 @@ public static class SimHooks
     public static string IslandSize = "";
     public static string IslandStyle = "";
 
+    /// <summary>
+    /// Rival colonies the sweep asked for (2026-09-11, lap step 3). An int
+    /// rather than a name because 0 is meaningful here - it is the default, and
+    /// the whole point of the default is that a sweep with no rivals stays
+    /// comparable with every baseline taken before they existed. Set by
+    /// <see cref="SimRunner"/> BEFORE the scene loads and read by
+    /// <see cref="IslandOptions.Active"/>, because the landing director asks on
+    /// its first frame.
+    /// </summary>
+    public static int RivalCount;
+
     /// <summary>Case-insensitive lookup of a name in a name table; -1 when empty or unknown.</summary>
     public static int IndexOfName(string[] names, string name)
     {

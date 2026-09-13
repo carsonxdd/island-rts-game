@@ -17,6 +17,10 @@ using UnityEngine;
 /// scanned, so exploring is what puts trees on a worker's list — the same rule the
 /// two pickup scans already apply. Scan time only: a worker at a node is standing on
 /// explored ground by definition (its own <c>VisionSource</c>), so nothing re-checks.
+/// Territory (2026-09-11, lap step 3): a node outside this colony's own patch scores
+/// as if it were <see cref="Territory.OutsideHomePenalty"/> metres further away. A
+/// preference, never a reject - when the home patch is empty every candidate pays the
+/// same penalty and the nearest foreign node wins on its own.
 /// </remarks>
 public class ResourceAvailability : Consideration
 {
@@ -81,8 +85,12 @@ public class ResourceAvailability : Consideration
             if (bb.IsNodeUnreachable(node)) continue;  // walled off / off-mesh - skip until its entry expires
             if (!node.HasWorkerRoom(bb.worker)) continue;  // at worker capacity - spill to another node
 
-            // Scoring: distance + crowd penalty (walking there AND already working there)
-            float score = distance + (node.GetWorkerCount() * CrowdPenaltyMetres);
+            // Scoring: distance + crowd penalty (walking there AND already working
+            // there) + the territory penalty. Both penalties are non-negative and
+            // both are added AFTER the prune above, which is what keeps plain
+            // distance a valid lower bound on the score.
+            float score = distance + (node.GetWorkerCount() * CrowdPenaltyMetres)
+                        + Territory.PenaltyAt(node.transform.position, bb.faction);
 
             if (score < bestScore)
             {
@@ -104,6 +112,10 @@ public class ResourceAvailability : Consideration
         }
 
         if (bestNode == null) return 0f;
+
+        // Crossed the line: paid the penalty and still chose it, so the colony's
+        // own patch had nothing left. The dev quest wants to see that happen once.
+        if (Territory.IsOutside(bestNode.transform.position, bb.faction)) Territory.NoteCrossing(bb.faction);
 
         // Normalize: floor = far / crowded, 1 = great (very close, unclaimed). Never 0
         // with a node in hand — 0 means "nothing to gather" and early-outs the action.

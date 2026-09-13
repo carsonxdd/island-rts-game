@@ -5,7 +5,7 @@
 // instance would need the texture pushed by hand.
 //
 // Red is "ever explored", green is "in someone's sight right now", both smoothed on the
-// CPU so a reveal grows rather than pops. Unexplored ground goes near-black; explored
+// CPU so a reveal grows rather than pops. Unexplored ground is one flat fog colour; explored
 // ground nobody is looking at sits in a dim, desaturated shroud; seen ground is drawn
 // as-is. _FogParams.w is 0 wherever no FogOfWar exists (the main menu, the showcase
 // scene, a freshly unloaded game), and an unset float global reads 0, so those draw
@@ -16,7 +16,8 @@
 TEXTURE2D(_FogMask);
 SAMPLER(sampler_FogMask);
 float4 _FogParams;   // x: uv per world metre, y: uv offset (uv = worldXZ * x + y, on texel CENTRES), z: unused, w: 1 = fog active
-float4 _FogLook;     // x: unexplored brightness, y: shroud brightness, z: shroud desaturation, w: unused
+float4 _FogLook;     // x: unused, y: shroud brightness, z: shroud desaturation, w: unused
+float4 _FogColor;    // rgb: unexplored colour, LINEAR, independent of the lit colour
 
 // explored (r) and visible (g), each 0..1, at a world position.
 half2 SampleFogOfWar(float3 positionWS)
@@ -41,7 +42,10 @@ half3 ApplyFogOfWar(half3 rgb, float3 positionWS)
 
     half lum = dot(rgb, half3(0.299, 0.587, 0.114));
     half3 shroud = lerp(rgb, lum.xxx, _FogLook.z) * _FogLook.y;
-    half3 dark = rgb * _FogLook.x;
+    // Unexplored REPLACES the lit colour rather than scaling it (2026-09-12): a multiply
+    // left 4% of noon sunlight on the ground, and the sun/shade contrast of every slope
+    // read as the island's shape through the fog, with the hidden trees missing on top.
+    half3 dark = _FogColor.rgb;
 
     half3 c = lerp(dark, shroud, fog.r);
     return lerp(c, rgb, fog.g);

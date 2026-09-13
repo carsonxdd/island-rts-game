@@ -297,6 +297,117 @@ public class TerrainGrid : MonoBehaviour
         return best;
     }
 
+    // ------------------------------------------------------------------
+    // A second shore (2026-09-11, lap step 3)
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Finds a beach for a colony that is NOT the player's, plus the campfire
+    /// site inland of it. Returns false when the island has no shore far enough
+    /// from <paramref name="awayFrom"/>, which is the right answer on a Small
+    /// island and is never an error.
+    /// </summary>
+    /// <remarks>
+    /// <para>The generator anchors exactly ONE cove (<see cref="CoveCenter"/>)
+    /// with a fixed-height shelf and a ramp so the player's opening is safe. A
+    /// rival cannot have that without regenerating the island, so this walks the
+    /// existing shoreline instead and asks the SAME validity questions the rest
+    /// of the game asks: <see cref="IsBuildable"/> (dry, gentle, reachable) and
+    /// eight NavMesh side samples for standing room, the check
+    /// <c>ResourceNode.HasStandingRoom</c> uses. No new rules.</para>
+    /// <para>Bearings are swept from the map centre and the FARTHEST valid one
+    /// wins, so the answer is deterministic - no draw from
+    /// <c>UnityEngine.Random</c>, whose stream the harness seeds and the AI
+    /// stagger shares.</para>
+    /// <para><paramref name="minDistance"/> is measured to the cove, and every
+    /// caller must scale it by <see cref="SizeScale"/>: a literal metre count is
+    /// wrong on two of the three island sizes.</para>
+    /// </remarks>
+    public bool FindShoreSite(Vector3 awayFrom, float minDistance, out Vector3 cove, out Vector3 campfireSite)
+    {
+        cove = Vector3.zero;
+        campfireSite = Vector3.zero;
+
+        const int Bearings = 72;          // every 5 degrees
+        const float March = 2f;           // outward step while hunting the waterline
+        const float SeawardOffset = 4f;   // how far past the waterline the boat breaks up
+        const float InlandStep = 2f;
+        const float MinInland = 6f;       // never put the fire in the surf
+        const float MaxInland = 30f;      // past this it is not "by their own beach" any more
+
+        float minSqr = minDistance * minDistance;
+        float maxRadius = Half - OceanMargin;
+        float bestDistSqr = minSqr;
+        bool found = false;
+
+        for (int b = 0; b < Bearings; b++)
+        {
+            float a = b * (Mathf.PI * 2f / Bearings);
+            Vector3 dir = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
+
+            // March out from the centre to the first waterline on this bearing.
+            float shoreR = -1f;
+            for (float r = March; r <= maxRadius; r += March)
+            {
+                if (SampleHeight(dir * r) <= 0f) { shoreR = r; break; }
+            }
+            if (shoreR < MinInland + March) continue;   // no land worth landing on this way
+
+            Vector3 candidateCove = dir * (shoreR + SeawardOffset);
+            candidateCove.y = -0.25f;                    // the water plane, as CoveCenter reports it
+
+            Vector3 flat = candidateCove; flat.y = 0f;
+            Vector3 from = awayFrom; from.y = 0f;
+            float distSqr = (flat - from).sqrMagnitude;
+            if (distSqr < bestDistSqr) continue;         // nearer than the best we already have (or than the minimum)
+
+            // Walk inland from the waterline for the first spot a colony can stand on.
+            Vector3 site = Vector3.zero;
+            bool sited = false;
+            for (float inland = MinInland; inland <= MaxInland; inland += InlandStep)
+            {
+                Vector3 p = dir * (shoreR - inland);
+                p.y = SampleHeight(p);
+                if (!IsBuildable(p)) continue;
+                if (!HasStandingRoom(p)) continue;
+                site = p;
+                sited = true;
+                break;
+            }
+            if (!sited) continue;
+
+            cove = candidateCove;
+            campfireSite = site;
+            bestDistSqr = distSqr;
+            found = true;
+        }
+
+        return found;
+    }
+
+    /// <summary>
+    /// Eight NavMesh samples on a 2 m ring, height-matched and reachable: can a
+    /// colony actually stand around a fire here? <see cref="IsReachable"/> alone
+    /// is not enough - its flood fill joins cells across a 0.9 m step, so a cliff
+    /// face reads reachable with no walkable ground near it (2026-09-08).
+    /// </summary>
+    bool HasStandingRoom(Vector3 pos, int minOpenSides = 5)
+    {
+        int open = 0;
+        for (int i = 0; i < 8; i++)
+        {
+            float a = i * 45f * Mathf.Deg2Rad;
+            Vector3 candidate = pos + new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * 2f;
+            NavMeshHit hit;
+            if (!NavMesh.SamplePosition(candidate, out hit, 0.75f, NavMesh.AllAreas)) continue;
+            if (Mathf.Abs(hit.position.y - pos.y) > 1f) continue;
+            if (!IsReachable(hit.position)) continue;
+            open++;
+            if (open >= minOpenSides) return true;
+        }
+        return false;
+    }
+
     /// <summary>
     /// Grass tone 0..1 at a world position (0 = dark valley grass, 1 = dry
     /// plateau meadow) — the same value the material bands use, so scatter

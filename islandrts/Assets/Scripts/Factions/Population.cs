@@ -463,8 +463,11 @@ public sealed class Population
         Vector3 pos;
         if (!atCampfire && TerrainGrid.Instance != null)
         {
-            // One metre east of the cove centre, the same spot the survivor lands on
-            pos = TerrainGrid.Instance.CoveCenter + new Vector3(1f, 0f, 0f);
+            // One metre east of the cove centre, the same spot the survivor lands
+            // on. A rival landed by RivalFounder has its OWN cove on its own far
+            // shore (2026-09-11); everyone else uses the island's anchored one.
+            Vector3 cove = faction.HasCove ? faction.Cove : TerrainGrid.Instance.CoveCenter;
+            pos = cove + new Vector3(1f, 0f, 0f);
             NavMeshHit hit;
             if (NavMesh.SamplePosition(pos, out hit, 6f, NavMesh.AllAreas)) pos = hit.position;
             else pos = fire.GetValidSpawnPosition();

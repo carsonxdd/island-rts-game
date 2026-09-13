@@ -1,6 +1,11 @@
 # Rival Colonies — arrival, territory, then the governor
 
-**Status (2026-09-11): NOTHING BUILT. This is the live plan for lap step 3, written to be executed from a clean context.**
+**Status (2026-09-11): SLICE A IS BUILT, uncommitted, unplaytested and unswept. Slice B is untouched and is still the live plan below.**
+Slice A landed A1—A7 as written, with three decisions taken at the start: the territory penalty of A4 applies to EVERY
+colony including the player's (so post-2026-09-11 baselines are not comparable until a `rivalCount: 0` regression lab
+says they are), the patch radius reuses `ForageAvailability.HomeRadius` 70, and `ForageAvailability` itself needed no
+change because its own-campfire radius already was the rule. What is still owed on Slice A: rebuild the sim player,
+the `rivalCount: 0` regression lab, the playtest batch in `DevQuests.txt`, then a `rivalCount: 1` lab to watch it.
 Step 1 (factions) landed 2026-09-09. Step 2 (spatial hash + AI LOD) is NOT done and is not a prerequisite for Slice A.
 `docs/ARCHITECTURE_LAP_PLAN.md` step 3 holds the same decisions in summary; this file is the working detail.
 Read `.claude/CLAUDE.md` first — its Factions and Utility AI gotcha sections are load-bearing for everything below.

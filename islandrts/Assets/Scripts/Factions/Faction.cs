@@ -37,6 +37,21 @@ public sealed class Faction
     /// </summary>
     public BaseBuilding Campfire { get; set; }
 
+    /// <summary>
+    /// Where this colony's survivors come ashore, and what Idle walks them in
+    /// from (2026-09-11, lap step 3). Set by <see cref="RivalFounder"/> for a
+    /// rival that lands on its own far shore; left unset for the player, whose
+    /// cove is the island generator's anchored one (<c>TerrainGrid.CoveCenter</c>).
+    /// <c>Population.SpawnArrival</c> is the only reader - before this every
+    /// faction's arrivals landed on the PLAYER's beach.
+    /// </summary>
+    public Vector3 Cove { get; private set; }
+
+    /// <summary>False until <see cref="SetCove"/> runs; the island's own cove is then the answer.</summary>
+    public bool HasCove { get; private set; }
+
+    public void SetCove(Vector3 cove) { Cove = cove; HasCove = true; }
+
     /// <summary>The colony's pooled wood / food / stone / metal (commit 2). The player's is filled by <c>ResourceManager.Awake</c> from the scene's starting amounts.</summary>
     public ResourcePool Resources { get; } = new ResourcePool();
 

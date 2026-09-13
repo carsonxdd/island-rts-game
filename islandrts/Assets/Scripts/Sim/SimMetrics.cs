@@ -53,6 +53,12 @@ public class SimMetrics
         // costs three chunks, so a run that finds none is unwinnable. The lab could
         // only see the empty stockpile; this says whether the island had any.
         public int chunksLoose;
+        // Rival colonies (2026-09-11, lap step 3). Zero on every run that did not
+        // ask for one, which is every baseline sweep.
+        public int rivalArrivalDay;   // calendar day the first rival landed; 0 = none yet
+        public int rivalContact;      // 1 once the player's fog has touched a rival colony
+        public int rivalOpinion;      // 0 hostile, 1 neutral, 2 allied - the Attitude, until slice B's scalar
+        public int rivalWarriors;     // militia across every landed rival
         public bool survived;
     }
 
@@ -114,7 +120,8 @@ public class SimMetrics
                 "enemies_spawned,enemies_killed_total," +
                 "campfire_hp_dusk,campfire_hp_min,campfire_hp_dawn," +
                 "hunger_dawn,left_total,archers_dawn," +
-                "idle_dawn,weapons_dawn,sticks_dawn,chunks_dawn,queue_dawn,warriors_lost,ring_holes,chunks_loose\n");
+                "idle_dawn,weapons_dawn,sticks_dawn,chunks_dawn,queue_dawn,warriors_lost,ring_holes,chunks_loose," +
+                "rival_arrival_day,rival_contact,rival_opinion,rival_warriors\n");
         }
     }
 
@@ -175,7 +182,11 @@ public class SimMetrics
               .Append(Csv(n.queueDawn ?? "")).Append(',')
               .Append(n.warriorsLost).Append(',')
               .Append(n.ringHoles).Append(',')
-              .Append(n.chunksLoose).Append('\n');
+              .Append(n.chunksLoose).Append(',')
+              .Append(n.rivalArrivalDay).Append(',')
+              .Append(n.rivalContact).Append(',')
+              .Append(n.rivalOpinion).Append(',')
+              .Append(n.rivalWarriors).Append('\n');
         }
         if (sb.Length > 0) File.AppendAllText(Path.Combine(dir, DaysFile), sb.ToString());
     }

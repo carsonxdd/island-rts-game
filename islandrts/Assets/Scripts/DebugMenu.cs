@@ -332,8 +332,10 @@ public class DebugMenu : MonoBehaviour
             GUILayout.Label("Fog: " + fog.DebugLine()
                 + (TerrainGrid.Instance != null ? "  ground=" + TerrainGrid.Instance.DebugGroundShader : ""));
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Unexplored " + fog.unexploredBrightness.ToString("0.00"), GUILayout.Width(120f));
-            fog.unexploredBrightness = GUILayout.HorizontalSlider(fog.unexploredBrightness, 0f, 1f);
+            Color.RGBToHSV(fog.unexploredColor, out float fogH, out float fogS, out float fogV);
+            GUILayout.Label("Unexplored " + fogV.ToString("0.00"), GUILayout.Width(120f));
+            float newV = GUILayout.HorizontalSlider(fogV, 0f, 0.5f);
+            if (newV != fogV) fog.unexploredColor = Color.HSVToRGB(fogH, fogS, newV);
             GUILayout.EndHorizontal();
             GUILayout.BeginHorizontal();
             GUILayout.Label("Shroud " + fog.shroudBrightness.ToString("0.00"), GUILayout.Width(120f));
@@ -538,7 +540,7 @@ public class DebugMenu : MonoBehaviour
                 pos = GridSnap.SnapXZ(pos, 1f);
                 pos.y = TerrainGrid.Instance != null ? TerrainGrid.Instance.SampleHeight(pos) : 0f;
 
-                if (!IsClearForHut(pos)) continue;
+                if (!RivalFounder.IsClearForBuilding(pos)) continue;
 
                 // Terrain T2: level a pad like real placement does
                 if (TerrainGrid.Instance != null)
@@ -624,138 +626,39 @@ public class DebugMenu : MonoBehaviour
     }
 
     /// <summary>
-    /// A second campfire 40 u+ from the player's on buildable, reachable ground, with a
-    /// hut so it houses four, 100W 50F in its own pool, the three gathering jobs and
-    /// Militia known, four survivors landed beside the fire, one armed with a Wooden
-    /// Spear, the other three sent for wood, food and stone. Neutral to the player
-    /// until the relation buttons say otherwise; the Raiders are hostile to it already.
+    /// Spawns the debug rival: a beach of its own at least
+    /// <see cref="RivalLandingDirector.MinCoveSeparation"/> x SizeScale from the
+    /// player's fire, then the SAME founding sequence a real day-ten landing
+    /// uses. There is no debug-only colony any more - a second founding path
+    /// would drift from the shipped one within a session.
     /// </summary>
     IEnumerator SpawnRivalRoutine()
     {
         spawningRival = true;
         BaseBuilding mine = Campfire;
-        GameStartController gsc = GameStartController.Instance;
         TerrainGrid tg = TerrainGrid.Instance;
-        if (mine == null || gsc == null || gsc.campfirePrefab == null || tg == null)
+        if (mine == null || tg == null || GameStartController.Instance == null)
         {
             spawningRival = false;
             yield break;
         }
 
-        Vector3 site;
-        if (!FindRivalSite(mine.transform.position, out site))
+        Vector3 cove, site;
+        float minDistance = RivalLandingDirector.MinCoveSeparation * TerrainGrid.SizeScale;
+        if (!tg.FindShoreSite(mine.transform.position, minDistance, out cove, out site))
         {
-            Debug.LogWarning("DebugMenu: no buildable spot 40 u+ from your campfire for a rival camp.");
+            Debug.LogWarning("DebugMenu: no shore at least " + Mathf.RoundToInt(minDistance)
+                + " m from your campfire for a rival camp.");
             spawningRival = false;
             yield break;
         }
 
         Faction rival = Factions.Register("Rivals", Faction.Kind.Rival, new Color(0.35f, 0.75f, 0.85f));
         if (rival == null) { spawningRival = false; yield break; }
-        rival.Resources.Set(100, 50, 0, 0);
-        Knowledge k = rival.Knowledge;
-        k.Grant(Unlocks.Kind.WoodJob); k.Grant(Unlocks.Kind.FoodJob); k.Grant(Unlocks.Kind.StoneJob);
-        k.Grant(Unlocks.Kind.Militia); k.Grant(Unlocks.Kind.Construction);
 
-        tg.FlattenArea(site, 2.2f, 1.6f);
-        site.y = tg.SampleHeight(site);
-        GameObject fireObj = Spawn.Owned(gsc.campfirePrefab, site, Quaternion.identity, rival);
-        fireObj.name = "Campfire (Rivals)";
-        BaseBuilding fire = fireObj.GetComponent<BaseBuilding>();
-        if (fire == null) { spawningRival = false; yield break; }
-        yield return null;   // Start: housing registers, Faction.Campfire is set
-
-        // A hut beside it so the camp sleeps four (the fire alone sleeps three)
-        BuildingData hutData = BuildingDatabase.Instance != null
-            ? BuildingDatabase.Instance.GetBuildingData(BuildingType.Hut) : null;
-        if (hutData != null && hutData.finishedBuildingPrefab != null)
-        {
-            int buildingsLayer = LayerMask.NameToLayer("Buildings");
-            for (int i = 0; i < 16; i++)
-            {
-                float angle = i * 45f * Mathf.Deg2Rad;
-                float radius = 7f + 4f * (i / 8);
-                Vector3 pos = site + new Vector3(Mathf.Cos(angle) * radius, 0f, Mathf.Sin(angle) * radius);
-                pos = GridSnap.SnapXZ(pos, 1f);
-                pos.y = tg.SampleHeight(pos);
-                if (!IsClearForHut(pos)) continue;
-                tg.FlattenArea(pos, 1.8f, 1.4f);
-                pos.y = tg.SampleHeight(pos);
-                GameObject hut = Spawn.Owned(hutData.finishedBuildingPrefab, pos, Quaternion.identity, rival);
-                if (buildingsLayer >= 0) hut.layer = buildingsLayer;
-                break;
-            }
-            yield return null;   // Hut.Start registers its housing
-        }
-
-        Population pop = rival.Population;
-        for (int i = 0; i < 4 && pop.SpawnArrival(true) != null; i++) { }
-        yield return null;   // the colonists' Start
-
-        fire.Stockpile.Add(ItemCatalog.WoodenSpear, 1);
-        fire.SpawnWarrior();
-        fire.AssignWorker(ResourceNode.ResourceType.Wood);
-        fire.AssignWorker(ResourceNode.ResourceType.Food);
-        fire.AssignWorker(ResourceNode.ResourceType.Stone);
-
-        DevQuests.Signal("faction:rival");
+        yield return RivalFounder.Found(rival, site, cove);
         spawningRival = false;
     }
 
-    /// <summary>A random buildable, reachable, clear spot 40–70 u (× SizeScale) from <paramref name="from"/>, or false.</summary>
-    bool FindRivalSite(Vector3 from, out Vector3 site)
-    {
-        float scale = TerrainGrid.SizeScale;
-        float min = 40f * scale, max = 70f * scale;
-        for (int attempt = 0; attempt < 200; attempt++)
-        {
-            float angle = Random.Range(0f, 360f) * Mathf.Deg2Rad;
-            float radius = Random.Range(min, max);
-            Vector3 pos = from + new Vector3(Mathf.Cos(angle) * radius, 0f, Mathf.Sin(angle) * radius);
-            pos = GridSnap.SnapXZ(pos, 1f);
-            pos.y = TerrainGrid.Instance.SampleHeight(pos);
-            if (!TerrainGrid.Instance.IsReachable(pos)) continue;
-            if (!IsClearForHut(pos)) continue;
-            site = pos;
-            return true;
-        }
-        site = Vector3.zero;
-        return false;
-    }
-
-    bool IsClearForHut(Vector3 pos)
-    {
-        // Dry land + on the NavMesh (terrain-aware when the island exists)
-        if (TerrainGrid.Instance != null)
-        {
-            if (!TerrainGrid.Instance.IsBuildable(pos)) return false;
-        }
-        else if (Mathf.Abs(pos.x) > 63f || Mathf.Abs(pos.z) > 63f) return false;
-        NavMeshHit hit;
-        if (!NavMesh.SamplePosition(pos, out hit, 1f, NavMesh.AllAreas)) return false;
-
-        // Clear of existing buildings, sites, and resource nodes (simple radial
-        // checks — debug spawning, not the full placement validator)
-        if (!ClearOf(BaseBuilding.ActiveList, pos, 5f)) return false;
-        if (!ClearOf(Hut.ActiveList, pos, 4.5f)) return false;
-        if (!ClearOf(Watchtower.ActiveList, pos, 4.5f)) return false;
-        if (!ClearOf(ConstructionSite.ActiveList, pos, 4f)) return false;
-        if (!ClearOf(ResourceNode.ActiveList, pos, 3f)) return false;
-        return true;
-    }
-
-    bool ClearOf<T>(System.Collections.Generic.IReadOnlyList<T> list, Vector3 pos, float minDist) where T : MonoBehaviour
-    {
-        float minSqr = minDist * minDist;
-        for (int i = 0; i < list.Count; i++)
-        {
-            T entry = list[i];
-            if (entry == null) continue;
-            Vector3 d = entry.transform.position - pos;
-            d.y = 0f;
-            if (d.sqrMagnitude < minSqr) return false;
-        }
-        return true;
-    }
 }
 #endif

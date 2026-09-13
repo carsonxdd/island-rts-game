@@ -34,12 +34,25 @@ public static class IslandOptions
         }
     }
 
+    /// <summary>How many rival colonies may wash up during the run (2026-09-11). 0 is the default.</summary>
+    public const int MaxRivals = 2;
+
+    public static readonly string[] RivalCountNames = { "None", "One", "Two" };
+    public static readonly string[] RivalCountBlurbs =
+    {
+        "You have the island to yourself. Only the night raiders come.",
+        "A second ship breaks up on a far shore about a third of the way through. They gather their own patch and can be talked to or fought.",
+        "Two more colonies, landing a few days apart on shores of their own. A crowded island.",
+    };
+
     public struct Snapshot
     {
         public Size size;
         public IslandSettings.Style style;
         /// <summary>0 = random.</summary>
         public int seed;
+        /// <summary>Rival colonies scheduled to land this run; 0 = none, the default.</summary>
+        public int rivalCount;
     }
 
     // ---- selection (what the menu edits) ---------------------------------
@@ -48,6 +61,8 @@ public static class IslandOptions
     public static IslandSettings.Style SelectedStyle = IslandSettings.Style.Terraced;
     /// <summary>The seed field as typed; empty or non-numeric = random.</summary>
     public static string SelectedSeedText = "";
+    /// <summary>Rival colonies, 0..<see cref="MaxRivals"/>. Off by default so existing balance and the sweep baselines stay comparable.</summary>
+    public static int SelectedRivalCount = 0;
 
     public static int SelectedSeed
     {
@@ -86,17 +101,18 @@ public static class IslandOptions
                     size = s >= 0 ? (Size)s : Size.Medium,
                     style = t >= 0 ? (IslandSettings.Style)t : IslandSettings.Style.Terraced,
                     seed = 0,
+                    rivalCount = Mathf.Clamp(SimHooks.RivalCount, 0, MaxRivals),
                 };
             }
             if (activeRun.HasValue) return activeRun.Value;
-            return new Snapshot { size = SelectedSize, style = SelectedStyle, seed = SelectedSeed };
+            return new Snapshot { size = SelectedSize, style = SelectedStyle, seed = SelectedSeed, rivalCount = SelectedRivalCount };
         }
     }
 
     /// <summary>Freezes the selection as the run's world. Called when a new game starts.</summary>
     public static void BeginRun()
     {
-        activeRun = new Snapshot { size = SelectedSize, style = SelectedStyle, seed = SelectedSeed };
+        activeRun = new Snapshot { size = SelectedSize, style = SelectedStyle, seed = SelectedSeed, rivalCount = SelectedRivalCount };
     }
 
     /// <summary>One-line summary for status displays: "Medium · Terraced".</summary>
@@ -107,12 +123,14 @@ public static class IslandOptions
     private const string KeySize = "island.size";
     private const string KeyStyle = "island.style";
     private const string KeySeed = "island.seed";
+    private const string KeyRivals = "island.rivals";
 
     public static void Load()
     {
         SelectedSize = (Size)Mathf.Clamp(PlayerPrefs.GetInt(KeySize, (int)Size.Medium), 0, SizeNames.Length - 1);
         SelectedStyle = (IslandSettings.Style)Mathf.Clamp(PlayerPrefs.GetInt(KeyStyle, (int)IslandSettings.Style.Terraced), 0, IslandSettings.StyleNames.Length - 1);
         SelectedSeedText = PlayerPrefs.GetString(KeySeed, "");
+        SelectedRivalCount = Mathf.Clamp(PlayerPrefs.GetInt(KeyRivals, 0), 0, MaxRivals);
     }
 
     public static void Save()
@@ -120,6 +138,7 @@ public static class IslandOptions
         PlayerPrefs.SetInt(KeySize, (int)SelectedSize);
         PlayerPrefs.SetInt(KeyStyle, (int)SelectedStyle);
         PlayerPrefs.SetString(KeySeed, SelectedSeedText ?? "");
+        PlayerPrefs.SetInt(KeyRivals, SelectedRivalCount);
         PlayerPrefs.Save();
     }
 }

@@ -17,6 +17,12 @@ using UnityEngine;
 /// their hands hold one type, only that type scores, and ReturnUrgency sends them
 /// home to empty out (the same rule a job-changed worker follows).
 ///
+/// It only looks at pickups near the CAMPFIRE, not near itself. That campfire is
+/// the COLONY's own (<c>bb.faction.Campfire</c>), so this scan is already the
+/// territory rule of 2026-09-11's lap step 3 stated as a hard radius: a jobless
+/// colonist tidies its own patch and nobody else's. <see cref="Territory"/>
+/// carries the softer version the two gathering scans use.
+///
 /// It only looks at pickups near the CAMPFIRE, not near itself. The radius covers
 /// the ground a colony actually works by day (2026-09-03: 35 -> 70), because the
 /// sticks and chunks workers shed at a forest or a quarry away from the fire were

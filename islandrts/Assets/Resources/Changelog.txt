@@ -8,6 +8,19 @@
 # Lines starting with a single # are comments. Anything else that is not a
 # heading, a bullet or an indented continuation is ignored.
 
+## 2026-09-12 — The fog hides the island by day
+- Ground nobody has explored is now one solid dark colour at every hour. In
+  bright daylight you could make out the hills and coastline through it before.
+
+## 2026-09-11 — Castaways on the far shore
+- New Game has a Rivals option beside island size and terrain. It is off by default.
+- Turn it on and another ship breaks up about a third of the way through the run.
+  Its survivors land on a beach of their own and found their own colony.
+- A banner tells you a ship broke up. It does not tell you where. Their camp stays
+  under the fog until your own people find it.
+- Every colony now works the ground around its own fire by preference, and only
+  reaches further out once its own patch is bare.
+
 ## 2026-09-11 — Smaller raids for a full storehouse, more sticks underfoot
 - A big bank of wood, food and stone no longer makes raids grow without limit.
   A hoard still draws attention, but only up to a point, so a colony that has

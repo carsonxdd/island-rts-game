@@ -87,7 +87,10 @@ param(
     [string]$Strategies = "Turtle,Rush,Eco",
     [int]$RenderInterval = 0,
     [int]$RaidRenderInterval = 0,
-    [double]$RespawnMinutes = 10
+    [double]$RespawnMinutes = 10,
+    # Rival colonies per lab cell (2026-09-11, lap step 3). 0 is the default and
+    # keeps a lab comparable with every baseline taken before rivals existed.
+    [int]$Rivals = 0
 )
 
 $ErrorActionPreference = "Stop"
@@ -127,6 +130,7 @@ if ($Lab) {
                     terrainSeed    = $seed
                     daysToSurvive  = 30
                     maxGameSeconds = 6000
+                    rivalCount     = $Rivals
                 }
             }
         }

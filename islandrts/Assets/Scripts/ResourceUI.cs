@@ -98,6 +98,8 @@ public class ResourceUI : MonoBehaviour
         if (SimHooks.Headless) { enabled = false; return; }
         Build();
         RaidDirector.OnRaidRolled += OnRaidRolled;
+        RivalLandingDirector.OnRivalLanded += OnRivalLanded;
+        RivalLandingDirector.OnRivalMet += OnRivalMet;
         Factions.Player.Population.OnHungerChanged += OnHungerChanged;
         Factions.Player.Population.OnColonistLeft += OnColonistLeft;
         UpdateUI();
@@ -106,6 +108,8 @@ public class ResourceUI : MonoBehaviour
     void OnDestroy()
     {
         RaidDirector.OnRaidRolled -= OnRaidRolled;
+        RivalLandingDirector.OnRivalLanded -= OnRivalLanded;
+        RivalLandingDirector.OnRivalMet -= OnRivalMet;
         Factions.Player.Population.OnHungerChanged -= OnHungerChanged;
         Factions.Player.Population.OnColonistLeft -= OnColonistLeft;
     }
@@ -156,6 +160,23 @@ public class ResourceUI : MonoBehaviour
                 break;
         }
         lastFoodKey = int.MinValue;
+    }
+
+    /// <summary>
+    /// A rival colony has washed up somewhere on the island (2026-09-11). The
+    /// line says what happened and nothing about WHERE: their camp is under the
+    /// fog like everything else until the player's own people find it, and
+    /// a marker would hand over what walking is supposed to earn.
+    /// </summary>
+    void OnRivalLanded(Faction rival)
+    {
+        Flash("A SHIP BROKE UP ON THE FAR SHORE  —  there are other survivors", MenuStyle.TextAccent, BannerSeconds);
+    }
+
+    /// <summary>The player's people have seen them for the first time; now the camp has a name.</summary>
+    void OnRivalMet(Faction rival)
+    {
+        Flash("YOU HAVE FOUND THE " + rival.Name.ToUpperInvariant(), MenuStyle.TextAccent, BannerSeconds);
     }
 
     void OnColonistLeft()

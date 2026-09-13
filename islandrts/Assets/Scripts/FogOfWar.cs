@@ -35,8 +35,8 @@ public class FogOfWar : MonoBehaviour
     public float shroudRate = 3f;
 
     [Header("Look")]
-    [Range(0f, 1f), Tooltip("Brightness of ground nobody has ever seen. Near-black, not black: silhouettes of the coast still read.")]
-    public float unexploredBrightness = 0.04f;
+    [Tooltip("Flat colour of ground nobody has ever seen, the same at noon and midnight. It replaces the lit colour: a brightness multiply let daylight show the island's relief through the fog.")]
+    public Color unexploredColor = new Color32(6, 8, 11, 255);
     [Range(0f, 1f), Tooltip("Brightness of explored ground with no watcher on it.")]
     public float shroudBrightness = 0.45f;
     [Range(0f, 1f), Tooltip("How grey the shroud is. 0 = only darker, 1 = monochrome.")]
@@ -49,6 +49,7 @@ public class FogOfWar : MonoBehaviour
     private static readonly int MaskId = Shader.PropertyToID("_FogMask");
     private static readonly int ParamsId = Shader.PropertyToID("_FogParams");
     private static readonly int LookId = Shader.PropertyToID("_FogLook");
+    private static readonly int ColorId = Shader.PropertyToID("_FogColor");
 
     private int n;               // cells per side
     private float half;          // map half-extent in metres
@@ -148,7 +149,8 @@ public class FogOfWar : MonoBehaviour
         float a = 1f / (cellSize * n);
         float b = (half / cellSize + 0.5f) / n;
         Shader.SetGlobalVector(ParamsId, new Vector4(a, b, 0f, SimHooks.Headless ? 0f : 1f));
-        Shader.SetGlobalVector(LookId, new Vector4(unexploredBrightness, shroudBrightness, shroudDesaturation, 0f));
+        Shader.SetGlobalVector(LookId, new Vector4(0f, shroudBrightness, shroudDesaturation, 0f));
+        Shader.SetGlobalColor(ColorId, unexploredColor.linear);   // the shader mixes in linear space
         // Re-bind the mask with the params: anything that clears the global (a scene
         // teardown racing this one) would otherwise leave the map unfogged for good.
         if (mask != null) Shader.SetGlobalTexture(MaskId, mask);

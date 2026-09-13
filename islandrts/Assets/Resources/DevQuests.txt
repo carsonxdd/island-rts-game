@@ -29,10 +29,24 @@
 #   sky:<sunny|slightly|partly|cloudy|off>  graphics:<preset|custom>
 #   faction:bootstrap  faction:rival  faction:<hostile|neutral|allied>
 #   repair  repair:gate  raid:rested  raider:wall_stop  raider:wall_over_warrior
+#   rival:landed  rival:met  rival:territory
 # crowd:split, dropoff:spread and patrol:spread are STATE checks polled by the
 # tracker twice a second while their quest is open; everything else is an event.
 # A finished batch is deleted from here once its report is in; it stays in the
 # changelog and the phase history.
+
+## 2026-09-12 Solid unexplored fog
+- At noon, unexplored ground shows no hills, cliffs or coast shape
+- Unexplored land and sea are the same dark colour, day and night
+- Explored-but-unwatched ground still shows its trees in grey shroud
+- A reveal still grows smoothly out of the dark at the edge
+
+## 2026-09-11 Castaways on the far shore
+- @rival:landed Start with Rivals: One - a ship breaks up around day 10
+- @rival:met Walk a scout out until you find their camp
+- @rival:territory Strip their patch bare: a rival works a node outside it
+- Their camp is invisible on the minimap until your people see it
+- Their survivors walk up from their own beach, not yours
 
 ## 2026-09-11 Hoard cap and byproducts
 - @raid:hoard_capped Bank 600+ wood: the raid stops growing with the pile

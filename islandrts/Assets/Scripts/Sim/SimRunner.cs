@@ -225,6 +225,7 @@ public class SimRunner : MonoBehaviour
         SimHooks.Difficulty = cfg.difficulty ?? "";
         SimHooks.IslandSize = cfg.islandSize ?? "";
         SimHooks.IslandStyle = cfg.islandStyle ?? "";
+        SimHooks.RivalCount = cfg.rivalCount;
     }
 
     private void BeginNextRun(bool alreadyLoaded)
@@ -675,6 +676,32 @@ public class SimRunner : MonoBehaviour
         night.warriorsLost = warriorsLostThisNight;
         night.ringHoles = SimBuilder.RingHoles;
         night.chunksLoose = LooseChunks();
+        CaptureRivals();
+    }
+
+    /// <summary>
+    /// The neighbours at dawn (2026-09-11). All zeroes on a run with no rivals,
+    /// which is every sweep taken before lap step 3 and every one that leaves
+    /// <c>SimConfig.rivalCount</c> at 0.
+    /// </summary>
+    private void CaptureRivals()
+    {
+        RivalLandingDirector dir = RivalLandingDirector.Instance;
+        if (dir == null || dir.Landed.Count == 0) return;
+
+        night.rivalArrivalDay = dir.FirstArrivalDay;
+        night.rivalContact = dir.Contacted ? 1 : 0;
+        night.rivalOpinion = (int)Factions.Player.Toward(dir.Landed[0]);
+
+        int warriors = 0;
+        var list = Warrior.ActiveList;
+        for (int i = 0; i < list.Count; i++)
+        {
+            Warrior w = list[i];
+            if (w == null || w.Faction == null) continue;
+            if (w.Faction.Type == Faction.Kind.Rival) warriors++;
+        }
+        night.rivalWarriors = warriors;
     }
 
     /// <summary>

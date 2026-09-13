@@ -69,6 +69,12 @@ public class GameManager : MonoBehaviour
             Destroy(gameObject);
             return;
         }
+
+        // The rival landing schedule rides here the way RaidDirector rides the
+        // EnemySpawner: runtime-added, so its public fields are the LIVE values
+        // and there is nothing to wire in the scene. It disables itself in Start
+        // when the run asked for no rivals, which is the default.
+        if (GetComponent<RivalLandingDirector>() == null) gameObject.AddComponent<RivalLandingDirector>();
     }
 
     void Start()

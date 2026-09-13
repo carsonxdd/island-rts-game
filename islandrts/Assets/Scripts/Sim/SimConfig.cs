@@ -129,6 +129,21 @@ public class SimConfig
     /// <summary>Terrain style by name (Rolling / Terraced / Rugged); empty = Terraced.</summary>
     public string islandStyle = "";
 
+    [Header("Rivals (2026-09-11, lap step 3)")]
+    /// <summary>
+    /// Rival colonies scheduled to wash up during the run, 0..2. NOT a -1
+    /// sentinel: 0 is the meaningful default, and a sweep with 0 here plays the
+    /// same game every baseline before 2026-09-11 played.
+    /// </summary>
+    public int rivalCount = 0;
+
+    /// <summary>
+    /// How a rival plays, same vocabulary as <see cref="strategy"/>. Reserved:
+    /// slice A rivals are not governed, so nothing reads this yet. It is here so
+    /// the sweep files a slice-B lab runs are written once.
+    /// </summary>
+    public string rivalStrategy = "";
+
     public string Label(int index)
     {
         return string.IsNullOrEmpty(id) ? $"run{index:D4}" : id;
