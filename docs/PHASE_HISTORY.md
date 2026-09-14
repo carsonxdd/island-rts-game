@@ -1371,3 +1371,23 @@ User: five asks in one message — Shift + right-click to queue pickups, every u
 **Edited:** CraftStation.cs, PlayerCharacter.cs, PlayerClickMarker.cs (new), AI/Executors/Worker/CraftExecutor.cs, WorkerAssignmentUI.cs, UI/KeyBindings.cs, DayNightCycle.cs, MainIsland.unity, Resources/Changelog.txt, Resources/DevQuests.txt, Resources/Information.txt, docs/CONTROLS.md, CLAUDE.md.
 
 **Follow-up (same day).** User: the trail "goes under the terrain if it goes up and down", and huts should be queueable too. The trail sampled only the path corners, so a straight run over a rise was buried; each segment is now stepped every 0.75 m and every step draped (`MaxTrailPoints` 192). `GhostPlacer.ConfirmPlacement` keeps the ghost and refreshes the zone outlines and cost readout while `QueueCommand` (Shift) is held, so a row of huts is a row of clicks (`build:keep_placing`); Shift + right-click on a site already queued the build order. README gained the two Shift rows. Committed and pushed.
+
+### 2026-09-13 (late) — First playtest report read
+
+User: "i submitted a playtest I know its not a lot but lets look at what I completed and start marking some stuff off." The first `Playtests/*.md` ever (`playtest_2026-09-13_2204.md`): Normal / Large / Rolling, seed 1113228095, day 6, an F4-heavy run (49 colonists, 14 warriors, one raid). 99 / 267 quests done, 62 PASS, 2 FAIL, the rest ticked with no verdict (older PlayerPrefs from before signals set PASS, or hand ticks). The loop itself works end to end: submit wrote the file, the Build line reads `v0.2.0-alpha.1`, auto quests read PASS, ticks survived a relaunch.
+
+**Read.** The only batch fully closed was Stone pile pickup. Slice 3 (crafters and iron) closed 6 of 7, the new Queued orders batch 7 of 19 (both signals, keep-placing, deposit-on-the-way, shared bench, and the trail over a rise by eye). The two FAILs were the idle stroll pair ("nothing", "no wandering") while three sibling stroll signals passed in the same run; the user's answer: the colonists watched were specialists, which wait at home by design ("Builder, idle"), so a misread, not a bug.
+
+**Done.** Every done quest and both FAILs stripped from `DevQuests.txt` (40 batches → 39, the Stone pile batch gone; 267 → 169 quests, one of them the new "specialists never stroll" line). Because ids are batch slug + index, a batch that lost middle quests would let its survivors inherit old ticks, so the user presses RESET on the DEV tab once — nothing is lost, only open quests remain, and the header comment now says so. The stroll pair is reworded to name a plain "Idle" colonist and a third line states that specialists never stroll. The two `@report` quests were closed by the report's own existence. The version-string quest now expects "updated 2026-09-13". No changelog entry (nothing player-facing changed).
+
+**Edited:** Resources/DevQuests.txt, CLAUDE.md, docs/PHASE_HISTORY.md.
+
+### 2026-09-13 — Nobody idles in the gateway
+
+User: "units will go idle in the gates in the middle of a big intersection for activity" — by night as well, and the same rule for warriors.
+
+**Cause.** `IdleExecutor.TryPickStrollPoint` and `PatrolExecutor`'s three tiers only rejected a building's no-build ring and 4 m off the fire's edge; a gate carves nothing, so a NavMesh sample in the opening is accepted. Patrol's tier 1 was WORSE than blind: it anchored on walls AND gates and stood 1–2 m "just inside" them, which for a gate is the corridor. And every timeout path (a 20 s stroll, a 15 s walk to a post, arriving home at night) stood wherever the unit was — mid-gate if it had been queued behind traffic.
+
+**Built.** `AI/Shared/Loiter.cs`: `IsClear(point)` = not a `WallGrid` cell and not within `GateClearance` 3 of any gate centre; `TryFindClearNear(around, radius)` = eight ring samples that pass it. Idle: the stroll picker rejects on it; `Stand` became check-then-`StepAside` (new `Mode.StepAside`, ≤ 6 m, ≤ 8 s, runs at night too) then `StandHere` with no second check so a colonist boxed into a gate by a crowd does not pace forever. Patrol: walls only as anchors, all three tiers filter on `IsClear`, and a walk that ends in a corridor goes straight to `NextPost` up to `MaxCorridorRepicks` 3 in a row. Signals `loiter:step_aside` / `loiter:patrol_moved_on`; a six-quest batch; changelog.
+
+**Edited:** AI/Shared/Loiter.cs (new), AI/Executors/Worker/IdleExecutor.cs, AI/Executors/Warrior/PatrolExecutor.cs, Resources/Changelog.txt, Resources/DevQuests.txt, CLAUDE.md.

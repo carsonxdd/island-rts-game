@@ -15,6 +15,13 @@ using System.Collections.Generic;
 /// 3. A random point within patrolRadius of wherever the warrior is standing.
 /// Every candidate is NavMesh.SamplePosition-snapped before it is accepted, so a post
 /// is never handed to the agent inside a building's carve hole.
+///
+/// No post is in a gateway (2026-09-13): tier 1 anchors on walls only (a gate's "just
+/// inside" IS the corridor), every candidate passes <see cref="Loiter.IsClear"/>, and a
+/// warrior that ends a walk standing in a corridor anyway (timed out, queued behind a
+/// column) moves straight on to the next post instead of waiting there - up to
+/// <see cref="MaxCorridorRepicks"/> times in a row, so a warrior boxed into a gate by
+/// a crowd eventually stands rather than pacing forever.
 /// </remarks>
 public class PatrolExecutor : ActionExecutor
 {
@@ -47,6 +54,8 @@ public class PatrolExecutor : ActionExecutor
     private const float FireClearance = 4f;
     // Ring radius around the fire and the huts: their no-build radius plus this.
     private const float PerimeterPadding = 4f;
+    private const int MaxCorridorRepicks = 3;
+    private int corridorRepicks;
     private float walkTimer;
     private float originalStoppingDistance;
     private bool stoppingSwapped;
@@ -63,6 +72,7 @@ public class PatrolExecutor : ActionExecutor
     {
         isWaitingAtPatrol = false;
         patrolWaitTimer = 0f;
+        corridorRepicks = 0;
 
         if (bb.agent != null && bb.agent.isOnNavMesh && !stoppingSwapped)
         {
@@ -101,6 +111,17 @@ public class PatrolExecutor : ActionExecutor
 
         if (distanceToPatrolPoint < ArriveRadius || pathDone || walkTimer > MaxWalkSeconds)
         {
+            // Ended the walk in a gate corridor (timed out, or queued behind a column):
+            // don't wait here, move on to the next post
+            if (corridorRepicks < MaxCorridorRepicks && !Loiter.IsClear(bb.transform.position))
+            {
+                corridorRepicks++;
+                DevQuests.Signal("loiter:patrol_moved_on");
+                NextPost(bb);
+                return;
+            }
+            corridorRepicks = 0;
+
             // As close as the crowd and the mesh allow: stand here
             isWaitingAtPatrol = true;
             patrolDestinationSet = false;
@@ -133,10 +154,12 @@ public class PatrolExecutor : ActionExecutor
         if (bb.stuckResolver != null) bb.stuckResolver.ResetStuckDetection();
     }
 
-    // The colony's own wall and gate positions, refilled per pick (no allocation after the first)
+    // The colony's own wall positions, refilled per pick (no allocation after the first).
+    // Gates are deliberately NOT anchors (2026-09-13): a post "just inside" a gate is
+    // the corridor. The wall cells either side of a gate still put a guard beside it.
     private static readonly System.Collections.Generic.List<Vector3> ownedWalls = new System.Collections.Generic.List<Vector3>(64);
 
-    /// <summary>Fills <see cref="ownedWalls"/> with <paramref name="f"/>'s live walls and gates; returns the count.</summary>
+    /// <summary>Fills <see cref="ownedWalls"/> with <paramref name="f"/>'s live walls; returns the count.</summary>
     static int CollectOwnedWalls(Faction f)
     {
         ownedWalls.Clear();
@@ -145,12 +168,6 @@ public class PatrolExecutor : ActionExecutor
         {
             Wall w = walls[i];
             if (w != null && w.Faction == f) ownedWalls.Add(w.transform.position);
-        }
-        var gates = Gate.ActiveList;
-        for (int i = 0; i < gates.Count; i++)
-        {
-            Gate g = gates[i];
-            if (g != null && g.Faction == f) ownedWalls.Add(g.transform.position);
         }
         return ownedWalls.Count;
     }
@@ -217,7 +234,8 @@ public class PatrolExecutor : ActionExecutor
             Vector3 patrolPos = wallPos + interiorDir * offset;
 
             NavMeshHit hit;
-            if (NavMesh.SamplePosition(patrolPos, out hit, 3f, NavMesh.AllAreas) && !TooCloseToFire(hit.position))
+            if (NavMesh.SamplePosition(patrolPos, out hit, 3f, NavMesh.AllAreas)
+                && !TooCloseToFire(hit.position) && Loiter.IsClear(hit.position))
             {
                 point = hit.position;
                 return true;
@@ -284,7 +302,8 @@ public class PatrolExecutor : ActionExecutor
                 if (!isOuterPerimeter) continue;
 
                 NavMeshHit hit;
-                if (NavMesh.SamplePosition(perimeterPoint, out hit, 3f, NavMesh.AllAreas) && !TooCloseToFire(hit.position))
+                if (NavMesh.SamplePosition(perimeterPoint, out hit, 3f, NavMesh.AllAreas)
+                    && !TooCloseToFire(hit.position) && Loiter.IsClear(hit.position))
                 {
                     return hit.position;
                 }
@@ -305,7 +324,7 @@ public class PatrolExecutor : ActionExecutor
             );
 
             NavMeshHit hit;
-            if (NavMesh.SamplePosition(randomPoint, out hit, 2f, NavMesh.AllAreas))
+            if (NavMesh.SamplePosition(randomPoint, out hit, 2f, NavMesh.AllAreas) && Loiter.IsClear(hit.position))
             {
                 return hit.position;
             }

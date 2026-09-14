@@ -8,6 +8,12 @@
 # Lines starting with a single # are comments. Anything else that is not a
 # heading, a bullet or an indented continuation is ignored.
 
+## 2026-09-13 — Nobody idles in the gateway
+- Idle colonists and patrolling warriors no longer stand in a gate or on the wall
+  line. A wander spot or guard post is never picked there, and anyone who ends up
+  stopped in a gateway anyway, day or night, takes a few steps to clear ground
+  first. Warriors guard beside the gate, not in it.
+
 ## 2026-09-13 — Queued orders, shared benches, a morning start
 - Hold Shift and right-click to queue orders for your castaway: fetch this, then
   that, then carry it all to the fire. Each one runs when the last is done and

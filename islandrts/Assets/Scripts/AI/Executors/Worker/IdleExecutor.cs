@@ -23,6 +23,13 @@ using UnityEngine.AI;
 /// side of the village is a worse Flee). The stroll is display only — "Wandering" over
 /// the head — the roster still counts the colonist as idle and any real work outscores
 /// this action as before.
+///
+/// Nobody idles in a gateway (2026-09-13): every stroll spot passes <see cref="Loiter.IsClear"/>,
+/// and every stop - arriving home at night, a stroll that timed out, a fresh arrival
+/// stopping short of its hut - checks the ground under its feet the same way and takes
+/// a short <see cref="StepAsideRadius"/> step to clear ground first when it is standing
+/// on a wall line or in a gate corridor. The step runs by night too; it is a few metres,
+/// not a stroll.
 /// </remarks>
 public class IdleExecutor : ActionExecutor
 {
@@ -43,8 +50,10 @@ public class IdleExecutor : ActionExecutor
     private const float RingJitter = 2f;           // ...plus up to this much
     private const float FireClearance = 4f;        // same clearance Patrol keeps off the fire's delivery edge
     private const int PickAttempts = 12;
+    private const float StepAsideRadius = 6f;      // how far a "get out of the gateway" step may go
+    private const float MaxStepAsideSeconds = 8f;  // then stand wherever we are
 
-    private enum Mode { Home, Standing, Strolling }
+    private enum Mode { Home, Standing, Strolling, StepAside }
 
     private IHousing home;
     private Mode mode;
@@ -88,6 +97,43 @@ public class IdleExecutor : ActionExecutor
             case Mode.Strolling:
                 UpdateStroll(bb);
                 break;
+            case Mode.StepAside:
+                UpdateStepAside(bb);
+                break;
+        }
+    }
+
+    // ---- Stepping out of a gateway ----
+
+    void StepAside(AIBlackboard bb)
+    {
+        mode = Mode.StepAside;
+        destinationQueued = false;
+        strollTimer = 0f;
+        displayName = "Idle";
+        DevQuests.Signal("loiter:step_aside");
+        Worker.RollMovingAvoidance(bb.agent);
+        if (bb.stuckResolver != null) bb.stuckResolver.ResetStuckDetection();
+        IssueStrollMove(bb);
+    }
+
+    void UpdateStepAside(AIBlackboard bb)
+    {
+        if (bb.stuckResolver != null && bb.stuckResolver.UpdateMoving())
+        {
+            destinationQueued = false;
+            return;
+        }
+
+        if (!destinationQueued) IssueStrollMove(bb);
+
+        strollTimer += Time.deltaTime;
+        float dist = Vector3.Distance(bb.transform.position, strollPoint);
+        bool pathDone = AgentReady(bb) && destinationQueued && !bb.agent.pathPending
+            && (!bb.agent.hasPath || bb.agent.remainingDistance <= bb.agent.stoppingDistance + 0.3f);
+        if (dist <= StrollArrive || pathDone || strollTimer > MaxStepAsideSeconds)
+        {
+            StandHere(bb);   // no second check: one step is the budget, or a queue in the gate never ends
         }
     }
 
@@ -242,6 +288,7 @@ public class IdleExecutor : ActionExecutor
             NavMeshHit hit;
             if (!NavMesh.SamplePosition(candidate, out hit, 2f, NavMesh.AllAreas)) continue;
             if (TooCloseToFire(hit.position)) continue;
+            if (!Loiter.IsClear(hit.position)) continue;   // never a wall cell or a gate corridor
 
             point = hit.position;
             return true;
@@ -297,7 +344,22 @@ public class IdleExecutor : ActionExecutor
     static bool AgentReady(AIBlackboard bb)
         => bb.agent != null && bb.agent.enabled && bb.agent.isOnNavMesh;
 
+    /// <summary>
+    /// Stop here - unless "here" is a wall line or a gate corridor, in which case take
+    /// one short step to clear ground first and stop there. Every stop goes through this.
+    /// </summary>
     void Stand(AIBlackboard bb)
+    {
+        if (AgentReady(bb) && !Loiter.IsClear(bb.transform.position)
+            && Loiter.TryFindClearNear(bb.transform.position, StepAsideRadius, out strollPoint))
+        {
+            StepAside(bb);
+            return;
+        }
+        StandHere(bb);
+    }
+
+    void StandHere(AIBlackboard bb)
     {
         mode = Mode.Standing;
         destinationQueued = false;
@@ -320,8 +382,7 @@ public class IdleExecutor : ActionExecutor
 
     public override void OnExit(AIBlackboard bb)
     {
-        if (mode == Mode.Strolling && bb.hasJob) DevQuests.Signal("stroll:interrupted");   // a job given mid-stroll
-        mode = Mode.Standing;
+        if (mode == Mode.Strolling && bb.hasJob) DevQuests.Signal("stroll:interrupted");   // a job given mid-stroll        mode = Mode.Standing;
         home = null;
         if (AgentReady(bb))
         {
