@@ -3,21 +3,29 @@ using UnityEngine;
 
 /// <summary>
 /// A bench with a queue (2026-09-03): the campfire and the Workshop each carry
-/// one. Recipes and research are queued front to back and worked one entry at a
-/// time; progress per second is <c>speed[category] × labor</c>, where labor is 1
-/// while <i>someone</i> is at the bench (the player's character now, a Crafter
-/// colonist from Slice 3) and 0 otherwise — a queue nobody stands at does not
-/// move. One laborer per station; a second is told the bench is busy.
+/// one. Recipes and research are queued front to back; progress per second is
+/// <c>speed[category] × labor</c>, where labor is 1 per pair of hands at the
+/// bench and 0 otherwise — a queue nobody stands at does not move.
 ///
-/// Costs are charged when an entry completes (<see cref="WorkDef.Pay"/>). If they
-/// cannot be met at that moment the entry holds at 100% and <see cref="Status"/>
+/// Several pairs of hands share a bench (2026-09-13): every laborer holds a
+/// <b>lane</b>, one repeat of one queue entry, so five queued spears with three
+/// colonists at the bench make three at once, each at full speed. Lanes on an
+/// entry never outnumber its repeats, so research (one repeat) is always
+/// one-at-a-time. At most <see cref="MaxLaborers"/> lanes; the player's
+/// character always gets one, evicting the stalest colonist if the bench is
+/// full, and takes over a colonist's repeat when no repeat is free. An
+/// abandoned repeat banks its progress on the entry and the next pair of hands
+/// picks it up, so walking away loses nothing.
+///
+/// Costs are charged when a repeat completes (<see cref="WorkDef.Pay"/>). If they
+/// cannot be met at that moment the lane holds at 100% and <see cref="Status"/>
 /// says what is missing; the next tick that can pay finishes it. Output goes to
 /// the campfire stockpile whichever station made it — one colony store — except a
 /// tool, which goes into the player's hands when the player is the laborer.
 ///
 /// Runtime-added by <c>BaseBuilding.Awake</c> / <c>Workshop.Awake</c> (the
 /// RaidDirector pattern), so its public fields are the LIVE values and no prefab
-/// carries a stale copy. Slice 3 changes the Workshop's speed table.
+/// carries a stale copy.
 /// </summary>
 public class CraftStation : MonoBehaviour
 {
@@ -34,8 +42,11 @@ public class CraftStation : MonoBehaviour
 
     public static IReadOnlyList<CraftStation> ActiveList => ActiveRegistry<CraftStation>.List;
 
-    /// <summary>Seconds without labor before the panel says nobody is at the bench.</summary>
+    /// <summary>Seconds without labor before a pair of hands counts as gone from the bench.</summary>
     public const float IdleAfter = 0.5f;
+
+    /// <summary>Pairs of hands one bench holds at once (the player's character included).</summary>
+    public const int MaxLaborers = 4;
 
     public sealed class QueueEntry
     {
@@ -43,13 +54,24 @@ public class CraftStation : MonoBehaviour
         public ResearchCatalog.ResearchDef research;
         /// <summary>Repeats left (recipes); always 1 for research.</summary>
         public int remaining;
-        /// <summary>Seconds of scaled labor on the current repeat.</summary>
+        /// <summary>Seconds of scaled labor banked on an abandoned repeat; the next lane on this entry inherits it.</summary>
         public float progress;
+        /// <summary>Furthest live lane on this entry, for display only.</summary>
+        internal float live;
 
         public WorkDef Def => recipe != null ? (WorkDef)recipe : research;
         public string Title => Def.title;
         public bool IsResearch => research != null;
-        public float Progress01 => Mathf.Clamp01(progress / Mathf.Max(0.01f, Def.seconds));
+        public float Progress01 => Mathf.Clamp01(Mathf.Max(progress, live) / Mathf.Max(0.01f, Def.seconds));
+    }
+
+    /// <summary>One pair of hands: who, which entry, how far along their own repeat is.</summary>
+    sealed class Lane
+    {
+        public object who;
+        public float lastLaborTime;
+        public QueueEntry entry;
+        public float progress;
     }
 
     [Tooltip("Which research tier this bench lists.")]
@@ -61,14 +83,13 @@ public class CraftStation : MonoBehaviour
     public string displayName = "Campfire";
 
     private readonly List<QueueEntry> queue = new List<QueueEntry>();
-    private object laborer;
-    private float lastLaborTime = float.NegativeInfinity;
+    private readonly List<Lane> lanes = new List<Lane>(MaxLaborers + 1);
     private string status = "";
 
     private Collider cachedCollider;
     private ITargetable targetable;   // the building this bench sits on, for its Health
 
-    /// <summary>Front to back; index 0 is being worked.</summary>
+    /// <summary>Front to back; index 0 is the entry hands take first.</summary>
     public IReadOnlyList<QueueEntry> Queue => queue;
 
     /// <summary>Bumped on every structural change (add, remove, complete); the panel rebuilds its rows on it.</summary>
@@ -78,42 +99,96 @@ public class CraftStation : MonoBehaviour
     public QueueEntry Active => queue.Count > 0 ? queue[0] : null;
 
     /// <summary>Someone has added labor in the last <see cref="IdleAfter"/> seconds.</summary>
-    public bool IsWorked => Time.time - lastLaborTime < IdleAfter;
+    public bool IsWorked => LaborerCount > 0;
 
-    /// <summary>Who is at the bench right now, or null.</summary>
-    public object Laborer => IsWorked ? laborer : null;
+    /// <summary>Pairs of hands at the bench right now.</summary>
+    public int LaborerCount
+    {
+        get
+        {
+            int n = 0;
+            for (int i = 0; i < lanes.Count; i++) if (Fresh(lanes[i])) n++;
+            return n;
+        }
+    }
 
-    /// <summary>True while the player's character is the one adding labor here.</summary>
-    public bool PlayerAtBench => IsWorked && laborer is PlayerCharacter;
+    /// <summary>Who is at the bench right now (the player first, else the first colonist), or null.</summary>
+    public object Laborer
+    {
+        get
+        {
+            object first = null;
+            for (int i = 0; i < lanes.Count; i++)
+            {
+                if (!Fresh(lanes[i])) continue;
+                if (lanes[i].who is PlayerCharacter) return lanes[i].who;
+                if (first == null) first = lanes[i].who;
+            }
+            return first;
+        }
+    }
 
-    // --- Crafter claim (2026-09-04, Slice 3) ---
-    // The ConstructionSite.RegisterBuilder shape: a Crafter colonist claims the
-    // bench when it sets out so a second crafter walks to a different bench. The
-    // claim is about WHO WALKS HERE, not who labors — the player's character never
-    // claims and always wins the bench on arrival (see AddLabor).
-    private Worker crafter;
+    /// <summary>True while the player's character is one of the pairs of hands here.</summary>
+    public bool PlayerAtBench => Laborer is PlayerCharacter;
 
-    /// <summary>The crafter colonist headed to or standing at this bench, or null.</summary>
-    public Worker Crafter => crafter;
+    /// <summary>The entry <paramref name="who"/> is working, or null when they hold no lane.</summary>
+    public QueueEntry EntryOf(object who)
+    {
+        Lane l = FindLane(who);
+        return l != null && Fresh(l) ? l.entry : null;
+    }
 
-    /// <summary>Room for this crafter: unclaimed, or already claimed by them.</summary>
-    public bool CanClaim(Worker w) => crafter == null || crafter == w;
+    /// <summary>0..1 of <paramref name="who"/>'s own repeat, 0 when they hold no lane.</summary>
+    public float Progress01Of(object who)
+    {
+        Lane l = FindLane(who);
+        if (l == null || l.entry == null) return 0f;
+        return Mathf.Clamp01(l.progress / Mathf.Max(0.01f, l.entry.Def.seconds));
+    }
 
-    /// <summary>Claim the bench for a crafter. False when another crafter holds it.</summary>
+    // --- Crafter claims (2026-09-04, Slice 3; several since 2026-09-13) ---
+    // The ConstructionSite.RegisterBuilder shape: a colonist claims a seat when it
+    // sets out so the seats fill from different benches before anyone queues at
+    // one. A claim is about WHO WALKS HERE, not who labors — the player's
+    // character never claims and always wins a lane on arrival (see AddLabor).
+    // Seats = min(MaxLaborers, repeats queued), so one spear draws one colonist.
+    private readonly List<Worker> claimers = new List<Worker>(MaxLaborers);
+
+    /// <summary>Colonists headed to or standing at this bench.</summary>
+    public int ClaimCount { get { PruneClaims(); return claimers.Count; } }
+
+    /// <summary>Seats colonists may claim: one per queued repeat, capped at <see cref="MaxLaborers"/>.</summary>
+    public int Seats => Mathf.Min(MaxLaborers, TotalRepeats);
+
+    /// <summary>Room for this crafter: a free seat, or already claimed by them.</summary>
+    public bool CanClaim(Worker w)
+    {
+        if (w == null) return false;
+        PruneClaims();
+        return claimers.Contains(w) || claimers.Count < Seats;
+    }
+
+    /// <summary>Claim a seat for a crafter. False when every seat is taken.</summary>
     public bool Claim(Worker w)
     {
-        if (w == null || !CanClaim(w)) return false;
-        crafter = w;
+        if (!CanClaim(w)) return false;
+        if (!claimers.Contains(w)) claimers.Add(w);
         return true;
     }
 
-    /// <summary>Release by worker — safe whether or not they held it.</summary>
+    /// <summary>Release by worker — safe whether or not they held a seat.</summary>
     public void Release(Worker w)
     {
-        if (w != null && crafter == w) crafter = null;
+        if (w != null) claimers.Remove(w);
     }
 
-    /// <summary>"Waiting for 2 Stick" while the front entry is held for materials; empty otherwise.</summary>
+    void PruneClaims()
+    {
+        for (int i = claimers.Count - 1; i >= 0; i--)
+            if (claimers[i] == null) claimers.RemoveAt(i);
+    }
+
+    /// <summary>"Waiting for 2 Stick" while a repeat is held for materials; empty otherwise.</summary>
     public string Status => status;
 
     /// <summary>The station's own collider — approach points and reach are edge distances against it.</summary>
@@ -154,6 +229,17 @@ public class CraftStation : MonoBehaviour
 
     /// <summary>Does this bench teach this entry (same tier)?</summary>
     public bool Lists(ResearchCatalog.ResearchDef d) => d != null && d.station == tier && Speed(WorkCategory.Research) > 0f;
+
+    /// <summary>Every repeat still queued, across all entries.</summary>
+    public int TotalRepeats
+    {
+        get
+        {
+            int n = 0;
+            for (int i = 0; i < queue.Count; i++) n += queue[i].remaining;
+            return n;
+        }
+    }
 
     // ------------------------------------------------------------------
     // Queueing
@@ -220,61 +306,193 @@ public class CraftStation : MonoBehaviour
     public void RemoveAt(int index)
     {
         if (index < 0 || index >= queue.Count) return;
+        DropEntry(queue[index]);
         queue.RemoveAt(index);
-        if (index == 0) status = "";
+        status = "";
         Version++;
     }
 
     public void Clear()
     {
         if (queue.Count == 0) return;
+        for (int i = 0; i < queue.Count; i++) DropEntry(queue[i]);
         queue.Clear();
         status = "";
         Version++;
+    }
+
+    /// <summary>An entry is leaving the queue: every lane on it goes back to looking for work.</summary>
+    void DropEntry(QueueEntry e)
+    {
+        for (int i = 0; i < lanes.Count; i++)
+        {
+            if (lanes[i].entry != e) continue;
+            lanes[i].entry = null;
+            lanes[i].progress = 0f;
+        }
     }
 
     // ------------------------------------------------------------------
     // Labor
     // ------------------------------------------------------------------
 
+    bool Fresh(Lane l) => Time.time - l.lastLaborTime < IdleAfter;
+
+    Lane FindLane(object who)
+    {
+        for (int i = 0; i < lanes.Count; i++)
+            if (lanes[i].who == who) return lanes[i];
+        return null;
+    }
+
+    int LanesOn(QueueEntry e)
+    {
+        int n = 0;
+        for (int i = 0; i < lanes.Count; i++)
+            if (lanes[i].entry == e) n++;
+        return n;
+    }
+
+    /// <summary>The first entry with a repeat nobody is working, or null.</summary>
+    QueueEntry FreeEntry()
+    {
+        for (int i = 0; i < queue.Count; i++)
+            if (LanesOn(queue[i]) < queue[i].remaining) return queue[i];
+        return null;
+    }
+
+    /// <summary>Hands gone for <see cref="IdleAfter"/> bank their repeat on its entry and leave the bench.</summary>
+    void PruneLanes()
+    {
+        for (int i = lanes.Count - 1; i >= 0; i--)
+        {
+            Lane l = lanes[i];
+            if (Fresh(l)) continue;
+            Bank(l);
+            lanes.RemoveAt(i);
+        }
+    }
+
+    void Bank(Lane l)
+    {
+        if (l.entry != null && l.progress > l.entry.progress) l.entry.progress = l.progress;
+        l.entry = null;
+        l.progress = 0f;
+    }
+
+    void RefreshLive(QueueEntry e)
+    {
+        float max = 0f;
+        for (int i = 0; i < lanes.Count; i++)
+            if (lanes[i].entry == e && lanes[i].progress > max) max = lanes[i].progress;
+        e.live = max;
+    }
+
     /// <summary>
     /// <paramref name="who"/> works the bench for <paramref name="dt"/> seconds.
-    /// Returns false when there is nothing to do or someone else is already at
-    /// the bench. <paramref name="hands"/> is the laborer's inventory (may be
-    /// null) — items in it count toward, and are taken for, the costs.
+    /// Returns false when there is nothing for these hands: the queue is empty,
+    /// every seat is taken, or every queued repeat already has a pair of hands.
+    /// <paramref name="hands"/> is the laborer's inventory (may be null) — items
+    /// in it count toward, and are taken for, the costs of their own repeat.
     ///
-    /// The player's character always wins the bench (2026-09-04): they take it
-    /// over from a Crafter colonist at once, and the crafter waits beside it
-    /// until they walk off. Two crafters, or two of anything else, do not stack.
+    /// The player's character always wins a place (2026-09-04): with the bench
+    /// full they evict the stalest colonist, and with every repeat taken they
+    /// take one over, progress and all; the colonist waits beside the bench
+    /// until a repeat frees up. Colonists never evict anyone.
     /// </summary>
     public bool AddLabor(float dt, object who, Inventory hands)
     {
-        if (queue.Count == 0) return false;
-        if (laborer != who && IsWorked && !(who is PlayerCharacter)) return false;   // bench busy
+        if (queue.Count == 0 || who == null) return false;
+        PruneLanes();
 
-        laborer = who;
-        lastLaborTime = Time.time;
+        Lane lane = FindLane(who);
+        bool isPlayer = who is PlayerCharacter;
 
-        QueueEntry e = queue[0];
+        if (lane == null)
+        {
+            if (lanes.Count >= MaxLaborers)
+            {
+                if (!isPlayer) return false;   // bench full
+                int stalest = StalestColonistLane();
+                if (stalest < 0) return false;
+                Bank(lanes[stalest]);
+                lanes.RemoveAt(stalest);
+            }
+            // Only join when there is a repeat for these hands — a waiting
+            // colonist must not allocate a lane every frame it asks.
+            if (FreeEntry() == null && !(isPlayer && StalestColonistLane() >= 0)) return false;
+            lane = new Lane { who = who };
+            lanes.Add(lane);
+            if (LaborerCount >= 2) DevQuests.Signal("craft:shared");
+        }
+
+        if (lane.entry == null)
+        {
+            QueueEntry e = FreeEntry();
+            if (e != null)
+            {
+                lane.entry = e;
+                lane.progress = e.progress;   // inherit an abandoned repeat
+                e.progress = 0f;
+            }
+            else if (isPlayer)
+            {
+                int victim = StalestColonistLane();
+                if (victim < 0) return false;
+                lane.entry = lanes[victim].entry;
+                lane.progress = lanes[victim].progress;
+                lanes.RemoveAt(victim);
+            }
+            else
+            {
+                lanes.Remove(lane);
+                return false;
+            }
+        }
+
+        lane.lastLaborTime = Time.time;
+        QueueEntry entry = lane.entry;
 
         // Research finished elsewhere (or a tool made elsewhere) while it waited here
-        if (e.research != null && Faction.Knowledge.IsDone(e.research)) { queue.RemoveAt(0); status = ""; Version++; return true; }
-        if (e.recipe != null && e.recipe.oncePerRun && e.recipe.made) { queue.RemoveAt(0); status = ""; Version++; return true; }
+        if (entry.research != null && Faction.Knowledge.IsDone(entry.research)) { RemoveEntry(entry); return true; }
+        if (entry.recipe != null && entry.recipe.oncePerRun && entry.recipe.made) { RemoveEntry(entry); return true; }
 
-        e.progress += dt * Speed(e.Def.Category);
-        if (e.progress >= e.Def.seconds) TryComplete(e, who, hands);
+        lane.progress += dt * Speed(entry.Def.Category);
+        if (lane.progress > entry.live) entry.live = lane.progress;
+        if (lane.progress >= entry.Def.seconds) TryComplete(lane, who, hands);
         return true;
     }
 
-    void TryComplete(QueueEntry e, object who, Inventory hands)
+    int StalestColonistLane()
     {
+        int idx = -1;
+        float oldest = float.MaxValue;
+        for (int i = 0; i < lanes.Count; i++)
+        {
+            if (lanes[i].who is PlayerCharacter) continue;
+            if (lanes[i].lastLaborTime < oldest) { oldest = lanes[i].lastLaborTime; idx = i; }
+        }
+        return idx;
+    }
+
+    void RemoveEntry(QueueEntry e)
+    {
+        DropEntry(e);
+        queue.Remove(e);
+        status = "";
+        Version++;
+    }
+
+    void TryComplete(Lane lane, object who, Inventory hands)
+    {
+        QueueEntry e = lane.entry;
         WorkDef def = e.Def;
         Inventory stock = Stockpile;
 
         if (!def.Pay(hands, stock))
         {
             // Hold at 100% until the missing part turns up
-            e.progress = def.seconds;
+            lane.progress = def.seconds;
             string missing = def.MissingText(hands, stock);
             status = missing.Length > 0 ? "Waiting for " + missing : "Waiting for materials";
             return;
@@ -287,7 +505,7 @@ public class CraftStation : MonoBehaviour
             // completes — learning to cut wood and making the axe are one step.
             Deliver(e.research.tool, 1, who, stock);
             Faction.Knowledge.Complete(e.research);
-            queue.RemoveAt(0);
+            e.remaining = 0;
         }
         else
         {
@@ -295,12 +513,16 @@ public class CraftStation : MonoBehaviour
             Deliver(r.output, r.outputCount, who, stock);
             DevQuests.Signal("craft:" + r.id);
             DevQuests.Signal(who is Worker ? "craft_by_colonist" : "craft_by_player");
-            if (r.oncePerRun) r.made = true;
-
-            e.remaining--;
-            e.progress = 0f;
-            if (e.remaining <= 0 || (r.oncePerRun && r.made)) queue.RemoveAt(0);
+            if (r.oncePerRun) { r.made = true; e.remaining = 0; }
+            else e.remaining--;
         }
+
+        // These hands look for the next repeat on the next tick
+        lane.entry = null;
+        lane.progress = 0f;
+
+        if (e.remaining <= 0) { DropEntry(e); queue.Remove(e); }
+        else RefreshLive(e);
 
         Version++;
         if (AudioManager.Instance != null) AudioManager.Instance.PlayBuildingPlaced();

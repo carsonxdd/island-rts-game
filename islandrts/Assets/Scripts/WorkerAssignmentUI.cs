@@ -982,7 +982,9 @@ public class WorkerAssignmentUI : MonoBehaviour
             }
             else
             {
-                text = e.Title + (e.remaining > 1 ? " ×" + e.remaining : "");
+                // Later entries can be under way too — several pairs of hands share a bench
+                int pct = Mathf.FloorToInt(e.Progress01 * 100f);
+                text = e.Title + (e.remaining > 1 ? " ×" + e.remaining : "") + (pct > 0 ? "  " + pct + "%" : "");
             }
             if (text != queueRows[i].textLast)
             {
@@ -1007,17 +1009,23 @@ public class WorkerAssignmentUI : MonoBehaviour
         }
         else if (station.IsWorked)
         {
-            status = station.Laborer == (object)pc ? "Your character is at the bench."
-                : station.Laborer is Worker ? "A crafter is at the bench." : "Someone is at the bench.";
+            int hands = station.LaborerCount;
+            bool you = station.PlayerAtBench;
+            int colonists = you ? hands - 1 : hands;
+            status = you
+                ? (colonists == 0 ? "Your character is at the bench."
+                    : colonists == 1 ? "Your character and a colonist are at the bench."
+                    : "Your character and " + colonists + " colonists are at the bench.")
+                : (colonists == 1 ? "A colonist is at the bench." : colonists + " colonists are at the bench.");
             color = MenuStyle.TextAccent;
         }
         else if (pc != null && pc.WalkingToStation == station)
         {
             status = "Your character is on the way.";
         }
-        else if (station.Crafter != null)
+        else if (station.ClaimCount > 0)
         {
-            status = "A crafter is on the way.";
+            status = station.ClaimCount == 1 ? "A colonist is on the way." : station.ClaimCount + " colonists are on the way.";
         }
         else
         {
@@ -1048,10 +1056,10 @@ public class WorkerAssignmentUI : MonoBehaviour
         if (pc.IsKnockedOut) return "Your character is knocked out.";
         if (pc.WorkingStation == station)
         {
-            CraftStation.QueueEntry e = station.Active;
+            CraftStation.QueueEntry e = station.EntryOf(pc);
             if (e == null) return "Your character is at the bench.";
             if (station.Status.Length > 0) return station.Status;
-            return (e.IsResearch ? "Researching " : "Crafting ") + e.Title + "…  " + Mathf.RoundToInt(e.Progress01 * 100f) + "%";
+            return (e.IsResearch ? "Researching " : "Crafting ") + e.Title + "…  " + Mathf.RoundToInt(station.Progress01Of(pc) * 100f) + "%";
         }
         if (pc.WalkingToStation == station) return "Walking to the bench…";
         if (station.HasWork) return "Queued " + station.Queue.Count + " — nobody at the bench. Queue more, or see the Queue tab.";

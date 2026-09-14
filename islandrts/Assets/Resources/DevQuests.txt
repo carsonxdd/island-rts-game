@@ -30,10 +30,32 @@
 #   faction:bootstrap  faction:rival  faction:<hostile|neutral|allied>
 #   repair  repair:gate  raid:rested  raider:wall_stop  raider:wall_over_warrior
 #   rival:landed  rival:met  rival:territory
+#   queue:add  queue:run  deposit:walk_on  craft:shared  build:keep_placing
 # crowd:split, dropoff:spread and patrol:spread are STATE checks polled by the
 # tracker twice a second while their quest is open; everything else is an event.
 # A finished batch is deleted from here once its report is in; it stays in the
 # changelog and the phase history.
+
+## 2026-09-13 Queued orders and shared benches
+- @queue:add Shift + right-click while busy adds an order (label shows +N)
+- @queue:run The next queued order starts by itself when one ends
+- A plain right-click wipes the queue and does that instead
+- Queue three pickups then the fire: all fetched, all deposited
+- A queued pickup someone else took is skipped, not stuck on
+- A green ring flashes at every click, queued clicks too
+- A trail runs along the path while walking and is gone on arrival
+- The trail follows the ground over a rise, never cuts under it
+- @build:keep_placing Shift + click places a hut and keeps the ghost
+- Shift + right-click a site queues the build behind the current order
+- @deposit:walk_on Ground click beside the fire deposits on the way past
+- Ground click beside the fire with empty hands is just a walk there
+- Right-click the fire itself still deposits and works the queue
+- @craft:shared Two colonists work one bench at once (queue 5 spears)
+- Queue tab names how many are at the bench; later rows show a %
+- One spear queued draws one colonist, not the whole idle pool
+- Your castaway at a full bench still gets a place
+- Walk off mid-spear, come back: the progress is still there
+- The run starts in the morning with the sun up, not at dawn
 
 ## 2026-09-12 Solid unexplored fog
 - At noon, unexplored ground shows no hills, cliffs or coast shape

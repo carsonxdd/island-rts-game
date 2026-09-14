@@ -176,6 +176,20 @@ public class GhostPlacer
             AudioManager.Instance.PlayBuildingPlaced();
         }
 
+        // Queue key held (Shift, 2026-09-13): stay in build mode with the same
+        // ghost so a row of huts is a row of clicks. The new site is already in
+        // its registry (Awake ran inside Spawn), so the next validity check sees
+        // it; only the zone outlines and the cost readout need refreshing.
+        if (KeyBindings.Held(KeyBindings.Action.QueueCommand))
+        {
+            DevQuests.Signal("build:keep_placing");
+            owner.zoneRenderer.DestroyZoneVisuals();
+            if (owner.showNoBuildZones) owner.zoneRenderer.CreateZoneVisuals();
+            if (owner.selectionUI != null)
+                owner.selectionUI.UpdateDisplay(data, pool.CanAfford(data.woodCost, data.foodCost, data.stoneCost, data.metalCost));
+            return;
+        }
+
         // NON-WALL: Exit build mode after placing
         Object.Destroy(owner.currentGhost);
         owner.zoneRenderer.DestroyZoneVisuals();

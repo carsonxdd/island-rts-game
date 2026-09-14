@@ -8,6 +8,24 @@
 # Lines starting with a single # are comments. Anything else that is not a
 # heading, a bullet or an indented continuation is ignored.
 
+## 2026-09-13 — Queued orders, shared benches, a morning start
+- Hold Shift and right-click to queue orders for your castaway: fetch this, then
+  that, then carry it all to the fire. Each one runs when the last is done and
+  the label under your name counts what is still waiting. A plain right-click
+  drops the queue and does that instead.
+- A green ring marks where you clicked, and a thin trail shows the path your
+  castaway is about to walk, riding the hills. Both fade on their own.
+- Hold Shift while placing a hut, tower, Workshop or Shipyard to stay in build
+  mode and place the next one straight away.
+- Right-click the ground beside the fire and your castaway now walks to that spot,
+  emptying their hands as they pass the fire. With nothing to drop it is just a
+  walk. Right-click the fire itself to deposit and work its queue as before.
+- Several pairs of hands share a bench. Queue five spears and every idle
+  colonist who comes takes one, so the whole order comes off the bench together.
+  Research is still one person's work. Your castaway always gets a place.
+- The run starts at eight in the morning with the sun up, not in the half-dark
+  of dawn.
+
 ## 2026-09-12 — The fog hides the island by day
 - Ground nobody has explored is now one solid dark colour at every hour. In
   bright daylight you could make out the hills and coastline through it before.

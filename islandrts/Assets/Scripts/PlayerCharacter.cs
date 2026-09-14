@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -90,6 +91,38 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
     private Collider taskSiteCollider;
     private float stallTimer;
 
+    // A ground click beside the fire (2026-09-13): walk to the clicked spot and
+    // empty the hands on the way past, instead of parking at the fire's edge.
+    private bool taskWalkOn;
+    private bool taskDeposited;
+
+    // A plain walk, so the queue knows when it is over
+    private bool walking;
+    private float walkStartedAt;
+
+    // Queued orders (2026-09-13): Shift + right-click appends instead of replacing.
+    // Whatever the character is doing runs to its end (a collect, a deposit, a
+    // node emptied or the hands filled, a queue run dry, a site finished, a walk
+    // arrived, or a "can't reach") and the next order starts by itself. A plain
+    // right-click, or any command the UI or the sim issues, clears the queue.
+    enum OrderKind { Move, Collect, Harvest, Build, Deposit, DepositNear, Work }
+    struct Order
+    {
+        public OrderKind kind;
+        public GroundPickup pickup;
+        public ResourceNode node;
+        public ConstructionSite site;
+        public BaseBuilding fire;
+        public CraftStation station;
+        public Vector3 point;
+    }
+    private readonly List<Order> orders = new List<Order>(MaxOrders);
+    private const int MaxOrders = 12;
+    private bool dispatching;   // an order is being started from the queue: do not clear it
+
+    /// <summary>Orders waiting behind the current one (the HUD shows "+N").</summary>
+    public int QueuedOrders => orders.Count;
+
     // Harvesting a node by hand (standing at it). The node owns its own depletion;
     // this side owns the fractional accumulators that turn units into whole items.
     private ResourceNode harvestNode;
@@ -124,6 +157,8 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
     private string composedLabel;
     private string composedName;
     private string composedActivity;
+    private int composedQueued = -1;
+    private string activityShown = "";     // activity plus a "+N" when orders wait
 
     private Camera mainCam;
 
@@ -145,11 +180,14 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
     /// <summary>Walking somewhere with a purpose (fetching, depositing, heading to a bench).</summary>
     public bool HasTask => task != TaskKind.None;
 
+    /// <summary>Anything under way that a queued order must wait behind.</summary>
+    bool Busy => task != TaskKind.None || walking || harvestNode != null || workStation != null || buildSite != null;
+
     /// <summary>The tool shown in the character's hand (visual only).</summary>
     public ItemDef HeldTool => heldItem != null ? heldItem.Current : null;
 
-    /// <summary>What the character is doing, shown under the name and on the HUD. Empty hides the line.</summary>
-    public string Activity => activity;
+    /// <summary>What the character is doing, shown under the name and on the HUD, with a "+N" while orders wait. Empty hides the line.</summary>
+    public string Activity => activityShown;
 
     /// <summary>Set the activity line; with <paramref name="seconds"/> &gt; 0 it clears itself (a "+3 Stick" flash).</summary>
     public void SetActivity(string text, float seconds = 0f)
@@ -199,6 +237,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         PlayerHUD.Ensure();
         CombatHUD.Ensure();   // shows itself once the first warrior exists
         Minimap.Ensure();
+        PlayerClickMarker.Attach(agent);   // the click ring and the path trail (no-op headless)
     }
 
     protected override void OnDestroy()
@@ -222,6 +261,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         if (hasPendingDestination) TryIssueMove();
 
         UpdateTask();
+        UpdateWalk();
         UpdateHarvest();
         UpdateWork();
         UpdateBuild();
@@ -242,77 +282,144 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
     // Commands
     // ------------------------------------------------------------------
 
-    /// <summary>Right-click under the mouse: fetch a pickup, deposit at the fire, or walk there.</summary>
+    /// <summary>
+    /// Right-click under the mouse: fetch a pickup, deposit at the fire, or walk
+    /// there. With the queue key held (Shift) the order waits behind the current one.
+    /// </summary>
     public void HandleCommandClick()
     {
         if (Minimap.PointerOver) return;   // a click on the map moves the camera, not the castaway
         if (mainCam == null) mainCam = Camera.main;
         if (mainCam == null) return;
 
+        bool queue = KeyBindings.Held(KeyBindings.Action.QueueCommand);
+
         Ray ray = mainCam.ScreenPointToRay(Input.mousePosition);
         RaycastHit hit;
         if (Physics.Raycast(ray, out hit, 1000f, CommandMask, QueryTriggerInteraction.Ignore))
         {
-            CommandAt(hit.collider, hit.point);
+            CommandAt(hit.collider, hit.point, queue);
             return;
         }
 
         // Off the world: plane at sea level (legacy flat world, off-map clicks)
         Plane ground = new Plane(Vector3.up, Vector3.zero);
         float dist;
-        if (ground.Raycast(ray, out dist)) MoveTo(ray.GetPoint(dist));
+        if (ground.Raycast(ray, out dist)) Issue(new Order { kind = OrderKind.Move, point = ray.GetPoint(dist) }, queue);
     }
 
     /// <summary>
     /// Interpret a right-click on <paramref name="hitCollider"/> at <paramref name="point"/>.
-    /// Public so the opening sequence can route its clicks here.
+    /// Public so the opening sequence can route its clicks here. With
+    /// <paramref name="queue"/> the order waits behind whatever is under way.
     /// </summary>
-    public void CommandAt(Collider hitCollider, Vector3 point)
+    public void CommandAt(Collider hitCollider, Vector3 point, bool queue = false)
     {
         if (knockedOut) return;
-        StopWork();      // any new order leaves the bench (nothing has been paid yet)
-        StopHarvest();
-        StopBuild();
+        Issue(Resolve(hitCollider, point), queue);
+    }
 
+    /// <summary>What a click on <paramref name="hitCollider"/> at <paramref name="point"/> means.</summary>
+    Order Resolve(Collider hitCollider, Vector3 point)
+    {
+        Order o = new Order { point = point, kind = OrderKind.Move };
         if (hitCollider != null)
         {
-            GroundPickup pickup = hitCollider.GetComponentInParent<GroundPickup>();
-            if (pickup != null) { CommandCollect(pickup); return; }
+            o.pickup = hitCollider.GetComponentInParent<GroundPickup>();
+            if (o.pickup != null) { o.kind = OrderKind.Collect; return o; }
 
-            ResourceNode node = hitCollider.GetComponentInParent<ResourceNode>();
-            if (node != null) { CommandHarvest(node); return; }
+            o.node = hitCollider.GetComponentInParent<ResourceNode>();
+            if (o.node != null) { o.kind = OrderKind.Harvest; return o; }
 
             // Before the BaseBuilding test: a site is not a finished building yet
-            ConstructionSite site = hitCollider.GetComponentInParent<ConstructionSite>();
-            if (site != null) { CommandBuild(site); return; }
+            o.site = hitCollider.GetComponentInParent<ConstructionSite>();
+            if (o.site != null) { o.kind = OrderKind.Build; return o; }
 
-            BaseBuilding fire = hitCollider.GetComponentInParent<BaseBuilding>();
-            if (fire != null) { CommandDeposit(fire); return; }
+            o.fire = hitCollider.GetComponentInParent<BaseBuilding>();
+            if (o.fire != null) { o.kind = OrderKind.Deposit; return o; }
 
             // Any other station (the Workshop): walk over and work its queue
-            CraftStation station = hitCollider.GetComponentInParent<CraftStation>();
-            if (station != null) { WorkAt(station); return; }
+            o.station = hitCollider.GetComponentInParent<CraftStation>();
+            if (o.station != null) { o.kind = OrderKind.Work; return o; }
         }
 
         // A click on the ground right beside the fire is a deposit too
         // (2026-09-03). The campfire's collider is a 2x2 box under a wide,
         // flickering silhouette, so aiming at the fire itself was fiddly, and
         // missing it walked the character past the thing they were carrying to.
+        // Since 2026-09-13 it is a deposit ON THE WAY to the clicked spot: the
+        // character keeps walking to where you pointed and empties their hands
+        // as they pass the fire, and with nothing to drop it is just a walk.
         BaseBuilding near = Factions.Player.Campfire;
         if (near != null)
         {
             float d = TargetingUtil.EdgeDistance(point, near.transform, near.GetComponent<Collider>());
-            if (d <= DepositClickRadius) { CommandDeposit(near); return; }
+            if (d <= DepositClickRadius) { o.fire = near; o.kind = OrderKind.DepositNear; }
+        }
+        return o;
+    }
+
+    /// <summary>Start an order now, or park it behind the current one.</summary>
+    void Issue(Order o, bool queue)
+    {
+        if (knockedOut) return;
+        PlayerClickMarker.Flash(o.point);
+
+        if (queue && Busy)
+        {
+            if (orders.Count < MaxOrders) orders.Add(o);
+            DevQuests.Signal("queue:add");
+            RefreshLabel();
+            return;
         }
 
-        ClearTask();
-        MoveTo(point);
+        orders.Clear();
+        Execute(o);
+    }
+
+    void Execute(Order o)
+    {
+        switch (o.kind)
+        {
+            case OrderKind.Collect: CommandCollect(o.pickup); break;
+            case OrderKind.Harvest: CommandHarvest(o.node); break;
+            case OrderKind.Build: CommandBuild(o.site); break;
+            case OrderKind.Deposit: CommandDeposit(o.fire); break;
+            case OrderKind.DepositNear: CommandDepositNear(o.fire, o.point); break;
+            case OrderKind.Work: WorkAt(o.station); break;
+            default: CommandMove(o.point); break;
+        }
+    }
+
+    /// <summary>
+    /// The current order is over (done, or given up): start the next queued one.
+    /// Every place that ends an order calls this, and only those places — the
+    /// Stop* methods are also what a NEW command calls first, so they must not.
+    /// </summary>
+    void Continue()
+    {
+        if (orders.Count == 0 || knockedOut) return;
+        Order next = orders[0];
+        orders.RemoveAt(0);
+        DevQuests.Signal("queue:run");
+        bool was = dispatching;   // an order that fails at once continues from inside Execute
+        dispatching = true;
+        try { Execute(next); }
+        finally { dispatching = was; }
+        RefreshLabel();
+    }
+
+    /// <summary>A command from outside the queue (a click, the UI, the sim) replaces whatever was queued.</summary>
+    void NewOrder()
+    {
+        if (!dispatching && orders.Count > 0) orders.Clear();
     }
 
     /// <summary>Walk to a ground pickup and take it. Public for the balance sim's player driver.</summary>
     public void CommandCollect(GroundPickup pickup)
     {
         if (knockedOut || pickup == null) return;
+        NewOrder();
         StopWork();
         StopHarvest();
         StopBuild();
@@ -321,11 +428,13 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         if (pickup.IsClaimedByOther(this))
         {
             SetActivity("Someone is fetching that", FlashSeconds);
+            Continue();
             return;
         }
         if (inventory.SpaceFor(pickup.Item) <= 0)
         {
             SetActivity("Hands full — deposit at the fire", FlashSeconds);
+            Continue();
             return;
         }
 
@@ -337,10 +446,11 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         MoveTo(pickup.transform.position);
     }
 
-    /// <summary>Walk to the fire and deposit everything in hand (then open its panel). Public for the sim's player driver.</summary>
+    /// <summary>Walk to the fire and deposit everything in hand (then work its queue). Public for the sim's player driver.</summary>
     public void CommandDeposit(BaseBuilding fire)
     {
         if (knockedOut || fire == null) return;
+        NewOrder();
         StopWork();
         StopHarvest();
         StopBuild();
@@ -354,6 +464,82 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
 
         // Carve-safe approach point, never the centre (the campfire carves the NavMesh)
         MoveTo(TargetingUtil.GetApproachPoint(transform.position, fire.transform, taskFireCollider));
+    }
+
+    /// <summary>
+    /// A ground click beside the fire (2026-09-13): walk to <paramref name="point"/>
+    /// and empty the hands on the way past the fire's edge, or on arrival if the
+    /// path never comes that close. With nothing to drop it is a plain walk — the
+    /// character no longer parks facing the fire because you clicked near it.
+    /// </summary>
+    public void CommandDepositNear(BaseBuilding fire, Vector3 point)
+    {
+        if (knockedOut || fire == null) return;
+        if (!HasDepositable())
+        {
+            CommandMove(point);
+            return;
+        }
+
+        NewOrder();
+        StopWork();
+        StopHarvest();
+        StopBuild();
+        ClearTask();
+
+        task = TaskKind.Deposit;
+        taskWalkOn = true;
+        taskDeposited = false;
+        taskFire = fire;
+        taskFireCollider = fire.GetComponent<Collider>();
+        stallTimer = 0f;
+        SetActivity("Carrying to the fire");
+        MoveTo(point);
+    }
+
+    /// <summary>Anything in hand the fire takes (everything but a tool).</summary>
+    bool HasDepositable()
+    {
+        for (int i = 0; i < inventory.SlotCount; i++)
+        {
+            Inventory.Slot slot = inventory[i];
+            if (!slot.IsEmpty && slot.item.kind != ItemKind.Tool) return true;
+        }
+        return false;
+    }
+
+    /// <summary>A plain walk. Ends (and lets the queue continue) on arrival or when the NavMesh gives up.</summary>
+    public void CommandMove(Vector3 point)
+    {
+        if (knockedOut) return;
+        NewOrder();
+        StopWork();
+        StopHarvest();
+        StopBuild();
+        ClearTask();
+        MoveTo(point);
+        walking = hasPendingDestination || (agent != null && agent.isOnNavMesh && (agent.pathPending || agent.hasPath));
+        walkStartedAt = Time.time;
+        if (!walking) Continue();   // nowhere to walk (off the mesh): on to the next order
+    }
+
+    void UpdateWalk()
+    {
+        if (!walking) return;
+        if (Time.time - walkStartedAt < 0.15f) return;   // the path request is still in flight
+        if (!Arrived() && !Stalled()) return;
+        walking = false;
+        Continue();
+    }
+
+    /// <summary>The agent has reached its destination and has nothing queued.</summary>
+    bool Arrived()
+    {
+        if (hasPendingDestination) return false;
+        if (agent == null || !agent.enabled || !agent.isOnNavMesh) return true;
+        if (agent.pathPending) return false;
+        if (!agent.hasPath) return true;
+        return agent.remainingDistance <= agent.stoppingDistance + 0.1f;
     }
 
     /// <summary>
@@ -383,6 +569,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
     public void CommandHarvest(ResourceNode node)
     {
         if (knockedOut || node == null) return;
+        NewOrder();
         StopWork();
         StopHarvest();
         StopBuild();
@@ -391,6 +578,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         if (!node.HasResources())
         {
             SetActivity("Nothing left there", FlashSeconds);
+            Continue();
             return;
         }
 
@@ -402,12 +590,14 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         if (tool != null && inventory.Count(tool) <= 0)
         {
             SetActivity("Need a " + tool.displayName.ToLowerInvariant() + " for that", FlashSeconds);
+            Continue();
             return;
         }
 
         if (inventory.SpaceFor(node.PrimaryItem) <= 0)
         {
             SetActivity("Hands full - deposit at the fire", FlashSeconds);
+            Continue();
             return;
         }
 
@@ -464,6 +654,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         {
             StopHarvest();
             SetActivity("Nothing left there", FlashSeconds);
+            Continue();
             return;
         }
         if (!WithinHarvestReach(harvestNode))
@@ -476,7 +667,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         }
 
         float units = harvestNode.GatherResources(HarvestPerSecond * Time.deltaTime, shedByproducts: false);
-        if (units <= 0f) { StopHarvest(); return; }
+        if (units <= 0f) { StopHarvest(); Continue(); return; }
 
         // Feedback on the same beat a worker's chopping gives the node
         if (Time.time >= nextHarvestPulse)
@@ -495,6 +686,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
             {
                 StopHarvest();
                 SetActivity("Hands full - deposit at the fire", FlashSeconds);
+                Continue();   // typically the queued trip to the fire
                 return;
             }
         }
@@ -527,20 +719,43 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
                     int taken = p.CollectAsItem(inventory);
                     if (taken > 0) SetActivity("+" + taken + " " + p.Item.displayName, FlashSeconds);
                     else SetActivity("Hands full — deposit at the fire", FlashSeconds);
+                    Continue();
                 }
                 else if (Stalled())
                 {
                     ClearTask();
                     SetActivity("Can't reach that", FlashSeconds);
+                    Continue();
                 }
                 break;
             }
 
             case TaskKind.Deposit:
             {
-                if (taskFire == null) { ClearTask(); return; }
+                if (taskFire == null) { ClearTask(); Continue(); return; }
 
                 float edge = TargetingUtil.EdgeDistance(transform.position, taskFire.transform, taskFireCollider);
+
+                if (taskWalkOn)
+                {
+                    // Passing the fire: empty the hands without breaking stride
+                    if (!taskDeposited && edge <= DepositEdgeDistance)
+                    {
+                        taskDeposited = true;
+                        DepositAll(taskFire);
+                        DevQuests.Signal("deposit:walk_on");
+                    }
+                    if (Arrived() || Stalled())
+                    {
+                        BaseBuilding fire = taskFire;
+                        bool done = taskDeposited;
+                        ClearTask();
+                        if (!done) DepositAll(fire);   // the click was within reach of the edge, so arrival counts
+                        Continue();
+                    }
+                    break;
+                }
+
                 if (edge <= DepositEdgeDistance || (Stalled() && edge <= StallReach))
                 {
                     if (agent != null && agent.isOnNavMesh) agent.ResetPath();
@@ -548,8 +763,10 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
                     ClearTask();
                     DepositAll(fire);
 
-                    // Already standing at the fire: if its bench has work, get on with it
-                    if (fire.Station != null && fire.Station.HasWork) BeginWork(fire.Station);
+                    // Already standing at the fire: if its bench has work, get on
+                    // with it — unless more orders are waiting, which come first
+                    if (orders.Count > 0) Continue();
+                    else if (fire.Station != null && fire.Station.HasWork) BeginWork(fire.Station);
 
                     // Deliberately does NOT open the campfire panel (2026-09-03).
                     // The two gestures are separate: right-click is "go do that",
@@ -561,13 +778,14 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
                 {
                     ClearTask();
                     SetActivity("Can't reach the fire", FlashSeconds);
+                    Continue();
                 }
                 break;
             }
 
             case TaskKind.Work:
             {
-                if (taskStation == null || !taskStation.IsAlive) { ClearTask(); return; }
+                if (taskStation == null || !taskStation.IsAlive) { ClearTask(); Continue(); return; }
 
                 float edge = TargetingUtil.EdgeDistance(transform.position, taskStation.transform, taskStation.ApproachCollider);
                 if (edge <= DepositEdgeDistance || (Stalled() && edge <= StallReach))
@@ -581,13 +799,14 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
                 {
                     ClearTask();
                     SetActivity("Can't reach the " + TaskStationName(), FlashSeconds);
+                    Continue();
                 }
                 break;
             }
 
             case TaskKind.Build:
             {
-                if (taskSite == null || taskSite.IsComplete) { ClearTask(); return; }   // finished without us
+                if (taskSite == null || taskSite.IsComplete) { ClearTask(); Continue(); return; }   // finished without us
 
                 float siteEdge = TargetingUtil.EdgeDistance(transform.position, taskSite.transform, taskSiteCollider);
                 if (siteEdge <= BuildEdgeDistance || (Stalled() && siteEdge <= StallReach))
@@ -600,13 +819,14 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
                 {
                     ClearTask();
                     SetActivity("Can't reach that site", FlashSeconds);
+                    Continue();
                 }
                 break;
             }
 
             case TaskKind.Harvest:
             {
-                if (taskNode == null) { ClearTask(); return; }   // depleted while we walked
+                if (taskNode == null) { ClearTask(); Continue(); return; }   // depleted while we walked
 
                 bool close = WithinHarvestReach(taskNode);
                 if (close || (Stalled() && Vector3.Distance(transform.position, taskNode.transform.position) <= StallReach + taskNode.GatherRingRadius))
@@ -619,6 +839,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
                 {
                     ClearTask();
                     SetActivity("Can't reach that", FlashSeconds);
+                    Continue();
                 }
                 break;
             }
@@ -645,6 +866,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
     public void CommandBuild(ConstructionSite site)
     {
         if (knockedOut || site == null) return;
+        NewOrder();
         StopWork();
         StopHarvest();
         StopBuild();
@@ -653,6 +875,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         if (site.IsComplete)
         {
             SetActivity("That one is finished", FlashSeconds);
+            Continue();
             return;
         }
 
@@ -701,6 +924,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
             string finished = buildSite.buildingType.ToString();
             StopBuild();
             SetActivity(finished + " finished", FlashSeconds);
+            Continue();
             return;
         }
 
@@ -724,6 +948,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
             buildSiteCollider = null;
             buildPercentShown = -1;
             SetActivity(raising + " finished", FlashSeconds);
+            Continue();
             return;
         }
 
@@ -784,6 +1009,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         if (station == null || knockedOut) return;
         if (workStation == station) return;
 
+        NewOrder();
         StopWork();
         StopHarvest();
         StopBuild();
@@ -821,6 +1047,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         {
             StopWork();
             SetActivity("The bench is gone", FlashSeconds);
+            Continue();
             return;
         }
 
@@ -830,6 +1057,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
             // Queue ran dry: stand down (the panel's Queue tab says so too)
             StopWork();
             SetActivity("Nothing left to make", FlashSeconds);
+            Continue();
             return;
         }
 
@@ -843,12 +1071,12 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
             return;
         }
 
-        // The entry may have completed inside AddLabor
-        entry = workStation.Active;
+        // Our own repeat (other hands may be on other entries); it may have completed inside AddLabor
+        entry = workStation.EntryOf(this);
         if (entry == null) return;
 
         // Only rebuild the label when the title or the whole-percent changes
-        int pct = Mathf.Min(99, Mathf.FloorToInt(entry.Progress01 * 100f));
+        int pct = Mathf.Min(99, Mathf.FloorToInt(workStation.Progress01Of(this) * 100f));
         string status = workStation.Status;
         if (status.Length > 0)
         {
@@ -964,6 +1192,9 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         taskNode = null;
         taskSite = null;
         taskSiteCollider = null;
+        taskWalkOn = false;
+        taskDeposited = false;
+        walking = false;
         stallTimer = 0f;
         if (activityExpires < 0f) SetActivity("");   // keep a flash, drop a "Fetching…"
     }
@@ -1038,6 +1269,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         DevQuests.Signal(Factions.Player.Stance == GuardStance.Mode.Follow ? "knockout:follow" : "knockout");
         reviveAt = Time.time + knockoutSeconds;
         hasPendingDestination = false;
+        orders.Clear();   // a beating cancels the plan
         StopWork();
         StopHarvest();
         StopBuild();
@@ -1105,18 +1337,21 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
 
     void RefreshLabel()
     {
-        if (floatingText == null) return;
-
         string name = PlayerProfile.Name;
-        if (name != composedName || activity != composedActivity)
+        int queued = orders.Count;
+        if (name != composedName || activity != composedActivity || queued != composedQueued)
         {
             composedName = name;
             composedActivity = activity;
-            composedLabel = activity.Length == 0
+            composedQueued = queued;
+            activityShown = queued == 0 ? activity
+                : activity.Length == 0 ? "+" + queued + " queued"
+                : activity + "  (+" + queued + ")";
+            composedLabel = activityShown.Length == 0
                 ? name
-                : name + "\n<size=70%><color=#FFFFFFCC>" + activity + "</color></size>";
+                : name + "\n<size=70%><color=#FFFFFFCC>" + activityShown + "</color></size>";
         }
 
-        floatingText.SetText(composedLabel, NameColor);
+        if (floatingText != null) floatingText.SetText(composedLabel, NameColor);
     }
 }

@@ -39,7 +39,8 @@ A Unity real-time-strategy survival game. You are one named character on a proce
 | **G** · **R** · **Shift** | Wall to gate · toggle wall path or rotate · diagonal wall path |
 | **Delete / X** | Demolish, 50% refund |
 | **F5 / F8 / F9** | Militia stance: Defensive / Offensive / Follow |
-| **Right-click** | Command your character: fetch, hand-harvest, deposit and work the queue, work a bench, build a site, or walk |
+| **Right-click** | Command your character: fetch, hand-harvest, deposit and work the queue, work a bench, build a site, or walk. A green ring marks the click and a trail shows the path |
+| **Shift + Right-click** | Queue the order behind the current one; a plain right-click clears the queue. In build mode, **Shift + Left-click** places a building and keeps the ghost for the next |
 | **Left-click** | Open a building's panel. The only gesture that opens UI |
 | **Space** | Centre the camera on your character |
 | **Left-click / drag the minimap** | Centre the camera there (the north-up map in the top-right corner) |

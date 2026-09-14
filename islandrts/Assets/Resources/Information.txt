@@ -25,10 +25,12 @@ what lies on the beach, hand-harvest a tree or a rock, carry it to the fire. You
 not a colonist: you have no job, nobody counts you, raiders do not hunt you, and you
 do not eat. If you are beaten down you are knocked out for a few seconds and stand
 back up beside the fire.
-- Right-click the ground to walk; right-click a stick, a chunk or a crate to fetch it.
+- Right-click the ground to walk; right-click a stick, a chunk or a crate to fetch it. A green ring marks the click and a trail shows your path.
+- Hold Shift and right-click to queue orders. They run one after another, and the label under your name counts what is waiting. A plain right-click drops the queue.
 - Right-click a tree, a rock or an ore vein to harvest it by hand. Trees need the Stone Axe, rocks the Stone Pick, ore the Metal Pick. Food is always free to gather.
-- Right-click the campfire to deposit what you carry, and to work its queue. Left-click the fire to open its panel.
+- Right-click the campfire to deposit what you carry, and to work its queue. Right-click the ground beside it to walk there, dropping what you carry as you pass. Left-click the fire to open its panel.
 - Right-click a bench (the fire, a Workshop) to work its queue. Any other command walks you away from it.
+- Several pairs of hands share a bench: every idle colonist who comes takes one queued item. Research is one person's work.
 - You carry six slots. A full pack sheds byproducts on the ground instead of losing them.
 - Space centres the camera on you.
 

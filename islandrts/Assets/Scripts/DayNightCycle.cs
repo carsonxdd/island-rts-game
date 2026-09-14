@@ -20,7 +20,10 @@ public class DayNightCycle : MonoBehaviour
     public float dayLengthInSeconds = 100f;    // scene: 100. A 30-day run is 75 real minutes (2026-09-02; was 120/60)
     public float nightLengthInSeconds = 50f;   // scene: 50
     [Range(0f, 1f)]
-    public float currentTimeOfDay = 0.25f;     // 0 = midnight, 0.5 = noon, 1 = midnight
+    // 0 = midnight, 0.25 = dawn (6 am), 0.5 = noon, 0.75 = dusk, 1 = midnight. A run
+    // starts at 8 am (scene: 0.33333): 0.25 sat in the middle of the dawn blend, so
+    // the landing looked like the small hours (2026-09-13).
+    public float currentTimeOfDay = 1f / 3f;
 
     [Header("Lighting")]
     public Light sunLight;                     // Main directional light (sun)

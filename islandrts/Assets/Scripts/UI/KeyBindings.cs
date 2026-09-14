@@ -34,6 +34,8 @@ public static class KeyBindings
         CenterOnCharacter,
         // Militia stance (2026-09-07): the combat HUD's three buttons, on keys
         StanceDefensive, StanceOffensive, StanceFollow,
+        // Held with a right-click, the character's order waits behind the current one (2026-09-13)
+        QueueCommand,
     }
 
     /// <summary>
@@ -73,6 +75,7 @@ public static class KeyBindings
         ("Building", Action.ToggleGrid,       "Toggle build grid"),
 
         ("Character", Action.CenterOnCharacter, "Centre camera on your character"),
+        ("Character", Action.QueueCommand,      "Queue a command (hold + right-click)"),
 
         ("Militia", Action.StanceDefensive,   "Stance: Defensive"),
         ("Militia", Action.StanceOffensive,   "Stance: Offensive"),
@@ -100,6 +103,9 @@ public static class KeyBindings
         { Action.Demolish,           new Binding(KeyCode.Delete, KeyCode.X) },
         { Action.ToggleGrid,         new Binding(KeyCode.F2) },
         { Action.CenterOnCharacter,  new Binding(KeyCode.Space) },
+        // Shares Shift with the wall staircase on purpose: build mode and a
+        // character command never happen on the same click.
+        { Action.QueueCommand,       new Binding(KeyCode.LeftShift, KeyCode.RightShift) },
         // F5 / F8 / F9: the free function keys (F2 grid, F3 / F4 / F6 / F7 reserved for debug)
         { Action.StanceDefensive,    new Binding(KeyCode.F5) },
         { Action.StanceOffensive,    new Binding(KeyCode.F8) },

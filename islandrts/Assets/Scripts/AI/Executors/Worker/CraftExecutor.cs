@@ -8,12 +8,13 @@ using UnityEngine;
 /// a rubber band if the crowd shoves the crafter off the bench.
 /// </summary>
 /// <remarks>
-/// The crafter claims the bench when it sets out (<see cref="CraftStation.Claim"/>)
-/// so two crafters spread over two benches instead of both walking to the nearest.
-/// The player's character always wins the bench: <see cref="CraftStation.AddLabor"/>
-/// returns false to the crafter while the player stands there, and the crafter
+/// The crafter claims a seat when it sets out (<see cref="CraftStation.Claim"/>):
+/// a bench has one seat per queued repeat, up to <see cref="CraftStation.MaxLaborers"/>,
+/// so five spears draw up to four colonists and one spear draws one (2026-09-13).
+/// The player's character always wins a place: <see cref="CraftStation.AddLabor"/>
+/// returns false to a crafter whose repeat the player took over, and the crafter
 /// waits beside the bench rather than leaving — the queue is still its job the
-/// moment the player walks off. Labor is passed with <c>hands = null</c>, so the
+/// moment a repeat frees up. Labor is passed with <c>hands = null</c>, so the
 /// costs come from the campfire stockpile alone.
 /// </remarks>
 public class CraftExecutor : ActionExecutor
@@ -96,8 +97,9 @@ public class CraftExecutor : ActionExecutor
             return;
         }
 
-        // The player holds the bench while they stand at it; the crafter waits.
-        // Two string literals, so the assignment allocates nothing.
+        // Every repeat has hands on it (the player took ours, or the queue is
+        // shorter than the crowd): wait. Two string literals, so the assignment
+        // allocates nothing.
         displayName = station.AddLabor(Time.deltaTime, bb.worker, null) ? "Crafting" : "Waiting for the bench";
 
         // Playtest: a pinned Crafter keeps the bench while a site waits for hands.
