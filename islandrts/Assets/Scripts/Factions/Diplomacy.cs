@@ -239,7 +239,7 @@ public static class Diplomacy
         yesterday[k] = opinion[k];
         Attitude now = Relations.Get(a, b);
 
-        // Trespass, both ways: my warrior in their patch reads the same as theirs in mine.
+        // Trespass, both ways: my warrior on their side reads the same as theirs on mine.
         float drain = 0f;
         if (WarriorInside(a, b) || WarriorInside(b, a)) drain += WarriorTrespassDrain;
         if (ColonistInside(a, b) || ColonistInside(b, a)) drain += ColonistTrespassDrain;
@@ -268,40 +268,56 @@ public static class Diplomacy
         Flip(a, b, wanted);
     }
 
-    /// <summary>A warrior of <paramref name="who"/> inside <paramref name="whose"/>'s home radius.</summary>
+    /// <summary>A warrior of <paramref name="who"/> on <paramref name="whose"/>'s side of the island (<see cref="Trespassing"/>).</summary>
     static bool WarriorInside(Faction who, Faction whose)
     {
-        BaseBuilding fire = whose.Campfire;
-        if (fire == null) return false;
-        Vector3 at = fire.transform.position;
-        float sqr = Territory.HomeRadius * Territory.HomeRadius;
+        BaseBuilding theirs = whose.Campfire;
+        if (theirs == null) return false;
+        BaseBuilding mine = who.Campfire;
         var list = Warrior.ActiveList;
         for (int i = 0; i < list.Count; i++)
         {
             Warrior w = list[i];
             if (w == null || w.Faction != who || w.OnExpedition) continue;   // a party at sea is not a trespass
-            Vector3 d = w.transform.position - at;
-            d.y = 0f;
-            if (d.sqrMagnitude <= sqr) return true;
+            if (Trespassing(w.transform.position, theirs, mine)) return true;
         }
         return false;
     }
 
     static bool ColonistInside(Faction who, Faction whose)
     {
-        BaseBuilding fire = whose.Campfire;
-        if (fire == null) return false;
-        Vector3 at = fire.transform.position;
-        float sqr = Territory.HomeRadius * Territory.HomeRadius;
+        BaseBuilding theirs = whose.Campfire;
+        if (theirs == null) return false;
+        BaseBuilding mine = who.Campfire;
         var list = Worker.ActiveList;
         for (int i = 0; i < list.Count; i++)
         {
             Worker w = list[i];
             if (w == null || w.Faction != who) continue;
-            Vector3 d = w.transform.position - at;
-            d.y = 0f;
-            if (d.sqrMagnitude <= sqr) return true;
+            if (Trespassing(w.transform.position, theirs, mine)) return true;
         }
         return false;
+    }
+
+    /// <summary>
+    /// Inside the other colony's <see cref="Territory.HomeRadius"/> AND nearer
+    /// to their fire than to my own (2026-09-16). Two home radii of 70 m
+    /// overlap on any island this game makes — a Medium one is ~150 m across
+    /// and <c>RivalLandingDirector.MinCoveSeparation</c> is 55 — so "inside
+    /// their radius" alone drained every pair 7 points a dawn from the landing
+    /// on, and every rival was Hostile by day 18 in every sim run. The overlap
+    /// is shared ground; their half of it is the trespass. A colony with no
+    /// fire of its own is judged by the radius alone.
+    /// </summary>
+    static bool Trespassing(Vector3 p, BaseBuilding theirs, BaseBuilding mine)
+    {
+        Vector3 d = p - theirs.transform.position;
+        d.y = 0f;
+        float toTheirs = d.sqrMagnitude;
+        if (toTheirs > Territory.HomeRadius * Territory.HomeRadius) return false;
+        if (mine == null) return true;
+        Vector3 m = p - mine.transform.position;
+        m.y = 0f;
+        return toTheirs < m.sqrMagnitude;
     }
 }

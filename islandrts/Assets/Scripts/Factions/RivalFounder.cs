@@ -32,8 +32,18 @@ public static class RivalFounder
     public const int StartingWood = 100;
     public const int StartingFood = 50;
 
-    /// <summary>Survivors that come ashore with the wreck. The fire sleeps three, the hut takes it to four.</summary>
+    /// <summary>Survivors that come ashore with the wreck. The fire sleeps three; the hut's four beds let the fourth stay and the colony grow.</summary>
     public const int Survivors = 4;
+
+    /// <summary>
+    /// Frames to keep trying to seat the founding hut (2026-09-16). The fire pad
+    /// was flattened a frame earlier and <c>TerrainGrid.FlattenArea</c> re-bakes
+    /// the NavMesh ASYNC, so the first <c>NavMesh.SamplePosition</c> around the
+    /// site can fail on timing alone — the headless check of 2026-09-16 seated
+    /// the Eco rival's hut and skipped the Turtle rival's on the SAME island and
+    /// site, and that colony sat at three people for fifteen days.
+    /// </summary>
+    public const int HutPlaceTries = 30;
 
     /// <summary>
     /// The research a founding colony has already done: the three gathering
@@ -75,8 +85,17 @@ public static class RivalFounder
         if (fire == null) yield break;
         yield return null;   // Start: housing registers, Faction.Campfire is set
 
-        PlaceHut(rival, site, tg);
-        yield return null;   // Hut.Start registers its housing
+        bool hut = false;
+        for (int t = 0; t < HutPlaceTries && !hut; t++)
+        {
+            hut = PlaceHut(rival, site, tg);
+            yield return null;   // the NavMesh update lands, then Hut.Start registers its housing
+        }
+        if (!hut)
+        {
+            Debug.LogWarning("RivalFounder: no clear spot for " + rival.Name + "'s hut within " + HutPlaceTries
+                + " frames of " + site + "; the camp sleeps three until its governor builds one.");
+        }
 
         // Land them at their own cove and let Idle walk them in: a fresh arrival
         // far from home already walks to its home provider's approach point, so
@@ -94,12 +113,12 @@ public static class RivalFounder
         DevQuests.Signal("faction:rival");
     }
 
-    /// <summary>One hut on the first clear spot of a two-lap ring, so the camp sleeps four rather than three.</summary>
-    static void PlaceHut(Faction rival, Vector3 site, TerrainGrid tg)
+    /// <summary>One hut on the first clear spot of a two-lap ring, so the camp can grow past the fire's three beds. True when one was placed.</summary>
+    static bool PlaceHut(Faction rival, Vector3 site, TerrainGrid tg)
     {
         BuildingData hutData = BuildingDatabase.Instance != null
             ? BuildingDatabase.Instance.GetBuildingData(BuildingType.Hut) : null;
-        if (hutData == null || hutData.finishedBuildingPrefab == null) return;
+        if (hutData == null || hutData.finishedBuildingPrefab == null) return true;   // nothing to place, nothing to retry
 
         int buildingsLayer = LayerMask.NameToLayer("Buildings");
         for (int i = 0; i < 16; i++)
@@ -114,8 +133,9 @@ public static class RivalFounder
             pos.y = tg.SampleHeight(pos);
             GameObject hut = Spawn.Owned(hutData.finishedBuildingPrefab, pos, Quaternion.identity, rival);
             if (buildingsLayer >= 0) hut.layer = buildingsLayer;
-            return;
+            return true;
         }
+        return false;
     }
 
     /// <summary>

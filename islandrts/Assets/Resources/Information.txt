@@ -151,7 +151,7 @@ see it.
 - Raiders are everyone's problem. The dawn warning names whose shore they make for; the
   richer camp draws them more often.
 - What they think of you is a word on the DIPLOMACY screen (Esc, or the Neighbours entry
-  on the bar once you have met them). Warriors in their patch or blows landed cool it;
+  on the bar once you have met them). Warriors on their side of the shared ground (nearer their fire than yours) or blows landed cool it;
   quiet days and peace warm it. Cool enough for two days and they turn hostile, warm
   enough and they become allies.
 - Propose peace with a gift from your stores, once a day. Declare war and it is war at

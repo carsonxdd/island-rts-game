@@ -41,6 +41,11 @@
 # that loses quests from the middle needs a RESET on the DEV tab (done 2026-09-13
 # after the first report, Playtests/playtest_2026-09-13_2204.md).
 
+## 2026-09-16 Shared ground
+- Meet a neighbour; on quiet days their opinion word does not cool by itself
+- @diplomacy:trespass Camp a warrior nearer THEIR fire than yours: it cools
+- A rival camp has a hut beside its fire on the day it lands (F4 or day 10)
+
 ## 2026-09-16 Neighbours and the raid
 - @diplomacy:screen Open DIPLOMACY from the Neighbours entry or the pause menu
 - @diplomacy:peace Send a gift; the opinion word warms and the button locks for the day

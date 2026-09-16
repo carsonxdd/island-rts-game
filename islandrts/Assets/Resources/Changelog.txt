@@ -8,6 +8,13 @@
 # Lines starting with a single # are comments. Anything else that is not a
 # heading, a bullet or an indented continuation is ignored.
 
+## 2026-09-16 — Shared ground is not trespass
+- A neighbour's opinion of you no longer cools just because your two camps' patches
+  overlap. Your people count as trespassing only on THEIR side of the shared ground,
+  nearer their fire than yours. Before this every neighbour turned hostile by itself.
+- A colony that washes up always gets its hut now; one that could not find room for
+  it sat at three people for two weeks.
+
 ## 2026-09-16 — Neighbours, allies and enemies
 - A DIPLOMACY screen (Esc, or the Neighbours entry on the bar) shows what each colony
   you have met thinks of you, as a word. Propose peace with a gift once a day, or
