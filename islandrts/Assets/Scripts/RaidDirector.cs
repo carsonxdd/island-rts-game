@@ -295,10 +295,27 @@ public class RaidDirector : MonoBehaviour
     /// <summary>The same estimate against <paramref name="colony"/> (a rival's governor sizes its army with it).</summary>
     public int EstimateRaidSize(int day, Faction colony) => SizeFor(day, Prosperity(colony));
 
+    /// <summary>
+    /// Days after <see cref="firstRaidDay"/> over which a difficulty's raid-size
+    /// multiplier ramps in, when it is above 1 (2026-09-16). The overnight batch
+    /// lost all 18 Brutal runs and 15 of 18 Hard ones on day 3-7: Brutal's 1.7x
+    /// put 11-15 raiders on the beach on the first eligible night against a
+    /// colony that can own three spears by then. The blurb promises swarms LATE.
+    /// Peaceful and Relaxed (under 1) apply in full from the first night.
+    /// </summary>
+    public const int SizeRampDays = 7;
+
     int SizeFor(int day, float prosperity)
     {
         float raw = baseSize + sizePerDay * day + sizePerProsperity * prosperity;
-        int count = Mathf.RoundToInt(raw * Difficulty.EnemyCountMultiplier);
+        float mult = Difficulty.EnemyCountMultiplier;
+        if (mult > 1f)
+        {
+            float t = Mathf.Clamp01((day - firstRaidDay) / (float)SizeRampDays);
+            if (t < 1f) DevQuests.Signal("raid:ramp");
+            mult = Mathf.Lerp(1f, mult, t);
+        }
+        int count = Mathf.RoundToInt(raw * mult);
         return Mathf.Max(minSize, count);
     }
 

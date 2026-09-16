@@ -8,6 +8,32 @@
 # Lines starting with a single # are comments. Anything else that is not a
 # heading, a bullet or an indented continuation is ignored.
 
+## 2026-09-16 — Room to pass
+- People no longer jam: a unit keeps a little space around itself but can squeeze
+  past when the only alternative is standing still, and two who meet head-on
+  decide who yields the same way every time (cargo first, then a fixed order;
+  whoever is already in a gateway has the right of way).
+- A stuck unit recovers in steps: a sidestep, a fresh path, a squeeze through,
+  and only then does it give the task up. F3 counts each step.
+- Warriors own their place in the line or wedge and keep it into the fight, so a
+  formation holds its shape instead of reshuffling every time a man falls.
+
+## 2026-09-16 — Taking a neighbour's camp
+- A landing party on a hostile neighbour's shore now besieges its camp: huts and
+  works first, then the wall, then the campfire itself.
+- A campfire your warriors put out spills its colony's whole hoard onto the ground
+  around it as pickups for any hauler. Raiders burning a camp leave nothing.
+
+## 2026-09-16 — Raids that build up, neighbours that grow
+- On Hard and Brutal the raids now start at Normal size and grow to full strength
+  over the first week ashore. The late ones are still swarms.
+- A neighbouring camp that finds no room for its first hut keeps a builder free
+  and puts one up itself, instead of sitting at three people for the whole game.
+- A colony keeps spears as its main arm and bows to a third of the militia. Before,
+  a stock of bows could stop spears being made and leave the whole line archers.
+- A camp's wall ring treats the sea and a cliff as walls of their own rather than
+  gaps to build around.
+
 ## 2026-09-16 — Shared ground is not trespass
 - A neighbour's opinion of you no longer cools just because your two camps' patches
   overlap. Your people count as trespassing only on THEIR side of the shared ground,

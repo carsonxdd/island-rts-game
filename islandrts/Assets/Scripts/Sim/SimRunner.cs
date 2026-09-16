@@ -351,6 +351,18 @@ public class SimRunner : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Game seconds a run can legitimately take: every calendar day at the live
+    /// clock, a full dawn hold on every night, and a margin for the opening.
+    /// </summary>
+    private float CalendarCapSeconds(SimConfig cfg)
+    {
+        int days = cfg.daysToSurvive > 0 ? cfg.daysToSurvive : 30;
+        float cycle = clock != null ? clock.CycleSeconds : 150f;
+        float hold = clock != null && clock.maxDawnHoldSeconds > 0f ? clock.maxDawnHoldSeconds : 180f;
+        return (days + 1) * (cycle + hold) + 300f;
+    }
+
     private IEnumerator RunRoutine(SimConfig cfg)
     {
         // The player's governor (2026-09-16, slice B): the policy, bound to this
@@ -399,11 +411,17 @@ public class SimRunner : MonoBehaviour
         GameManager gm = GameManager.Instance;
         while (true)
         {
+            // The cap follows the calendar (2026-09-16): a flat 6000 s timed out
+            // eight legitimate 30-day runs of the overnight batch, every one on a
+            // held-dawn island (seeds 8851 and 23) where raid nights ran to the
+            // 180 s hold cap. Every night may hold, so the budget is the days
+            // plus a full hold per night, and cfg.maxGameSeconds is only a floor.
             float elapsed = Time.time - runStartGameTime;
-            if (elapsed > cfg.maxGameSeconds)
+            float capSeconds = Mathf.Max(cfg.maxGameSeconds, CalendarCapSeconds(cfg));
+            if (elapsed > capSeconds)
             {
                 metrics.outcome = "timeout";
-                metrics.note = $"exceeded {cfg.maxGameSeconds:F0}s game time";
+                metrics.note = $"exceeded {capSeconds:F0}s game time";
                 break;
             }
 
@@ -723,6 +741,8 @@ public class SimRunner : MonoBehaviour
         night.rivalContact = dir.Contacted ? 1 : 0;
         night.rivalOpinion = (int)Factions.Player.Toward(dir.Landed[0]);
         night.rivalOpinionPts = Diplomacy.Opinion(Factions.Player, dir.Landed[0]);
+        metrics.rivalOpinionMin = Mathf.Min(metrics.rivalOpinionMin, night.rivalOpinionPts);
+        metrics.rivalOpinionMax = Mathf.Max(metrics.rivalOpinionMax, night.rivalOpinionPts);
         night.rivalLandings = Expedition.LandingsOnPlayer;
         night.rivalRelief = Expedition.ReliefToPlayer;
         Governor theirs = GovernorRunner.Instance != null ? GovernorRunner.Instance.For(dir.Landed[0]) : null;
@@ -790,6 +810,11 @@ public class SimRunner : MonoBehaviour
         metrics.wallClockSeconds = Time.realtimeSinceStartup - runStartRealTime;
         metrics.frames = Time.frameCount - runStartFrame;
         metrics.rivalFate = RivalFate();
+        metrics.playerLandings = Expedition.LandingsByPlayer;
+        metrics.lootWood = Loot.DroppedWood;
+        metrics.lootFood = Loot.DroppedFood;
+        metrics.lootStone = Loot.DroppedStone;
+        metrics.lootMetal = Loot.DroppedMetal;
 
         metrics.Append(outputDir);
         Debug.Log(metrics.Summary());
@@ -817,7 +842,7 @@ public class SimRunner : MonoBehaviour
         Faction rival = FirstRival();
         if (rival == null) return "none";
         WatchRivalFire();
-        if (metrics.rivalFellDay > 0) return "fell";
+        if (metrics.rivalFellDay > 0) return Loot.ConqueredFaction == rival ? "conquered" : "fell";
         int roster = rival.Population != null ? rival.Population.GetColonistCount() : 0;
         return roster == 0 ? "deserted" : "alive";
     }

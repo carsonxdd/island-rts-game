@@ -104,16 +104,25 @@ public static class RivalFounder
         for (int i = 0; i < Survivors && pop.SpawnArrival(false) != null; i++) { }
         yield return null;   // the colonists' Start
 
+        // One survivor stays jobless (2026-09-16): the governor's own builder
+        // reserve, from the first tick. The overnight batch's rivals sweep had
+        // 13 camps whose hut never seated, and every one of them sat at three
+        // people and no hut for the whole run - the warrior and two workers filled
+        // the fire's three beds, nobody was jobless to build, so no hut, no bed,
+        // no arrival, no builder, ever. A rival has no castaway to break that.
         fire.Stockpile.Add(ItemCatalog.WoodenSpear, 1);
         fire.SpawnWarrior();
-        fire.AssignWorker(ResourceNode.ResourceType.Wood);
-        fire.AssignWorker(ResourceNode.ResourceType.Food);
-        fire.AssignWorker(ResourceNode.ResourceType.Stone);
+        if (pop.GetIdleCount() > 1) fire.AssignWorker(ResourceNode.ResourceType.Wood);
+        if (pop.GetIdleCount() > 1) fire.AssignWorker(ResourceNode.ResourceType.Food);
+        if (pop.GetIdleCount() > 1) fire.AssignWorker(ResourceNode.ResourceType.Stone);
 
         DevQuests.Signal("faction:rival");
     }
 
-    /// <summary>One hut on the first clear spot of a two-lap ring, so the camp can grow past the fire's three beds. True when one was placed.</summary>
+    /// <summary>Laps of the hut search ring: 7, 11, 15 and 19 m (two laps until 2026-09-16 - a beach fire has half of its 7-11 m ring in the sea).</summary>
+    const int HutLaps = 4;
+
+    /// <summary>One hut on the first clear spot of a four-lap ring, so the camp can grow past the fire's three beds. True when one was placed.</summary>
     static bool PlaceHut(Faction rival, Vector3 site, TerrainGrid tg)
     {
         BuildingData hutData = BuildingDatabase.Instance != null
@@ -121,9 +130,9 @@ public static class RivalFounder
         if (hutData == null || hutData.finishedBuildingPrefab == null) return true;   // nothing to place, nothing to retry
 
         int buildingsLayer = LayerMask.NameToLayer("Buildings");
-        for (int i = 0; i < 16; i++)
+        for (int i = 0; i < 8 * HutLaps; i++)
         {
-            float angle = i * 45f * Mathf.Deg2Rad;
+            float angle = (i * 45f + 22.5f * (i / 8)) * Mathf.Deg2Rad;   // each lap turned half a step
             float radius = 7f + 4f * (i / 8);
             Vector3 pos = site + new Vector3(Mathf.Cos(angle) * radius, 0f, Mathf.Sin(angle) * radius);
             pos = GridSnap.SnapXZ(pos, 1f);

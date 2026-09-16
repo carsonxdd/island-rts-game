@@ -86,7 +86,7 @@ public class EnemyAttackExecutor : ActionExecutor
             // Re-roll ORCA avoidance priority so multiple enemies that just
             // finished the same target don't mutually yield into a stuck dance.
             if (bb.agent != null)
-                bb.agent.avoidancePriority = Random.Range(30, 70);
+                UnitSpacing.SetMoving(bb.agent, carrying: false);   // deterministic since 2026-09-16
             IssueMove(bb, force: true);
         }
 
@@ -346,6 +346,7 @@ public class EnemyAttackExecutor : ActionExecutor
         if (bb.currentTargetHealth != null)
         {
             Diplomacy.NoteAttack(bb.faction, bb.currentTargetFaction);   // no-op for the Raiders; a rival's landing party counts
+            bb.currentTargetHealth.LastHitBy = bb.faction;   // a raider-burned fire drops no loot (2026-09-16)
             bb.currentTargetHealth.TakeDamage(bb.damage);
         }
     }

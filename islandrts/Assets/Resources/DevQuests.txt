@@ -12,7 +12,7 @@
 #   research:<id>  craft:<id>  build:<buildingtype>  build:player  specialist:<trade>
 #   specialist:idle  specialist:locked  warrior  archer  warrior:6  rearm  picker
 #   recruit:no_idle  recruit:housing_full  hungry  starving  colonist_left
-#   raid  raid_survived  victory  escape  defeat  continue  continue:escape
+#   raid  raid:ramp  raid_survived  victory  escape  defeat  continue  continue:escape
 #   deposit  campfire  info  info:<tab>  info:dev  tracker  report  auto  persisted
 #   priority  priority:forage_back  priority:craft_wins  worker_click  worker_click:busy
 #   craft_by_colonist  craft_by_player  craft:specialist_holds  hud:food
@@ -27,7 +27,7 @@
 #   fog:node_revealed  fog:raider_revealed  reveal:<on|off>  cheat:stock_full
 #   fog:node_skipped  fog:raider_unseen  fog:ghost  fog:wall  minimap:click  minimap:landing
 #   sky:<sunny|slightly|partly|cloudy|off>  graphics:<preset|custom>
-#   faction:bootstrap  faction:rival  faction:<hostile|neutral|allied>
+#   faction:bootstrap  faction:rival  faction:<hostile|neutral|allied>  loot
 #   repair  repair:gate  raid:rested  raider:wall_stop  raider:wall_over_warrior
 #   rival:landed  rival:met  rival:territory  rival:governed  rival:built  rival:recruited
 #   diplomacy:<hostile|neutral|allied>  diplomacy:attacked  diplomacy:trespass  diplomacy:peace
@@ -40,6 +40,25 @@
 # changelog and the phase history. Quest ids are batch slug + index, so a batch
 # that loses quests from the middle needs a RESET on the DEV tab (done 2026-09-13
 # after the first report, Playtests/playtest_2026-09-13_2204.md).
+
+## 2026-09-16 Room to pass
+- Ten workers at one tree and the fire: nobody stands frozen nose to nose
+- F3: ABANDON stays 0 over a full day; pass-through stays under ten
+- Two workers meeting on a path yield the same way every time (cargo first)
+- F5 Defensive with 6+ warriors: the line holds its spacing as men fall
+- F8 Offensive: the wedge keeps its shape into the fight
+
+## 2026-09-16 Taking a neighbour's camp
+- @diplomacy:landing F4 rival, Hostile, F8 Offensive: a party sails on it
+- The party hits huts and walls, then the fire (F3 "Engaging Hut")
+- @loot The rival fire falls to your warriors and its hoard drops as pickups
+- Your haulers carry the dropped wood and food home
+
+## 2026-09-16 Overnight batch answered
+- @raid:ramp On Hard or Brutal the first raids are smaller than the late ones
+- @rival:built A neighbour whose first hut never seated builds one itself
+- F4 rival, F3: a Turtle neighbour keeps spearmen, bows stay a third
+- F4 rival on a terraced island: its ring leaves cliff and sea unwalled
 
 ## 2026-09-16 Shared ground
 - Meet a neighbour; on quiet days their opinion word does not cool by itself

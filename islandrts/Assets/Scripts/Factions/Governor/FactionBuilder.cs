@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.AI;
 
 /// <summary>
 /// Places buildings the way a player would, minus the mouse — for ONE colony.
@@ -192,11 +193,32 @@ public sealed class FactionBuilder
     /// or still unexplored; unexplored ground defers the whole cell to a later call
     /// rather than condemning it. Only when no depth works is the cell a hole.
     /// </summary>
-    private const int MaxDetourDepth = 4;
+    private const int MaxDetourDepth = 6;   // 4 until 2026-09-16
+
+    /// <summary>
+    /// A ring cell nothing can walk is sealed by the island itself (2026-09-16):
+    /// water, a cliff face, a cut-off outcrop. Before this every unbuildable cell
+    /// was notched around and then counted as a hole when no detour fit, so a
+    /// terraced seed read 15-27 permanent "holes" (777: 27 on all three of its
+    /// baseline runs) that were mostly cliff and sea, the ring's wood went on
+    /// detours around ground no raider crosses, and ring_holes could not tell
+    /// a sieve from a fortress. Passable = the flood fill reaches it AND the
+    /// NavMesh has a surface inside the cell.
+    /// </summary>
+    private static bool RaidersCanCross(Vector3 pos)
+    {
+        if (TerrainGrid.Instance != null && !TerrainGrid.Instance.IsReachable(pos)) return false;
+        NavMeshHit hit;
+        return NavMesh.SamplePosition(pos, out hit, 0.6f, NavMesh.AllAreas);
+    }
 
     private int Notch(BuildingData data, BuildingType wallType, Vector2Int cell,
                       Vector2Int center, int halfExtent, int budget)
     {
+        Vector3 cellPos = WallGrid.Instance.GridToWorld(cell);
+        cellPos.y = GroundY(cellPos);
+        if (!RaidersCanCross(cellPos)) return 0;   // sealed by the island: no wall, no detour, no hole
+
         int dx = cell.x - center.x, dy = cell.y - center.y;
         bool onRow = Mathf.Abs(dy) == halfExtent;
         bool onCol = Mathf.Abs(dx) == halfExtent;

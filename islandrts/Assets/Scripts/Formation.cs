@@ -69,7 +69,7 @@ public static class Formation
         bool ranged = warrior.IsRanged;
         int rank, count;
         RankOf(warrior, ranged, out rank, out count);
-        int others = CountKind(!ranged);
+        int others = FormationSlots.CountKind(f, !ranged);
 
         facing.y = 0f;
         if (facing.sqrMagnitude < 0.001f) facing = Vector3.forward;
@@ -129,34 +129,12 @@ public static class Formation
     static float Centered(int i, int n, float spacing) => (i - (n - 1) * 0.5f) * spacing;
 
     /// <summary>Rank of this warrior among the living warriors of its kind, and how many there are.</summary>
+    // Ranks are OWNED claims since 2026-09-16 (FormationSlots): a warrior keeps
+    // its rank through Engage and across deaths beside it, and the claims are
+    // per colony (the old ActiveList walk ranked a rival's men in the same line).
     static void RankOf(Warrior warrior, bool ranged, out int rank, out int count)
     {
-        rank = 0;
-        count = 0;
-        var list = Warrior.ActiveList;
-        for (int i = 0; i < list.Count; i++)
-        {
-            Warrior w = list[i];
-            if (w == null || w.IsRanged != ranged) continue;
-            Health h = w.CachedHealth;
-            if (h != null && !h.IsAlive) continue;
-            if (w == warrior) rank = count;
-            count++;
-        }
+        FormationSlots.RankOf(warrior, out rank, out count);
     }
 
-    static int CountKind(bool ranged)
-    {
-        int count = 0;
-        var list = Warrior.ActiveList;
-        for (int i = 0; i < list.Count; i++)
-        {
-            Warrior w = list[i];
-            if (w == null || w.IsRanged != ranged) continue;
-            Health h = w.CachedHealth;
-            if (h != null && !h.IsAlive) continue;
-            count++;
-        }
-        return count;
-    }
 }

@@ -36,6 +36,14 @@ public class Health : MonoBehaviour
 
     // How the rest of the game reacts. Wired in the inspector for scene objects and in
     // code by the unit scripts.
+    /// <summary>
+    /// The faction whose blow landed last (2026-09-16, the conquest test): every
+    /// warrior and raider attack writes it before <see cref="TakeDamage"/>, so a
+    /// campfire's death handler knows whether the player's warriors or the
+    /// raiders put it out. Never serialized; null until the first hit.
+    /// </summary>
+    [System.NonSerialized] public Faction LastHitBy;
+
     [Header("Events")]
     public UnityEvent onDeath;
     public UnityEvent onDamaged;

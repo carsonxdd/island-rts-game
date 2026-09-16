@@ -168,6 +168,7 @@ public abstract class GovernorPolicy
         {
             case "turtle": return new TurtlePolicy();
             case "rush": return new RushPolicy();
+            case "conqueror": return new ConquerorPolicy();   // the player's only (DeclareWar is the player's); never in Names, so a rival never draws it
             case "eco":
             default: return new EcoPolicy();
         }
@@ -246,16 +247,42 @@ public abstract class GovernorPolicy
                       && faction.Resources.metal >= iron.metalCost;
         CraftingCatalog.Recipe spear = ironOk ? iron : wooden;
 
-        int have = fire.WeaponsInStock() + fire.Station.Queued(wooden) + fire.Station.Queued(iron)
-                   + (bow != null ? fire.Station.Queued(bow) : 0);
-        if (have >= wanted) return false;
+        // Spears and bows are counted APART (2026-09-16). One pool let bows nobody
+        // would pick fill the quota: the overnight batch's Turtle sat at 59%
+        // archers from day 10 (Eco 50%, Rush 17%) because bows in stock counted
+        // as "weapons", no spear was queued while they sat there, and a recruit
+        // with only bows to choose from took one - a 12-damage militia against
+        // a 25-damage one, losing 30-42% of itself a raid night to Rush's 13%.
+        // Now a third of the wanted stock is bows at most, and the spears are
+        // kept up on their own count.
+        // The bow share is a third of the GARRISON (standing archers + the stock
+        // being kept), not of the two-weapon buffer: wanted is at most 2, and a
+        // third of that rounded to zero armed nobody with a bow at all.
+        bool bowKnown = bow != null && bow.UnlockedFor(faction.Knowledge);
+        int bowsInStock = bow != null ? fire.Stockpile.Count(bow.output) : 0;
+        int wantedBows = bowKnown ? Mathf.Clamp((s.Warriors + wanted) / 3 - ArcherCount(), 0, wanted) : 0;
+        int wantedSpears = wanted - wantedBows;
+        int bowsHave = bowsInStock + (bow != null ? fire.Station.Queued(bow) : 0);
+        int spearsHave = fire.WeaponsInStock() - bowsInStock
+                         + fire.Station.Queued(wooden) + fire.Station.Queued(iron);
 
-        // One bow in three once the colony can make them (a third of the garrison shoots)
-        bool bowOk = bow != null && bow.UnlockedFor(faction.Knowledge) && (s.Warriors + have) % 3 == 2;
-        CraftingCatalog.Recipe pick = bowOk ? bow : spear;
+        CraftingCatalog.Recipe pick;
+        if (spearsHave < wantedSpears) pick = spear;
+        else if (bowsHave < wantedBows) pick = bow;
+        else return false;
         if (!fire.Station.Enqueue(pick, 1)) return false;
         Did("queue " + pick.title);
         return true;
+    }
+
+    /// <summary>This colony's standing archers (a warrior whose weapon says ranged).</summary>
+    protected int ArcherCount()
+    {
+        int archers = 0;
+        var list = Warrior.ActiveList;
+        for (int i = 0; i < list.Count; i++)
+            if (list[i] != null && list[i].Faction == faction && list[i].IsRanged) archers++;
+        return archers;
     }
 
     /// <summary>
@@ -267,11 +294,7 @@ public abstract class GovernorPolicy
         BaseBuilding fire = s.Campfire;
         if (fire == null) return;
 
-        int archers = 0;
-        var list = Warrior.ActiveList;
-        for (int i = 0; i < list.Count; i++)
-            if (list[i] != null && list[i].Faction == faction && list[i].IsRanged) archers++;
-
+        int archers = ArcherCount();
         bool wantBow = fire.Stockpile.Count(ItemCatalog.Bow) > 0 && archers * 3 < s.Warriors + 1;
         ItemDef target = wantBow ? ItemCatalog.Bow : fire.FirstWeaponInStock();
         if (target == null) return;
@@ -523,8 +546,13 @@ public class TurtlePolicy : GovernorPolicy
         if (ManageStance(s)) return;
         if (ConsiderExpeditions(s)) return;
         builder.SetRing(RingHalf);   // huts stay off the ring line and out of its gate corridors (2026-09-10)
+        // Mining and Iron Work before Bowyery (2026-09-16): the overnight batch's
+        // Turtle sat on a median 1179 stone and 1320 wood with no metal job and
+        // never made an Iron Spear, while Rush (which lists them) lost 13% of its
+        // militia a raid night to Turtle's 30-42%. An Iron Spear is +40% damage
+        // and needs no chunk, the one material every re-arm was short of.
         if (Research(s, "woodcutting", "foraging", "spearcraft", "construction", "quarrying",
-                        "crafting", "bowyery")) return;
+                        "crafting", "mining", "iron_work", "bowyery")) return;
 
         // A man per raider, not 0.6 of one (2026-09-11). The 2026-09-11 lab
         // watched this colony hold at 9 warriors from day 6 to day 11 with 43
@@ -668,5 +696,89 @@ public class EcoPolicy : GovernorPolicy
                 if (yard != null) { Did("set sail"); yard.SetSail(); return; }
             }
         }
+    }
+}
+
+/// <summary>
+/// Take the neighbour out (2026-09-16, the conquest test). A Rush economy and
+/// army, then: once a rival has landed and <see cref="WarDay"/> has come, war
+/// is declared (the player's own <see cref="Diplomacy.DeclareWar"/>, so this
+/// policy is the player's only), and every quiet day the men past a home
+/// guard of half the next raid sail for the rival's shore, where a landing
+/// party besieges buildings (<see cref="Siege"/>) and the fire; the sea brings
+/// the survivors home at dawn, and they sail again the next day. Beating the
+/// game never needed this — the test is whether a colony that tries it can
+/// afford it, and what the loot is worth.
+/// </summary>
+public class ConquerorPolicy : GovernorPolicy
+{
+    public override string Name => "Conqueror";
+
+    private const int MaxHuts = 8;
+    private const int WorkerFloor = 5;
+    /// <summary>War is declared on the first dawn at or after this day with a rival ashore.</summary>
+    public const int WarDay = 12;
+    /// <summary>Warriors kept home per raider of the next raid.</summary>
+    public const float HomeGuardShare = 0.5f;
+    /// <summary>Fewer than this and nobody sails.</summary>
+    public const int MinParty = 4;
+    /// <summary>Men the army is kept above the rival's, so a landing outnumbers its militia.</summary>
+    public const int Overmatch = 4;
+
+    private int nextSailDay;
+
+    public override void Tick(ColonyState s)
+    {
+        if (ManageStance(s)) return;
+        if (Research(s, "woodcutting", "foraging", "spearcraft", "construction",
+                        "crafting", "quarrying", "mining", "iron_work", "bowyery")) return;
+
+        Faction rival = FirstRival();
+        int rivalWarriors = rival != null ? TargetingUtil.CountOwned(Warrior.ActiveList, rival) : 0;
+        bool atWar = rival != null && faction.Toward(rival) == Attitude.Hostile;
+        bool theirFireStands = rival != null && rival.Campfire != null;
+
+        int wantedWarriors = WantedWarriors(s, 1f, 2) + (s.RaidTonight ? 1 : 0);
+        if (theirFireStands) wantedWarriors = Mathf.Max(wantedWarriors, rivalWarriors + Overmatch + Mathf.CeilToInt(s.NextRaidSize * HomeGuardShare));
+        int wantedWorkers = WantedWorkers(s, WorkerFloor);
+        SetGoal(s, wantedWarriors, wantedWorkers,
+            rival == null ? "no rival yet" : !theirFireStands ? "rival fire out" : atWar ? "at war · " + rivalWarriors + " of theirs" : "war on day " + WarDay);
+
+        if (s.Workers < 3) { if (HireWorker(s, 2f, 2f, 1f)) return; }
+        if (KeepHousing(s, MaxHuts, wantedWorkers + wantedWarriors + BuilderReserve(s))) return;
+
+        // The war, and the daily landing
+        if (faction.IsPlayer && theirFireStands && !atWar && s.Day >= WarDay)
+        {
+            Diplomacy.DeclareWar(rival);
+            Did("declare war on the " + rival.Name);
+            return;
+        }
+        if (atWar && theirFireStands && !s.Night && !s.RaidTonight && !Expedition.Active(faction) && s.Day >= nextSailDay)
+        {
+            int guard = Mathf.CeilToInt(s.NextRaidSize * HomeGuardShare);
+            int party = s.Warriors - guard;
+            if (party >= MinParty)
+            {
+                int sent = Expedition.Send(faction, rival, party, relief: false);
+                if (sent > 0)
+                {
+                    nextSailDay = s.Day + 1;
+                    Did("land " + sent + " on the " + rival.Name);
+                    return;
+                }
+            }
+        }
+
+        if (KeepArmy(s, wantedWarriors)) return;
+        if (RunWorkshop(s)) return;
+        if (s.Workers < wantedWorkers) { if (HireWorker(s, 2f, 2f, 1f, 1f)) return; }
+    }
+
+    /// <summary>The first rival ashore this run, or null. The sim's rival columns are about the same colony.</summary>
+    static Faction FirstRival()
+    {
+        RivalLandingDirector dir = RivalLandingDirector.Instance;
+        return dir != null && dir.Landed.Count > 0 ? dir.Landed[0] : null;
     }
 }

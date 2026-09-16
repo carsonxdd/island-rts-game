@@ -185,6 +185,14 @@ public class AIDebugOverlay : MonoBehaviour
                 y += 16;
             }
         }
+        // The stuck ladder and the soft separation (2026-09-16): 3 should be rare, 4 never
+        {
+            int[] e = StuckResolver.Escalations;
+            GUI.Label(new Rect(panelX, y, PanelWidth, 16),
+                "Stuck ladder  nudge " + e[1] + "  repath " + e[2] + "  pass-through " + e[3] + "  ABANDON " + e[4]
+                + "   pushes/tick " + (UnitGrid.Instance != null ? UnitGrid.Instance.LastPushes : 0), smallLabelStyle);
+            y += 16;
+        }
         y += 4;
 
         if (selectedBrain == null)

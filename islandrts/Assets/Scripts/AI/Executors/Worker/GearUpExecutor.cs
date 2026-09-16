@@ -59,7 +59,7 @@ public class GearUpExecutor : ActionExecutor
         }
 
         bb.agent.stoppingDistance = 0.5f;
-        Worker.RollMovingAvoidance(bb.agent);
+        Worker.RollMovingAvoidance(bb.agent, bb.carryAmount);
         if (AINavHelper.TrySetDestination(bb.agent, ApproachPoint(bb)))
             bb.agent.isStopped = false;
         if (bb.stuckResolver != null)
@@ -148,7 +148,7 @@ public class GearUpExecutor : ActionExecutor
         {
             bb.agent.stoppingDistance = Worker.GatherStopDistance;
             bb.agent.isStopped = false;
-            Worker.RollMovingAvoidance(bb.agent);
+            Worker.RollMovingAvoidance(bb.agent, bb.carryAmount);
         }
     }
 }

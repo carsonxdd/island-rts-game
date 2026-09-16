@@ -137,9 +137,8 @@ public class Warrior : UnitBase<Warrior>
         agent.angularSpeed = 400f;  // Snap pass: 180-deg pivot in 0.45s (was 120 = 1.50s) -- the single biggest source of sluggish on warriors. The old 120 was an anti-jitter value from the state-machine era; jitter now comes from re-pathing, not turn rate
         agent.stoppingDistance = attackRange - 1.0f;  // Stop before attack range for smoother movement
         agent.autoBraking = true;
-        agent.radius = 0.5f;
-        agent.obstacleAvoidanceType = ObstacleAvoidanceType.MedQualityObstacleAvoidance;  // Reduced from High for performance with many walls
-        agent.avoidancePriority = Random.Range(30, 70);  // Randomized priority to prevent synchronized yielding
+        UnitSpacing.Apply(agent, worker: false);   // avoidance radius + quality (two-radius model, 2026-09-16)
+        UnitSpacing.SetMoving(agent, carrying: false);   // deterministic right of way
         agent.updateRotation = true;  // Smooth rotation
 
         // Setup Health component
@@ -316,6 +315,8 @@ public class Warrior : UnitBase<Warrior>
 
     void Die()
     {
+        FormationSlots.Release(this);   // the rank passes on (2026-09-16)
+
         // Fire static death event for nearby allies to react
         OnAnyWarriorDied?.Invoke(transform.position);
 
@@ -389,6 +390,7 @@ public class Warrior : UnitBase<Warrior>
     protected override void OnDestroy()
     {
         base.OnDestroy();
+        FormationSlots.Release(this);
 
         // Unsubscribe from static events to prevent memory leaks
         OnAnyWarriorDied -= OnAllyDiedUtilityAI;

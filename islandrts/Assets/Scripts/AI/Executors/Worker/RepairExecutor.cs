@@ -51,7 +51,7 @@ public class RepairExecutor : ActionExecutor
         destinationQueued = false;
         debtWood = debtFood = debtStone = debtMetal = 0f;
         displayName = "Heading to repair";
-        Worker.RollMovingAvoidance(bb.agent);
+        Worker.RollMovingAvoidance(bb.agent, bb.carryAmount);
         Acquire(bb);
     }
 
@@ -89,7 +89,7 @@ public class RepairExecutor : ActionExecutor
         {
             working = false;
             displayName = "Heading to repair";
-            Worker.RollMovingAvoidance(bb.agent);
+            Worker.RollMovingAvoidance(bb.agent, bb.carryAmount);
             IssueMove(bb);
             return;
         }
@@ -188,6 +188,6 @@ public class RepairExecutor : ActionExecutor
         destinationQueued = false;
 
         if (bb.agent != null && bb.agent.isOnNavMesh) bb.agent.isStopped = false;
-        Worker.RollMovingAvoidance(bb.agent);
+        Worker.RollMovingAvoidance(bb.agent, bb.carryAmount);
     }
 }

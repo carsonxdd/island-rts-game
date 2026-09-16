@@ -60,7 +60,7 @@ public class ReturnToBaseExecutor : ActionExecutor
         bb.agent.stoppingDistance = 0.5f;
 
         // Moving errand — drop stationary-importance if we were just gathering
-        Worker.RollMovingAvoidance(bb.agent);
+        Worker.RollMovingAvoidance(bb.agent, bb.carryAmount);
 
         // If the throttle/NavMesh rejects this, OnUpdate's !hasPath retry self-heals
         if (AINavHelper.TrySetDestination(bb.agent, GetDropoffPoint(bb)))

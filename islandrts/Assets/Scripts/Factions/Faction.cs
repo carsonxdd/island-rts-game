@@ -74,6 +74,7 @@ public sealed class Faction
     {
         if (Stance == mode) return;
         Stance = mode;
+        FormationSlots.Clear(this);   // the shape re-forms under the new orders (2026-09-16)
         if (IsPlayer) DevQuests.Signal("stance:" + GuardStance.Names[(int)mode].ToLowerInvariant());
     }
 
@@ -81,6 +82,7 @@ public sealed class Faction
     {
         if (FormationKind == kind) return;
         FormationKind = kind;
+        FormationSlots.Clear(this);
         if (IsPlayer) DevQuests.Signal("formation:" + Formation.Names[(int)kind].ToLowerInvariant());
     }
 

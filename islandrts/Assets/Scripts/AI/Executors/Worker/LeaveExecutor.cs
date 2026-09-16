@@ -53,7 +53,7 @@ public class LeaveExecutor : ActionExecutor
             shore = NavMesh.SamplePosition(cove, out hit, 6f, NavMesh.AllAreas) ? hit.position : cove;
         }
 
-        Worker.RollMovingAvoidance(bb.agent);
+        Worker.RollMovingAvoidance(bb.agent, bb.carryAmount);
         IssueMove(bb);
     }
 

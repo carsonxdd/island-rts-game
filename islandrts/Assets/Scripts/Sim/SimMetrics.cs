@@ -101,6 +101,12 @@ public class SimMetrics
     /// </summary>
     public string rivalFate = "none";
     public int rivalFellDay;
+    /// <summary>The lowest and highest hidden opinion the first rival reached, read once a day (2026-09-16 telemetry: how far from the ±40 thresholds a pair ever gets).</summary>
+    public float rivalOpinionMin;
+    public float rivalOpinionMax;
+    /// <summary>The conquest test (2026-09-16): landings the player made, and what the rival's fallen fire dropped.</summary>
+    public int playerLandings;
+    public int lootWood, lootFood, lootStone, lootMetal;
 
     private readonly StringBuilder sb = new StringBuilder(256);
 
@@ -127,7 +133,8 @@ public class SimMetrics
                 "config_id,strategy,seed,outcome,day_reached,days_to_survive,raids," +
                 "enemies_killed,peak_workers,peak_warriors," +
                 "final_wood,final_food,final_stone,colonists_left," +
-                "game_seconds,wall_seconds,frames,note,rival_strategy,rival_fate,rival_fell_day\n");
+                "game_seconds,wall_seconds,frames,note,rival_strategy,rival_fate,rival_fell_day," +
+                "rival_opinion_min,rival_opinion_max,player_landings,loot_wood,loot_food,loot_stone,loot_metal\n");
         }
 
         string days = Path.Combine(dir, DaysFile);
@@ -173,7 +180,11 @@ public class SimMetrics
           .Append(Csv(note)).Append(',')
           .Append(Csv(rivalStrategy)).Append(',')
           .Append(Csv(rivalFate)).Append(',')
-          .Append(rivalFellDay).Append('\n');
+          .Append(rivalFellDay).Append(',')
+          .Append(F(rivalOpinionMin)).Append(',')
+          .Append(F(rivalOpinionMax)).Append(',')
+          .Append(playerLandings).Append(',')
+          .Append(lootWood).Append(',').Append(lootFood).Append(',').Append(lootStone).Append(',').Append(lootMetal).Append('\n');
         File.AppendAllText(Path.Combine(dir, RunsFile), sb.ToString());
 
         sb.Clear();

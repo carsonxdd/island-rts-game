@@ -763,6 +763,11 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         ReleaseHousing();
         if (Faction.Campfire == this) Faction.Campfire = null;
 
+        // A fire the PLAYER's warriors put out drops its colony's hoard (2026-09-16,
+        // the conquest test); the raiders' work drops nothing.
+        if (!Faction.IsPlayer && healthComponent != null && healthComponent.LastHitBy != null && healthComponent.LastHitBy.IsPlayer)
+            Loot.Drop(this);
+
         // Health component will handle the "DESTROYED!" text display
 
         // Visual feedback - darken the campfire

@@ -128,7 +128,7 @@ public class PickupSpawner : MonoBehaviour
             float radius = Mathf.Lerp(minRadius, maxRadius, t) * TerrainGrid.SizeScale;   // band authored for the 150 m map
             float angle = Random.value * Mathf.PI * 2f;
             Vector3 pos = new Vector3(Mathf.Cos(angle) * radius, 0f, Mathf.Sin(angle) * radius);
-            if (TryPlace(prefab, pos)) return true;
+            if (TryPlace(prefab, pos) != null) return true;
         }
         return false;
     }
@@ -143,7 +143,7 @@ public class PickupSpawner : MonoBehaviour
             float r = Mathf.Sqrt(Random.value) * radius;
             float angle = Random.value * Mathf.PI * 2f;
             Vector3 pos = center + new Vector3(Mathf.Cos(angle) * r, 0f, Mathf.Sin(angle) * r);
-            if (TryPlace(prefab, pos)) return true;
+            if (TryPlace(prefab, pos) != null) return true;
         }
         return false;
     }
@@ -171,25 +171,56 @@ public class PickupSpawner : MonoBehaviour
             float r = Mathf.Lerp(radius * 0.6f, radius, Random.value);
             Vector3 pos = near + new Vector3(Mathf.Cos(angle) * r, 0f, Mathf.Sin(angle) * r);
             // Tight spacing: a stick right beside the tree it fell from is the point
-            if (TryPlace(prefab, pos, owned: false, spacing: 1.1f, bigChance: bigChance)) return true;
+            if (TryPlace(prefab, pos, owned: false, spacing: 1.1f, bigChance: bigChance) != null) return true;
         }
         return false;
     }
 
-    /// <summary>The shared validity gauntlet: land, gentle, reachable, on the NavMesh, spaced.</summary>
-    bool TryPlace(GameObject prefab, Vector3 pos, bool owned = true, float spacing = -1f, float bigChance = -1f)
+    /// <summary>
+    /// One loot pickup of <paramref name="amount"/> <paramref name="type"/> near a
+    /// fallen fire (2026-09-16, the conquest test): the stick art for wood and
+    /// food, the chunk art for stone and metal, a plain resource (no material
+    /// rides on it), overfill allowed so a hauler never wastes it. Never counted
+    /// against the respawn budget. False when no spot within the radius is valid.
+    /// </summary>
+    public bool DropLoot(ResourceNode.ResourceType type, int amount, Vector3 near, float radius)
+    {
+        GameObject prefab = (type == ResourceNode.ResourceType.Stone || type == ResourceNode.ResourceType.Metal)
+            ? stonePrefab : stickPrefab;
+        if (prefab == null || amount <= 0) return false;
+
+        for (int attempt = 0; attempt < 8; attempt++)
+        {
+            float angle = Random.value * Mathf.PI * 2f;
+            float r = Mathf.Lerp(radius * 0.4f, radius, Random.value);
+            Vector3 pos = near + new Vector3(Mathf.Cos(angle) * r, 0f, Mathf.Sin(angle) * r);
+            GroundPickup placed = TryPlace(prefab, pos, owned: false, spacing: 1.1f, bigChance: 0f);
+            if (placed == null) continue;
+            placed.resourceType = type;
+            placed.amount = amount;
+            placed.itemId = "";
+            placed.itemAmount = 0;
+            placed.allowOverfill = true;
+            placed.shed = false;
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>The shared validity gauntlet: land, gentle, reachable, on the NavMesh, spaced. Returns the pickup placed, or null.</summary>
+    GroundPickup TryPlace(GameObject prefab, Vector3 pos, bool owned = true, float spacing = -1f, float bigChance = -1f)
     {
         if (TerrainGrid.Instance != null)
         {
-            if (!TerrainGrid.Instance.IsLand(pos)) return false;
-            if (TerrainGrid.Instance.SlopeAt(pos) > maxSlope) return false;
-            if (!TerrainGrid.Instance.IsReachable(pos)) return false;
+            if (!TerrainGrid.Instance.IsLand(pos)) return null;
+            if (TerrainGrid.Instance.SlopeAt(pos) > maxSlope) return null;
+            if (!TerrainGrid.Instance.IsReachable(pos)) return null;
             pos.y = TerrainGrid.Instance.SampleHeight(pos);
         }
 
         // Must be reachable
         NavMeshHit hit;
-        if (!NavMesh.SamplePosition(pos, out hit, 1.5f, NavMesh.AllAreas)) return false;
+        if (!NavMesh.SamplePosition(pos, out hit, 1.5f, NavMesh.AllAreas)) return null;
         pos = hit.position;
 
         // Spacing vs other pickups
@@ -201,7 +232,7 @@ public class PickupSpawner : MonoBehaviour
             if (list[i] == null) continue;
             Vector3 d = list[i].transform.position - pos;
             d.y = 0f;
-            if (d.sqrMagnitude < sqrSpacing) return false;
+            if (d.sqrMagnitude < sqrSpacing) return null;
         }
 
         GameObject spawned = Instantiate(prefab, pos, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f), transform);
@@ -216,7 +247,7 @@ public class PickupSpawner : MonoBehaviour
             if (Random.value < big) MakeLarge(pickup);
             if (pickup.shed && pickup.resourceType == ResourceNode.ResourceType.Stone) DevQuests.Signal("shed:stone");
         }
-        return true;
+        return pickup;
     }
 
     /// <summary>

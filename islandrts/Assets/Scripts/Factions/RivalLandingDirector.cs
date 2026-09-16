@@ -127,12 +127,14 @@ public class RivalLandingDirector : MonoBehaviour
         float minDistance = MinCoveSeparation * TerrainGrid.SizeScale;
 
         Vector3 cove, site;
-        if (!tg.FindShoreSite(awayFrom, minDistance, out cove, out site) || !FarFromLanded(cove, minDistance))
+        bool shore = tg.FindShoreSite(awayFrom, minDistance, out cove, out site);
+        if (!shore || !FarFromLanded(cove, minDistance))
         {
             // A small island with no second shore is not an error, it is the
             // island. One warning, then this run has no more neighbours.
             Debug.LogWarning("RivalLandingDirector: no shore at least " + Mathf.RoundToInt(minDistance)
-                + " m from the colony; this island seats no rival.");
+                + " m from the colony; this island seats no rival (" + (shore ? "too near a landed rival" : "no site")
+                + "; " + tg.LastShoreSearch + "; rivals landed " + Landed.Count + ").");
             gaveUp = true;
             landing = false;
             yield break;

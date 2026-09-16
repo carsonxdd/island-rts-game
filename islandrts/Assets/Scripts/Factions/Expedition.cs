@@ -47,6 +47,8 @@ public static class Expedition
     /// <summary>Landings that have hit the player's shore this run, and relief parties that came to it (the sim's columns).</summary>
     public static int LandingsOnPlayer { get; private set; }
     public static int ReliefToPlayer { get; private set; }
+    /// <summary>Landings the PLAYER's colony has made on a neighbour this run (the conquest test's column, 2026-09-16).</summary>
+    public static int LandingsByPlayer { get; private set; }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void ResetStatics() { Clear(); OnDeparted = null; }
@@ -56,6 +58,7 @@ public static class Expedition
         parties.Clear();
         LandingsOnPlayer = 0;
         ReliefToPlayer = 0;
+        LandingsByPlayer = 0;
     }
 
     public static IReadOnlyList<Party> Parties => parties;
@@ -111,6 +114,7 @@ public static class Expedition
         if (party.Warriors.Count == 0) return 0;
         parties.Add(party);
         if (to.IsPlayer) { if (relief) ReliefToPlayer++; else LandingsOnPlayer++; }
+        if (from.IsPlayer && !relief) LandingsByPlayer++;
         DevQuests.Signal(relief ? "diplomacy:relief" : "diplomacy:landing");
         OnDeparted?.Invoke(from, to, party.Warriors.Count, relief);
         return party.Warriors.Count;
@@ -123,6 +127,13 @@ public static class Expedition
         {
             Party party = parties[p];
             BaseBuilding home = party.From.Campfire;
+            int alive = 0;
+            for (int i = 0; i < party.Warriors.Count; i++) if (party.Warriors[i] != null && party.Warriors[i].CachedHealth != null && party.Warriors[i].CachedHealth.IsAlive) alive++;
+            BaseBuilding theirs = party.To != null ? party.To.Campfire : null;
+            Debug.Log("Expedition: " + alive + " of " + party.Warriors.Count + " home to the " + party.From.Name + " from the " + party.To.Name
+                + (party.Relief ? " (relief)" : " (landing)") + "; building blows so far " + Siege.BuildingBlows
+                + "; their fire " + (theirs != null && theirs.CachedHealth != null ? Mathf.RoundToInt(theirs.CachedHealth.currentHealth) + " HP" : "out")
+                + "; their huts " + TargetingUtil.CountOwned(Hut.ActiveList, party.To) + ", warriors " + TargetingUtil.CountOwned(Warrior.ActiveList, party.To));
             for (int i = 0; i < party.Warriors.Count; i++)
             {
                 Warrior w = party.Warriors[i];

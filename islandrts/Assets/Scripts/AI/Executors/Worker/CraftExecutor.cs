@@ -43,7 +43,7 @@ public class CraftExecutor : ActionExecutor
         working = false;
         destinationQueued = false;
         displayName = "Heading to the bench";
-        Worker.RollMovingAvoidance(bb.agent);
+        Worker.RollMovingAvoidance(bb.agent, bb.carryAmount);
         Acquire(bb);
 
         // Playtest: an unpinned colonist chose a bench over a waiting site because Craft outranks Build.
@@ -92,7 +92,7 @@ public class CraftExecutor : ActionExecutor
         {
             working = false;
             displayName = "Heading to the bench";
-            Worker.RollMovingAvoidance(bb.agent);
+            Worker.RollMovingAvoidance(bb.agent, bb.carryAmount);
             IssueMove(bb);
             return;
         }
@@ -162,6 +162,6 @@ public class CraftExecutor : ActionExecutor
         destinationQueued = false;
 
         if (bb.agent != null && bb.agent.isOnNavMesh) bb.agent.isStopped = false;
-        Worker.RollMovingAvoidance(bb.agent);
+        Worker.RollMovingAvoidance(bb.agent, bb.carryAmount);
     }
 }

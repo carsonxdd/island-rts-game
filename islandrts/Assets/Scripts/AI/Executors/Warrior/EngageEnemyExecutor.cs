@@ -188,7 +188,8 @@ public class EngageEnemyExecutor : ActionExecutor
 
     void FindBestTarget(AIBlackboard bb)
     {
-        if (Enemy.ActiveList.Count == 0 && Warrior.ActiveList.Count <= 1)
+        Faction siegeOf = Siege.TargetOf(bb.warrior);   // a landing party may hit the buildings of the colony it landed on (2026-09-16)
+        if (siegeOf == null && Enemy.ActiveList.Count == 0 && Warrior.ActiveList.Count <= 1)
         {
             bb.ClearTarget();
             return;
@@ -214,6 +215,11 @@ public class EngageEnemyExecutor : ActionExecutor
             if (w != null && w != bb.warrior) Consider(bb, w, from, ref nearest, ref nearestDistance);
         }
 
+        // No fighter in reach on a siege: the colony's buildings, raider order
+        // (huts and works first, then the wall, then the fire).
+        if (nearest == null && siegeOf != null)
+            nearest = Siege.FindNearestBuilding(from, siegeOf, out nearestDistance);
+
         // Also update bb.nearestEnemy for considerations to read
         bb.nearestEnemy = nearest != null ? nearest.transform : null;
         bb.nearestEnemyDistance = nearest != null ? nearestDistance : float.MaxValue;
@@ -222,8 +228,13 @@ public class EngageEnemyExecutor : ActionExecutor
         {
             // Hysteresis: don't switch if we have a valid living target — unless the
             // stance no longer allows the one we have (the player changed orders).
+            // A building under siege is allowed for as long as the siege lasts.
+            // (The alive test runs FIRST: an interface reference to a destroyed
+            // component is not null, and its transform throws.)
             if (bb.currentTarget != null && bb.IsTargetAlive()
-                && (currentTargetable == null || GuardStance.Allows(currentTargetable, from, bb.baseBuilding, bb.faction)))
+                && (currentTargetable == null
+                    || (Siege.IsBuilding(currentTargetable) ? siegeOf != null
+                        : GuardStance.Allows(currentTargetable, from, bb.baseBuilding, bb.faction))))
             {
                 if (Time.time - targetAcquiredTime < minTargetLockDuration)
                     return;
@@ -436,6 +447,8 @@ public class EngageEnemyExecutor : ActionExecutor
         // A blow on another colony's unit is remembered (2026-09-16, slice B5);
         // noted at the swing so the arrow's flight changes nothing.
         Diplomacy.NoteAttack(bb.faction, bb.currentTargetFaction);
+        if (bb.currentTargetHealth != null) bb.currentTargetHealth.LastHitBy = bb.faction;   // the conquest test reads it at a fire's death
+        if (bb.warrior != null && bb.warrior.OnExpedition && currentTargetable != null && Siege.IsBuilding(currentTargetable)) Siege.NoteBuildingBlow();
 
         // An archer (2026-09-04) looses an arrow that carries the damage to the
         // target; the range check above already holds the agent at the weapon's

@@ -28,6 +28,18 @@ public class StanceTargetAvailable : Consideration
         var warriors = Warrior.ActiveList;
         for (int i = 0; i < warriors.Count; i++) { Warrior w = warriors[i]; if (w != null && w != bb.warrior) Consider(bb, w, from, ref best, ref bestSqr); }
 
+        // A landing party with no fighter in reach besieges the buildings (2026-09-16)
+        if (best == null)
+        {
+            Faction siegeOf = Siege.TargetOf(bb.warrior);
+            if (siegeOf != null)
+            {
+                float d;
+                best = Siege.FindNearestBuilding(from, siegeOf, out d);
+                bestSqr = d * d;
+            }
+        }
+
         bb.nearestEnemy = best != null ? best.transform : null;
         bb.nearestEnemyDistance = best != null ? Mathf.Sqrt(bestSqr) : float.MaxValue;
         return best != null ? 1f : 0f;

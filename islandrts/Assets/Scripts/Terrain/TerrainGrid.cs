@@ -339,6 +339,8 @@ public class TerrainGrid : MonoBehaviour
         float maxRadius = Half - OceanMargin;
         float bestDistSqr = minSqr;
         bool found = false;
+        int withShore = 0, farEnough = 0, sitedCount = 0;
+        float farthest = 0f;
 
         for (int b = 0; b < Bearings; b++)
         {
@@ -352,6 +354,7 @@ public class TerrainGrid : MonoBehaviour
                 if (SampleHeight(dir * r) <= 0f) { shoreR = r; break; }
             }
             if (shoreR < MinInland + March) continue;   // no land worth landing on this way
+            withShore++;
 
             Vector3 candidateCove = dir * (shoreR + SeawardOffset);
             candidateCove.y = -0.25f;                    // the water plane, as CoveCenter reports it
@@ -359,7 +362,10 @@ public class TerrainGrid : MonoBehaviour
             Vector3 flat = candidateCove; flat.y = 0f;
             Vector3 from = awayFrom; from.y = 0f;
             float distSqr = (flat - from).sqrMagnitude;
-            if (distSqr < bestDistSqr) continue;         // nearer than the best we already have (or than the minimum)
+            farthest = Mathf.Max(farthest, Mathf.Sqrt(distSqr));
+            if (distSqr < minSqr) continue;
+            farEnough++;
+            if (distSqr < bestDistSqr) continue;         // nearer than the best we already have
 
             // Walk inland from the waterline for the first spot a colony can stand on.
             Vector3 site = Vector3.zero;
@@ -375,6 +381,7 @@ public class TerrainGrid : MonoBehaviour
                 break;
             }
             if (!sited) continue;
+            sitedCount++;
 
             cove = candidateCove;
             campfireSite = site;
@@ -382,8 +389,14 @@ public class TerrainGrid : MonoBehaviour
             found = true;
         }
 
+        LastShoreSearch = "shore on " + withShore + " of " + Bearings + " bearings, " + farEnough + " at least "
+            + Mathf.RoundToInt(minDistance) + " m away, " + sitedCount + " with a site; farthest cove "
+            + Mathf.RoundToInt(farthest) + " m";
         return found;
     }
+
+    /// <summary>What the last <see cref="FindShoreSite"/> saw, for the director's warning (2026-09-16 telemetry).</summary>
+    public string LastShoreSearch { get; private set; } = "";
 
     /// <summary>
     /// Eight NavMesh samples on a 2 m ring, height-matched and reachable: can a

@@ -115,9 +115,10 @@ public class Worker : UnitBase<Worker>
         if (agent != null) agent.avoidancePriority = StationaryAvoidancePriority;
     }
 
-    public static void RollMovingAvoidance(NavMeshAgent agent)
+    /// <summary>Deterministic since 2026-09-16 (UnitSpacing): cargo outranks empty hands, then the instance id breaks ties — a random band could tie two meeting workers into a dance.</summary>
+    public static void RollMovingAvoidance(NavMeshAgent agent, float carryAmount = 0f)
     {
-        if (agent != null) agent.avoidancePriority = Random.Range(30, 70);
+        UnitSpacing.SetMoving(agent, carryAmount > 0f);
     }
 
     // --- Jobs (2026-09-02) ---
@@ -263,9 +264,8 @@ public class Worker : UnitBase<Worker>
             agent.stoppingDistance = GatherStopDistance;  // Walk nearly onto the gather point (arrival tolerance is gatherDistance)
             agent.acceleration = 18f;  // Snap pass: 3.5 / 18 = ~0.19s spin-up (was 5 = 0.70s). Weight should come from top speed, not from a long ramp -- a long ramp just reads as input lag. Braking uses the same value, so arrivals tighten too
             agent.angularSpeed = 360f;  // Snappy turning - workers face new headings quickly (was 120, an anti-jitter value; watch for turn jitter)
-            agent.obstacleAvoidanceType = ObstacleAvoidanceType.HighQualityObstacleAvoidance;  // High predicts crossings early so meeting workers weave instead of side-step dancing. Walls are static obstacles, not avoidance agents — the cost scales with agent count and ~10 workers is cheap
-            RollMovingAvoidance(agent);  // Randomized priority band prevents synchronized yielding; executors switch this by state (stationary = max-importance)
-            agent.radius = AgentRadius;  // Skinny avoidance radius so workers pack tightly (Phase 6.25, was 0.5)
+            UnitSpacing.Apply(agent, worker: true);   // WorkerAvoidanceRadius + Med quality (two-radius model, 2026-09-16; was High + AgentRadius)
+            RollMovingAvoidance(agent);  // deterministic priority; executors switch this by state (stationary = max-importance)
         }
 
         // Create floating state text

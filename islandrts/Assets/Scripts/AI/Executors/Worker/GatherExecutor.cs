@@ -34,7 +34,7 @@ public class GatherExecutor : ActionExecutor
         unreachableTimer = 0f;
         headingToBase = false;
         returningToAnchor = false;
-        Worker.RollMovingAvoidance(bb.agent);  // moving errand — leave stationary-importance if we had it
+        Worker.RollMovingAvoidance(bb.agent, bb.carryAmount);  // moving errand — leave stationary-importance if we had it
 
         // Find and claim best resource (already cached by ResourceAvailability consideration)
         if (bb.bestResource != null)
@@ -365,7 +365,7 @@ public class GatherExecutor : ActionExecutor
         phase = GatherPhase.MovingToResource;
         unreachableTimer = 0f;
         returningToAnchor = false;
-        Worker.RollMovingAvoidance(bb.agent);  // moving again — drop stationary-importance
+        Worker.RollMovingAvoidance(bb.agent, bb.carryAmount);  // moving again — drop stationary-importance
         displayName = "Moving to " + bb.assignedResourceType;
 
         if (bb.stuckResolver != null)
@@ -393,7 +393,7 @@ public class GatherExecutor : ActionExecutor
         {
             headingToBase = true;
             bb.agent.isStopped = false;
-            Worker.RollMovingAvoidance(bb.agent);  // moving again — drop stationary-importance
+            Worker.RollMovingAvoidance(bb.agent, bb.carryAmount);  // moving again — drop stationary-importance
             displayName = "Returning to base";
         }
 

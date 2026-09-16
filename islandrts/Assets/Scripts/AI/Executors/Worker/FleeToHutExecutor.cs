@@ -63,7 +63,7 @@ public class FleeToHutExecutor : ActionExecutor
         destinationQueued = false;
 
         // Moving errand — drop stationary-importance if we were gathering/idle
-        Worker.RollMovingAvoidance(bb.agent);
+        Worker.RollMovingAvoidance(bb.agent, bb.carryAmount);
 
         PickShelterAndMove(bb);
     }
@@ -79,7 +79,7 @@ public class FleeToHutExecutor : ActionExecutor
                 garrisoned = false;
                 shelterHut = null;
                 shelterCollider = null;
-                Worker.RollMovingAvoidance(bb.agent);
+                Worker.RollMovingAvoidance(bb.agent, bb.carryAmount);
                 PickShelterAndMove(bb);
             }
             // Safe inside; the brain exits Flee when the threat clears.
@@ -205,7 +205,7 @@ public class FleeToHutExecutor : ActionExecutor
         if (bb.agent != null && bb.agent.enabled && bb.agent.isOnNavMesh)
         {
             bb.agent.isStopped = false;
-            Worker.RollMovingAvoidance(bb.agent);
+            Worker.RollMovingAvoidance(bb.agent, bb.carryAmount);
         }
     }
 }

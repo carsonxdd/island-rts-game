@@ -35,6 +35,25 @@ public class EnemyPresence : Consideration
         bool inRange = bb.scannedNearestEnemy != null &&
                        (maxRange <= 0f || bb.scannedNearestEnemyDist < maxRange);
 
+        // A landing party with nobody left to fight still has a camp to take
+        // (2026-09-16, the conquest test): the nearest building of the colony it
+        // landed on counts as presence, or Engage scores 0 before its own scan runs.
+        if (!inRange && bb.warrior != null)
+        {
+            Faction siegeOf = Siege.TargetOf(bb.warrior);
+            if (siegeOf != null)
+            {
+                float d;
+                ITargetable b = Siege.FindNearestBuilding(bb.transform.position, siegeOf, out d);
+                if (b != null && (maxRange <= 0f || d < maxRange))
+                {
+                    bb.scannedNearestEnemy = b.transform;
+                    bb.scannedNearestEnemyDist = d;
+                    inRange = true;
+                }
+            }
+        }
+
         // Cache for other systems (EngageEnemyExecutor, InterceptExecutor)
         bb.nearestEnemy = inRange ? bb.scannedNearestEnemy : null;
         bb.nearestEnemyDistance = inRange ? bb.scannedNearestEnemyDist : float.MaxValue;

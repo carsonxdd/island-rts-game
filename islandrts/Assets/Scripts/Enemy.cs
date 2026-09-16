@@ -71,9 +71,8 @@ public class Enemy : UnitBase<Enemy>
         agent.angularSpeed = 200f;       // Snap pass: 180-deg pivot in 0.90s (was 90 = 2.00s). Still twice as slow to turn as a warrior -- that gap is where the lumbering read lives
         agent.stoppingDistance = 0.5f;  // Minimal — EnemyAttackExecutor uses ClosestPoint edge-distance to trip attack state
         agent.autoBraking = true;
-        agent.radius = 0.5f;             // Agent size for collision
-        agent.obstacleAvoidanceType = ObstacleAvoidanceType.GoodQualityObstacleAvoidance;  // Reduced from High for performance
-        agent.avoidancePriority = Random.Range(30, 70);  // Randomized priority to prevent synchronized yielding
+        UnitSpacing.Apply(agent, worker: false);   // two-radius model (2026-09-16; was 0.5 + Good quality)
+        UnitSpacing.SetMoving(agent, carrying: false);
 
         // Setup Health component
         SetupHealth(maxHealth, Die);
@@ -121,8 +120,8 @@ public class Enemy : UnitBase<Enemy>
                 agent.ResetPath();
                 agent.isStopped = false;
             }
-            // Re-roll avoidance priority to break ORCA ties between stacked enemies.
-            agent.avoidancePriority = Random.Range(30, 70);
+            // Re-set the avoidance priority (deterministic since 2026-09-16; a stacked pair is broken by the soft push, not a re-roll).
+            UnitSpacing.SetMoving(agent, carrying: false);
             aiBrain.ForceReeval();
         };
         bb.stuckResolver = stuckResolver;
@@ -168,6 +167,48 @@ public class Enemy : UnitBase<Enemy>
     private const float GiveUpSeconds = 20f;
     private const float ProgressMetre = 1f;
 
+    /// <summary>
+    /// One line per living raider for the dawn-cap warning (2026-09-16 telemetry):
+    /// where it stands, how far the nearest hostile fire is, whether the NavMesh
+    /// has a complete path from it to that fire, what its agent is doing and what
+    /// it is targeting. The overnight batch's dead raid nights (raiders ashore,
+    /// no kills, fire untouched, seeds 8851 and 23) are read from this. Eight
+    /// raiders at most; allocation is fine, this runs once a night at the cap.
+    /// </summary>
+    public static string DescribeAlive()
+    {
+        var sb = new System.Text.StringBuilder(512);
+        var list = ActiveList;
+        int shown = 0;
+        var path = new NavMeshPath();
+        for (int i = 0; i < list.Count && shown < 8; i++)
+        {
+            Enemy e = list[i];
+            if (e == null || e.CachedHealth == null || !e.CachedHealth.IsAlive) continue;
+            shown++;
+            Vector3 p = e.transform.position;
+            float fireDist;
+            BaseBuilding fire = TargetingUtil.FindNearestHostile(BaseBuilding.ActiveList, p, 0f, e.Faction, out fireDist);
+            string pathWord = "nofire";
+            if (fire != null)
+            {
+                NavMeshHit hit;
+                Vector3 goal = NavMesh.SamplePosition(fire.transform.position, out hit, 4f, NavMesh.AllAreas) ? hit.position : fire.transform.position;
+                pathWord = NavMesh.CalculatePath(p, goal, NavMesh.AllAreas, path) ? path.status.ToString() : "none";
+            }
+            NavMeshAgent a = e.CachedAgent;
+            string tgt = e.bb != null && e.bb.currentTarget != null ? e.bb.currentTarget.name : "-";
+            sb.Append("  raider ").Append(i).Append(" at (").Append(p.x.ToString("F0")).Append(',').Append(p.y.ToString("F1")).Append(',').Append(p.z.ToString("F0"))
+              .Append(") fire ").Append(fireDist.ToString("F0")).Append(" m path ").Append(pathWord)
+              .Append(" onMesh ").Append(a != null && a.isOnNavMesh)
+              .Append(" agent ").Append(a != null ? a.pathStatus.ToString() : "-").Append(" rem ").Append(a != null && a.hasPath ? a.remainingDistance.ToString("F0") : "-")
+              .Append(" vel ").Append(a != null ? a.velocity.magnitude.ToString("F1") : "-")
+              .Append(" fighting ").Append(e.IsFighting).Append(" tgt ").Append(tgt).Append('\n');
+        }
+        sb.Append("  alive ").Append(list.Count).Append(", listed ").Append(shown);
+        return sb.ToString();
+    }
+
     void WatchProgress()
     {
         if (bb == null || agent == null) return;
@@ -198,7 +239,7 @@ public class Enemy : UnitBase<Enemy>
         bb.currentTargetHealth = null;
         bb.currentTargetCollider = null;
         bb.isInAttackRange = false;
-        agent.avoidancePriority = Random.Range(30, 70);
+        UnitSpacing.SetMoving(agent, carrying: false);
         if (aiBrain != null) aiBrain.ForceReeval();
         DevQuests.Signal("raider:warped");
     }

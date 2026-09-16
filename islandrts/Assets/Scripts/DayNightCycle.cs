@@ -140,7 +140,8 @@ public class DayNightCycle : MonoBehaviour
                 else if (!dawnHoldCapLogged)
                 {
                     dawnHoldCapLogged = true;
-                    Debug.LogWarning("DayNightCycle: dawn held " + Mathf.RoundToInt(cap) + "s with raiders still alive — releasing the day.");
+                    Debug.LogWarning("DayNightCycle: dawn held " + Mathf.RoundToInt(cap) + "s with raiders still alive — releasing the day.\n"
+                        + Enemy.DescribeAlive());
                 }
             }
             if (next >= DawnT && DawnHeld)

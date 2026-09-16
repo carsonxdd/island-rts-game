@@ -112,7 +112,7 @@ public class IdleExecutor : ActionExecutor
         strollTimer = 0f;
         displayName = "Idle";
         DevQuests.Signal("loiter:step_aside");
-        Worker.RollMovingAvoidance(bb.agent);
+        Worker.RollMovingAvoidance(bb.agent, bb.carryAmount);
         if (bb.stuckResolver != null) bb.stuckResolver.ResetStuckDetection();
         IssueStrollMove(bb);
     }
@@ -164,7 +164,7 @@ public class IdleExecutor : ActionExecutor
         mode = Mode.Home;
         destinationQueued = false;
         displayName = "Heading home";
-        Worker.RollMovingAvoidance(bb.agent);
+        Worker.RollMovingAvoidance(bb.agent, bb.carryAmount);
         if (bb.stuckResolver != null) bb.stuckResolver.ResetStuckDetection();
         IssueHomeMove(bb);
     }
@@ -213,7 +213,7 @@ public class IdleExecutor : ActionExecutor
         displayName = "Wandering";
         DevQuests.Signal("stroll");
         if (buildingBuffer.Count == 1) DevQuests.Signal("stroll:campfire_only");   // the fire is the only standing building
-        Worker.RollMovingAvoidance(bb.agent);
+        Worker.RollMovingAvoidance(bb.agent, bb.carryAmount);
         if (bb.stuckResolver != null) bb.stuckResolver.ResetStuckDetection();
         IssueStrollMove(bb);
     }
@@ -387,7 +387,7 @@ public class IdleExecutor : ActionExecutor
         if (AgentReady(bb))
         {
             bb.agent.isStopped = false;
-            Worker.RollMovingAvoidance(bb.agent);  // about to move — drop stationary-importance
+            Worker.RollMovingAvoidance(bb.agent, bb.carryAmount);  // about to move — drop stationary-importance
         }
     }
 }

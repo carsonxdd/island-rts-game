@@ -225,9 +225,9 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         agent.acceleration = 18f;
         agent.angularSpeed = 360f;
         agent.stoppingDistance = 0.2f;
-        agent.radius = Worker.AgentRadius;
         agent.baseOffset = 0f;  // base-pivot art: transform origin IS the feet
-        agent.obstacleAvoidanceType = ObstacleAvoidanceType.HighQualityObstacleAvoidance;
+        UnitSpacing.Apply(agent, worker: false);   // two-radius model (2026-09-16)
+        UnitSpacing.SetMoving(agent, carrying: false);
 
         CreateStateText(2.2f, PlayerProfile.Name, NameColor);
         if (floatingText != null) floatingText.alwaysShow = true;   // the name never hides with the state-label setting

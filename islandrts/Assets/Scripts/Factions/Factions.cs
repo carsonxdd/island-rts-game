@@ -97,6 +97,8 @@ public static class Factions
         Relations.Clear();
         Diplomacy.Clear();
         Expedition.Clear();
+        Loot.Clear();
+        Siege.Clear();
         player = null;
         raiders = null;
         builtForScene = 0;

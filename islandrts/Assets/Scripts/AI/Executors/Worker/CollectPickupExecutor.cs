@@ -51,7 +51,7 @@ public class CollectPickupExecutor : ActionExecutor
         target = null;
         destinationQueued = false;
         stallTimer = 0f;
-        Worker.RollMovingAvoidance(bb.agent);
+        Worker.RollMovingAvoidance(bb.agent, bb.carryAmount);
         AcquireTarget(bb);
     }
 
