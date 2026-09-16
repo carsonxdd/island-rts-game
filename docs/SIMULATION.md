@@ -147,9 +147,9 @@ window              day   pop  food   war  fire  state
 TURTLE/1042        8/30    10    63     0  100%
 RUSH/1042          9/30    11    56     1   91%  raid tonight
 ECO/1042          10/30    12    49     2   82%
-TURTLE/8851       11/30    13    42     3   73%  raid tonight
-RUSH/8851         12/30    14    35     4   64%  under attack (6)
-ECO/8851          13/30    15    28     5   55%  raid tonight
+TURTLE/8851       11/30    13    42     3   73%  Rush Warm 4w 80%   raid tonight
+RUSH/8851         12/30    14    35     4   64%  -                  under attack (6)
+ECO/8851          13/30    15    28     5   55%  Turtle Cool 2w 100% * raid tonight
 
 survived: Eco 1/1
 ```
@@ -161,6 +161,12 @@ takes they say nothing at all. Each process instead overwrites a one-line
 in `SimRunner.PushOverlay` because a headless process plays 15–30 game seconds a
 second), which is what the rows read; the `survived` tally and the finished-runs
 counter in the title line come from the shards' `runs.csv`, the real record.
+The `rival` column (2026-09-16) is `-` until a rival lands, then its personality,
+the opinion WORD the player would see (`Diplomacy.Word`), its militia, its fire,
+and a `*` while an expedition party is at sea in either direction; `status.csv`
+carries the same as `rival, rival_opinion, rival_attitude, rival_warriors,
+rival_fire_pct, rival_party`, appended at the END so an older heartbeat still
+parses. The caption under a visual window prints the same line.
 Since 2026-09-11 the dashboard runs in every mode — a headless sweep (and each
 sweep of the overnight batch) shows its eight processes the same way the lab
 shows nine windows, titled `SIMULATION HEADLESS`.
@@ -223,7 +229,7 @@ understand a result, not to gather one.
 
 ### The spectator camera
 
-`SimSpectatorCamera` re-scores six shots twice a second and holds the winner for
+`SimSpectatorCamera` re-scores seven shots twice a second and holds the winner for
 at least four seconds, most urgent first:
 
 | Shot | Trigger | Zoom |
@@ -231,6 +237,7 @@ at least four seconds, most urgent first:
 | Campfire | the fire lost HP in the last 5 s | 8 |
 | Landing | raiders just came ashore (`EnemySpawner.OnRaidLanded`) | 12 |
 | Battle | the densest cluster within 18 m that holds raiders AND the player's warriors | 9 |
+| Rival | (2026-09-16) the first rival's ship broke up or an expedition set out in the last 12 s, a party is at sea (frames its warriors), or tonight's raid was rolled onto the rival's shore (frames its fire) | 12 |
 | Raiders | the raider nearest the fire, while it is still moving | 12 |
 | Castaway | by day (2026-09-10): the character on an errand, close in | 8 |
 | Colony | default: the campfire, leaned toward where the colonists are | 13 |
@@ -363,11 +370,12 @@ report the script counts down 60 s and puts the machine to sleep (Ctrl+C or
 | `raids` | `raidSizePerDay` 0.25 / 0.55 / 0.70, `raidMinQuietNights` 1 / 3, `raidSizePerProsperity` 0.04 / 0.12, `raidBaseSize` 3 — one knob at a time × 3 strategies × 6 islands | 144 | where each strategy's win rate crosses 50%; the shipped cell is the baseline |
 | `difficulty` | Peaceful (20 days) / Relaxed (20) / Normal / Hard / Brutal × 3 × 6 islands | 90 | ladder spacing |
 | `islands` | 3 sizes × 3 styles × 3 × 4 islands | 108 | a `SizeScale`- or style-dependent stall |
+| `rivals` | (2026-09-16) `r0` nobody / `r1` one rival / `r1turtle` `r1rush` `r1eco` one pinned rival / `r2` two × 3 strategies × 6 islands | 108 | what a neighbour costs the player, read against the same-night `r0` control; how each rival personality fares (the *Neighbours* table) |
 
 Ids are `<variant>__<strategy>__<island>` (repeats append `_s<seed>`, which
 `Cell-Of` strips), and `terrainSeed` = `seed` throughout, so an island number
 is the same island in every sweep. Headless runs at 15–30× realtime here, so
-the 450 runs are roughly five hours at eight processes. Any one sweep replays
+the 558 runs are roughly six hours at eight processes. Any one sweep replays
 alone with `run-sim.ps1 -Sweep SimLogs\overnight-<date>\raids.sweep.json`, and
 the report can be regenerated any time with `summarize-sim.ps1 -Dir <folder>`.
 
@@ -380,7 +388,12 @@ error/timeout rows. **Read err/timeout first** — those are harness problems,
 and a sweep short of its expected count means a process died (see
 `overnight.log`). The baseline also gets an island × strategy grid with the
 loss day in each cell: an island every strategy loses on the same early day is
-a map problem, not a policy one.
+a map problem, not a policy one. A sweep in which any rival landed also gets a
+**Neighbours** table (2026-09-16): runs landed (mean arrival day), runs whose fog
+met it, mean hidden opinion at the last dawn, nights the raid went to the rival's
+shore, landings on and relief to the player's shore, the rival's fate (`alive` /
+`fell` with the mean day / `deserted`), its warriors and food at the last dawn.
+`SimSweeps/rivals.json` is the same grid on the baseline island for a quick run.
 
 ---
 
@@ -391,15 +404,25 @@ a map problem, not a policy one.
 ```
 config_id, strategy, seed, outcome, day_reached, days_to_survive, raids,
 enemies_killed, peak_workers, peak_warriors, final_wood/food/stone,
-colonists_left, game_seconds, wall_seconds, frames, note, rival_strategy
+colonists_left, game_seconds, wall_seconds, frames, note, rival_strategy,
+rival_fate, rival_fell_day
 ```
 
 `rival_strategy` (2026-09-16) is the first landed rival's governor policy name,
-empty on a run with no rivals. `days.csv` ends with `raid_at_rival,
-rival_opinion_pts, rival_landings, rival_relief` (2026-09-16): whether the night's
-raid was rolled onto a rival's shore (`raid` then reads 0 — it means a raid at the
-PLAYER's), the hidden −100..100 opinion with the first rival, and the running
-counts of hostile landings on and relief parties to the player's shore.
+empty on a run with no rivals. `rival_fate` is how that colony ended: `none`
+(never landed), `alive`, `fell` (its campfire destroyed — only raiders can, a
+warrior cannot hit a building; a rival's loss ends nothing, the run goes on) or
+`deserted` (fire standing over an empty roster — starvation walks a colony out
+one a day); `rival_fell_day` is the calendar day the fire went out, 0 otherwise.
+`days.csv` ends with `raid_at_rival, rival_opinion_pts, rival_landings,
+rival_relief` (2026-09-16): whether the night's raid was rolled onto a rival's
+shore (`raid` then reads 0 — it means a raid at the PLAYER's), the hidden
+−100..100 opinion with the first rival, and the running counts of hostile
+landings on and relief parties to the player's shore — then the rival's own
+dawn, `rival_fire_pct` (−1 until one lands, 0 once its fire is down),
+`rival_huts`, `rival_colonists` (warriors included) and `rival_food_dawn`, so a
+rival's collapse reads as its cause the way the player's does. Every rival
+column is about the FIRST rival to land.
 
 `outcome` is `victory` | `escape` | `defeat` | `timeout` | `error` — `escape` is the
 Shipyard ending (2026-09-04), a win before the rescue dawn. `colonists_left` counts

@@ -512,6 +512,7 @@ public class SimRunner : MonoBehaviour
             castaway = CastawayLine(),
             nextRaidSize = state.NextRaidSize,
         };
+        FillRival(ref lastFrame);
 
         SimVisualOverlay.Push(lastFrame);
         // The launcher's dashboard reads this: neither CSV exists until the run
@@ -522,6 +523,36 @@ public class SimRunner : MonoBehaviour
             lastStatusWriteReal = now;
             SimStatus.Write(outputDir, lastFrame, "");
         }
+    }
+
+    /// <summary>
+    /// The first rival's line of the caption and the heartbeat (2026-09-16):
+    /// its personality, the player's opinion of it as the WORD the player would
+    /// see, its militia and its fire. Empty on a run with no rival landed.
+    /// </summary>
+    private static void FillRival(ref SimVisualOverlay.Frame f)
+    {
+        Faction rival = FirstRival();
+        f.rivalLanded = rival != null;
+        if (rival == null) return;
+
+        Governor theirs = GovernorRunner.Instance != null ? GovernorRunner.Instance.For(rival) : null;
+        f.rivalStrategy = theirs != null ? theirs.Policy.Name : "";
+        f.rivalOpinion = Diplomacy.Word(Diplomacy.Opinion(Factions.Player, rival));
+        f.rivalAttitude = Factions.Player.Toward(rival).ToString();
+        f.rivalWarriors = 0;
+        var list = Warrior.ActiveList;
+        for (int i = 0; i < list.Count; i++)
+        {
+            Warrior w = list[i];
+            if (w != null && w.Faction == rival) f.rivalWarriors++;
+        }
+        BaseBuilding fire = rival.Campfire;
+        f.rivalFirePct = fire != null && fire.maxHealth > 0f
+            ? Mathf.RoundToInt(100f * Mathf.Clamp01(fire.GetCurrentHealth() / fire.maxHealth))
+            : 0;
+        // Whose warriors are at sea: the rival's (a landing on us or relief for us) or ours (at its shore).
+        f.rivalParty = Expedition.Active(rival) ? "theirs" : Expedition.Active(Factions.Player) ? "ours" : "";
     }
 
     /// <summary>What the castaway is doing right now, for the caption (2026-09-10).</summary>
@@ -562,6 +593,29 @@ public class SimRunner : MonoBehaviour
             float hp = fire.GetCurrentHealth();
             if (hp < night.campfireHpMin) night.campfireHpMin = hp;
         }
+
+        WatchRivalFire();
+    }
+
+    /// <summary>
+    /// The first rival's campfire going out is recorded the frame it happens
+    /// (2026-09-16): a rival's loss ends nothing — the run goes on — so nothing
+    /// else would ever write the day down. Only raiders can do it (a warrior
+    /// cannot hit a building); <see cref="EndRun"/> turns it into <c>rival_fate</c>.
+    /// </summary>
+    private void WatchRivalFire()
+    {
+        if (metrics.rivalFellDay > 0) return;
+        Faction rival = FirstRival();
+        if (rival == null || rival.Campfire != null) return;
+        metrics.rivalFellDay = clock != null ? clock.GetCurrentDay() : metrics.dayReached;
+    }
+
+    /// <summary>The first rival this run landed, or null. Every rival column is about this one colony.</summary>
+    private static Faction FirstRival()
+    {
+        RivalLandingDirector dir = RivalLandingDirector.Instance;
+        return dir != null && dir.Landed.Count > 0 ? dir.Landed[0] : null;
     }
 
     private void OnNightStart()
@@ -683,6 +737,17 @@ public class SimRunner : MonoBehaviour
             if (w.Faction.Type == Faction.Kind.Rival) warriors++;
         }
         night.rivalWarriors = warriors;
+
+        // The first rival's own night (2026-09-16), so its collapse reads as a
+        // cause: no beds, no food, or a fire that raiders put out.
+        Faction first = dir.Landed[0];
+        BaseBuilding theirFire = first.Campfire;
+        night.rivalFirePct = theirFire != null && theirFire.maxHealth > 0f
+            ? Mathf.RoundToInt(100f * Mathf.Clamp01(theirFire.GetCurrentHealth() / theirFire.maxHealth))
+            : 0;
+        night.rivalHuts = TargetingUtil.CountOwned(Hut.ActiveList, first);
+        night.rivalColonists = first.Population != null ? first.Population.GetColonistCount() : 0;
+        night.rivalFoodDawn = first.Resources.food;
     }
 
     /// <summary>
@@ -724,6 +789,7 @@ public class SimRunner : MonoBehaviour
         metrics.gameSeconds = Time.time - runStartGameTime;
         metrics.wallClockSeconds = Time.realtimeSinceStartup - runStartRealTime;
         metrics.frames = Time.frameCount - runStartFrame;
+        metrics.rivalFate = RivalFate();
 
         metrics.Append(outputDir);
         Debug.Log(metrics.Summary());
@@ -738,6 +804,22 @@ public class SimRunner : MonoBehaviour
 
         QueueRespawn(queue[index], metrics.outcome);
         BeginNextRun(alreadyLoaded: false);
+    }
+
+    /// <summary>
+    /// How the first rival ended, for <c>runs.csv</c> (2026-09-16): <c>none</c>
+    /// when no rival ever landed, <c>fell</c> once its fire went out, <c>deserted</c>
+    /// when the fire stands over an empty roster (starvation walks a colony out
+    /// one a day), else <c>alive</c>.
+    /// </summary>
+    private string RivalFate()
+    {
+        Faction rival = FirstRival();
+        if (rival == null) return "none";
+        WatchRivalFire();
+        if (metrics.rivalFellDay > 0) return "fell";
+        int roster = rival.Population != null ? rival.Population.GetColonistCount() : 0;
+        return roster == 0 ? "deserted" : "alive";
     }
 
     /// <summary>

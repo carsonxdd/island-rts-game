@@ -32,6 +32,8 @@
                     prosperity weight, 6 islands       win rate crosses 50%
         difficulty  Peaceful..Brutal, 6 islands        ladder spacing
         islands     3 sizes x 3 styles, 4 islands      SizeScale / style stalls
+        rivals      0 / 1 / 2 neighbours, a fixed        what a neighbour costs the
+                    Turtle / Rush / Eco one, 6 islands   player; how the rival fares
 
     Every sweep file it plays is saved next to its results, so any one can be
     replayed alone: .\tools\run-sim.ps1 -Sweep SimLogs\overnight-<date>\raids.sweep.json
@@ -44,7 +46,7 @@
     box); more than that mostly buys NavMesh job contention.
 
 .PARAMETER Sweeps
-    Which of the four to run, in order. Default all.
+    Which of the five to run, in order. Default all.
 
 .PARAMETER SkipBuild
     Use the sim player as built. Only when you have just built it yourself and
@@ -71,7 +73,7 @@
 param(
     [string]$OutDir = "",
     [int]$Parallel = 8,
-    [string[]]$Sweeps = @("baseline", "raids", "difficulty", "islands"),
+    [string[]]$Sweeps = @("baseline", "raids", "difficulty", "islands", "rivals"),
     [switch]$SkipBuild,
     [switch]$DryRun,
     [string]$UnityExe = "",
@@ -176,7 +178,25 @@ function Build-Sweep {
                 New-Run ("{0}-{1}" -f $sz.ToLower(), $st.ToLower()) $s $i @{ islandSize = $sz; islandStyle = $st } } } } })
             return New-Sweep $Name 1 $runs
         }
-        default { throw "Unknown sweep '$Name' (baseline | raids | difficulty | islands)" }
+        "rivals" {
+            # Neighbours (2026-09-16, lap step 3). r0 is the control cell - the same
+            # islands with nobody else on them - so the cost of a rival is read
+            # against a same-night baseline, not against an older batch. r1 / r2
+            # land one / two rivals with the shipped rule (a random personality
+            # off the seeded stream); the three fixed cells pin the rival's play
+            # so "how does a Turtle neighbour fare" is one column, not a coin.
+            $variants = [ordered]@{
+                "r0"       = @{ rivalCount = 0 }
+                "r1"       = @{ rivalCount = 1 }
+                "r1turtle" = @{ rivalCount = 1; rivalStrategy = "Turtle" }
+                "r1rush"   = @{ rivalCount = 1; rivalStrategy = "Rush" }
+                "r1eco"    = @{ rivalCount = 1; rivalStrategy = "Eco" }
+                "r2"       = @{ rivalCount = 2 }
+            }
+            $runs = @(foreach ($v in $variants.Keys) { foreach ($i in $islands6) { foreach ($s in $strategies) { New-Run $v $s $i $variants[$v] } } })
+            return New-Sweep $Name 1 $runs
+        }
+        default { throw "Unknown sweep '$Name' (baseline | raids | difficulty | islands | rivals)" }
     }
 }
 

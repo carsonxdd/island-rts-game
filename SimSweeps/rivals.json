@@ -1,0 +1,19 @@
+{
+    "outputDir": "SimLogs",
+    "captureDeltaTime": 0.016666668,
+    "maxWallSecondsPerRun": 2400,
+    "repeats": 3,
+    "runs": [
+        { "id": "r0_turtle", "strategy": "Turtle", "seed": 1, "terrainSeed": 20260909, "rivalCount": 0 },
+        { "id": "r0_rush",   "strategy": "Rush",   "seed": 1, "terrainSeed": 20260909, "rivalCount": 0 },
+        { "id": "r0_eco",    "strategy": "Eco",    "seed": 1, "terrainSeed": 20260909, "rivalCount": 0 },
+        { "id": "r1_turtle", "strategy": "Turtle", "seed": 1, "terrainSeed": 20260909, "rivalCount": 1 },
+        { "id": "r1_rush",   "strategy": "Rush",   "seed": 1, "terrainSeed": 20260909, "rivalCount": 1 },
+        { "id": "r1_eco",    "strategy": "Eco",    "seed": 1, "terrainSeed": 20260909, "rivalCount": 1 },
+        { "id": "r1turtle_eco", "strategy": "Eco", "seed": 1, "terrainSeed": 20260909, "rivalCount": 1, "rivalStrategy": "Turtle" },
+        { "id": "r1rush_eco",   "strategy": "Eco", "seed": 1, "terrainSeed": 20260909, "rivalCount": 1, "rivalStrategy": "Rush" },
+        { "id": "r2_turtle", "strategy": "Turtle", "seed": 1, "terrainSeed": 20260909, "rivalCount": 2 },
+        { "id": "r2_rush",   "strategy": "Rush",   "seed": 1, "terrainSeed": 20260909, "rivalCount": 2 },
+        { "id": "r2_eco",    "strategy": "Eco",    "seed": 1, "terrainSeed": 20260909, "rivalCount": 2 }
+    ]
+}

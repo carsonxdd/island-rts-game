@@ -33,6 +33,14 @@ public class SimVisualOverlay : MonoBehaviour
         /// <summary>What the policy is trying to reach this second, what it last did, what the castaway is doing (2026-09-10).</summary>
         public string goal, intent, castaway;
         public int nextRaidSize;
+        /// <summary>
+        /// The first rival colony (2026-09-16): landed at all, its personality,
+        /// the opinion WORD and attitude the player would see, its militia, its
+        /// fire, and whose expedition party is at sea ("theirs" / "ours" / "").
+        /// </summary>
+        public bool rivalLanded;
+        public string rivalStrategy, rivalOpinion, rivalAttitude, rivalParty;
+        public int rivalWarriors, rivalFirePct;
     }
 
     private static Frame frame;
@@ -92,7 +100,7 @@ public class SimVisualOverlay : MonoBehaviour
 
         const float pad = 8f;
         float w = Mathf.Min(360f, Screen.width - pad * 2f);
-        float h = 150f;
+        float h = frame.rivalLanded ? 168f : 150f;
         Rect box = new Rect(pad, Screen.height - h - pad, w, h);
 
         GUI.DrawTexture(box, backdrop);
@@ -125,6 +133,15 @@ public class SimVisualOverlay : MonoBehaviour
         // second, the last move it made, and the castaway's own errand.
         GUILayout.Label("goal: " + (frame.goal ?? ""), line);
         GUILayout.Label("last: " + (frame.intent ?? "") + "   castaway: " + (frame.castaway ?? ""), line);
+
+        // The neighbour (2026-09-16): one line, only once a rival has landed.
+        if (frame.rivalLanded)
+        {
+            GUILayout.Label(
+                $"rival: {frame.rivalStrategy}   {frame.rivalOpinion} ({frame.rivalAttitude})" +
+                $"   warriors {frame.rivalWarriors}   fire {frame.rivalFirePct}%" +
+                (string.IsNullOrEmpty(frame.rivalParty) ? "" : "   party at sea: " + frame.rivalParty), line);
+        }
 
         GUILayout.EndArea();
     }

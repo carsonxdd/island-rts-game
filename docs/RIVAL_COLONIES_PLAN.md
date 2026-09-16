@@ -13,8 +13,11 @@ and B4 (build order as a score) are still open. **B5 minus trade is built too (s
 per pair, dawn tick, dwell flips, gift / war), `Expedition` (a colony's real warriors warped to another shore, their
 blackboard fire swapped, home at dawn — landings on a Hostile neighbour, relief for an Allied one), night raids rolled
 onto a shore by prosperity (`RaidDirector.Target`), the DIPLOMACY screen and the bar's Neighbours entry, allies on the
-minimap. Trade is still open.** Owed: the sim player rebuild, a `rivalCount: 0` regression lab, the "Neighbours that
-grow" + "Neighbours and the raid" quest batches, then a `rivalCount: 1` lab.**
+minimap. Trade is still open.** The harness caught up the same evening (2026-09-16): `rival_fate` / `rival_fell_day`
+on `runs.csv`, the rival's own dawn (`rival_fire_pct, rival_huts, rival_colonists, rival_food_dawn`) on `days.csv`, a
+`rival` column on the lab dashboard, a Rival spectator shot, a `rivals` overnight sweep with an `r0` control and a
+*Neighbours* table in `REPORT.md` — see `docs/SIMULATION.md`. Owed: the sim player rebuild, a `rivalCount: 0`
+regression lab, the "Neighbours that grow" + "Neighbours and the raid" quest batches, then a `rivalCount: 1` lab.**
 Slice A landed A1—A7 as written, with three decisions taken at the start: the territory penalty of A4 applies to EVERY
 colony including the player's (so post-2026-09-11 baselines are not comparable until a `rivalCount: 0` regression lab
 says they are), the patch radius reuses `ForageAvailability.HomeRadius` 70, and `ForageAvailability` itself needed no

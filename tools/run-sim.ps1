@@ -63,6 +63,16 @@
     so nine windows keep teaching instead of going dark one by one. After the
     budget a defeat is final. Every try is its own runs.csv row. 0 turns it off.
 
+.PARAMETER Rivals
+    Lab only (2026-09-11). Rival colonies per cell, 0-2. 0 (default) keeps a lab
+    comparable with every baseline taken before rivals existed. The dashboard
+    gains a `rival` column once one lands: its personality, the opinion word the
+    player would see, its militia, its fire, and a * while a party is at sea.
+
+.PARAMETER RivalStrategy
+    Lab only (2026-09-16). Turtle / Rush / Eco pins how those rivals play; empty
+    is the shipped rule, a random personality per rival off the seeded stream.
+
 .PARAMETER Parallel
     Number of concurrent player processes. Each gets its own output subfolder;
     they do not share a project directory, so this is safe (unlike editor
@@ -70,6 +80,8 @@
 
 .EXAMPLE
     .\tools\run-sim.ps1
+    .\tools\run-sim.ps1 -Sweep SimSweeps\rivals.json
+    .\tools\run-sim.ps1 -Lab -Rivals 1 -RivalStrategy Turtle
     .\tools\run-sim.ps1 -Sweep SimSweeps/enemy-ramp.json -Parallel 4
     .\tools\run-sim.ps1 -Sweep SimSweeps/watch.json -Visual
     .\tools\run-sim.ps1 -Lab
@@ -295,11 +307,20 @@ function Format-SimRow {
     param($Status, [int]$Index)
 
     if ($null -eq $Status) {
-        return ("{0,-16} {1,6} {2,5} {3,5} {4,5} {5,5}  {6}" -f "window $Index", "-", "-", "-", "-", "-", "starting")
+        return ("{0,-16} {1,6} {2,5} {3,5} {4,5} {5,5}  {6,-18} {7}" -f "window $Index", "-", "-", "-", "-", "-", "-", "starting")
     }
 
     $label = "{0}/{1}" -f $Status.strategy.ToUpper(), $Status.seed
     $fire  = if ([int]$Status.fire_pct -lt 0) { "-" } else { "$($Status.fire_pct)%" }
+
+    # The neighbour (2026-09-16): its personality, the opinion word the player
+    # would see, its militia and its fire - "Turtle Warm 4w 80%". Empty columns
+    # (no rival landed, or a status.csv from before the columns) read "-".
+    $rival = if ($Status.rival) {
+        $rFire = if ("$($Status.rival_fire_pct)" -ne "") { " $($Status.rival_fire_pct)%" } else { "" }
+        $party = if ($Status.rival_party) { " *" } else { "" }
+        "{0} {1} {2}w{3}{4}" -f $Status.rival, $Status.rival_opinion, $Status.rival_warriors, $rFire, $party
+    } else { "-" }
 
     $state = if ($Status.outcome) { $Status.outcome.ToUpper() }
              elseif ([int]$Status.hunger -ge 2) { "STARVING" }
@@ -308,9 +329,9 @@ function Format-SimRow {
              elseif ([int]$Status.hunger -eq 1) { "hungry" }
              else { "" }
 
-    "{0,-16} {1,6} {2,5} {3,5} {4,5} {5,5}  {6}" -f `
+    "{0,-16} {1,6} {2,5} {3,5} {4,5} {5,5}  {6,-18} {7}" -f `
         $label, "$($Status.day)/$($Status.days_to_survive)", $Status.colonists,
-        $Status.food, $Status.warriors, $fire, $state
+        $Status.food, $Status.warriors, $fire, $rival, $state
 }
 
 function Watch-SimRuns {
@@ -325,7 +346,7 @@ function Watch-SimRuns {
         return
     }
 
-    $header = "{0,-16} {1,6} {2,5} {3,5} {4,5} {5,5}  {6}" -f "process", "day", "pop", "food", "war", "fire", "state"
+    $header = "{0,-16} {1,6} {2,5} {3,5} {4,5} {5,5}  {6,-18} {7}" -f "process", "day", "pop", "food", "war", "fire", "rival", "state"
     $blockLines = $Procs.Count + 5
 
     for ($i = 0; $i -lt $blockLines; $i++) { Write-Host "" }

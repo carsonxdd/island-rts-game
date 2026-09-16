@@ -13,6 +13,10 @@ using UnityEngine;
 ///   Campfire  — the fire lost HP in the last few seconds. Nothing outranks it.
 ///   Landing   — raiders just came ashore (EnemySpawner.OnRaidLanded).
 ///   Battle    — the densest cluster of raiders AND the player's warriors.
+///   Rival     — the neighbour (2026-09-16): its ship just broke up, an expedition
+///               party is at sea (theirs on our shore or ours on theirs), or the
+///               night's raid was rolled onto ITS shore. Frames the party when
+///               there is one, else the rival's fire.
 ///   Raiders   — enemies alive but not yet in contact; watch the one nearest the
 ///               fire walk in. A raider that stops moving stops being a shot.
 ///   Castaway  — by day (2026-09-10): the character on an errand, close in. The
@@ -45,17 +49,17 @@ public class SimSpectatorCamera : MonoBehaviour
 {
     // --- shot kinds, in priority order -------------------------------------
 
-    public enum Shot { Colony, Castaway, Raiders, Battle, Landing, Campfire }
+    public enum Shot { Colony, Castaway, Raiders, Rival, Battle, Landing, Campfire }
 
     /// <summary>
     /// Orthographic size per shot. Tighter = more of a fight, less of an island.
     /// Pulled in on 2026-09-10 (a lab cell is a third of the screen wide): the
     /// colony at 13, the castaway at 8. The floor is CameraController.minOrthoSize 5.
     /// </summary>
-    private static readonly float[] ShotZoom = { 13f, 8f, 12f, 9f, 12f, 8f };
+    private static readonly float[] ShotZoom = { 13f, 8f, 12f, 12f, 9f, 12f, 8f };
 
     /// <summary>Score per shot when its trigger is live. Ordering, not a curve.</summary>
-    private static readonly float[] ShotScore = { 1f, 5f, 30f, 55f, 80f, 110f };
+    private static readonly float[] ShotScore = { 1f, 5f, 30f, 40f, 55f, 80f, 110f };
 
     // --- tuning ------------------------------------------------------------
 
@@ -73,6 +77,9 @@ public class SimSpectatorCamera : MonoBehaviour
 
     /// <summary>Seconds a raid landing stays the most interesting thing on the island.</summary>
     private const float LandingMemory = 7f;
+
+    /// <summary>Seconds a rival's shipwreck, or an expedition setting out, keeps the camera on the neighbour (2026-09-16).</summary>
+    private const float RivalMemory = 12f;
 
     /// <summary>Radius a battle cluster is measured in.</summary>
     private const float ClusterRadius = 18f;
@@ -100,6 +107,10 @@ public class SimSpectatorCamera : MonoBehaviour
     private float lastDamageTime = -999f;
     private Vector3 lastLanding;
     private float lastLandingTime = -999f;
+
+    // The neighbour (2026-09-16): when its ship broke up / a party set out, and which colony it is.
+    private float lastRivalEventTime = -999f;
+    private Faction rival;
 
     // The raider the Raiders shot is following, and where it was when it last moved.
     private Enemy watched;
@@ -129,12 +140,27 @@ public class SimSpectatorCamera : MonoBehaviour
         rig = GetComponent<CameraController>();
         CameraController.SuppressInput = true;
         EnemySpawner.OnRaidLanded += OnRaidLanded;
+        RivalLandingDirector.OnRivalLanded += OnRivalLanded;
+        Expedition.OnDeparted += OnExpeditionDeparted;
     }
 
     private void OnDestroy()
     {
         EnemySpawner.OnRaidLanded -= OnRaidLanded;
+        RivalLandingDirector.OnRivalLanded -= OnRivalLanded;
+        Expedition.OnDeparted -= OnExpeditionDeparted;
         CameraController.SuppressInput = false;
+    }
+
+    private void OnRivalLanded(Faction who)
+    {
+        if (rival == null) rival = who;   // every rival shot is about the FIRST neighbour, like the CSV columns
+        lastRivalEventTime = Time.time;
+    }
+
+    private void OnExpeditionDeparted(Faction from, Faction to, int count, bool relief)
+    {
+        lastRivalEventTime = Time.time;
     }
 
     private void OnRaidLanded(Vector3 where)
@@ -275,6 +301,15 @@ public class SimSpectatorCamera : MonoBehaviour
                 return Time.time - lastLandingTime < LandingMemory;
             case Shot.Battle:
                 return ClusterCentre(out _) >= 3;
+            case Shot.Rival:
+            {
+                if (rival == null) return false;
+                if (PartyCentre(out _) > 0) return true;
+                if (rival.Campfire == null) return false;
+                if (Time.time - lastRivalEventTime < RivalMemory) return true;
+                RaidDirector rd = RaidDirector.Instance;
+                return rd != null && rd.Target == rival && Enemy.ActiveList.Count > 0;
+            }
             case Shot.Raiders:
                 return Enemy.ActiveList.Count > 0 && !RaiderStale;
             case Shot.Castaway:
@@ -306,6 +341,13 @@ public class SimSpectatorCamera : MonoBehaviour
             {
                 Vector3 centre;
                 if (ClusterCentre(out centre) >= 3) return centre;
+                break;
+            }
+            case Shot.Rival:
+            {
+                Vector3 centre;
+                if (PartyCentre(out centre) > 0) return centre;
+                if (rival != null && rival.Campfire != null) return rival.Campfire.transform.position;
                 break;
             }
             case Shot.Raiders:
@@ -372,6 +414,31 @@ public class SimSpectatorCamera : MonoBehaviour
         }
 
         return bestCount;
+    }
+
+    /// <summary>
+    /// Where the expedition warriors are (2026-09-16): the centroid of every
+    /// living warrior in every party at sea, and how many there are. A landing
+    /// party on our shore and our relief on theirs are both the neighbour's story.
+    /// </summary>
+    private static int PartyCentre(out Vector3 centre)
+    {
+        centre = Vector3.zero;
+        int count = 0;
+        var parties = Expedition.Parties;
+        for (int p = 0; p < parties.Count; p++)
+        {
+            var warriors = parties[p].Warriors;
+            for (int i = 0; i < warriors.Count; i++)
+            {
+                Warrior w = warriors[i];
+                if (w == null) continue;
+                centre += w.transform.position;
+                count++;
+            }
+        }
+        if (count > 0) centre /= count;
+        return count;
     }
 
     /// <summary>

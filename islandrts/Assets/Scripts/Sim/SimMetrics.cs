@@ -63,6 +63,13 @@ public class SimMetrics
         public float rivalOpinionPts; // the hidden opinion with the first rival, -100..100
         public int rivalLandings;     // landings on the player's shore so far this run
         public int rivalRelief;       // relief parties that came to the player so far this run
+        // The first rival's own night (2026-09-16, sim update for factions): its
+        // collapse should read as its cause the way the player's does. -1 fire =
+        // no rival landed yet; 0 = its fire is down.
+        public int rivalFirePct = -1;    // the first rival's campfire HP at dawn, 0..100
+        public int rivalHuts;            // its huts at dawn
+        public int rivalColonists;       // its roster at dawn (warriors included)
+        public float rivalFoodDawn;      // its food at dawn
         public bool survived;
     }
 
@@ -86,6 +93,14 @@ public class SimMetrics
     public string note = "";
     /// <summary>The first landed rival's governor policy name, empty on a run with none (2026-09-16).</summary>
     public string rivalStrategy = "";
+    /// <summary>
+    /// How the first rival colony ended (2026-09-16): <c>none</c> (never landed),
+    /// <c>alive</c>, <c>fell</c> (its campfire destroyed — only raiders can, a
+    /// warrior cannot hit a building) or <c>deserted</c> (fire standing, nobody
+    /// left). <see cref="rivalFellDay"/> is the calendar day the fire went out, 0 otherwise.
+    /// </summary>
+    public string rivalFate = "none";
+    public int rivalFellDay;
 
     private readonly StringBuilder sb = new StringBuilder(256);
 
@@ -112,7 +127,7 @@ public class SimMetrics
                 "config_id,strategy,seed,outcome,day_reached,days_to_survive,raids," +
                 "enemies_killed,peak_workers,peak_warriors," +
                 "final_wood,final_food,final_stone,colonists_left," +
-                "game_seconds,wall_seconds,frames,note,rival_strategy\n");
+                "game_seconds,wall_seconds,frames,note,rival_strategy,rival_fate,rival_fell_day\n");
         }
 
         string days = Path.Combine(dir, DaysFile);
@@ -128,7 +143,8 @@ public class SimMetrics
                 "hunger_dawn,left_total,archers_dawn," +
                 "idle_dawn,weapons_dawn,sticks_dawn,chunks_dawn,queue_dawn,warriors_lost,ring_holes,chunks_loose," +
                 "rival_arrival_day,rival_contact,rival_opinion,rival_warriors," +
-                "raid_at_rival,rival_opinion_pts,rival_landings,rival_relief\n");
+                "raid_at_rival,rival_opinion_pts,rival_landings,rival_relief," +
+                "rival_fire_pct,rival_huts,rival_colonists,rival_food_dawn\n");
         }
     }
 
@@ -155,7 +171,9 @@ public class SimMetrics
           .Append(F(wallClockSeconds)).Append(',')
           .Append(frames).Append(',')
           .Append(Csv(note)).Append(',')
-          .Append(Csv(rivalStrategy)).Append('\n');
+          .Append(Csv(rivalStrategy)).Append(',')
+          .Append(Csv(rivalFate)).Append(',')
+          .Append(rivalFellDay).Append('\n');
         File.AppendAllText(Path.Combine(dir, RunsFile), sb.ToString());
 
         sb.Clear();
@@ -198,7 +216,11 @@ public class SimMetrics
               .Append(n.raidAtRival).Append(',')
               .Append(F(n.rivalOpinionPts)).Append(',')
               .Append(n.rivalLandings).Append(',')
-              .Append(n.rivalRelief).Append('\n');
+              .Append(n.rivalRelief).Append(',')
+              .Append(n.rivalFirePct).Append(',')
+              .Append(n.rivalHuts).Append(',')
+              .Append(n.rivalColonists).Append(',')
+              .Append(F(n.rivalFoodDawn)).Append('\n');
         }
         if (sb.Length > 0) File.AppendAllText(Path.Combine(dir, DaysFile), sb.ToString());
     }
@@ -212,6 +234,7 @@ public class SimMetrics
                $"| res {finalWood:F0}/{finalFood:F0}/{finalStone:F0} " +
                $"| {gameSeconds:F0}s game in {wallClockSeconds:F1}s wall " +
                $"({(wallClockSeconds > 0.01f ? gameSeconds / wallClockSeconds : 0f):F1}x)" +
+               (rivalFate == "none" ? "" : $" | rival {rivalStrategy} {rivalFate}" + (rivalFellDay > 0 ? $" d{rivalFellDay}" : "")) +
                (string.IsNullOrEmpty(note) ? "" : $" | {note}");
     }
 }

@@ -23,7 +23,11 @@ public static class SimStatus
 
     private const string Header =
         "run_id,strategy,seed,run_index,run_count,day,days_to_survive,raid_tonight," +
-        "colonists,workers,warriors,enemies,wood,food,stone,metal,fire_pct,hunger,outcome\n";
+        "colonists,workers,warriors,enemies,wood,food,stone,metal,fire_pct,hunger,outcome," +
+        // The first rival (2026-09-16), appended at the END: the dashboard reads
+        // columns by name, so an older status.csv still parses. `rival` is its
+        // personality, empty until one lands.
+        "rival,rival_opinion,rival_attitude,rival_warriors,rival_fire_pct,rival_party\n";
 
     /// <summary>
     /// Overwrite this process's status line. <paramref name="outcome"/> is empty
@@ -56,6 +60,12 @@ public static class SimStatus
                 : "-1",
             f.hunger.ToString(),
             Escape(outcome),
+            f.rivalLanded ? Escape(f.rivalStrategy ?? "?") : "",
+            f.rivalLanded ? Escape(f.rivalOpinion) : "",
+            f.rivalLanded ? Escape(f.rivalAttitude) : "",
+            f.rivalLanded ? f.rivalWarriors.ToString() : "",
+            f.rivalLanded ? f.rivalFirePct.ToString() : "",
+            f.rivalLanded ? Escape(f.rivalParty) : "",
         });
 
         // Written to a sibling and swapped in, so a reader polling once a second

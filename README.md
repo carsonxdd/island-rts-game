@@ -91,7 +91,7 @@ islandrts/Assets/
 SimSweeps/                       # Sweep definitions (JSON) and kept baselines
 tools/
 ├── run-sim.ps1                  # Runs a balance sweep; -Visual watches it, -Lab tiles nine windows
-├── run-overnight.ps1            # Unattended batch: rebuild, four sweeps, REPORT.md
+├── run-overnight.ps1            # Unattended batch: rebuild, five sweeps, REPORT.md
 ├── summarize-sim.ps1            # REPORT.md for any folder of sweep results
 └── verify-scripts.py            # Roslyn compile check of every script in four configs, no Unity launch
 docs/
@@ -154,7 +154,7 @@ Deeper technical notes, the gotcha list and the session log: [`.claude/CLAUDE.md
 | **Diplomacy** | What a colony thinks of you is a word on the DIPLOMACY screen (Esc, or the Neighbours entry on the bar once you have met them). Warriors in their patch and blows landed cool it; quiet days and peace warm it; two cool days make an enemy, two warm days an ally. Propose peace with a gift once a day, or declare war. A hostile camp with warriors to spare lands a party on your shore by day and sails home at dawn; an ally sends half its warriors when raiders are at your fire, and its camp shows on your minimap. |
 | **Fog of war** | The island starts under one solid dark colour, the same by day and night, and clears for good as your people and buildings see it; ground nobody is watching sits in a grey shroud. Raiders show only while something of yours can see them, so a raid can be an ambush and the Watchtower's long sight is its second job. Colonists only gather and fetch on explored ground, warriors only fight raiders something of yours can see, and nothing can be placed in the dark. A north-up minimap in the top-right corner draws the explored island, your buildings, walls and people, raiders on watched ground, the camera's footprint, and a red pulse where the last raid came ashore; click or drag it to move the camera. |
 | **Readability** | Anything standing between the camera and one of your people (a tree, hut, tower, workshop, shipyard or wall) stays solid but opens a soft see-through window right where they are, so nobody is ever lost behind a canopy. Hover glow is emissive so it works through it. |
-| **Balance sim** | Scripted strategies play full games and write CSVs, so balance is measured rather than guessed. Headless for sweeps, with a live dashboard in the terminal; `-Visual` renders the same run with a spectator camera, `-Lab` tiles nine windows — three islands, each played three ways side by side — and `run-overnight.ps1` plays four sweeps unattended and writes a report. See the **Simulation** section below and [`docs/SIMULATION.md`](docs/SIMULATION.md). |
+| **Balance sim** | Scripted strategies play full games and write CSVs, so balance is measured rather than guessed. Headless for sweeps, with a live dashboard in the terminal; `-Visual` renders the same run with a spectator camera, `-Lab` tiles nine windows — three islands, each played three ways side by side — and `run-overnight.ps1` plays five sweeps unattended and writes a report. With rivals on, the CSVs, the dashboard, the camera and the report follow the neighbour too. See the **Simulation** section below and [`docs/SIMULATION.md`](docs/SIMULATION.md). |
 
 ---
 
@@ -166,12 +166,12 @@ Scripted strategies (Turtle / Rush / Eco) play whole games without a human and w
 
 | Command | What you get |
 |---|---|
-| `.\tools\run-sim.ps1 -Sweep SimSweeps\baseline.json -Parallel 4` | **Headless sweep.** No windows, 15–30× realtime per process; the terminal shows a live dashboard (one row per process: day, colonists, food, warriors, campfire, state; a finished-runs counter; the survive tally). `runs.csv` + `days.csv` in `SimLogs/`. |
+| `.\tools\run-sim.ps1 -Sweep SimSweeps\baseline.json -Parallel 4` | **Headless sweep.** No windows, 15–30× realtime per process; the terminal shows a live dashboard (one row per process: day, colonists, food, warriors, campfire, the rival once one lands, state; a finished-runs counter; the survive tally). `runs.csv` + `days.csv` in `SimLogs/`. |
 | `.\tools\run-sim.ps1 -Sweep SimSweeps\watch.json -Visual` | **Watch one.** Same decisions as headless, drawn in a window with a spectator camera and a metrics caption. ~4× by day, ~2× during a raid. |
 | `.\tools\run-sim.ps1 -Lab` | **The lab.** Nine tiled windows: three islands (rows) each played three ways (columns), a live dashboard in the terminal, lost cells respawn for the first `-RespawnMinutes` 10. `-Seeds 7,8,9`, `-Strategies Eco`, `-WindowSize 480x270`, `-Rivals 1 -RivalStrategy Turtle` to seat a governed rival in every cell. |
-| `.\tools\run-overnight.ps1` | **Overnight batch.** Close the editor first. Keeps the PC awake, rebuilds the sim player, plays `baseline` / `raids` / `difficulty` / `islands` headless at `-Parallel 8` (~450 runs, ~5 h), writes `SimLogs/overnight-<date>/REPORT.md`, then sleeps the PC after a 60 s countdown. `-DryRun` to preview, `-SkipBuild`, `-Sweeps baseline,raids`, `-NoSleep`. |
+| `.\tools\run-overnight.ps1` | **Overnight batch.** Close the editor first. Keeps the PC awake, rebuilds the sim player, plays `baseline` / `raids` / `difficulty` / `islands` / `rivals` headless at `-Parallel 8` (~560 runs, ~6 h), writes `SimLogs/overnight-<date>/REPORT.md`, then sleeps the PC after a 60 s countdown. `-DryRun` to preview, `-SkipBuild`, `-Sweeps baseline,raids`, `-NoSleep`. |
 
-Afterwards: `.\tools\summarize-sim.ps1 -Dir SimLogs\overnight-<date>` regenerates the report for any folder of sweep results. `SimSweeps/smoke.json` is a two-minute sanity run; `Tools > Island RTS > Simulation > Run Sweep In Editor…` plays a sweep inside the editor.
+Afterwards: `.\tools\summarize-sim.ps1 -Dir SimLogs\overnight-<date>` regenerates the report for any folder of sweep results. `SimSweeps/smoke.json` is a two-minute sanity run, `SimSweeps/rivals.json` seats zero, one or two rival colonies on the baseline island (the report then adds a Neighbours table: arrival, contact, opinion, landings, relief, the rival's fate); `Tools > Island RTS > Simulation > Run Sweep In Editor…` plays a sweep inside the editor.
 
 ### Writing a sweep
 

@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Writes REPORT.md for a folder of sweep results (one subfolder per sweep,
     each holding runs.csv + days.csv), as run-overnight.ps1 lays them out.
@@ -154,6 +154,46 @@ foreach ($sd in $sweepDirs) {
         }
     }
     W
+
+    # ---- neighbours (2026-09-16): only when a rival landed somewhere in this sweep ----
+    # The main table stays as it was so old and new reports line up; the rival
+    # gets its own table with the columns days.csv / runs.csv carry for it.
+    $withRival = @($annotated | Where-Object { $ds = @($_.days); $ds.Count -gt 0 -and (Num $ds[$ds.Count - 1].rival_arrival_day) -gt 0 })
+    if ($withRival.Count -gt 0) {
+        W "### Neighbours"
+        W
+        W '`landed` = runs where a rival came ashore (mean arrival day). `met` = runs whose fog touched it. `opinion` = mean hidden opinion at the last dawn (-100..100; the player sees Wary / Cool / Neutral / Warm / Friendly at -50 / -15 / 15 / 50). `raids@rival` = nights the raid was rolled onto the rival''s shore. `landings` / `relief` = hostile landings on and relief parties to the player''s shore, summed. `rival fate` = alive / fell (its fire destroyed - only raiders can) / deserted (fire standing, nobody left), with the mean day it fell. `rival war` = mean rival warriors at the last dawn. `rival food` = mean rival food at the last dawn.'
+        W
+        W "| variant | strategy | n | landed (day) | met | opinion | raids@rival | landings | relief | rival fate | rival war | rival food |"
+        W "|---|---|---:|---|---:|---:|---:|---:|---:|---|---:|---:|"
+        foreach ($v in $variantOrder) {
+            foreach ($st in $stratOrder) {
+                $g = @($annotated | Where-Object { $_.variant -eq $v -and $_.strategy -eq $st })
+                if ($g.Count -eq 0) { continue }
+                $lastDays = @($g | ForEach-Object { $ds = @($_.days); if ($ds.Count -gt 0) { $ds[$ds.Count - 1] } })
+                $landed = @($lastDays | Where-Object { (Num $_.rival_arrival_day) -gt 0 })
+                if ($landed.Count -eq 0) { continue }
+                $arrival = Mean ($landed | ForEach-Object { Num $_.rival_arrival_day })
+                $met = @($landed | Where-Object { (Num $_.rival_contact) -gt 0 }).Count
+                $opinion = Mean ($landed | ForEach-Object { Num $_.rival_opinion_pts })
+                $allDays = @($g | ForEach-Object { $_.days } | ForEach-Object { $_ })
+                $raidsAtRival = @($allDays | Where-Object { (Num $_.raid_at_rival) -gt 0 }).Count
+                $landings = ($landed | ForEach-Object { Num $_.rival_landings } | Measure-Object -Sum).Sum
+                $relief = ($landed | ForEach-Object { Num $_.rival_relief } | Measure-Object -Sum).Sum
+                $fates = @($g | ForEach-Object { $_.run.rival_fate } | Where-Object { $_ -and $_ -ne "none" } | Group-Object | Sort-Object Name | ForEach-Object { "{0} {1}" -f $_.Name, $_.Count })
+                $fellDays = @($g | Where-Object { (Num $_.run.rival_fell_day) -gt 0 } | ForEach-Object { Num $_.run.rival_fell_day })
+                $fateText = if ($fates.Count -gt 0) { $fates -join ", " } else { "-" }
+                if ($fellDays.Count -gt 0) { $fateText += " (fell d" + (F1 (Mean $fellDays)) + ")" }
+                $rWar = Mean ($landed | ForEach-Object { Num $_.rival_warriors })
+                $rFood = Mean ($landed | ForEach-Object { Num $_.rival_food_dawn })
+                $vLabel = if ($v -eq "-") { "" } else { $v }
+                W ("| {0} | {1} | {2} | {3} ({4}) | {5} | {6} | {7} | {8} | {9} | {10} | {11} | {12} |" -f
+                    $vLabel, $st, $g.Count, $landed.Count, (F1 $arrival), $met, (F0 $opinion), $raidsAtRival,
+                    (F0 $landings), (F0 $relief), $fateText, (F1 $rWar), (F0 $rFood))
+            }
+        }
+        W
+    }
 
     # ---- island grid, when the cells carry islands and more than one variant is not in play ----
     $islands = @($annotated | Where-Object { $_.island -ge 0 } | ForEach-Object { $_.island } | Select-Object -Unique | Sort-Object)
