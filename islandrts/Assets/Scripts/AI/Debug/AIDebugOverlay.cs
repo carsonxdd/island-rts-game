@@ -172,9 +172,18 @@ public class AIDebugOverlay : MonoBehaviour
             string line = f.Name + "  " + r.wood + "W " + r.food + "F " + r.stone + "S " + r.metal + "M"
                 + "  pop " + f.Population.GetColonistCount() + "  war " + (fire != null ? fire.GetWarriorCount() : 0)
                 + (fire != null ? "  fire " + Mathf.RoundToInt(fire.GetHealthPercentage() * 100f) + "%" : "  no fire")
-                + (f.IsPlayer ? "" : "  " + Factions.Player.Toward(f));
+                + (f.IsPlayer ? "" : "  " + Factions.Player.Toward(f) + " " + Mathf.RoundToInt(Diplomacy.Opinion(Factions.Player, f)));
             GUI.Label(new Rect(panelX, y, PanelWidth, 16), line, smallLabelStyle);
             y += 16;
+
+            // A governed colony says what it is working on (2026-09-16, slice B)
+            Governor gov = GovernorRunner.Instance != null ? GovernorRunner.Instance.For(f) : null;
+            if (gov != null)
+            {
+                GUI.Label(new Rect(panelX, y, PanelWidth, 16),
+                    "   " + gov.Policy.Name + ": " + gov.Policy.Goal + "  last: " + gov.Policy.Intent, smallLabelStyle);
+                y += 16;
+            }
         }
         y += 4;
 

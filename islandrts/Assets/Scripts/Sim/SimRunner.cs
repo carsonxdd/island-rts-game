@@ -55,7 +55,10 @@ public class SimRunner : MonoBehaviour
     private string outputDir;
     private string sceneName;
 
-    private SimPolicy policy;
+    private GovernorPolicy policy;
+    /// <summary>The simulated player's colony, bound once the run's scene is up. The same class a rival runs on.</summary>
+    private Governor governor;
+    private DayNightCycle clock;
     private SimMetrics metrics;
     private SimMetrics.DayRow night;   // the row for the night in progress (dusk → dawn)
 
@@ -226,6 +229,7 @@ public class SimRunner : MonoBehaviour
         SimHooks.IslandSize = cfg.islandSize ?? "";
         SimHooks.IslandStyle = cfg.islandStyle ?? "";
         SimHooks.RivalCount = cfg.rivalCount;
+        SimHooks.RivalStrategy = cfg.rivalStrategy ?? "";
     }
 
     private void BeginNextRun(bool alreadyLoaded)
@@ -255,11 +259,11 @@ public class SimRunner : MonoBehaviour
             seed = cfg.seed,
             daysToSurvive = cfg.daysToSurvive
         };
-        policy = SimPolicy.Create(cfg.strategy);
+        policy = GovernorPolicy.Create(cfg.strategy);
         metrics.strategy = policy.Name;
         night = null;
         lastEnemyCount = 0;
-        SimBuilder.ResetRun();
+        governor = null;   // bound in RunRoutine: Factions.Player here is still the OLD scene's
         SimPlayerDriver.ResetRun();
         policyTimer = 0f;
 
@@ -349,6 +353,13 @@ public class SimRunner : MonoBehaviour
 
     private IEnumerator RunRoutine(SimConfig cfg)
     {
+        // The player's governor (2026-09-16, slice B): the policy, bound to this
+        // scene's player faction with a fresh builder. A rival's is the same
+        // class, ticked by GovernorRunner; this one is ticked below beside the
+        // character driver so the driver sees the same state the policy does.
+        governor = new Governor(Factions.Player, policy);
+        clock = FindAnyObjectByType<DayNightCycle>();
+
         runActive = true;
         runStartGameTime = Time.time;
         runStartRealTime = Time.realtimeSinceStartup;
@@ -364,9 +375,9 @@ public class SimRunner : MonoBehaviour
         }
 
         float deadline = Time.time + 20f;
-        while (SimBuilder.Campfire == null && Time.time < deadline) yield return null;
+        while (Factions.Player.Campfire == null && Time.time < deadline) yield return null;
 
-        if (SimBuilder.Campfire == null)
+        if (Factions.Player.Campfire == null)
         {
             metrics.outcome = "error";
             metrics.note = "no campfire after 20s";
@@ -428,7 +439,7 @@ public class SimRunner : MonoBehaviour
                 metrics.outcome = gm.isEscape ? "escape" : gm.isVictory ? "victory" : "defeat";   // escape (2026-09-04)
                 break;
             }
-            if (SimBuilder.Campfire == null)
+            if (Factions.Player.Campfire == null)
             {
                 metrics.outcome = "defeat";
                 metrics.note = "campfire destroyed";
@@ -441,9 +452,9 @@ public class SimRunner : MonoBehaviour
             if (policyTimer >= 1f)
             {
                 policyTimer = 0f;
-                SimState state = BuildState();
+                ColonyState state = ColonyState.Capture(Factions.Player, clock);
                 SimPlayerDriver.Tick(state);   // the character's legs: materials + bench labor
-                policy.Tick(state);
+                governor.Tick(state);
                 PushOverlay(cfg, state);
                 if (SimHooks.Visual)
                 {
@@ -470,9 +481,9 @@ public class SimRunner : MonoBehaviour
     /// per GAME second, and headless that is 15-30 times a real second per
     /// process, eight processes at a time.
     /// </summary>
-    private void PushOverlay(SimConfig cfg, SimState state)
+    private void PushOverlay(SimConfig cfg, ColonyState state)
     {
-        BaseBuilding fire = SimBuilder.Campfire;
+        BaseBuilding fire = Factions.Player.Campfire;
         ResourcePool pool = Factions.Player.Resources;
 
         lastFrame = new SimVisualOverlay.Frame
@@ -496,8 +507,8 @@ public class SimRunner : MonoBehaviour
             campfireHp = fire != null ? fire.GetCurrentHealth() : 0f,
             campfireHpMax = fire != null ? fire.maxHealth : 0f,
             hunger = state.Hunger,
-            goal = SimPolicy.Goal,
-            intent = SimPolicy.Intent,
+            goal = policy.Goal,
+            intent = policy.Intent,
             castaway = CastawayLine(),
             nextRaidSize = state.NextRaidSize,
         };
@@ -511,30 +522,6 @@ public class SimRunner : MonoBehaviour
             lastStatusWriteReal = now;
             SimStatus.Write(outputDir, lastFrame, "");
         }
-    }
-
-    private SimState BuildState()
-    {
-        BaseBuilding fire = SimBuilder.Campfire;
-        ResourcePool rm = Factions.Player.Resources;
-        DayNightCycle dn = FindAnyObjectByType<DayNightCycle>();
-
-        return new SimState
-        {
-            Campfire = fire,
-            Day = dn != null ? dn.GetCurrentDay() : 1,
-            RaidTonight = RaidDirector.Instance != null && RaidDirector.Instance.RaidTonight,
-            RaidLurking = RaidDirector.Instance != null && RaidDirector.Instance.RaidLurking,
-            NextRaidSize = NextRaidSize(dn != null ? dn.GetCurrentDay() : 1),
-            Workers = fire != null ? fire.GetTotalWorkers() : 0,
-            Warriors = fire != null ? fire.GetWarriorCount() : 0,
-            Enemies = Enemy.ActiveList.Count,
-            Wood = rm.wood,
-            Food = rm.food,
-            Stone = rm.stone,
-            Colonists = Factions.Player.Population != null ? Factions.Player.Population.GetColonistCount() : 0,
-            Hunger = Factions.Player.Population != null ? (int)Factions.Player.Population.Hunger : 0,
-        };
     }
 
     /// <summary>What the castaway is doing right now, for the caption (2026-09-10).</summary>
@@ -554,22 +541,9 @@ public class SimRunner : MonoBehaviour
         return string.IsNullOrEmpty(a) ? "idle" : a.ToLowerInvariant();
     }
 
-    /// <summary>
-    /// The raid the policy should be standing ready for (2026-09-10): tonight's
-    /// committed size when the dawn roll said raiders land, else what a roll
-    /// tomorrow would land against the colony as it stands. A player reads the
-    /// same two things off the banner and the day counter.
-    /// </summary>
-    private static int NextRaidSize(int day)
-    {
-        RaidDirector rd = RaidDirector.Instance;
-        if (rd == null) return 0;
-        return rd.RaidTonight ? rd.PlannedSize : rd.EstimateRaidSize(day + 1);
-    }
-
     private void Sample()
     {
-        BaseBuilding fire = SimBuilder.Campfire;
+        BaseBuilding fire = Factions.Player.Campfire;
         if (fire == null) return;
 
         int workers = fire.GetTotalWorkers();
@@ -594,7 +568,7 @@ public class SimRunner : MonoBehaviour
     {
         if (!runActive) return;
 
-        BaseBuilding fire = SimBuilder.Campfire;
+        BaseBuilding fire = Factions.Player.Campfire;
         ResourcePool rm = Factions.Player.Resources;
         DayNightCycle dn = FindAnyObjectByType<DayNightCycle>();
 
@@ -602,16 +576,17 @@ public class SimRunner : MonoBehaviour
         night = new SimMetrics.DayRow
         {
             day = dn != null ? dn.GetCurrentDay() : metrics.days.Count + 1,
-            raid = rd != null && rd.RaidTonight,
+            raid = rd != null && rd.RaidTonight && (rd.Target == null || rd.Target.IsPlayer),   // at the PLAYER's shore
             raidSize = rd != null && rd.RaidTonight ? rd.PlannedSize : 0,
+            raidAtRival = rd != null && rd.RaidTonight && rd.Target != null && !rd.Target.IsPlayer ? 1 : 0,
             wood = rm.wood,
             food = rm.food,
             stone = rm.stone,
             workers = fire != null ? fire.GetTotalWorkers() : 0,
             warriors = fire != null ? fire.GetWarriorCount() : 0,
-            huts = SimBuilder.HutCount,
-            walls = SimBuilder.WallCount,
-            towers = SimBuilder.TowerCount,
+            huts = governor.Builder.HutCount,
+            walls = governor.Builder.WallCount,
+            towers = governor.Builder.TowerCount,
             campfireHpStart = fire != null ? fire.GetCurrentHealth() : 0f,
             campfireHpMin = fire != null ? fire.GetCurrentHealth() : 0f
         };
@@ -626,7 +601,7 @@ public class SimRunner : MonoBehaviour
         if (!runActive || night == null) return;
 
         CaptureDawn();
-        night.survived = SimBuilder.Campfire != null;
+        night.survived = Factions.Player.Campfire != null;
 
         metrics.days.Add(night);
         night = null;
@@ -644,7 +619,7 @@ public class SimRunner : MonoBehaviour
     /// </summary>
     private void CaptureDawn()
     {
-        BaseBuilding fire = SimBuilder.Campfire;
+        BaseBuilding fire = Factions.Player.Campfire;
         ResourcePool rm = Factions.Player.Resources;
 
         night.woodDawn = rm.wood;
@@ -652,9 +627,9 @@ public class SimRunner : MonoBehaviour
         night.stoneDawn = rm.stone;
         night.workersDawn = fire != null ? fire.GetTotalWorkers() : 0;
         night.warriorsDawn = fire != null ? fire.GetWarriorCount() : 0;
-        night.hutsDawn = SimBuilder.HutCount;
-        night.wallsDawn = SimBuilder.WallCount;
-        night.towersDawn = SimBuilder.TowerCount;
+        night.hutsDawn = governor.Builder.HutCount;
+        night.wallsDawn = governor.Builder.WallCount;
+        night.towersDawn = governor.Builder.TowerCount;
         night.campfireHpDawn = fire != null ? fire.GetCurrentHealth() : 0f;
         night.enemiesKilledTotal = GameManager.Instance != null ? GameManager.Instance.totalEnemiesKilled : 0;
         Population pm = Factions.Player.Population;
@@ -664,7 +639,8 @@ public class SimRunner : MonoBehaviour
 
         int archers = 0;
         var warriors = Warrior.ActiveList;
-        for (int i = 0; i < warriors.Count; i++) if (warriors[i] != null && warriors[i].IsRanged) archers++;
+        for (int i = 0; i < warriors.Count; i++)
+            if (warriors[i] != null && warriors[i].Faction == Factions.Player && warriors[i].IsRanged) archers++;
         night.archersDawn = archers;
 
         // What a wiped colony has to rebuild with (2026-09-10)
@@ -674,7 +650,7 @@ public class SimRunner : MonoBehaviour
         night.chunksDawn = fire != null ? fire.Stockpile.Count(ItemCatalog.StoneChunk) : 0;
         night.queueDawn = fire != null && fire.Station != null ? fire.Station.Status : "";
         night.warriorsLost = warriorsLostThisNight;
-        night.ringHoles = SimBuilder.RingHoles;
+        night.ringHoles = governor.Builder.RingHoles;
         night.chunksLoose = LooseChunks();
         CaptureRivals();
     }
@@ -692,6 +668,11 @@ public class SimRunner : MonoBehaviour
         night.rivalArrivalDay = dir.FirstArrivalDay;
         night.rivalContact = dir.Contacted ? 1 : 0;
         night.rivalOpinion = (int)Factions.Player.Toward(dir.Landed[0]);
+        night.rivalOpinionPts = Diplomacy.Opinion(Factions.Player, dir.Landed[0]);
+        night.rivalLandings = Expedition.LandingsOnPlayer;
+        night.rivalRelief = Expedition.ReliefToPlayer;
+        Governor theirs = GovernorRunner.Instance != null ? GovernorRunner.Instance.For(dir.Landed[0]) : null;
+        if (theirs != null) metrics.rivalStrategy = theirs.Policy.Name;   // the first rival's personality (2026-09-16)
 
         int warriors = 0;
         var list = Warrior.ActiveList;

@@ -8,6 +8,26 @@
 # Lines starting with a single # are comments. Anything else that is not a
 # heading, a bullet or an indented continuation is ignored.
 
+## 2026-09-16 — Neighbours, allies and enemies
+- A DIPLOMACY screen (Esc, or the Neighbours entry on the bar) shows what each colony
+  you have met thinks of you, as a word. Propose peace with a gift once a day, or
+  declare war
+- Their opinion moves on its own: warriors in their patch and blows landed cool it,
+  quiet days and peace warm it. Two cool days make an enemy, two warm days an ally
+- Raiders now pick a shore: the dawn warning says whose, and the richer camp draws
+  them more often
+- A hostile camp with warriors to spare lands a party on your shore by day; it hunts
+  your militia and sails home at dawn
+- An ally sends half its warriors when raiders are at your fire, and you can see its
+  camp on the minimap
+
+## 2026-09-16 — Neighbours that grow
+- A rival colony now runs itself: it researches, builds huts and a wall ring,
+  crafts spears and arms warriors against the same raids you face
+- Each rival lands with its own temperament (a fortifier, a militarist or a
+  builder of economy), and the F3 overlay shows what it is working on
+- A neighbour never leaves by ship; the escape is yours alone
+
 ## 2026-09-13 — Nobody idles in the gateway
 - Idle colonists and patrolling warriors no longer stand in a gate or on the wall
   line. A wander spot or guard post is never picked there, and anyone who ends up

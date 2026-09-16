@@ -16,7 +16,7 @@ using UnityEngine.UI;
 /// </summary>
 public class MenuScreens : MonoBehaviour
 {
-    public enum Screen { None, Main, NewGame, Pause, Options, Controls, Credits, Confirm, GameOver, NameEntry, Changelog, Information }
+    public enum Screen { None, Main, NewGame, Pause, Options, Controls, Credits, Confirm, GameOver, NameEntry, Changelog, Information, Diplomacy }
 
     private static MenuScreens instance;
     public static MenuScreens Instance => instance;
@@ -215,6 +215,7 @@ public class MenuScreens : MonoBehaviour
             case Screen.NameEntry: BuildNameEntry(); break;
             case Screen.Changelog: BuildChangelog(); break;
             case Screen.Information: BuildInformation(); break;
+            case Screen.Diplomacy: BuildDiplomacy(); break;
         }
 
         // The height passed to Panel() is only a starting value — the panel is
@@ -424,6 +425,7 @@ public class MenuScreens : MonoBehaviour
         MenuBuilder.MenuButton(col.transform, "OPTIONS", () => Show(Screen.Options));
         MenuBuilder.MenuButton(col.transform, "CONTROLS", () => Show(Screen.Controls));
         MenuBuilder.MenuButton(col.transform, "INFORMATION", () => Show(Screen.Information));
+        MenuBuilder.MenuButton(col.transform, "DIPLOMACY", () => Show(Screen.Diplomacy), enabled: Diplomacy.AnyKnown);
         MenuBuilder.MenuButton(col.transform, "CHANGELOG", () => Show(Screen.Changelog));
         MenuBuilder.MenuButton(col.transform, "RESTART", () =>
             AskConfirm("Restart? Current progress is lost.", MenuFlow.Restart));
@@ -880,6 +882,82 @@ public class MenuScreens : MonoBehaviour
             activeScroll = body.GetComponentInParent<ScrollRect>();
             if (infoTab == devIndex) RenderDevTab(body.transform);
             else RenderInfoTab(body.transform, tabsList[infoTab]);
+        }
+
+        MenuBuilder.Spacer(col.transform, 6f);
+        MenuBuilder.MenuButton(col.transform, "BACK", () => Back());
+    }
+
+    // ---- Diplomacy (2026-09-16, slice B5) -----------------------------------
+
+    /// <summary>
+    /// Every colony the player has met: attitude, the opinion as a WORD with its
+    /// trend, and the two actions the plan gives the player - a gift (once a
+    /// day per colony) and war (confirmed). Every click rebuilds the screen.
+    /// </summary>
+    private void BuildDiplomacy()
+    {
+        panel = MenuBuilder.Panel(canvas.transform, "Diplomacy", MenuStyle.OptionsWidth, 520f);
+        VerticalLayoutGroup col = activeColumn = MenuBuilder.Column(panel, 6f);
+
+        MenuBuilder.Label(col.transform, "DIPLOMACY", MenuStyle.HeadingSize, MenuStyle.TextAccent)
+            .gameObject.AddComponent<LayoutElement>().preferredHeight = 38f;
+        MenuBuilder.Label(col.transform, "The colonies you have met, and what they think of you.", MenuStyle.SmallSize, MenuStyle.TextMuted)
+            .gameObject.AddComponent<LayoutElement>().preferredHeight = 22f;
+        MenuBuilder.Divider(col.transform);
+        DevQuests.Signal("diplomacy:screen");
+
+        DayNightCycle clock = FindAnyObjectByType<DayNightCycle>();
+        int day = clock != null ? clock.GetCurrentDay() : 1;
+        ResourcePool pool = Factions.Player.Resources;
+
+        int shown = 0;
+        var all = Factions.All;
+        for (int i = 0; i < all.Count; i++)
+        {
+            Faction f = all[i];
+            if (f.IsPlayer || f.IsRaiders || !Diplomacy.IsKnown(f)) continue;
+            shown++;
+
+            Attitude att = Factions.Player.Toward(f);
+            float op = Diplomacy.Opinion(Factions.Player, f);
+            int trend = Diplomacy.Trend(Factions.Player, f);
+
+            MenuBuilder.SectionHeader(col.transform, f.Name.ToUpperInvariant()).color = f.Color;
+            MenuBuilder.ValueRow(col.transform, "Standing", att.ToString());
+            MenuBuilder.ValueRow(col.transform, "Opinion of you", Diplomacy.Word(op) + (trend > 0 ? "  (warming)" : trend < 0 ? "  (cooling)" : ""));
+            if (f.Campfire == null) MenuBuilder.ValueRow(col.transform, "Their camp", "Fallen");
+            else if (att == Attitude.Allied) MenuBuilder.ValueRow(col.transform, "Their militia", f.Campfire.GetWarriorCount() + " warriors");
+            MenuBuilder.Spacer(col.transform, 4f);
+
+            bool sent = Diplomacy.GiftSentToday(f, day);
+            Faction target = f;
+            MenuBuilder.MenuButton(col.transform,
+                sent ? "GIFT SENT TODAY" : "PROPOSE PEACE  ·  gift " + Diplomacy.GiftFood + " food",
+                () => { if (Diplomacy.ProposePeace(target, Diplomacy.Gift.Food, day)) Rebuild(); },
+                enabled: !sent && pool.food >= Diplomacy.GiftFood);
+            if (!sent)
+                MenuBuilder.MenuButton(col.transform, "PROPOSE PEACE  ·  gift " + Diplomacy.GiftWood + " wood",
+                    () => { if (Diplomacy.ProposePeace(target, Diplomacy.Gift.Wood, day)) Rebuild(); },
+                    enabled: pool.wood >= Diplomacy.GiftWood);
+            if (att != Attitude.Hostile)
+                MenuBuilder.MenuButton(col.transform, "DECLARE WAR",
+                    () => AskConfirm("Declare war on the " + target.Name + "? Their warriors will attack yours on sight, and every other colony will think less of you.",
+                                     () => { Diplomacy.DeclareWar(target); Back(); }),
+                    textColor: MenuStyle.TextDanger);
+            MenuBuilder.Spacer(col.transform, 8f);
+        }
+
+        if (shown == 0)
+        {
+            MenuBuilder.Label(col.transform, "Nobody yet. A colony appears here once your people have seen it.", MenuStyle.BodySize, MenuStyle.TextMuted)
+                .gameObject.AddComponent<LayoutElement>().preferredHeight = 40f;
+        }
+        else
+        {
+            MenuBuilder.Label(col.transform,
+                "A gift once a day. Warriors in their patch, or blows landed, cool them; time and peace warm them.",
+                MenuStyle.SmallSize, MenuStyle.TextMuted).gameObject.AddComponent<LayoutElement>().preferredHeight = 22f;
         }
 
         MenuBuilder.Spacer(col.transform, 6f);

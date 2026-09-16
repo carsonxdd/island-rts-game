@@ -59,6 +59,10 @@ public class SimMetrics
         public int rivalContact;      // 1 once the player's fog has touched a rival colony
         public int rivalOpinion;      // 0 hostile, 1 neutral, 2 allied - the Attitude, until slice B's scalar
         public int rivalWarriors;     // militia across every landed rival
+        public int raidAtRival;       // 1 when tonight's raid was rolled onto a rival's shore (2026-09-16)
+        public float rivalOpinionPts; // the hidden opinion with the first rival, -100..100
+        public int rivalLandings;     // landings on the player's shore so far this run
+        public int rivalRelief;       // relief parties that came to the player so far this run
         public bool survived;
     }
 
@@ -80,6 +84,8 @@ public class SimMetrics
     public float finalWood, finalFood, finalStone;
     public int colonistsLeft;                // starved out over the run (2026-09-04)
     public string note = "";
+    /// <summary>The first landed rival's governor policy name, empty on a run with none (2026-09-16).</summary>
+    public string rivalStrategy = "";
 
     private readonly StringBuilder sb = new StringBuilder(256);
 
@@ -106,7 +112,7 @@ public class SimMetrics
                 "config_id,strategy,seed,outcome,day_reached,days_to_survive,raids," +
                 "enemies_killed,peak_workers,peak_warriors," +
                 "final_wood,final_food,final_stone,colonists_left," +
-                "game_seconds,wall_seconds,frames,note\n");
+                "game_seconds,wall_seconds,frames,note,rival_strategy\n");
         }
 
         string days = Path.Combine(dir, DaysFile);
@@ -121,7 +127,8 @@ public class SimMetrics
                 "campfire_hp_dusk,campfire_hp_min,campfire_hp_dawn," +
                 "hunger_dawn,left_total,archers_dawn," +
                 "idle_dawn,weapons_dawn,sticks_dawn,chunks_dawn,queue_dawn,warriors_lost,ring_holes,chunks_loose," +
-                "rival_arrival_day,rival_contact,rival_opinion,rival_warriors\n");
+                "rival_arrival_day,rival_contact,rival_opinion,rival_warriors," +
+                "raid_at_rival,rival_opinion_pts,rival_landings,rival_relief\n");
         }
     }
 
@@ -147,7 +154,8 @@ public class SimMetrics
           .Append(F(gameSeconds)).Append(',')
           .Append(F(wallClockSeconds)).Append(',')
           .Append(frames).Append(',')
-          .Append(Csv(note)).Append('\n');
+          .Append(Csv(note)).Append(',')
+          .Append(Csv(rivalStrategy)).Append('\n');
         File.AppendAllText(Path.Combine(dir, RunsFile), sb.ToString());
 
         sb.Clear();
@@ -186,7 +194,11 @@ public class SimMetrics
               .Append(n.rivalArrivalDay).Append(',')
               .Append(n.rivalContact).Append(',')
               .Append(n.rivalOpinion).Append(',')
-              .Append(n.rivalWarriors).Append('\n');
+              .Append(n.rivalWarriors).Append(',')
+              .Append(n.raidAtRival).Append(',')
+              .Append(F(n.rivalOpinionPts)).Append(',')
+              .Append(n.rivalLandings).Append(',')
+              .Append(n.rivalRelief).Append('\n');
         }
         if (sb.Length > 0) File.AppendAllText(Path.Combine(dir, DaysFile), sb.ToString());
     }

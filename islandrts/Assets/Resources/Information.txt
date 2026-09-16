@@ -146,8 +146,19 @@ people found a colony of their own. A banner tells you it happened; where they l
 is not marked, and their camp stays hidden until your own people walk far enough to
 see it.
 - They work their own patch of the island and only reach into yours once their side of it is bare.
-- They are not raiders. They start neutral, defend what is theirs, and grow on their own.
-- A small island may have no second shore far enough away, and then nobody lands.
+- They are not raiders. They start neutral, defend what is theirs, and grow on their own:
+  research, huts, a wall, spears and warriors, each camp with a temperament of its own.
+- Raiders are everyone's problem. The dawn warning names whose shore they make for; the
+  richer camp draws them more often.
+- What they think of you is a word on the DIPLOMACY screen (Esc, or the Neighbours entry
+  on the bar once you have met them). Warriors in their patch or blows landed cool it;
+  quiet days and peace warm it. Cool enough for two days and they turn hostile, warm
+  enough and they become allies.
+- Propose peace with a gift from your stores, once a day. Declare war and it is war at
+  once - and the other colonies think less of you for it.
+- A hostile camp with warriors to spare lands a party on your shore by day to fight your
+  militia; it sails home at dawn. An ally whose own fire is quiet sends half its warriors
+  to yours when raiders are at it, and you can see their camp on the minimap.
 
 ### The endings
 Hold out to the dawn after the last day and a passing sail finds the fire. Or

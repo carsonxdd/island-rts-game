@@ -40,6 +40,14 @@ public class EnemySpawner : MonoBehaviour
     private int pendingCount;          // Head count handed over by SpawnRaid, consumed by StartSpawning
     private int pendingRaidIndex;
     private bool landedThisRaid;       // OnRaidLanded fires once per raid, on the first body ashore
+    private Faction raidTarget;        // whose shore this raid lands on (2026-09-16); null = the player's
+
+    /// <summary>
+    /// The campfire the raid in progress makes for (2026-09-16): the target's,
+    /// falling back to the player's. Read by <see cref="CanReachFire"/> so the
+    /// landing walk and the progress watchdog test the right fire.
+    /// </summary>
+    public static BaseBuilding TargetFire { get; private set; }
 
     /// <summary>
     /// The first raider of a raid has landed, with where. The minimap pings it, fog or
@@ -49,6 +57,7 @@ public class EnemySpawner : MonoBehaviour
 
     void Awake()
     {
+        TargetFire = null;   // a scene object clears the static it publishes
         // The director rides on this object so it needs no scene wiring and its
         // code defaults are the live values (see RaidDirector's remarks).
         if (GetComponent<RaidDirector>() == null) gameObject.AddComponent<RaidDirector>();
@@ -74,11 +83,16 @@ public class EnemySpawner : MonoBehaviour
     /// Land <paramref name="count"/> raiders after the usual delay. Called by the
     /// director at nightfall on raid nights, and by the F4 cheat.
     /// </summary>
-    public void SpawnRaid(int count, int raidIndex)
+    public void SpawnRaid(int count, int raidIndex) => SpawnRaid(count, raidIndex, Factions.Player);
+
+    /// <summary>The same, at <paramref name="target"/>'s shore (2026-09-16): a rival colony can be tonight's.</summary>
+    public void SpawnRaid(int count, int raidIndex, Faction target)
     {
         DevQuests.Signal("raid");
         pendingCount = Mathf.Max(1, count);
         pendingRaidIndex = raidIndex;
+        raidTarget = target ?? Factions.Player;
+        TargetFire = raidTarget.Campfire;
         Invoke(nameof(StartSpawning), spawnDelay);
     }
 
@@ -92,8 +106,12 @@ public class EnemySpawner : MonoBehaviour
 
         int enemiesToSpawn = pendingCount;
 
-        // Pick a random direction for this raid — all enemies cluster around it
+        // Pick a random direction for this raid — all enemies cluster around it.
+        // A raid on a RIVAL comes in over its own cove (2026-09-16): the ring is
+        // centred on the map, and a random bearing would land it on the player.
         waveBaseAngle = Random.Range(0f, 360f);
+        if (raidTarget != null && !raidTarget.IsPlayer && raidTarget.HasCove)
+            waveBaseAngle = Mathf.Atan2(raidTarget.Cove.z, raidTarget.Cove.x) * Mathf.Rad2Deg;
         landedThisRaid = false;
 
         Debug.Log($"EnemySpawner: Raid {pendingRaidIndex} — {enemiesToSpawn} raiders landing from direction {waveBaseAngle:F0}°");
@@ -155,7 +173,7 @@ public class EnemySpawner : MonoBehaviour
         // the 4 m NavMesh snap dropped raiders on a disconnected sliver of mesh.
         // They stood there all night, held dawn to the cap and parked the sim's
         // camera on empty ground.
-        BaseBuilding fire = Factions.Player.Campfire;
+        BaseBuilding fire = TargetFire != null ? TargetFire : Factions.Player.Campfire;
         Vector3 toward = fire != null ? fire.transform.position : Vector3.zero;
         Vector3 found;
         if (FindReachableToward(position, toward, out found)) return found;
@@ -174,7 +192,7 @@ public class EnemySpawner : MonoBehaviour
     /// </summary>
     public static bool CanReachFire(Vector3 from)
     {
-        BaseBuilding fire = Factions.Player.Campfire;
+        BaseBuilding fire = TargetFire != null ? TargetFire : Factions.Player.Campfire;
         if (fire == null) return true;
         NavMeshHit fireHit;
         if (!NavMesh.SamplePosition(fire.transform.position, out fireHit, 8f, NavMesh.AllAreas)) return true;

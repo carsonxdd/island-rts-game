@@ -7,8 +7,11 @@ using UnityEngine;
 /// <see cref="MinScore"/>), nearer ones score higher. 0 with nothing to work —
 /// no yShift, so momentum cannot keep the action alive once the queues run dry.
 ///
-/// The Crafting research gates it: before the colony knows crafting there is no
-/// Crafter job to hold, and the flag check is free.
+/// The Crafting research gates it for the PLAYER's colony: before the colony
+/// knows crafting there is no Crafter job to hold, and the flag check is free.
+/// A rival colony has no castaway to stand at its bench, so its jobless
+/// colonists work it from the first day (2026-09-16, lap step 3 slice B) —
+/// otherwise a governed rival could never research anything at all.
 /// </summary>
 public class StationWorkAvailable : Consideration
 {
@@ -20,7 +23,7 @@ public class StationWorkAvailable : Consideration
     public override float ScoreRaw(AIBlackboard bb)
     {
         bb.targetStation = null;
-        if (!bb.faction.Knowledge.Has(Unlocks.Kind.Crafting)) return 0f;
+        if (bb.faction.IsPlayer && !bb.faction.Knowledge.Has(Unlocks.Kind.Crafting)) return 0f;
 
         CraftStation best = null;
         float bestSqr = float.MaxValue;

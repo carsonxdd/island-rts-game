@@ -47,16 +47,21 @@ game's own Utility AI, untouched. That is what makes the output worth reading.
 | **Rush** | 3→5 workers, huts as the army needs beds (to 8), army at 1.0× the next raid, Workshop tier for Iron Spears and Bows | Does warrior cost/DPS keep pace with raids that grow with the day and the colony's prosperity? |
 | **Eco** | Huts as needed (to 8), workers to 10 (3:2:1 wood:food:stone), army at 0.7× the next raid (spends the reserve when a raid is announced), gated wall ring (r8), escape from day 12 | The baseline the other two are read against |
 
-Those worker counts are floors (2026-09-10): every policy wants `max(floor, warriors / 2)` workers, capped at the campfire's job cap of 10, because the second lab lost Rush to food — five workers feeding 25 warriors. The ring's openings are the only place the sim makes gates: `SimBuilder.GateOpenings` walls each opening cell and converts it to a gate the tick it finishes (a gate is only ever converted from a finished wall, like the player's G). The first two labs left the openings as bare holes, and no wall took a hit in twelve runs.
+Those worker counts are floors (2026-09-10): every policy wants `max(floor, warriors / 2)` workers, capped at the campfire's job cap of 10, because the second lab lost Rush to food — five workers feeding 25 warriors. The ring's openings are the only place the sim makes gates: `FactionBuilder.GateOpenings` walls each opening cell and converts it to a gate the tick it finishes (a gate is only ever converted from a finished wall, like the player's G). The first two labs left the openings as bare holes, and no wall took a hit in twelve runs.
 
-Every strategy sizes its militia against `SimState.NextRaidSize` (2026-09-10): tonight's committed size when the dawn roll said raiders land, else `RaidDirector.EstimateRaidSize(day + 1)`, what a roll tomorrow would land against the colony as it stands. Spearcraft is third on every research list, beds go up ahead of the arrivals the army needs (`KeepHousing`), and nobody builds a Watchtower — it is a vision building until the archer-tower path exists. The 2026-09-10 lab (`SimLogs/lab-2026-09-10/`) lost all nine runs before this: Rush pinned at 8 warriors by two huts' beds with 2000 wood hoarded, Eco met an 8-raider first raid with two spears, Turtle's ring only delayed.
+Every strategy sizes its militia against `ColonyState.NextRaidSize` (2026-09-10): tonight's committed size when the dawn roll said raiders land, else `RaidDirector.EstimateRaidSize(day + 1)`, what a roll tomorrow would land against the colony as it stands. Spearcraft is third on every research list, beds go up ahead of the arrivals the army needs (`KeepHousing`), and nobody builds a Watchtower — it is a vision building until the archer-tower path exists. The 2026-09-10 lab (`SimLogs/lab-2026-09-10/`) lost all nine runs before this: Rush pinned at 8 warriors by two huts' beds with 2000 wood hoarded, Eco met an 8-raider first raid with two spears, Turtle's ring only delayed.
 
 Since 2026-09-02 the run is a **30-day calendar** with raids rolled at dawn
-(`RaidDirector`), not a wave every night. Policies read `SimState.RaidTonight`,
+(`RaidDirector`), not a wave every night. Policies read `ColonyState.RaidTonight`,
 the same verdict the player's HUD shows.
 
-Policies live in `SimPolicy.cs` and take at most one action per tick, so the
-resource curve stays legible instead of the whole bank emptying in one frame.
+Policies live in `Scripts/Factions/Governor/GovernorPolicy.cs` (`SimPolicy.cs`
+until 2026-09-16) and take at most one action per tick, so the resource curve
+stays legible instead of the whole bank emptying in one frame. **They are the
+same code that runs a rival colony** (lap step 3 slice B): `SimRunner` owns a
+`Governor` (policy + `FactionBuilder`, bound to `Factions.Player`) and ticks it
+beside the character driver; `GovernorRunner` owns one per landed rival. Nothing
+in a policy may read `Factions.Player` — it reads `faction`.
 
 Since 2026-09-03 nothing is unlocked for free under the sim: `Unlocks.Has` is
 the real ledger, so a policy has to **research** like a player (`Research(s,
@@ -246,7 +251,7 @@ own uGUI. Since 2026-09-10 it also says what the run is working on: the policy's
 **goal** this second (`army 4/6 · workers 5/8 · beds 1 free`), the **last** move it
 made (`recruit warrior`, `place hut`, `research Mining`; bracketed once it is 30 s
 old) and what the **castaway** is doing (`working: Spearcraft 40%`, `fetching
-stick`, `building Hut`). `SimPolicy.Goal` / `Intent` are written by the policies'
+stick`, `building Hut`). `GovernorPolicy.Goal` / `Intent` are written by the policies'
 shared moves and read by nothing that decides.
 
 ### Respawning a lost cell
@@ -314,7 +319,7 @@ these. Every field defaults to `-1`, so a run only has to name what it varies.
 | `foodPerDay` | `PopulationManager` — food each colonist eats per calendar day (2026-09-04); `0` switches eating off, `-1` keeps the shipping 1 |
 | `daysToSurvive`, `maxGameSeconds` | `GameManager` / the run's hard stop (a 30-day run is 4500 s of game time at the shipping clock) |
 | `difficulty` | the preset by name (`Peaceful` / `Relaxed` / `Normal` / `Hard` / `Brutal`, 2026-09-11) — `Difficulty.Active` reads it under the sim through `SimHooks.Difficulty`, so every multiplier the menu's preset carries applies (raid size and frequency, enemy stats, night length, starting resources, food) EXCEPT the calendar: `daysToSurvive` stays the run's own, so a Peaceful row wants `20` written into it. Empty = Normal |
-| `rivalCount` | rival colonies scheduled to land, 0—2 (2026-09-11, lap step 3). **NOT a `-1` sentinel** — 0 is the meaningful default, and a sweep that leaves it there plays the game every baseline before rivals existed played. `run-sim.ps1 -Lab -Rivals 1` sets it for a whole lab. `rivalStrategy` is reserved for slice B's governor and is read by nothing yet |
+| `rivalCount` | rival colonies scheduled to land, 0—2 (2026-09-11, lap step 3). **NOT a `-1` sentinel** — 0 is the meaningful default, and a sweep that leaves it there plays the game every baseline before rivals existed played. `run-sim.ps1 -Lab -Rivals 1` sets it for a whole lab. `rivalStrategy` (read since 2026-09-16, slice B) names how they play — `Turtle` / `Rush` / `Eco`, empty = a random personality per rival off the seeded stream; `run-sim.ps1 -Lab -Rivals 1 -RivalStrategy Turtle` |
 | `islandSize`, `islandStyle` | the island by name (`Small` / `Medium` / `Large`, `Rolling` / `Terraced` / `Rugged`, 2026-09-11) — `IslandOptions.Active` reads them under the sim through `SimHooks.IslandSize` / `IslandStyle`. Empty = Medium · Terraced |
 
 The three names are published by `SimRunner.Activate` next to `SimOverrides.Active`,
@@ -386,8 +391,15 @@ a map problem, not a policy one.
 ```
 config_id, strategy, seed, outcome, day_reached, days_to_survive, raids,
 enemies_killed, peak_workers, peak_warriors, final_wood/food/stone,
-colonists_left, game_seconds, wall_seconds, frames, note
+colonists_left, game_seconds, wall_seconds, frames, note, rival_strategy
 ```
+
+`rival_strategy` (2026-09-16) is the first landed rival's governor policy name,
+empty on a run with no rivals. `days.csv` ends with `raid_at_rival,
+rival_opinion_pts, rival_landings, rival_relief` (2026-09-16): whether the night's
+raid was rolled onto a rival's shore (`raid` then reads 0 — it means a raid at the
+PLAYER's), the hidden −100..100 opinion with the first rival, and the running
+counts of hostile landings on and relief parties to the player's shore.
 
 `outcome` is `victory` | `escape` | `defeat` | `timeout` | `error` — `escape` is the
 Shipyard ending (2026-09-04), a win before the rescue dawn. `colonists_left` counts
@@ -443,7 +455,7 @@ Roughly 40% of the playtest checklists in `.claude/CLAUDE.md` stay manual:
 
 Two fidelity caveats on what it *does* test:
 
-- `SimBuilder` reproduces the confirm paths of `GhostPlacer` / `WallLinePlacer`
+- `FactionBuilder` reproduces the confirm paths of `GhostPlacer` / `WallLinePlacer`
   step for step (afford → spend → T2 flatten → construction site → Buildings
   layer), but not the full no-build-zone overlap rules, so it can occasionally
   place slightly closer to a neighbour than a player could.
@@ -465,9 +477,10 @@ machine's audio driver down.
 | File | Role |
 |---|---|
 | `Assets/Scripts/Sim/SimRunner.cs` | Driver: bootstrap, run loop, scene reload between runs, quit |
-| `Assets/Scripts/Sim/SimPolicy.cs` | Turtle / Rush / Eco — the simulated player's decisions |
+| `Assets/Scripts/Factions/Governor/GovernorPolicy.cs` | Turtle / Rush / Eco — the simulated player's decisions AND a rival's (per-faction instances, ship in every build) |
+| `Assets/Scripts/Factions/Governor/Governor.cs`, `GovernorRunner.cs`, `ColonyState.cs` | Policy + builder bound to a faction; the runner that ticks each rival's; the per-tick snapshot |
 | `Assets/Scripts/Sim/SimPlayerDriver.cs` | The simulated player's character: fetches research materials, stands at the bench |
-| `Assets/Scripts/Sim/SimBuilder.cs` | Programmatic placement mirroring the real confirm paths |
+| `Assets/Scripts/Factions/Governor/FactionBuilder.cs` | Programmatic placement mirroring the real confirm paths, one instance per colony |
 | `Assets/Scripts/Sim/SimConfig.cs` | Sweep + run JSON schema |
 | `Assets/Scripts/Sim/SimOverrides.cs` | Per-unit knobs, applied from unit `Start` |
 | `Assets/Scripts/Sim/SimMetrics.cs` | The two CSVs |

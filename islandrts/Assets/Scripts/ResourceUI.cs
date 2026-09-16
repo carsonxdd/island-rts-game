@@ -56,6 +56,13 @@ public class ResourceUI : MonoBehaviour
     private TextMeshProUGUI banner;
     private RectTransform barRect;
     private float bannerHideAt = -1f;
+
+    // Neighbours entry (2026-09-16, slice B5): hidden until a colony is known
+    private RectTransform dipEntry;
+    private TextMeshProUGUI dipValue;
+    private TextMeshProUGUI dipLabel;
+    private int lastDipKey = -1;
+    private static readonly Color DipColor = new Color(0.70f, 0.60f, 0.88f);
     const float BannerSeconds = 7f;
 
     // Food chip (2026-09-04): the caption carries the daily drain and the colour
@@ -100,6 +107,8 @@ public class ResourceUI : MonoBehaviour
         RaidDirector.OnRaidRolled += OnRaidRolled;
         RivalLandingDirector.OnRivalLanded += OnRivalLanded;
         RivalLandingDirector.OnRivalMet += OnRivalMet;
+        Diplomacy.OnAttitudeChanged += OnAttitudeChanged;
+        Expedition.OnDeparted += OnExpedition;
         Factions.Player.Population.OnHungerChanged += OnHungerChanged;
         Factions.Player.Population.OnColonistLeft += OnColonistLeft;
         UpdateUI();
@@ -110,6 +119,8 @@ public class ResourceUI : MonoBehaviour
         RaidDirector.OnRaidRolled -= OnRaidRolled;
         RivalLandingDirector.OnRivalLanded -= OnRivalLanded;
         RivalLandingDirector.OnRivalMet -= OnRivalMet;
+        Diplomacy.OnAttitudeChanged -= OnAttitudeChanged;
+        Expedition.OnDeparted -= OnExpedition;
         Factions.Player.Population.OnHungerChanged -= OnHungerChanged;
         Factions.Player.Population.OnColonistLeft -= OnColonistLeft;
     }
@@ -142,7 +153,18 @@ public class ResourceUI : MonoBehaviour
     {
         lurkFlashed = false;   // one lurking banner per raid
         if (!raid) return;
-        Flash("RAIDERS SIGHTED  —  they land tonight", MenuStyle.TextDanger, BannerSeconds);
+        // The roll names a shore (2026-09-16): a raid on a neighbour is news, not a warning
+        RaidDirector rd = RaidDirector.Instance;
+        Faction target = rd != null ? rd.Target : null;
+        if (target != null && !target.IsPlayer)
+        {
+            string where = Diplomacy.IsKnown(target) ? "at the " + target.Name.ToUpperInvariant() : "on another shore";
+            Flash("RAIDERS SIGHTED  —  they land tonight " + where, MenuStyle.TextAccent, BannerSeconds);
+        }
+        else
+        {
+            Flash("RAIDERS SIGHTED  —  they land tonight", MenuStyle.TextDanger, BannerSeconds);
+        }
         lastCalKey = -1;   // repaint the chip now rather than on the next tick
         UpdateUI();
     }
@@ -182,6 +204,50 @@ public class ResourceUI : MonoBehaviour
     void OnColonistLeft()
     {
         Flash("A COLONIST HAS LEFT  —  there was no food", MenuStyle.TextDanger, BannerSeconds);
+    }
+
+    /// <summary>A neighbour's attitude to the player flipped (2026-09-16, slice B5).</summary>
+    void OnAttitudeChanged(Faction a, Faction b, Attitude attitude)
+    {
+        if (!a.IsPlayer && !b.IsPlayer) return;
+        Faction other = a.IsPlayer ? b : a;
+        string name = other.Name.ToUpperInvariant();
+        switch (attitude)
+        {
+            case Attitude.Hostile:
+                Flash("THE " + name + " ARE HOSTILE  —  their warriors attack yours on sight", MenuStyle.TextDanger, BannerSeconds);
+                break;
+            case Attitude.Allied:
+                Flash("THE " + name + " ARE YOUR ALLIES  —  they will come to your aid", MenuStyle.TextAccent, BannerSeconds);
+                break;
+            default:
+                Flash("PEACE WITH THE " + name, MenuStyle.TextAccent, BannerSeconds);
+                break;
+        }
+        lastDipKey = -1;
+    }
+
+    /// <summary>A party sailed for the player's shore, or from it (2026-09-16).</summary>
+    void OnExpedition(Faction from, Faction to, int count, bool relief)
+    {
+        if (to.IsPlayer)
+        {
+            string name = from.Name.ToUpperInvariant();
+            if (relief) Flash("THE " + name + " SEND " + count + " WARRIORS TO YOUR AID", MenuStyle.TextAccent, BannerSeconds);
+            else Flash("THE " + name + " LAND " + count + " WARRIORS ON YOUR SHORE", MenuStyle.TextDanger, BannerSeconds);
+        }
+        else if (from.IsPlayer)
+        {
+            Flash(count + " WARRIORS SAIL FOR THE " + to.Name.ToUpperInvariant(), MenuStyle.TextAccent, BannerSeconds);
+        }
+    }
+
+    /// <summary>The bar's Neighbours entry opens the Diplomacy screen, paused like the Esc menu.</summary>
+    void OpenDiplomacy()
+    {
+        if (PauseController.BlockGameplayInput) return;
+        PauseController.SetPaused(true);
+        MenuScreens.Ensure().Show(MenuScreens.Screen.Diplomacy);
     }
 
     /// <summary>One bold line under the bar for a few seconds. A new flash replaces the old one.</summary>
@@ -252,6 +318,14 @@ public class ResourceUI : MonoBehaviour
 
         // Sky dial: sun across the day, moon across the night
         BuildDialEntry(bar.transform);
+
+        // Neighbours (2026-09-16): last so its divider can hide with it, shown
+        // once the player has met another colony. Click = the Diplomacy screen.
+        VerticalDivider(bar.transform);
+        dipEntry = Entry(bar.transform, "Diplomacy", DipColor, out dipValue, out dipLabel, "Neighbours");
+        dipEntry.GetComponent<Button>().onClick.AddListener(OpenDiplomacy);
+        dipEntry.gameObject.SetActive(false);
+        bar.transform.GetChild(bar.transform.childCount - 2).gameObject.SetActive(false);   // its divider
 
         // Raid banner: one bold line centred BELOW the bar (the bar is ~900px
         // wide from the left edge, so a top-centre banner would sit on top of
@@ -657,6 +731,7 @@ public class ResourceUI : MonoBehaviour
         }
 
         UpdateCalendar();
+        UpdateDiplomacyEntry();
     }
 
     /// <summary>
@@ -676,19 +751,28 @@ public class ResourceUI : MonoBehaviour
         int day = dayNight.GetCurrentDay();
         int total = GameManager.Instance != null ? GameManager.Instance.daysToSurvive : Difficulty.DaysToSurvive;
         RaidDirector rd = RaidDirector.Instance;
-        bool raid = rd != null && rd.RaidTonight;
+        bool raidRolled = rd != null && rd.RaidTonight;
+        bool raid = raidRolled && (rd.Target == null || rd.Target.IsPlayer);   // at THIS shore (2026-09-16)
+        bool elsewhere = raidRolled && !raid;
         int size = raid ? rd.PlannedSize : 0;
         bool night = dayNight.IsNightTime();
         bool held = dayNight.DawnHeld;   // the night is waiting on the last raider (2026-09-07)
         bool lurking = rd != null && rd.RaidLurking;   // alive, but nothing has happened for a while (2026-09-10)
 
-        int key = (((((day * 128 + total) * 2 + (night ? 1 : 0)) * 2 + (raid ? 1 : 0)) * 2 + (held ? 1 : 0)) * 2 + (lurking ? 1 : 0)) * 64 + Mathf.Min(size, 63);
+        int key = ((((((day * 128 + total) * 2 + (night ? 1 : 0)) * 2 + (raid ? 1 : 0)) * 2 + (held ? 1 : 0)) * 2 + (lurking ? 1 : 0)) * 2 + (elsewhere ? 1 : 0)) * 64 + Mathf.Min(size, 63);
         if (key == lastCalKey) return;
         lastCalKey = key;
 
         calValue.text = (night ? "Night " : "Day ") + day;
 
-        if (lurking)
+        if (lurking && elsewhere)
+        {
+            // Somebody else's raid is stalled; not this colony's fight
+            calValue.color = MenuStyle.TextPrimary;
+            calLabel.color = MenuStyle.TextMuted;
+            calLabel.text = "Raiders elsewhere";
+        }
+        else if (lurking)
         {
             // The hint (2026-09-10): raiders out there but not coming. A player who
             // sees this goes Offensive; the banner names the key once per raid.
@@ -720,11 +804,67 @@ public class ResourceUI : MonoBehaviour
             calLabel.color = MenuStyle.TextDanger;
             calLabel.text = Caption("Raid tonight", size + " raiders");
         }
+        else if (elsewhere)
+        {
+            calValue.color = MenuStyle.TextPrimary;
+            calLabel.color = MenuStyle.TextMuted;
+            calLabel.text = Caption("of " + total, night ? "raid elsewhere" : "raiders sail elsewhere");
+        }
         else
         {
             calValue.color = MenuStyle.TextPrimary;
             calLabel.color = MenuStyle.TextMuted;
             calLabel.text = Caption("of " + total, night ? "quiet" : "quiet night ahead");
+        }
+    }
+
+    /// <summary>
+    /// "Neighbours · 1 known" with the worst standing as the caption (2026-09-16).
+    /// Repainted only when a part changes; the entry and its divider appear
+    /// together the first time a colony is known.
+    /// </summary>
+    void UpdateDiplomacyEntry()
+    {
+        if (dipValue == null) return;
+        bool any = Diplomacy.AnyKnown;
+        if (dipEntry.gameObject.activeSelf != any)
+        {
+            dipEntry.gameObject.SetActive(any);
+            int idx = dipEntry.GetSiblingIndex();
+            if (idx > 0) dipEntry.parent.GetChild(idx - 1).gameObject.SetActive(any);   // the divider before it
+        }
+        if (!any) return;
+
+        int known = 0, hostile = 0, allied = 0;
+        Faction first = null;
+        var all = Factions.All;
+        for (int i = 0; i < all.Count; i++)
+        {
+            Faction f = all[i];
+            if (f.IsPlayer || f.IsRaiders || !Diplomacy.IsKnown(f)) continue;
+            known++;
+            if (first == null) first = f;
+            Attitude a = Factions.Player.Toward(f);
+            if (a == Attitude.Hostile) hostile++;
+            else if (a == Attitude.Allied) allied++;
+        }
+        string word = first != null ? Diplomacy.Word(Diplomacy.Opinion(Factions.Player, first)) : "";
+        int key = ((known * 8 + hostile) * 8 + allied) * 16 + word.Length;
+        if (key == lastDipKey) return;
+        lastDipKey = key;
+
+        dipValue.text = known.ToString();
+        if (hostile > 0)
+        {
+            dipValue.color = MenuStyle.TextDanger;
+            dipLabel.color = MenuStyle.TextDanger;
+            dipLabel.text = Caption("At war", hostile + (hostile == 1 ? " enemy" : " enemies"));
+        }
+        else
+        {
+            dipValue.color = MenuStyle.TextPrimary;
+            dipLabel.color = MenuStyle.TextMuted;
+            dipLabel.text = known == 1 ? Caption("Neighbour", word) : Caption("Neighbours", allied + " allied");
         }
     }
 

@@ -268,11 +268,11 @@ public class CraftStation : MonoBehaviour
         return true;
     }
 
-    /// <summary>Queue a research entry. False when not listed here, not available, done, or already queued at any station.</summary>
+    /// <summary>Queue a research entry. False when not listed here, not available, done, or already queued at any of this colony's stations.</summary>
     public bool Enqueue(ResearchCatalog.ResearchDef d)
     {
         if (d == null || !Lists(d) || !Faction.Knowledge.IsAvailable(d)) return false;
-        if (IsQueuedAnywhere(d)) return false;
+        if (IsQueuedAnywhere(d, Faction)) return false;
 
         queue.Add(new QueueEntry { research = d, remaining = 1 });
         Version++;
@@ -295,11 +295,16 @@ public class CraftStation : MonoBehaviour
         return false;
     }
 
-    public static bool IsQueuedAnywhere(ResearchCatalog.ResearchDef d)
+    /// <summary>
+    /// Is <paramref name="d"/> queued at any bench <paramref name="owner"/>
+    /// owns? Research is de-duplicated per COLONY (2026-09-16): a rival
+    /// researching Quarrying must not block the player's own entry.
+    /// </summary>
+    public static bool IsQueuedAnywhere(ResearchCatalog.ResearchDef d, Faction owner)
     {
         var list = ActiveList;
         for (int i = 0; i < list.Count; i++)
-            if (list[i] != null && list[i].IsQueued(d)) return true;
+            if (list[i] != null && list[i].Faction == owner && list[i].IsQueued(d)) return true;
         return false;
     }
 

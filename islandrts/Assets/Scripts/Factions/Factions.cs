@@ -95,6 +95,8 @@ public static class Factions
         all.Clear();
         for (int i = 0; i < byId.Length; i++) byId[i] = null;
         Relations.Clear();
+        Diplomacy.Clear();
+        Expedition.Clear();
         player = null;
         raiders = null;
         builtForScene = 0;

@@ -75,6 +75,9 @@ public class GameManager : MonoBehaviour
         // and there is nothing to wire in the scene. It disables itself in Start
         // when the run asked for no rivals, which is the default.
         if (GetComponent<RivalLandingDirector>() == null) gameObject.AddComponent<RivalLandingDirector>();
+        // ...and the governor that runs each rival once it stands (2026-09-16,
+        // slice B). It adopts any rival with a campfire, F4's included.
+        if (GetComponent<GovernorRunner>() == null) gameObject.AddComponent<GovernorRunner>();
     }
 
     void Start()

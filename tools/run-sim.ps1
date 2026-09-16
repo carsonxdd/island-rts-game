@@ -90,7 +90,10 @@ param(
     [double]$RespawnMinutes = 10,
     # Rival colonies per lab cell (2026-09-11, lap step 3). 0 is the default and
     # keeps a lab comparable with every baseline taken before rivals existed.
-    [int]$Rivals = 0
+    [int]$Rivals = 0,
+    # How those rivals play (2026-09-16, slice B): Turtle / Rush / Eco, or empty
+    # for the shipped rule, a random personality per rival off the seeded stream.
+    [string]$RivalStrategy = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -131,6 +134,7 @@ if ($Lab) {
                     daysToSurvive  = 30
                     maxGameSeconds = 6000
                     rivalCount     = $Rivals
+                    rivalStrategy  = $RivalStrategy
                 }
             }
         }

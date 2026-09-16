@@ -77,6 +77,25 @@ public class Warrior : UnitBase<Warrior>
     /// <summary>What this warrior is going for, or null. Read by <see cref="Enemy"/>'s attack slots (2026-09-07).</summary>
     public Transform CurrentTarget => aiBrain != null && aiBrain.blackboard != null ? aiBrain.blackboard.currentTarget : null;
 
+    /// <summary>Away with a party sent by sea (<see cref="Expedition"/>, 2026-09-16); back at dawn.</summary>
+    public bool OnExpedition { get; private set; }
+
+    /// <summary>
+    /// The fire this warrior's AI fights around: <paramref name="fire"/> for the
+    /// length of an expedition, home again on null. Only the BLACKBOARD's fire
+    /// moves - <see cref="baseBuilding"/> stays the home fire, so a death away
+    /// still reaches <c>NotifyWarriorKilled</c> at home.
+    /// </summary>
+    public void SetExpeditionFire(BaseBuilding fire)
+    {
+        OnExpedition = fire != null;
+        if (aiBrain == null || aiBrain.blackboard == null) return;
+        AIBlackboard bb = aiBrain.blackboard;
+        bb.baseBuilding = fire != null ? fire : baseBuilding;
+        bb.ClearTarget();
+        aiBrain.ForceReeval();
+    }
+
     // The Warrior prefab carries two art children (LowPolyPlumber, 2026-09-04):
     // "Model" (the spearman) and "Model_Archer", inactive. Whichever the weapon
     // says is shown; a prefab without the archer body simply keeps the spearman.

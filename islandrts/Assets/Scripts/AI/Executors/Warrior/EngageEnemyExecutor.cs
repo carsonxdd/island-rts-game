@@ -433,6 +433,10 @@ public class EngageEnemyExecutor : ActionExecutor
         // Audio
         bb.warrior.PlayAttackSoundPublic();
 
+        // A blow on another colony's unit is remembered (2026-09-16, slice B5);
+        // noted at the swing so the arrow's flight changes nothing.
+        Diplomacy.NoteAttack(bb.faction, bb.currentTargetFaction);
+
         // An archer (2026-09-04) looses an arrow that carries the damage to the
         // target; the range check above already holds the agent at the weapon's
         // reach, which IS the range hold. No line of sight — over the wall is the point.

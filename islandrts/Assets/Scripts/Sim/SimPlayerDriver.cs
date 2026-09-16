@@ -15,7 +15,7 @@ using UnityEngine;
 /// </summary>
 public static class SimPlayerDriver
 {
-    public static void Tick(SimState s)
+    public static void Tick(ColonyState s)
     {
         PlayerCharacter pc = PlayerCharacter.Instance;
         BaseBuilding fire = s.Campfire;

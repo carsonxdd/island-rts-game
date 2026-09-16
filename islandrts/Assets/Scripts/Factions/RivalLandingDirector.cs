@@ -16,10 +16,9 @@ using UnityEngine;
 /// <c>Awake</c>, so there is nothing to wire in the scene and the code defaults
 /// here are the LIVE values - the same contract as <c>RaidDirector</c>. Never put
 /// it on a prefab or in a scene: an inspector copy would silently win.</para>
-/// <para>The rival is not governed yet. It lands, founds, gathers inside its own
-/// patch and defends itself; slice B gives it a governor. That order is
-/// deliberate, so the arrival and the territory are observable before the
-/// governor refactor churns them.</para>
+/// <para>Once it stands, <see cref="GovernorRunner"/> adopts it and a
+/// <see cref="GovernorPolicy"/> runs it (2026-09-16, slice B) - this class only
+/// lands and founds.</para>
 /// </remarks>
 public class RivalLandingDirector : MonoBehaviour
 {
@@ -202,6 +201,7 @@ public class RivalLandingDirector : MonoBehaviour
             if (!IsSeen(rival, fog)) continue;
 
             met.Add(rival.Id);
+            Diplomacy.MarkKnown(rival);
             Contacted = true;
             DevQuests.Signal("rival:met");
             if (OnRivalMet != null) OnRivalMet(rival);

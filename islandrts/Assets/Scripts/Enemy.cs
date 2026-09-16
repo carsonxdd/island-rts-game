@@ -182,7 +182,8 @@ public class Enemy : UnitBase<Enemy>
         progressPos = p;
         progressTime = Time.time;
 
-        BaseBuilding fire = Factions.Player.Campfire;
+        float unusedDist;
+        BaseBuilding fire = TargetingUtil.FindNearestHostile(BaseBuilding.ActiveList, p, 0f, Faction, out unusedDist);   // the raid's, or a rival's (2026-09-16)
         if (fire == null) return;
         // The walk starts where the raider stands (2026-09-10), so its first
         // step is checked against the wall line like every other: starting a

@@ -433,14 +433,14 @@ public class Minimap : MonoBehaviour
     }
 
     /// <summary>A filled square of <paramref name="size"/> texels centred on a world position.</summary>
-    /// <summary>The player's things in the map's own colours; another colony's in its faction colour, and only on watched ground (like a raider).</summary>
+    /// <summary>The player's things in the map's own colours; another colony's in its faction colour, and only on watched ground (like a raider) - unless it is an ally, whose colony is shared (2026-09-16).</summary>
     void StampOwned<T>(FogOfWar fog, T t, int size, Color32 mine) where T : Component, IOwned
     {
         if (t == null) return;
         Vector3 p = t.transform.position;
         Faction f = t.Faction;
         if (f.IsPlayer) { Stamp(p, size, mine); return; }
-        if (fog == null || fog.IsVisible(p)) Stamp(p, size, (Color32)f.Color);
+        if (fog == null || fog.IsVisible(p) || f.IsAlliedWith(Factions.Player)) Stamp(p, size, (Color32)f.Color);
     }
 
     void Stamp(Vector3 world, int size, Color32 color)

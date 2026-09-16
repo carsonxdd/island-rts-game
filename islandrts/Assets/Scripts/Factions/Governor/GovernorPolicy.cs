@@ -1,38 +1,59 @@
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
 using UnityEngine;
 
 /// <summary>
-/// The simulated player. Everything a human decides in a run — what to research,
-/// what to queue at the fire, worker assignment, what to build, when to recruit —
-/// and nothing else. Movement, combat, gathering and pathing are still the game's
-/// own Utility AI, which is exactly why a run of this is worth reading as balance
-/// data. The character's legs (fetching materials, standing at the bench) are
-/// <see cref="SimPlayerDriver"/>.
+/// Everything a player decides in a run — what to research, what to queue at
+/// the fire, worker assignment, what to build, when to recruit — and nothing
+/// else, for ONE colony. Movement, combat, gathering and pathing are still the
+/// game's own Utility AI. Was <c>SimPolicy</c>, the sim's simulated player,
+/// until 2026-09-16 (lap step 3 slice B): the same three strategies now drive
+/// a rival colony in real play, bound to its faction by <see cref="Bind"/>,
+/// which is why nothing here may read <c>Factions.Player</c> and why the
+/// goal / intent captions are instance state — two governors ticking through
+/// one static would trample each other.
 ///
 /// A policy is polled once a second (<see cref="Tick"/>). It should take at most
 /// one action per tick, so the resource curve stays legible rather than the
 /// whole bank emptying in one frame.
+///
+/// The simulated player's character (materials, bench labor) is
+/// <c>SimPlayerDriver</c>, sim-only. A rival has no castaway: its jobless
+/// colonists work its bench from the first day (<c>StationWorkAvailable</c>
+/// gates on Crafting for the player only).
 /// </summary>
-public abstract class SimPolicy
+public abstract class GovernorPolicy
 {
     public abstract string Name { get; }
 
     /// <summary>Called once a game-second while the colony is alive.</summary>
-    public abstract void Tick(SimState s);
+    public abstract void Tick(ColonyState s);
 
-    // ---- what the run is working on (2026-09-10) ----------------------------
-    // Read by the visual overlay only. A policy sets Goal at the top of every
-    // tick (what it is trying to reach) and every shared move that DOES
-    // something stamps Intent (what it just did). Neither is read by anything
-    // that decides.
+    /// <summary>The colony this policy runs. Set once by <see cref="Bind"/>.</summary>
+    protected Faction faction;
+    /// <summary>The colony's own placement bookkeeping (ring, holes).</summary>
+    protected FactionBuilder builder;
+
+    public Faction Faction => faction;
+    public FactionBuilder Builder => builder;
+
+    public void Bind(Faction faction, FactionBuilder builder)
+    {
+        this.faction = faction;
+        this.builder = builder;
+    }
+
+    // ---- what the colony is working on (2026-09-10) -------------------------
+    // Read by the visual overlay and the F3 line only. A policy sets Goal at the
+    // top of every tick (what it is trying to reach) and every shared move that
+    // DOES something stamps Intent (what it just did). Neither is read by
+    // anything that decides.
 
     /// <summary>This second's target: "army 4/6 · beds 1 free · workers 5/8".</summary>
-    public static string Goal = "";
+    public string Goal { get; private set; } = "";
     /// <summary>The last action taken and the game-second it was taken on.</summary>
-    public static string Intent = "";
-    private static float intentTime;
+    public string Intent { get; private set; } = "";
+    private float intentTime;
 
-    protected static void Did(string what)
+    protected void Did(string what)
     {
         Intent = what;
         intentTime = Time.time;
@@ -43,9 +64,9 @@ public abstract class SimPolicy
     /// Offensive so the militia hunts them down, and stand down at dawn. Called
     /// at the top of every Tick; takes the tick when it changes the stance.
     /// </summary>
-    protected bool ManageStance(SimState s)
+    protected bool ManageStance(ColonyState s)
     {
-        Faction f = Factions.Player;
+        Faction f = faction;
         if (s.RaidLurking && f.Stance != GuardStance.Mode.Offensive)
         {
             f.SetStance(GuardStance.Mode.Offensive);
@@ -64,17 +85,84 @@ public abstract class SimPolicy
     }
     private bool wentOffensive;
 
-    /// <summary>The one line every strategy's caption shares.</summary>
-    protected static void SetGoal(SimState s, int wantedWarriors, int wantedWorkers, string extra = null)
+    // ---- neighbours (2026-09-16, slice B5) ---------------------------------
+    // Two things a colony does with its warriors besides holding its own fire,
+    // both through Expedition (the party sails, fights around the OTHER fire
+    // and comes home at dawn). Relief goes to an ally the raid is at; a landing
+    // goes to a Hostile neighbour when the army is comfortably past what the
+    // next raid needs. Neither strips the home guard: relief takes half, a
+    // landing only the surplus over the militia the strategy already wanted.
+
+    /// <summary>Warriors a colony must have before it will send half of them to an ally.</summary>
+    public const int ReliefMinWarriors = 4;
+    /// <summary>Surplus over the wanted militia that is worth sailing with.</summary>
+    public const int LandingMinParty = 3;
+    /// <summary>Days between one colony's landings.</summary>
+    public const int LandingCooldownDays = 3;
+
+    private int lastWantedWarriors;   // written by SetGoal every tick; 0 until the first
+    private int nextLandingDay;
+
+    /// <summary>
+    /// Relief for an ally under raid, or a landing on a hostile neighbour. Takes
+    /// the tick when a party sails. Called right after <see cref="ManageStance"/>.
+    /// </summary>
+    protected bool ConsiderExpeditions(ColonyState s)
     {
-        Population pop = Factions.Player.Population;
+        if (s.Campfire == null || lastWantedWarriors <= 0 || Expedition.Active(faction)) return false;
+
+        var all = Factions.All;
+        for (int i = 0; i < all.Count; i++)
+        {
+            Faction other = all[i];
+            if (other == faction || other.IsRaiders || other.Campfire == null) continue;
+
+            switch (faction.Toward(other))
+            {
+                case Attitude.Allied:
+                {
+                    // Their fire has raiders at it, mine does not, and I can spare half.
+                    if (s.Warriors < ReliefMinWarriors) continue;
+                    if (!ColonyState.RaiderInHomeRadius(other.Campfire) || ColonyState.RaiderInHomeRadius(s.Campfire)) continue;
+                    int sent = Expedition.Send(faction, other, s.Warriors / 2, relief: true);
+                    if (sent > 0) { Did("send " + sent + " to relieve the " + other.Name); return true; }
+                    break;
+                }
+                case Attitude.Hostile:
+                {
+                    // By day, on a quiet day, with men to spare past what the raid needs.
+                    if (s.Night || s.RaidTonight || s.Day < nextLandingDay) continue;
+                    int surplus = s.Warriors - lastWantedWarriors;
+                    if (surplus < LandingMinParty) continue;
+                    int sent = Expedition.Send(faction, other, surplus, relief: false);
+                    if (sent > 0)
+                    {
+                        nextLandingDay = s.Day + LandingCooldownDays;
+                        Did("land " + sent + " on the " + other.Name);
+                        return true;
+                    }
+                    break;
+                }
+            }
+        }
+        return false;
+    }
+
+    /// <summary>The one line every strategy's caption shares.</summary>
+    protected void SetGoal(ColonyState s, int wantedWarriors, int wantedWorkers, string extra = null)
+    {
+        lastWantedWarriors = wantedWarriors;
+        Population pop = faction.Population;
         int beds = pop != null ? pop.GetAvailableHousing() : 0;
         Goal = $"army {s.Warriors}/{wantedWarriors} · workers {s.Workers}/{wantedWorkers} · beds {beds} free"
                + (string.IsNullOrEmpty(extra) ? "" : " · " + extra);
         if (Time.time - intentTime > 30f && Intent.Length > 0 && !Intent.StartsWith("(")) Intent = "(" + Intent + ")";
     }
 
-    public static SimPolicy Create(string name)
+    /// <summary>The strategy names the sim and the rival picker share, in <see cref="Create"/> order.</summary>
+    public static readonly string[] Names = { "Turtle", "Rush", "Eco" };
+
+    public static GovernorPolicy Create(string name)
     {
         switch ((name ?? "").Trim().ToLowerInvariant())
         {
@@ -85,18 +173,26 @@ public abstract class SimPolicy
         }
     }
 
+    /// <summary>
+    /// A rival's personality when nothing named one (2026-09-16, by decision):
+    /// one of the three at random. Drawn from <c>UnityEngine.Random</c> on
+    /// purpose — that stream is the harness's seed, so a seeded sim run lands
+    /// the same neighbour every time, and a run with no rivals never draws.
+    /// </summary>
+    public static GovernorPolicy CreateRandom() => Create(Names[Random.Range(0, Names.Length)]);
+
     // ---- shared moves -----------------------------------------------------
 
     /// <summary>
     /// Queue the first of <paramref name="ids"/> that is neither done nor queued,
-    /// at a bench that lists it — the campfire for its own tier, a Workshop for
-    /// the upgrades (2026-09-04). One entry at a time per bench keeps the
-    /// character's material runs short. A Workshop entry is only queued once a
-    /// Crafter is on the roster: the simulated character works the fire alone
-    /// (<see cref="SimPlayerDriver"/>), so nobody else would stand at it.
+    /// at a bench of this colony that lists it — the campfire for its own tier, a
+    /// Workshop for the upgrades (2026-09-04). One entry at a time per bench keeps
+    /// the material runs short. A Workshop entry is only queued once a Crafter is
+    /// on the roster: the simulated character works the fire alone
+    /// (<c>SimPlayerDriver</c>), so nobody else would stand at it.
     /// True when something was queued this tick.
     /// </summary>
-    protected static bool Research(SimState s, params string[] ids)
+    protected bool Research(ColonyState s, params string[] ids)
     {
         BaseBuilding fire = s.Campfire;
         if (fire == null || fire.Station == null) return false;
@@ -104,9 +200,9 @@ public abstract class SimPolicy
         for (int i = 0; i < ids.Length; i++)
         {
             ResearchCatalog.ResearchDef d = ResearchCatalog.Find(ids[i]);
-            if (d == null || Factions.Player.Knowledge.IsDone(d)) continue;
-            if (!Factions.Player.Knowledge.IsAvailable(d)) continue;   // a prerequisite is still ahead in the list
-            if (CraftStation.IsQueuedAnywhere(d)) return false;
+            if (d == null || faction.Knowledge.IsDone(d)) continue;
+            if (!faction.Knowledge.IsAvailable(d)) continue;   // a prerequisite is still ahead in the list
+            if (CraftStation.IsQueuedAnywhere(d, faction)) return false;
 
             CraftStation bench = StationListing(d);
             if (bench == null) continue;                      // no Workshop yet — try the next id
@@ -119,14 +215,14 @@ public abstract class SimPolicy
         return false;
     }
 
-    /// <summary>The nearest-to-the-fire living bench that lists <paramref name="d"/>, or null.</summary>
-    static CraftStation StationListing(ResearchCatalog.ResearchDef d)
+    /// <summary>The first living bench of this colony that lists <paramref name="d"/>, or null.</summary>
+    CraftStation StationListing(ResearchCatalog.ResearchDef d)
     {
         var list = CraftStation.ActiveList;
         for (int i = 0; i < list.Count; i++)
         {
             CraftStation st = list[i];
-            if (st != null && st.IsAlive && st.Lists(d)) return st;
+            if (st != null && st.IsAlive && st.Faction == faction && st.Lists(d)) return st;
         }
         return null;
     }
@@ -137,17 +233,17 @@ public abstract class SimPolicy
     /// after Bowyery every third weapon is a Bow so the garrison gets archers —
     /// queued at the fire like everything else; a Crafter or the character works it.
     /// </summary>
-    protected static bool KeepSpears(SimState s, int wanted)
+    protected bool KeepSpears(ColonyState s, int wanted)
     {
         BaseBuilding fire = s.Campfire;
         if (fire == null || fire.Station == null) return false;
-        if (!Factions.Player.Knowledge.Has(Unlocks.Kind.Militia)) return false;
+        if (!faction.Knowledge.Has(Unlocks.Kind.Militia)) return false;
 
         CraftingCatalog.Recipe wooden = CraftingCatalog.Find("wooden_spear");
         CraftingCatalog.Recipe iron = CraftingCatalog.Find("iron_spear");
         CraftingCatalog.Recipe bow = CraftingCatalog.Find("bow");
-        bool ironOk = iron != null && iron.UnlockedFor(Factions.Player.Knowledge)
-                      && Factions.Player.Resources.metal >= iron.metalCost;
+        bool ironOk = iron != null && iron.UnlockedFor(faction.Knowledge)
+                      && faction.Resources.metal >= iron.metalCost;
         CraftingCatalog.Recipe spear = ironOk ? iron : wooden;
 
         int have = fire.WeaponsInStock() + fire.Station.Queued(wooden) + fire.Station.Queued(iron)
@@ -155,7 +251,7 @@ public abstract class SimPolicy
         if (have >= wanted) return false;
 
         // One bow in three once the colony can make them (a third of the garrison shoots)
-        bool bowOk = bow != null && bow.UnlockedFor(Factions.Player.Knowledge) && (s.Warriors + have) % 3 == 2;
+        bool bowOk = bow != null && bow.UnlockedFor(faction.Knowledge) && (s.Warriors + have) % 3 == 2;
         CraftingCatalog.Recipe pick = bowOk ? bow : spear;
         if (!fire.Station.Enqueue(pick, 1)) return false;
         Did("queue " + pick.title);
@@ -166,14 +262,15 @@ public abstract class SimPolicy
     /// Point the recruit picker at a bow when the stock has one and the garrison is
     /// short of archers (one in three), else at the best spear (2026-09-04).
     /// </summary>
-    protected static void PickRecruitWeapon(SimState s)
+    protected void PickRecruitWeapon(ColonyState s)
     {
         BaseBuilding fire = s.Campfire;
         if (fire == null) return;
 
         int archers = 0;
         var list = Warrior.ActiveList;
-        for (int i = 0; i < list.Count; i++) if (list[i] != null && list[i].IsRanged) archers++;
+        for (int i = 0; i < list.Count; i++)
+            if (list[i] != null && list[i].Faction == faction && list[i].IsRanged) archers++;
 
         bool wantBow = fire.Stockpile.Count(ItemCatalog.Bow) > 0 && archers * 3 < s.Warriors + 1;
         ItemDef target = wantBow ? ItemCatalog.Bow : fire.FirstWeaponInStock();
@@ -187,23 +284,23 @@ public abstract class SimPolicy
     /// Crafting is known and there is wood to spare, then give the bench a colonist
     /// once it stands and the idle pool can afford one. One action per call.
     /// </summary>
-    protected static bool RunWorkshop(SimState s)
+    protected bool RunWorkshop(ColonyState s)
     {
-        if (!Factions.Player.Knowledge.Has(Unlocks.Kind.Crafting) || !CanBuild) return false;
+        if (!faction.Knowledge.Has(Unlocks.Kind.Crafting) || !CanBuild) return false;
         BaseBuilding fire = s.Campfire;
         if (fire == null) return false;
 
-        if (Workshop.ActiveList.Count == 0)
+        if (builder.WorkshopCount == 0)
         {
-            if (SimBuilder.PendingSites(BuildingType.Workshop) > 0) return false;
+            if (builder.PendingSites(BuildingType.Workshop) > 0) return false;
             if (s.Wood < 80f) return false;
-            if (!SimBuilder.PlaceBuilding(BuildingType.Workshop, 6f, 14f)) return false;
+            if (!builder.PlaceBuilding(BuildingType.Workshop, 6f, 14f)) return false;
             Did("place Workshop");
             return true;
         }
 
         if (fire.crafterWorkers > 0) return false;
-        Population pm = Factions.Player.Population;
+        Population pm = faction.Population;
         if (pm == null || pm.GetIdleCount() < 2) return false;   // keep a builder
         if (!fire.AssignSpecialist(Worker.Specialty.Crafter)) return false;
         Did("assign Crafter");
@@ -216,7 +313,7 @@ public abstract class SimPolicy
     /// in the first lab because no policy ever asked, so Iron Work (10 metal)
     /// and Iron Spears never came.
     /// </summary>
-    protected static bool HireWorker(SimState s, float woodShare, float foodShare, float stoneShare, float metalShare = 0f)
+    protected bool HireWorker(ColonyState s, float woodShare, float foodShare, float stoneShare, float metalShare = 0f)
     {
         BaseBuilding fire = s.Campfire;
         if (fire == null) return false;
@@ -229,17 +326,19 @@ public abstract class SimPolicy
         // no jobless colonist can never finish a hut, never gain housing, and so
         // never get a jobless colonist back — every run of the 2026-09-10 lab
         // sweep died on day 4-7 with 3 colonists, 0 buildings and 400+ wood.
-        Population pm = Factions.Player.Population;
+        Population pm = faction.Population;
         if (pm == null) return false;
         if (pm.GetIdleCount() <= BuilderReserve(s)) return false;
 
         int total = fire.GetTotalWorkers();
         if (total >= fire.maxWorkers) return false;
 
+        Knowledge k = faction.Knowledge;
+
         // The colony eats (2026-09-04): whatever the ratio says, keep one forager
         // per eight mouths so a strategy that ignores food starves on schedule
         // rather than by accident.
-        if (Factions.Player.Knowledge.HasJob(ResourceNode.ResourceType.Food)
+        if (k.HasJob(ResourceNode.ResourceType.Food)
             && fire.foodWorkers < Mathf.CeilToInt(s.Colonists / 8f))
         {
             if (!fire.AssignWorker(ResourceNode.ResourceType.Food)) return false;
@@ -253,7 +352,7 @@ public abstract class SimPolicy
         // on day 13, an army that could not re-arm a single loss, and a dawn
         // weapon count pinned at zero. So one quarryman is held the same way one
         // forager is, whatever the ratio says, once the colony can craft at all.
-        if (Factions.Player.Knowledge.HasJob(ResourceNode.ResourceType.Stone)
+        if (k.HasJob(ResourceNode.ResourceType.Stone)
             && fire.stoneWorkers < 1)
         {
             if (!fire.AssignWorker(ResourceNode.ResourceType.Stone)) return false;
@@ -262,10 +361,10 @@ public abstract class SimPolicy
         }
 
         // A job the colony has not researched yet scores nothing (2026-09-03)
-        if (!Factions.Player.Knowledge.HasJob(ResourceNode.ResourceType.Wood)) woodShare = 0f;
-        if (!Factions.Player.Knowledge.HasJob(ResourceNode.ResourceType.Food)) foodShare = 0f;
-        if (!Factions.Player.Knowledge.HasJob(ResourceNode.ResourceType.Stone)) stoneShare = 0f;
-        if (!Factions.Player.Knowledge.HasJob(ResourceNode.ResourceType.Metal)) metalShare = 0f;
+        if (!k.HasJob(ResourceNode.ResourceType.Wood)) woodShare = 0f;
+        if (!k.HasJob(ResourceNode.ResourceType.Food)) foodShare = 0f;
+        if (!k.HasJob(ResourceNode.ResourceType.Stone)) stoneShare = 0f;
+        if (!k.HasJob(ResourceNode.ResourceType.Metal)) metalShare = 0f;
 
         // Largest deficit against target share wins. Starts everyone on wood,
         // which is what a player does before the ratio means anything.
@@ -294,10 +393,10 @@ public abstract class SimPolicy
     /// Colonists held out of every job so something can always be built
     /// (2026-09-10). One from the first day, two once the colony is past six.
     /// </summary>
-    protected static int BuilderReserve(SimState s) => s.Colonists > 6 ? 2 : 1;
+    protected static int BuilderReserve(ColonyState s) => s.Colonists > 6 ? 2 : 1;
 
     /// <summary>Arm an idle colonist with a spear from the stockpile (the campfire checks food, cap and research).</summary>
-    protected static bool Recruit(SimState s)
+    protected bool Recruit(ColonyState s)
     {
         BaseBuilding fire = s.Campfire;
         if (fire == null) return false;
@@ -305,7 +404,7 @@ public abstract class SimPolicy
         // A recruit spends the same idle colonist a site needs, so the reserve
         // holds here too — until raiders land tonight, when a player would arm
         // the builder and finish the hut tomorrow.
-        Population pop = Factions.Player.Population;
+        Population pop = faction.Population;
         if (!s.RaidTonight && pop != null && pop.GetIdleCount() <= BuilderReserve(s)) return false;
 
         PickRecruitWeapon(s);
@@ -315,18 +414,19 @@ public abstract class SimPolicy
         fire.SpawnWarrior();
         if (fire.GetWarriorCount() <= before) return false;
         Did("recruit warrior");
+        if (!faction.IsPlayer) DevQuests.Signal("rival:recruited");
         return true;
     }
 
     /// <summary>Build a hut when housing is the thing capping the colony.</summary>
-    protected static bool BuildHutIfCapped(SimState s, int maxHuts)
+    protected bool BuildHutIfCapped(ColonyState s, int maxHuts)
     {
-        if (!Factions.Player.Knowledge.Has(Unlocks.Kind.Construction)) return false;
-        if (SimBuilder.HutCount + SimBuilder.PendingSites(BuildingType.Hut) >= maxHuts) return false;
-        if (Factions.Player.Population != null
-            && Factions.Player.Population.GetAvailableHousing() > 0
-            && SimBuilder.PendingSites(BuildingType.Hut) > 0) return false;
-        return SimBuilder.PlaceBuilding(BuildingType.Hut, 7f, 16f);
+        if (!CanBuild) return false;
+        if (builder.HutCount + builder.PendingSites(BuildingType.Hut) >= maxHuts) return false;
+        if (faction.Population != null
+            && faction.Population.GetAvailableHousing() > 0
+            && builder.PendingSites(BuildingType.Hut) > 0) return false;
+        return builder.PlaceBuilding(BuildingType.Hut, 7f, 16f);
     }
 
     // ---- the army (2026-09-10) ---------------------------------------------
@@ -346,7 +446,7 @@ public abstract class SimPolicy
     /// Warriors the strategy wants standing before the next raid lands:
     /// <paramref name="perRaider"/> of the raid's size, never under <paramref name="floor"/>.
     /// </summary>
-    protected static int WantedWarriors(SimState s, float perRaider, int floor)
+    protected static int WantedWarriors(ColonyState s, float perRaider, int floor)
         => Mathf.Max(floor, Mathf.CeilToInt(s.NextRaidSize * perRaider));
 
     /// <summary>
@@ -357,7 +457,7 @@ public abstract class SimPolicy
     /// single digits on day 24 and the army decayed from 28 to 12 for the
     /// day-30 raid. The economy has to grow with the men it feeds.
     /// </summary>
-    protected static int WantedWorkers(SimState s, int floor)
+    protected static int WantedWorkers(ColonyState s, int floor)
     {
         int cap = s.Campfire != null ? s.Campfire.maxWorkers : 10;
         return Mathf.Clamp(Mathf.Max(floor, Mathf.CeilToInt(s.Warriors * 0.5f)), floor, cap);
@@ -370,15 +470,15 @@ public abstract class SimPolicy
     /// strategy wants (workers + warriors + the builder reserve). One site at a
     /// time so the wood curve stays legible; capped so a strategy stays itself.
     /// </summary>
-    protected static bool KeepHousing(SimState s, int maxHuts, int wantedColonists)
+    protected bool KeepHousing(ColonyState s, int maxHuts, int wantedColonists)
     {
         if (!CanBuild) return false;
-        Population pop = Factions.Player.Population;
+        Population pop = faction.Population;
         if (pop == null) return false;
-        if (SimBuilder.PendingSites(BuildingType.Hut) > 0) return false;
-        if (SimBuilder.HutCount >= maxHuts) return false;
+        if (builder.PendingSites(BuildingType.Hut) > 0) return false;
+        if (builder.HutCount >= maxHuts) return false;
         if (s.Colonists + pop.GetAvailableHousing() >= wantedColonists) return false;
-        if (!SimBuilder.PlaceBuilding(BuildingType.Hut, 7f, 16f)) return false;
+        if (!builder.PlaceBuilding(BuildingType.Hut, 7f, 16f)) return false;
         Did("place hut");
         return true;
     }
@@ -387,7 +487,7 @@ public abstract class SimPolicy
     /// Spears first (never more than two ahead of the men to hold them), then a
     /// recruit. One action per call.
     /// </summary>
-    protected static bool KeepArmy(SimState s, int wanted)
+    protected bool KeepArmy(ColonyState s, int wanted)
     {
         if (s.Warriors >= wanted) return false;
         if (KeepSpears(s, Mathf.Min(2, wanted - s.Warriors))) return true;
@@ -395,7 +495,7 @@ public abstract class SimPolicy
     }
 
     /// <summary>Construction research gates every placement.</summary>
-    protected static bool CanBuild => Factions.Player.Knowledge.Has(Unlocks.Kind.Construction);
+    protected bool CanBuild => faction.Knowledge.Has(Unlocks.Kind.Construction);
 }
 
 /// <summary>
@@ -403,7 +503,7 @@ public abstract class SimPolicy
 /// militia is sized at six tenths of the raid, the ring is meant to make up the
 /// rest — and whether wall HP vs enemy DPS is in the right neighbourhood.
 /// </summary>
-public class TurtlePolicy : SimPolicy
+public class TurtlePolicy : GovernorPolicy
 {
     public override string Name => "Turtle";
 
@@ -415,13 +515,14 @@ public class TurtlePolicy : SimPolicy
 
     private bool ringOrdered;
 
-    public override void Tick(SimState s)
+    public override void Tick(ColonyState s)
     {
         // Spears before stone (2026-09-10): the first raid lands on day 3-4 and
         // a wall with nobody behind it only delays it. Then the ring's stone,
         // then Bowyery so the men behind the wall can shoot over it.
         if (ManageStance(s)) return;
-        SimBuilder.SetRing(RingHalf);   // huts stay off the ring line and out of its gate corridors (2026-09-10)
+        if (ConsiderExpeditions(s)) return;
+        builder.SetRing(RingHalf);   // huts stay off the ring line and out of its gate corridors (2026-09-10)
         if (Research(s, "woodcutting", "foraging", "spearcraft", "construction", "quarrying",
                         "crafting", "bowyery")) return;
 
@@ -434,7 +535,7 @@ public class TurtlePolicy : SimPolicy
         int wantedWarriors = WantedWarriors(s, 1f, 2) + (s.RaidTonight ? 1 : 0);
         int wantedWorkers = WantedWorkers(s, WorkerFloor);
         SetGoal(s, wantedWarriors, wantedWorkers,
-            ringOrdered ? $"ring up · gates {SimBuilder.GateCount}/8" : "ring pending");
+            ringOrdered ? $"ring up · gates {builder.GateCount}/8" : "ring pending");
 
         // Enough economy to pay for a wall, then wall, then the guard.
         if (s.Workers < 4) { if (HireWorker(s, 2f, 1f, 2f)) return; }
@@ -446,13 +547,13 @@ public class TurtlePolicy : SimPolicy
         // huts, or replacements for anything it lost.
         if (CanBuild && !ringOrdered && s.Wood >= WoodReserve + 90f && s.Stone >= 40)
         {
-            if (SimBuilder.PlaceWallRing(BuildingType.WoodenWall, RingHalf, 6) > 0) { Did("order wall segment"); return; }
+            if (builder.PlaceWallRing(BuildingType.WoodenWall, RingHalf, 6) > 0) { Did("order wall segment"); return; }
             ringOrdered = true;   // ring is complete or fully blocked
         }
 
         // The openings get their two gates each as soon as the ring is ordered:
         // a wall site per cell, converted the tick it finishes (2026-09-10).
-        if (ringOrdered && SimBuilder.GateOpenings(BuildingType.WoodenWall, RingHalf) > 0) { Did("gate an opening"); return; }
+        if (ringOrdered && builder.GateOpenings(BuildingType.WoodenWall, RingHalf) > 0) { Did("gate an opening"); return; }
 
         if (KeepArmy(s, wantedWarriors)) return;
         if (s.Workers < wantedWorkers) { if (HireWorker(s, 2f, 1f, 2f, 0.5f)) return; }
@@ -460,7 +561,7 @@ public class TurtlePolicy : SimPolicy
 
         // Top the ring back up as it gets chewed.
         if (CanBuild && ringOrdered && s.Wood >= WoodReserve + 150f
-            && SimBuilder.PlaceWallRing(BuildingType.WoodenWall, RingHalf, 6) > 0) Did("repair ring");
+            && builder.PlaceWallRing(BuildingType.WoodenWall, RingHalf, 6) > 0) Did("repair ring");
     }
 }
 
@@ -470,18 +571,19 @@ public class TurtlePolicy : SimPolicy
 /// economy behind it: a man per raider, and the wood goes on beds and better
 /// spears rather than a hoard (which prosperity counts against the colony).
 /// </summary>
-public class RushPolicy : SimPolicy
+public class RushPolicy : GovernorPolicy
 {
     public override string Name => "Rush";
 
     private const int MaxHuts = 8;
     private const int WorkerFloor = 5;
 
-    public override void Tick(SimState s)
+    public override void Tick(ColonyState s)
     {
         // Spearcraft third, then the beds, then the Workshop tier for Iron Spears
         // and Bows — a rush colony sits on the wood for them.
         if (ManageStance(s)) return;
+        if (ConsiderExpeditions(s)) return;
         // Quarrying was MISSING from this list until 2026-09-11, and Mining
         // requires it: Research skips an id whose prerequisite is unmet, so the
         // last three entries here were unreachable for the whole run and Rush
@@ -507,7 +609,7 @@ public class RushPolicy : SimPolicy
 /// seven tenths of it, not to the day number. The baseline every other
 /// strategy is read against.
 /// </summary>
-public class EcoPolicy : SimPolicy
+public class EcoPolicy : GovernorPolicy
 {
     public override string Name => "Eco";
 
@@ -515,18 +617,20 @@ public class EcoPolicy : SimPolicy
     private const int WorkerFloor = 10;
     private const int RingHalf = 12;   // 8 until 2026-09-10: huts need room inside, clear of the gate corridors
 
-    public override void Tick(SimState s)
+    public override void Tick(ColonyState s)
     {
         // Spearcraft before Construction (2026-09-10): the first raid does not
         // wait for the economy to finish.
         if (ManageStance(s)) return;
-        SimBuilder.SetRing(RingHalf);   // huts stay off the ring line and out of its gate corridors (2026-09-10)
+        if (ConsiderExpeditions(s)) return;
+        builder.SetRing(RingHalf);   // huts stay off the ring line and out of its gate corridors (2026-09-10)
         if (Research(s, "woodcutting", "foraging", "spearcraft", "construction", "quarrying",
                         "crafting", "mining", "iron_work", "bowyery")) return;
 
         int wantedWarriors = WantedWarriors(s, 0.7f, 1) + (s.RaidTonight ? 1 : 0);
         int wantedWorkers = WantedWorkers(s, WorkerFloor);
-        SetGoal(s, wantedWarriors, wantedWorkers, s.Day >= 12 ? "escape" : null);
+        bool escapes = faction.IsPlayer;   // a rival's Shipyard would end the PLAYER's run (GameManager.TriggerEscape)
+        SetGoal(s, wantedWarriors, wantedWorkers, escapes && s.Day >= 12 ? "escape" : null);
 
         if (KeepHousing(s, MaxHuts, wantedWorkers + wantedWarriors + BuilderReserve(s))) return;
         if (RunWorkshop(s)) return;
@@ -539,53 +643,30 @@ public class EcoPolicy : SimPolicy
 
         if (CanBuild && s.Day >= 4 && s.Wood >= 250 && s.Stone >= 150)
         {
-            if (SimBuilder.PlaceWallRing(BuildingType.WoodenWall, RingHalf, 12) > 0) { Did("order wall segment"); return; }
+            if (builder.PlaceWallRing(BuildingType.WoodenWall, RingHalf, 12) > 0) { Did("order wall segment"); return; }
             // Ring complete (or blocked): put the two gates in each opening (2026-09-10).
-            if (SimBuilder.GateOpenings(BuildingType.WoodenWall, RingHalf) > 0) { Did("gate an opening"); return; }
+            if (builder.GateOpenings(BuildingType.WoodenWall, RingHalf) > 0) { Did("gate an opening"); return; }
         }
 
         // The escape (2026-09-04, Slice 6): from day 12 research Shipwright, build the
         // Shipyard on the beach when the bank covers it, and sail the moment it stands.
         // A run that ends "escape" is the metric: how early can Eco leave?
-        if (s.Day >= 12)
+        // The player's colony only: the escape is the run's victory beat, and a
+        // rival leaving the island has no rule yet (2026-09-16) — it stays and
+        // spends the surplus on the wall and the militia instead.
+        if (escapes && s.Day >= 12)
         {
             if (Research(s, "shipwright")) return;
-            if (Factions.Player.Knowledge.Has(Unlocks.Kind.Shipwright) && CanBuild
-                && Shipyard.ActiveList.Count == 0 && SimBuilder.PendingSites(BuildingType.Shipyard) == 0)
+            if (faction.Knowledge.Has(Unlocks.Kind.Shipwright) && CanBuild
+                && builder.ShipyardCount == 0 && builder.PendingSites(BuildingType.Shipyard) == 0)
             {
-                if (SimBuilder.PlaceShoreBuilding(BuildingType.Shipyard, 60f)) { Did("place Shipyard"); return; }
+                if (builder.PlaceShoreBuilding(BuildingType.Shipyard, 60f)) { Did("place Shipyard"); return; }
             }
-            if (Shipyard.ActiveList.Count > 0)
+            if (builder.ShipyardCount > 0)
             {
-                Shipyard yard = TargetingUtil.FindNearestOwned(Shipyard.ActiveList, Vector3.zero, 0f, Factions.Player, out _);
+                Shipyard yard = TargetingUtil.FindNearestOwned(Shipyard.ActiveList, Vector3.zero, 0f, faction, out _);
                 if (yard != null) { Did("set sail"); yard.SetSail(); return; }
             }
         }
     }
 }
-
-/// <summary>Read-only snapshot handed to a policy each tick (no allocation).</summary>
-public struct SimState
-{
-    public BaseBuilding Campfire;
-    public int Day;
-    /// <summary>The director's dawn verdict for the coming night — what the raid banner shows a player.</summary>
-    public bool RaidTonight;
-    /// <summary>Raiders alive but nothing has happened for <see cref="RaidDirector.LurkSeconds"/> (2026-09-10).</summary>
-    public bool RaidLurking;
-    /// <summary>
-    /// Tonight's committed raid when <see cref="RaidTonight"/>, else what a roll
-    /// tomorrow would land against the colony as it stands (2026-09-10). The
-    /// number every strategy sizes its army against.
-    /// </summary>
-    public int NextRaidSize;
-    public int Workers;
-    public int Warriors;
-    public int Enemies;
-    public float Wood, Food, Stone;
-    /// <summary>Everyone on the roster (idle, working, crafting, soldiering) — the mouths to feed.</summary>
-    public int Colonists;
-    /// <summary>Population.HungerState as an int: 0 fed, 1 hungry, 2 starving (2026-09-04).</summary>
-    public int Hunger;
-}
-#endif

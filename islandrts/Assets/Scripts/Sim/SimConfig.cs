@@ -17,7 +17,7 @@ public class SimConfig
     /// <summary>Row label in the CSV. Auto-filled from index if left blank.</summary>
     public string id = "";
 
-    /// <summary>Turtle | Rush | Eco — see <see cref="SimPolicy.Create"/>.</summary>
+    /// <summary>Turtle | Rush | Eco — see <see cref="GovernorPolicy.Create"/>.</summary>
     public string strategy = "Eco";
 
     /// <summary>Seeds UnityEngine.Random for the whole run (spawn jitter, AI stagger, ORCA priorities).</summary>
@@ -138,9 +138,9 @@ public class SimConfig
     public int rivalCount = 0;
 
     /// <summary>
-    /// How a rival plays, same vocabulary as <see cref="strategy"/>. Reserved:
-    /// slice A rivals are not governed, so nothing reads this yet. It is here so
-    /// the sweep files a slice-B lab runs are written once.
+    /// How a rival plays, same vocabulary as <see cref="strategy"/> (read since
+    /// 2026-09-16, slice B). Empty = the shipped rule, a random personality per
+    /// rival, drawn from the seeded stream so a seeded run lands the same one.
     /// </summary>
     public string rivalStrategy = "";
 

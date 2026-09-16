@@ -67,6 +67,14 @@ public static class SimHooks
     /// </summary>
     public static int RivalCount;
 
+    /// <summary>
+    /// How a sweep's rivals play (2026-09-16, slice B): a <see cref="GovernorPolicy"/>
+    /// name, or empty for the shipped rule — a random personality per rival.
+    /// Read by <see cref="GovernorRunner"/> when it adopts a colony, and only
+    /// under <see cref="Simulating"/>.
+    /// </summary>
+    public static string RivalStrategy = "";
+
     /// <summary>Case-insensitive lookup of a name in a name table; -1 when empty or unknown.</summary>
     public static int IndexOfName(string[] names, string name)
     {

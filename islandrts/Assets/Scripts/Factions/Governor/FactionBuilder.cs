@@ -1,40 +1,60 @@
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
 using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Places buildings the way a player would, minus the mouse.
+/// Places buildings the way a player would, minus the mouse — for ONE colony.
+/// Was the static <c>SimBuilder</c> (sim-only) until 2026-09-16, lap step 3
+/// slice B: a rival colony's governor places through the same code now, so it
+/// ships in every build and every colony holds its own instance. The ring
+/// bookkeeping below (<see cref="RingHalf"/>, the hole set, the sweep timer)
+/// is colony state, and colony state in a static is a leak — two colonies
+/// sharing one hole set would each condemn the other's ring cells.
 ///
 /// Deliberately mirrors <c>GhostPlacer.ConfirmPlacement</c> and
 /// <c>WallLinePlacer.ConfirmWallLine</c> step for step — affordability check,
 /// spend, T2 flatten, instantiate the construction site (never the finished
-/// building), Buildings layer, SetBuildingType — so a simulated build costs the
+/// building), Buildings layer, SetBuildingType — so a governed build costs the
 /// same, takes the same build time, and is destructible the same as a real one.
-/// If those confirm paths ever change, this has to change with them.
+/// If those confirm paths ever change, this has to change with them (slice B2
+/// is the step where they call THIS instead).
 ///
 /// The one thing it does NOT reproduce is placement validity as the ghost sees
 /// it: it uses the same TerrainGrid.IsBuildable + Physics.CheckBox + WallGrid
 /// tests, but not the no-build-zone overlap rules, so it can occasionally place
 /// closer to a neighbour than a player could.
+///
+/// The fog gates apply to the PLAYER's builder only: rivals stay omniscient by
+/// decision (CLAUDE.md, Factions), and a rival that could not wall unexplored
+/// ground would never finish a ring on an island nobody of theirs has walked.
 /// </summary>
-public static class SimBuilder
+public sealed class FactionBuilder
 {
-    private static readonly Collider[] overlap = new Collider[8];
+    public readonly Faction faction;
 
-    public static BaseBuilding Campfire => Factions.Player.Campfire;
+    public FactionBuilder(Faction faction) { this.faction = faction; }
+
+    // Scratch, not state: written and read inside one call.
+    private static readonly Collider[] overlap = new Collider[8];
+    private static readonly List<Vector2Int> detour = new List<Vector2Int>();
+
+    public BaseBuilding Campfire => faction.Campfire;
 
     // ---- counts the policies and metrics read -----------------------------
 
-    public static int HutCount => Hut.ActiveList.Count;
-    public static int WallCount => Wall.ActiveList.Count + Gate.ActiveList.Count;
-    public static int TowerCount => Watchtower.ActiveList.Count;
+    public int HutCount => TargetingUtil.CountOwned(Hut.ActiveList, faction);
+    public int WallCount => TargetingUtil.CountOwned(Wall.ActiveList, faction) + TargetingUtil.CountOwned(Gate.ActiveList, faction);
+    public int TowerCount => TargetingUtil.CountOwned(Watchtower.ActiveList, faction);
+    public int WorkshopCount => TargetingUtil.CountOwned(Workshop.ActiveList, faction);
+    public int ShipyardCount => TargetingUtil.CountOwned(Shipyard.ActiveList, faction);
+    /// <summary>Gates standing. The ring's eight opening cells are the only place a governor makes them.</summary>
+    public int GateCount => TargetingUtil.CountOwned(Gate.ActiveList, faction);
 
     // ---- the ring the policy is building (2026-09-10) ---------------------
     // Ring cells the builder could neither wall nor notch around; a hole is a
     // gap raiders walk through, and the third lab's Turtle lost every run whose
     // ring had one (seed 1042: 2 holes, 4711: 8) and won the one with none.
-    private static readonly HashSet<Vector2Int> holeCells = new HashSet<Vector2Int>();
-    public static int RingHoles => holeCells.Count;
+    private readonly HashSet<Vector2Int> holeCells = new HashSet<Vector2Int>();
+    public int RingHoles => holeCells.Count;
     /// <summary>
     /// A hole is given up on for this sweep only (2026-09-11). The overnight batch
     /// lost every one of Turtle's 36 baseline runs with ~12 permanent holes in an
@@ -44,27 +64,20 @@ public static class SimBuilder
     /// every hole is re-examined, and the count at dawn is the last sweep's verdict.
     /// </summary>
     private const float HoleRetrySeconds = 45f;
-    private static float nextHoleSweep;
+    private float nextHoleSweep;
     /// <summary>Half-extent of the ring the policy builds, 0 = none; keeps huts off its line and out of its gate corridors.</summary>
-    public static int RingHalf { get; private set; }
-    public static void SetRing(int halfExtent) => RingHalf = halfExtent;
+    public int RingHalf { get; private set; }
+    public void SetRing(int halfExtent) => RingHalf = halfExtent;
 
-    /// <summary>Per-run state; SimRunner calls it before every run.</summary>
-    public static void ResetRun()
-    {
-        holeCells.Clear();
-        nextHoleSweep = 0f;
-        RingHalf = 0;
-    }
-
-    /// <summary>Construction sites of one type currently in flight (so a policy doesn't double-order).</summary>
-    public static int PendingSites(BuildingType type)
+    /// <summary>This colony's construction sites of one type currently in flight (so a policy doesn't double-order).</summary>
+    public int PendingSites(BuildingType type)
     {
         int n = 0;
         var list = ConstructionSite.ActiveList;
         for (int i = 0; i < list.Count; i++)
         {
-            if (list[i] != null && list[i].buildingType == type) n++;
+            ConstructionSite s = list[i];
+            if (s != null && s.buildingType == type && s.Faction == faction) n++;
         }
         return n;
     }
@@ -75,13 +88,13 @@ public static class SimBuilder
     /// Places one non-wall building at the first workable spot on a ring around
     /// the campfire, walking outward. Returns false if unaffordable or boxed in.
     /// </summary>
-    public static bool PlaceBuilding(BuildingType type, float startRadius, float maxRadius)
+    public bool PlaceBuilding(BuildingType type, float startRadius, float maxRadius)
     {
         BuildingData data = BuildingDatabase.Instance != null
             ? BuildingDatabase.Instance.GetBuildingData(type) : null;
         if (data == null || data.constructionSitePrefab == null) return false;
         if (Campfire == null) return false;
-        if (!Factions.Player.Resources.CanAfford(data.woodCost, data.foodCost, data.stoneCost, data.metalCost)) return false;
+        if (!faction.Resources.CanAfford(data.woodCost, data.foodCost, data.stoneCost, data.metalCost)) return false;
 
         Vector3 origin = Campfire.transform.position;
 
@@ -100,7 +113,7 @@ public static class SimBuilder
                 if (!IsClear(pos, data.buildingSize)) continue;
                 if (BlocksRing(pos)) continue;
 
-                Spawn(data, type, pos, flatten: true);
+                SpawnSite(data, type, pos, flatten: true);
                 return true;
             }
         }
@@ -117,7 +130,7 @@ public static class SimBuilder
     /// through without queueing on one cell.
     /// Returns how many sites were placed (0 if unaffordable or fully blocked).
     /// </summary>
-    public static int PlaceWallRing(BuildingType wallType, int halfExtent, int maxSites)
+    public int PlaceWallRing(BuildingType wallType, int halfExtent, int maxSites)
     {
         BuildingData data = BuildingDatabase.Instance != null
             ? BuildingDatabase.Instance.GetBuildingData(wallType) : null;
@@ -180,10 +193,9 @@ public static class SimBuilder
     /// rather than condemning it. Only when no depth works is the cell a hole.
     /// </summary>
     private const int MaxDetourDepth = 4;
-    private static readonly List<Vector2Int> detour = new List<Vector2Int>();
 
-    private static int Notch(BuildingData data, BuildingType wallType, Vector2Int cell,
-                             Vector2Int center, int halfExtent, int budget)
+    private int Notch(BuildingData data, BuildingType wallType, Vector2Int cell,
+                      Vector2Int center, int halfExtent, int budget)
     {
         int dx = cell.x - center.x, dy = cell.y - center.y;
         bool onRow = Mathf.Abs(dy) == halfExtent;
@@ -201,7 +213,7 @@ public static class SimBuilder
                 Vector3 pos = WallGrid.Instance.GridToWorld(detour[i]);
                 pos.y = GroundY(pos);
                 if (TerrainGrid.Instance != null && !TerrainGrid.Instance.IsBuildable(pos)) { blocked = true; break; }
-                if (FogOfWar.Instance != null && !FogOfWar.Instance.IsExplored(pos)) unexplored = true;
+                if (!Explored(pos)) unexplored = true;
             }
             if (blocked) continue;          // try one cell deeper
             if (unexplored) return 0;       // come back once it is seen
@@ -257,7 +269,7 @@ public static class SimBuilder
     /// The band is two cells either side of the line; a corridor is five cells
     /// deep on both sides of each opening.
     /// </summary>
-    private static bool BlocksRing(Vector3 pos)
+    private bool BlocksRing(Vector3 pos)
     {
         if (RingHalf <= 0 || Campfire == null || WallGrid.Instance == null) return false;
         Vector2Int c = WallGrid.Instance.WorldToGrid(Campfire.transform.position);
@@ -287,7 +299,7 @@ public static class SimBuilder
     /// the ring's gaps and no wall took a hit all lab long. Returns how many
     /// cells it acted on this call (0 = nothing to do or unaffordable).
     /// </summary>
-    public static int GateOpenings(BuildingType wallType, int halfExtent)
+    public int GateOpenings(BuildingType wallType, int halfExtent)
     {
         BuildingData data = BuildingDatabase.Instance != null
             ? BuildingDatabase.Instance.GetBuildingData(wallType) : null;
@@ -306,18 +318,16 @@ public static class SimBuilder
         return acted;
     }
 
-    /// <summary>Gates standing. The ring's eight opening cells are the only place the sim makes them.</summary>
-    public static int GateCount => Gate.ActiveList.Count;
-
-    private static int GateCell(BuildingData data, BuildingType wallType, Vector2Int cell)
+    private int GateCell(BuildingData data, BuildingType wallType, Vector2Int cell)
     {
         MonoBehaviour occupant = WallGrid.Instance.GetWallAt(cell);
         if (occupant == null) return TryPlaceWallCell(data, wallType, cell) == CellResult.Placed ? 1 : 0;
 
         Wall wall = occupant as Wall;
-        if (wall == null) return 0;   // a site still building, or already a gate
-        if (!Factions.Player.Resources.CanAfford(5, 0, 0)) return 0;
-        Factions.Player.Resources.SpendResources(5, 0, 0);   // BuildPlacement's G cost
+        if (wall == null) return 0;                    // a site still building, or already a gate
+        if (wall.Faction != faction) return 0;         // a neighbour's wall on my ring line is theirs to gate
+        if (!faction.Resources.CanAfford(5, 0, 0)) return 0;
+        faction.Resources.SpendResources(5, 0, 0);     // BuildPlacement's G cost
         wall.UpgradeToGate();
         return 1;
     }
@@ -325,18 +335,18 @@ public static class SimBuilder
     private enum CellResult { Placed, Occupied, Unaffordable, Unbuildable, Unexplored }
 
     /// <summary>One wall site at a grid cell, the WallLinePlacer.CellBlocked tests included.</summary>
-    private static CellResult TryPlaceWallCell(BuildingData data, BuildingType wallType, Vector2Int cell)
+    private CellResult TryPlaceWallCell(BuildingData data, BuildingType wallType, Vector2Int cell)
     {
         if (WallGrid.Instance.HasWallAt(cell)) return CellResult.Occupied;
-        if (!Factions.Player.Resources.CanAfford(data.woodCost, data.foodCost, data.stoneCost)) return CellResult.Unaffordable;
+        if (!faction.Resources.CanAfford(data.woodCost, data.foodCost, data.stoneCost)) return CellResult.Unaffordable;
 
         Vector3 pos = WallGrid.Instance.GridToWorld(cell);
         pos.y = GroundY(pos);
         if (TerrainGrid.Instance != null && !TerrainGrid.Instance.IsBuildable(pos)) return CellResult.Unbuildable;
-        if (FogOfWar.Instance != null && !FogOfWar.Instance.IsExplored(pos)) return CellResult.Unexplored;   // WallLinePlacer.CellBlocked
+        if (!Explored(pos)) return CellResult.Unexplored;   // WallLinePlacer.CellBlocked
 
         // Walls deliberately do NOT flatten — they follow the terrain per cell.
-        Spawn(data, wallType, pos, flatten: false);
+        SpawnSite(data, wallType, pos, flatten: false);
         return CellResult.Placed;
     }
 
@@ -348,13 +358,13 @@ public static class SimBuilder
     /// of the water is clear, then the normal confirm mirror. False when none is
     /// found within <paramref name="maxRadius"/> or it is unaffordable.
     /// </summary>
-    public static bool PlaceShoreBuilding(BuildingType type, float maxRadius)
+    public bool PlaceShoreBuilding(BuildingType type, float maxRadius)
     {
         BuildingData data = BuildingDatabase.Instance != null
             ? BuildingDatabase.Instance.GetBuildingData(type) : null;
         if (data == null || data.constructionSitePrefab == null) return false;
         if (Campfire == null || TerrainGrid.Instance == null) return false;
-        if (!Factions.Player.Resources.CanAfford(data.woodCost, data.foodCost, data.stoneCost, data.metalCost)) return false;
+        if (!faction.Resources.CanAfford(data.woodCost, data.foodCost, data.stoneCost, data.metalCost)) return false;
 
         Vector3 origin = Campfire.transform.position;
         for (float radius = 6f; radius <= maxRadius; radius += 2f)
@@ -371,16 +381,16 @@ public static class SimBuilder
                 if (!IsClear(pos, data.buildingSize)) continue;
                 if (BlocksRing(pos)) continue;
 
-                Spawn(data, type, pos, flatten: true);
+                SpawnSite(data, type, pos, flatten: true);
                 return true;
             }
         }
         return false;
     }
 
-    private static void Spawn(BuildingData data, BuildingType type, Vector3 pos, bool flatten)
+    private void SpawnSite(BuildingData data, BuildingType type, Vector3 pos, bool flatten)
     {
-        Factions.Player.Resources.SpendResources(data.woodCost, data.foodCost, data.stoneCost, data.metalCost);
+        faction.Resources.SpendResources(data.woodCost, data.foodCost, data.stoneCost, data.metalCost);
 
         if (flatten && TerrainGrid.Instance != null)
         {
@@ -389,12 +399,21 @@ public static class SimBuilder
         }
         pos.y += data.placementHeight;
 
-        GameObject site = global::Spawn.Owned(data.constructionSitePrefab, pos, Quaternion.identity, Factions.Player);   // global:: because this class has its own Spawn method
+        GameObject site = Spawn.Owned(data.constructionSitePrefab, pos, Quaternion.identity, faction);
         int layer = LayerMask.NameToLayer("Buildings");
         if (layer >= 0) site.layer = layer;
 
         ConstructionSite comp = site.GetComponent<ConstructionSite>();
         if (comp != null) comp.SetBuildingType(type);
+
+        if (!faction.IsPlayer) DevQuests.Signal("rival:built");
+    }
+
+    /// <summary>The fog gate, player-only: a rival sees the whole island (CLAUDE.md, Factions).</summary>
+    private bool Explored(Vector3 pos)
+    {
+        if (!faction.IsPlayer) return true;
+        return FogOfWar.Instance == null || FogOfWar.Instance.IsExplored(pos);
     }
 
     private static float GroundY(Vector3 pos)
@@ -402,10 +421,10 @@ public static class SimBuilder
         return TerrainGrid.Instance != null ? TerrainGrid.Instance.SampleHeight(pos) : 0f;
     }
 
-    private static bool IsClear(Vector3 pos, Vector3 size)
+    private bool IsClear(Vector3 pos, Vector3 size)
     {
         if (TerrainGrid.Instance != null && !TerrainGrid.Instance.IsBuildable(pos)) return false;
-        if (FogOfWar.Instance != null && !FogOfWar.Instance.IsExplored(pos)) return false;   // GhostPlacer's fog gate
+        if (!Explored(pos)) return false;   // GhostPlacer's fog gate
 
         int mask = LayerMask.GetMask("Buildings");
         int hits = Physics.OverlapBoxNonAlloc(
@@ -424,4 +443,3 @@ public static class SimBuilder
         return true;
     }
 }
-#endif

@@ -1,6 +1,20 @@
 # Rival Colonies — arrival, territory, then the governor
 
-**Status (2026-09-11): SLICE A IS BUILT, uncommitted, unplaytested and unswept. Slice B is untouched and is still the live plan below.**
+**Status (2026-09-16): SLICE A IS COMMITTED (`f9a00de`, unplaytested and unswept). SLICE B's B1 + B3 ARE BUILT, uncommitted:
+`SimPolicy` → `GovernorPolicy` and `SimBuilder` → `FactionBuilder` are per-faction instances in `Scripts/Factions/Governor/`
+(shipping in every build, no longer sim-only), `Governor` binds the pair to a faction, and `GovernorRunner` (runtime-added
+by `GameManager.Awake`) adopts every rival with a campfire and ticks it at 1 Hz on a staggered offset. The sim's
+simulated player is a `Governor` too, ticked by `SimRunner`. Decisions taken 2026-09-16: a rival's personality is RANDOM
+per rival unless `SimConfig.rivalStrategy` names one; a rival plays by the same rules (pays every cost, researches like a
+player) except that its jobless colonists work its bench from day one (`StationWorkAvailable`'s Crafting gate is
+player-only) because it has no castaway; a rival never researches Shipwright or sails (a rival `SetSail` would end the
+PLAYER's run). B2 (`GhostPlacer` / `WallLinePlacer` calling `FactionBuilder`, deleting the "change both together" rule)
+and B4 (build order as a score) are still open. **B5 minus trade is built too (same day): `Diplomacy` (opinion
+per pair, dawn tick, dwell flips, gift / war), `Expedition` (a colony's real warriors warped to another shore, their
+blackboard fire swapped, home at dawn — landings on a Hostile neighbour, relief for an Allied one), night raids rolled
+onto a shore by prosperity (`RaidDirector.Target`), the DIPLOMACY screen and the bar's Neighbours entry, allies on the
+minimap. Trade is still open.** Owed: the sim player rebuild, a `rivalCount: 0` regression lab, the "Neighbours that
+grow" + "Neighbours and the raid" quest batches, then a `rivalCount: 1` lab.**
 Slice A landed A1—A7 as written, with three decisions taken at the start: the territory penalty of A4 applies to EVERY
 colony including the player's (so post-2026-09-11 baselines are not comparable until a `rivalCount: 0` regression lab
 says they are), the patch radius reuses `ForageAvailability.HomeRadius` 70, and `ForageAvailability` itself needed no

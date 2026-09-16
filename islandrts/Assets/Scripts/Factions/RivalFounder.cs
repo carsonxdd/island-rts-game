@@ -36,6 +36,13 @@ public static class RivalFounder
     public const int Survivors = 4;
 
     /// <summary>
+    /// The research a founding colony has already done: the three gathering
+    /// jobs, the militia and building. The same head start the debug camp had,
+    /// spelled as entries so <see cref="Knowledge.IsDone"/> agrees.
+    /// </summary>
+    public static readonly string[] FoundingResearch = { "woodcutting", "foraging", "quarrying", "spearcraft", "construction" };
+
+    /// <summary>
     /// Builds <paramref name="rival"/>'s colony at <paramref name="campfireSite"/>,
     /// landing its people at <paramref name="coveCenter"/>. Drive it with
     /// <c>StartCoroutine</c>; it gives up quietly when the scene has no campfire
@@ -51,9 +58,13 @@ public static class RivalFounder
         rival.SetCove(coveCenter);
 
         rival.Resources.Set(StartingWood, StartingFood, 0, 0);
+
+        // What they land knowing, as research DONE rather than bare unlock flags
+        // (2026-09-16): the governor's research list skips a done entry, so a
+        // colony that only held the flags would spend its first sticks buying
+        // Woodcutting again. Complete grants the same kinds.
         Knowledge k = rival.Knowledge;
-        k.Grant(Unlocks.Kind.WoodJob); k.Grant(Unlocks.Kind.FoodJob); k.Grant(Unlocks.Kind.StoneJob);
-        k.Grant(Unlocks.Kind.Militia); k.Grant(Unlocks.Kind.Construction);
+        for (int i = 0; i < FoundingResearch.Length; i++) k.Complete(ResearchCatalog.Find(FoundingResearch[i]));
 
         Vector3 site = campfireSite;
         tg.FlattenArea(site, 2.2f, 1.6f);

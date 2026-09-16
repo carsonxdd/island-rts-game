@@ -29,7 +29,9 @@
 #   sky:<sunny|slightly|partly|cloudy|off>  graphics:<preset|custom>
 #   faction:bootstrap  faction:rival  faction:<hostile|neutral|allied>
 #   repair  repair:gate  raid:rested  raider:wall_stop  raider:wall_over_warrior
-#   rival:landed  rival:met  rival:territory
+#   rival:landed  rival:met  rival:territory  rival:governed  rival:built  rival:recruited
+#   diplomacy:<hostile|neutral|allied>  diplomacy:attacked  diplomacy:trespass  diplomacy:peace
+#   diplomacy:war  diplomacy:screen  diplomacy:landing  diplomacy:relief  raid:target_rival
 #   queue:add  queue:run  deposit:walk_on  craft:shared  build:keep_placing
 #   loiter:step_aside  loiter:patrol_moved_on
 # crowd:split, dropoff:spread and patrol:spread are STATE checks polled by the
@@ -38,6 +40,34 @@
 # changelog and the phase history. Quest ids are batch slug + index, so a batch
 # that loses quests from the middle needs a RESET on the DEV tab (done 2026-09-13
 # after the first report, Playtests/playtest_2026-09-13_2204.md).
+
+## 2026-09-16 Neighbours and the raid
+- @diplomacy:screen Open DIPLOMACY from the Neighbours entry or the pause menu
+- @diplomacy:peace Send a gift; the opinion word warms and the button locks for the day
+- @diplomacy:war Declare war: confirm, banner, the entry reads At war
+- @diplomacy:hostile A neighbour turns hostile on its own after two cool days
+- @diplomacy:allied A neighbour turns allied after two warm days
+- @diplomacy:trespass Your warriors camped in their patch cool them by dawn
+- @diplomacy:attacked A blow on their warrior is remembered
+- @raid:target_rival The dawn warning names the raid landing on another shore
+- @diplomacy:landing A hostile camp lands a party on your shore by day
+- @diplomacy:relief An allied camp sends warriors when raiders are at your fire
+- A raid on the rival lands over THEIR cove, not yours, and their militia meets it
+- A landing party fights your militia only, never your buildings, and is gone at dawn
+- An ally's camp and people show on the minimap without being watched
+- The calendar chip says "raiders sail elsewhere" on a night that is not yours
+- F3 shows the opinion number next to each relation
+
+## 2026-09-16 Neighbours that grow
+- @rival:governed A rival colony gets a governor the moment its fire stands
+- @rival:built A rival places a construction site of its own
+- @rival:recruited A rival arms a warrior from its own stockpile
+- F4 rival camp: F3 shows its strategy, goal and last action within a minute
+- By its fourth day a rival has a second hut and a wall segment under way
+- Its colonists stand at its own bench; the player's queue is untouched
+- Your research is never blocked by an entry queued at a rival bench
+- Raiders lurking at YOUR fire do not send the rival's militia marching over
+- A rival never researches Shipwright or builds a Shipyard
 
 ## 2026-09-13 Nobody idles in the gateway
 - @loiter:step_aside An idle colonist stopped in a gate steps out of it

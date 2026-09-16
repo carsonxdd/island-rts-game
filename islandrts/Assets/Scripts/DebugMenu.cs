@@ -615,11 +615,12 @@ public class DebugMenu : MonoBehaviour
 
         Attitude now = Factions.Player.Toward(rival);
         GUILayout.BeginHorizontal();
-        GUILayout.Label("Relation: " + now, GUILayout.Width(120));
+        GUILayout.Label("Relation: " + now + " (" + Mathf.RoundToInt(Diplomacy.Opinion(Factions.Player, rival)) + ")", GUILayout.Width(170));
         for (int i = 0; i < Attitudes.Length; i++)
         {
             GUI.enabled = now != Attitudes[i];
-            if (GUILayout.Button(Attitudes[i].ToString())) Relations.Set(Factions.Player, rival, Attitudes[i]);
+            // Through Diplomacy, not Relations: the opinion has to agree or the next dawn flips it back
+            if (GUILayout.Button(Attitudes[i].ToString())) Diplomacy.ForceAttitude(Factions.Player, rival, Attitudes[i]);
         }
         GUI.enabled = true;
         GUILayout.EndHorizontal();
@@ -657,6 +658,7 @@ public class DebugMenu : MonoBehaviour
         if (rival == null) { spawningRival = false; yield break; }
 
         yield return RivalFounder.Found(rival, site, cove);
+        Diplomacy.MarkKnown(rival);   // spawned in front of the player: no first contact to wait for
         spawningRival = false;
     }
 

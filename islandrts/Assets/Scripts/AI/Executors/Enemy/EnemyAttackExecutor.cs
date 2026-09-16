@@ -344,6 +344,9 @@ public class EnemyAttackExecutor : ActionExecutor
         bb.enemy.PlayAttackSoundPublic();
 
         if (bb.currentTargetHealth != null)
+        {
+            Diplomacy.NoteAttack(bb.faction, bb.currentTargetFaction);   // no-op for the Raiders; a rival's landing party counts
             bb.currentTargetHealth.TakeDamage(bb.damage);
+        }
     }
 }

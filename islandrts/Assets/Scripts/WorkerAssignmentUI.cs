@@ -903,7 +903,7 @@ public class WorkerAssignmentUI : MonoBehaviour
             int state;
             if (Factions.Player.Knowledge.IsDone(d)) state = 0;
             else if (!Factions.Player.Knowledge.IsAvailable(d)) state = 1;
-            else if (CraftStation.IsQueuedAnywhere(d)) state = 2;
+            else if (CraftStation.IsQueuedAnywhere(d, Factions.Player)) state = 2;
             else state = d.CanAfford(hands, stock) ? 4 : 3;
 
             if (state != row.stateLast)
