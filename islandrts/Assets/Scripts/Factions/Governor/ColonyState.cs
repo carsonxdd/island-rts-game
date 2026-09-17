@@ -31,13 +31,29 @@ public struct ColonyState
     /// <summary>The clock is past dusk. A landing party sails by day (2026-09-16).</summary>
     public bool Night;
     public int Workers;
+    /// <summary>Full-time warriors only (<see cref="BaseBuilding.GetWarriorCount"/>). A mustered levy is <see cref="Mustered"/>.</summary>
     public int Warriors;
+    /// <summary>Weapons in the stockpile right now — what the next alarm can put in colonists' hands (2026-09-16, the levy).</summary>
+    public int SpareWeapons;
+    /// <summary>Colonists standing in a warrior body under the alarm right now.</summary>
+    public int Mustered;
     public int Enemies;
     public float Wood, Food, Stone;
     /// <summary>Everyone on the roster (idle, working, crafting, soldiering) — the mouths to feed.</summary>
     public int Colonists;
     /// <summary>Population.HungerState as an int: 0 fed, 1 hungry, 2 starving (2026-09-04).</summary>
     public int Hunger;
+
+    /// <summary>
+    /// What the levy can field (2026-09-16): the mustered plus every spare weapon
+    /// that has a colonist to hold it. A rack of eight spears in a colony of four
+    /// arms four; the rest is stock. Bodies are the roster minus the full-time
+    /// warriors and the already-mustered.
+    /// </summary>
+    public int Levy => Mustered + Mathf.Max(0, Mathf.Min(SpareWeapons, Colonists - Warriors - Mustered));
+
+    /// <summary>Full-time warriors plus the levy: what stands at the fire when the alarm goes up.</summary>
+    public int Strength => Warriors + Levy;
 
     /// <summary>This second's picture of <paramref name="faction"/>'s colony.</summary>
     public static ColonyState Capture(Faction faction, DayNightCycle clock)
@@ -59,6 +75,8 @@ public struct ColonyState
             Night = clock != null && clock.IsNightTime(),
             Workers = fire != null ? fire.GetTotalWorkers() : 0,
             Warriors = fire != null ? fire.GetWarriorCount() : 0,
+            SpareWeapons = faction.Militia.SpareWeapons,
+            Mustered = faction.Militia.Mustered,
             Enemies = Enemy.ActiveList.Count,
             Wood = rm.wood,
             Food = rm.food,

@@ -59,7 +59,7 @@ W
 W ("Commit {0} - started {1:yyyy-MM-dd HH:mm} - written {2:yyyy-MM-dd HH:mm}" -f $Commit, $Started, (Get-Date))
 W
 # Single-quoted on purpose: a backtick inside double quotes is an escape.
-W 'Win = victory or escape. CI = Wilson 95%. `day` = mean calendar day reached on a LOSS. `fire min` = mean campfire_hp_min over raid nights (a breach reads as a low number here before it reads as a defeat). `w.lost` = warriors lost, summed. `weap` = mean weapons_dawn (spare weapons in the stockpile at dawn). `holes` = mean ring_holes on the last logged day. `hungry` = dawns with hunger > 0. **Read err/timeout first - those are harness problems, not balance.**'
+W 'Win = victory or escape. CI = Wilson 95%. `day` = mean calendar day reached on a LOSS. `fire min` = mean campfire_hp_min over raid nights (a breach reads as a low number here before it reads as a defeat). `w.lost` = full-time warriors lost, summed. `levy` = mean mustered_peak over raid nights (colonists who stood up with a spare weapon, 2026-09-16). `l.lost` = mustered colonists lost, summed. `weap` = mean weapons_dawn (spare weapons in the stockpile at dawn). `holes` = mean ring_holes on the last logged day. `hungry` = dawns with hunger > 0. **Read err/timeout first - those are harness problems, not balance.**'
 W
 
 $sweepDirs = Get-ChildItem $dirPath -Directory | Where-Object { Test-Path (Join-Path $_.FullName "runs.csv") } | Sort-Object Name
@@ -129,8 +129,8 @@ foreach ($sd in $sweepDirs) {
     $extraStrats = @($annotated | ForEach-Object { $_.strategy } | Where-Object { $stratOrder -notcontains $_ } | Select-Object -Unique)
     $stratOrder = $stratOrder + $extraStrats
 
-    W "| variant | strategy | n | won | win% [CI] | day | raids | fire min | w.lost | weap | holes | hungry | err/timeout |"
-    W "|---|---|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|"
+    W "| variant | strategy | n | won | win% [CI] | day | raids | fire min | w.lost | levy | l.lost | weap | holes | hungry | err/timeout |"
+    W "|---|---|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"
     foreach ($v in $variantOrder) {
         foreach ($s in $stratOrder) {
             $g = @($annotated | Where-Object { $_.variant -eq $v -and $_.strategy -eq $s })
@@ -142,14 +142,16 @@ foreach ($sd in $sweepDirs) {
             $raidNights = @($allDays | Where-Object { (Num $_.raid) -gt 0 })
             $fireMin = Mean ($raidNights | ForEach-Object { Num $_.campfire_hp_min })
             $wLost = ($allDays | ForEach-Object { Num $_.warriors_lost } | Measure-Object -Sum).Sum
+            $levy = Mean ($raidNights | ForEach-Object { Num $_.mustered_peak })
+            $lLost = ($allDays | ForEach-Object { Num $_.levy_lost } | Measure-Object -Sum).Sum
             $weap = Mean ($allDays | ForEach-Object { Num $_.weapons_dawn })
             $lastDays = @($g | ForEach-Object { $ds = @($_.days); if ($ds.Count -gt 0) { $ds[$ds.Count - 1] } })
             $holes = Mean ($lastDays | ForEach-Object { Num $_.ring_holes })
             $hungry = @($allDays | Where-Object { (Num $_.hunger_dawn) -gt 0 }).Count
             $vLabel = if ($v -eq "-") { "" } else { $v }
-            W ("| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} | {9} | {10} | {11} | {12} |" -f
+            W ("| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} | {9} | {10} | {11} | {12} | {13} | {14} |" -f
                 $vLabel, $s, $g.Count, $gWon, (Wilson $gWon $g.Count), (F1 (Mean $lossDays)), $raidNights.Count,
-                (F0 $fireMin), (F0 $wLost), (F1 $weap), (F1 $holes), $hungry, $gBad)
+                (F0 $fireMin), (F0 $wLost), (F1 $levy), (F0 $lLost), (F1 $weap), (F1 $holes), $hungry, $gBad)
             $overall += [pscustomobject]@{ sweep = $name; variant = $vLabel; strategy = $s; n = $g.Count; won = $gWon; bad = $gBad }
         }
     }

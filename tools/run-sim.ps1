@@ -307,11 +307,17 @@ function Format-SimRow {
     param($Status, [int]$Index)
 
     if ($null -eq $Status) {
-        return ("{0,-16} {1,6} {2,5} {3,5} {4,5} {5,5}  {6,-18} {7}" -f "window $Index", "-", "-", "-", "-", "-", "-", "starting")
+        return ("{0,-16} {1,6} {2,5} {3,5} {4,6} {5,5} {6,5}  {7,-18} {8}" -f "window $Index", "-", "-", "-", "-", "-", "-", "-", "starting")
     }
 
     $label = "{0}/{1}" -f $Status.strategy.ToUpper(), $Status.seed
     $fire  = if ([int]$Status.fire_pct -lt 0) { "-" } else { "$($Status.fire_pct)%" }
+
+    # The levy (2026-09-16): "5+3" = full-time warriors + colonists mustered right
+    # now; `rack` = spare weapons the next alarm can hand out. Empty columns (a
+    # status.csv from before them) read as the plain warrior count and "-".
+    $war  = if ("$($Status.levy_mustered)" -ne "" -and [int]$Status.levy_mustered -gt 0) { "{0}+{1}" -f $Status.warriors, $Status.levy_mustered } else { "$($Status.warriors)" }
+    $rack = if ("$($Status.levy_spare)" -ne "") { "$($Status.levy_spare)" } else { "-" }
 
     # The neighbour (2026-09-16): its personality, the opinion word the player
     # would see, its militia and its fire - "Turtle Warm 4w 80%". Empty columns
@@ -329,9 +335,9 @@ function Format-SimRow {
              elseif ([int]$Status.hunger -eq 1) { "hungry" }
              else { "" }
 
-    "{0,-16} {1,6} {2,5} {3,5} {4,5} {5,5}  {6,-18} {7}" -f `
+    "{0,-16} {1,6} {2,5} {3,5} {4,6} {5,5} {6,5}  {7,-18} {8}" -f `
         $label, "$($Status.day)/$($Status.days_to_survive)", $Status.colonists,
-        $Status.food, $Status.warriors, $fire, $rival, $state
+        $Status.food, $war, $rack, $fire, $rival, $state
 }
 
 function Watch-SimRuns {
@@ -346,7 +352,7 @@ function Watch-SimRuns {
         return
     }
 
-    $header = "{0,-16} {1,6} {2,5} {3,5} {4,5} {5,5}  {6,-18} {7}" -f "process", "day", "pop", "food", "war", "fire", "rival", "state"
+    $header = "{0,-16} {1,6} {2,5} {3,5} {4,6} {5,5} {6,5}  {7,-18} {8}" -f "process", "day", "pop", "food", "war", "rack", "fire", "rival", "state"
     $blockLines = $Procs.Count + 5
 
     for ($i = 0; $i -lt $blockLines; $i++) { Write-Host "" }

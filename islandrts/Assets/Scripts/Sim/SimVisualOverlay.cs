@@ -27,6 +27,8 @@ public class SimVisualOverlay : MonoBehaviour
         public int day, daysToSurvive;
         public bool raidTonight;
         public int colonists, workers, warriors, enemies;
+        /// <summary>The levy (2026-09-16): colonists in a warrior body right now, and weapons on the rack for the next alarm.</summary>
+        public int mustered, spareWeapons;
         public float wood, food, stone, metal;
         public float campfireHp, campfireHpMax;
         public int hunger;
@@ -127,7 +129,7 @@ public class SimVisualOverlay : MonoBehaviour
 
         GUILayout.Label(
             $"colonists {frame.colonists}   workers {frame.workers}   " +
-            $"warriors {frame.warriors}   raiders {frame.enemies}   next raid ~{frame.nextRaidSize}", line);
+            $"warriors {frame.warriors}   levy {frame.mustered} up / {frame.spareWeapons} spare   raiders {frame.enemies}   next raid ~{frame.nextRaidSize}", line);
 
         // What the run is working on (2026-09-10): the policy's goal for this
         // second, the last move it made, and the castaway's own errand.

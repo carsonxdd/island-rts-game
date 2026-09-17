@@ -27,7 +27,10 @@ public static class SimStatus
         // The first rival (2026-09-16), appended at the END: the dashboard reads
         // columns by name, so an older status.csv still parses. `rival` is its
         // personality, empty until one lands.
-        "rival,rival_opinion,rival_attitude,rival_warriors,rival_fire_pct,rival_party\n";
+        "rival,rival_opinion,rival_attitude,rival_warriors,rival_fire_pct,rival_party," +
+        // The levy (2026-09-16): mustered colonists and the rack, so the dashboard's
+        // war column can read "5+3" with "4" spare beside it.
+        "levy_mustered,levy_spare\n";
 
     /// <summary>
     /// Overwrite this process's status line. <paramref name="outcome"/> is empty
@@ -66,6 +69,8 @@ public static class SimStatus
             f.rivalLanded ? f.rivalWarriors.ToString() : "",
             f.rivalLanded ? f.rivalFirePct.ToString() : "",
             f.rivalLanded ? Escape(f.rivalParty) : "",
+            f.mustered.ToString(),
+            f.spareWeapons.ToString(),
         });
 
         // Written to a sibling and swapped in, so a reader polling once a second

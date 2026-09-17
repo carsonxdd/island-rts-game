@@ -75,9 +75,31 @@ public class SimRunner : MonoBehaviour
     private int runStartFrame;
     private float policyTimer;
     private int lastEnemyCount;
-    private int warriorsLostThisNight;   // Warrior.OnAnyWarriorDied between dusk and dawn (2026-09-10)
+    private int warriorsLostThisNight;   // the player's full-time warriors killed between dusk and dawn (2026-09-10)
+    private int levyLostThisNight;       // the player's mustered colonists killed between dusk and dawn (2026-09-16)
 
-    private void OnWarriorDied(Vector3 at) { if (night != null) warriorsLostThisNight++; }
+    /// <summary>
+    /// The player's own losses only (2026-09-16): before the typed event every
+    /// warrior death on the island counted, a rival's militia included. A mustered
+    /// levy is counted apart — it loses the weapon with the body.
+    /// </summary>
+    private void OnWarriorKilled(Warrior w)
+    {
+        if (night == null || w == null || !w.Faction.IsPlayer) return;
+        if (w.levied) levyLostThisNight++;
+        else warriorsLostThisNight++;
+    }
+
+    /// <summary>Who was in bed when the raiders came ashore (2026-09-16): the first landing of a night at the player's shore.</summary>
+    private void OnRaidLanded(Vector3 where)
+    {
+        if (night == null || !night.raid || night.asleepLanding >= 0) return;
+        int asleep = 0;
+        var list = Worker.ActiveList;
+        for (int i = 0; i < list.Count; i++)
+            if (list[i] != null && list[i].Faction.IsPlayer && list[i].IsAsleep) asleep++;
+        night.asleepLanding = asleep;
+    }
 
     // ---- bootstrap --------------------------------------------------------
 
@@ -181,7 +203,8 @@ public class SimRunner : MonoBehaviour
         SceneManager.sceneLoaded += OnSceneLoaded;
         DayNightCycle.OnNightStart += OnNightStart;
         DayNightCycle.OnDayStart += OnDayStart;
-        Warrior.OnAnyWarriorDied += OnWarriorDied;
+        Warrior.OnAnyWarriorKilled += OnWarriorKilled;
+        EnemySpawner.OnRaidLanded += OnRaidLanded;
     }
 
     private void OnDestroy()
@@ -189,7 +212,8 @@ public class SimRunner : MonoBehaviour
         SceneManager.sceneLoaded -= OnSceneLoaded;
         DayNightCycle.OnNightStart -= OnNightStart;
         DayNightCycle.OnDayStart -= OnDayStart;
-        Warrior.OnAnyWarriorDied -= OnWarriorDied;
+        Warrior.OnAnyWarriorKilled -= OnWarriorKilled;
+        EnemySpawner.OnRaidLanded -= OnRaidLanded;
         Time.captureDeltaTime = 0f;
         UnityEngine.Rendering.OnDemandRendering.renderFrameInterval = 1;
     }
@@ -517,6 +541,8 @@ public class SimRunner : MonoBehaviour
             colonists = state.Colonists,
             workers = state.Workers,
             warriors = state.Warriors,
+            mustered = state.Mustered,
+            spareWeapons = state.SpareWeapons,
             enemies = state.Enemies,
             wood = pool.wood,
             food = pool.food,
@@ -612,6 +638,11 @@ public class SimRunner : MonoBehaviour
             if (hp < night.campfireHpMin) night.campfireHpMin = hp;
         }
 
+        // The levy stands up and down inside a night (2026-09-16): a dawn read would miss it.
+        int mustered = Factions.Player.Militia.Mustered;
+        if (night != null && mustered > night.musteredPeak) night.musteredPeak = mustered;
+        if (mustered > metrics.peakMustered) metrics.peakMustered = mustered;
+
         WatchRivalFire();
     }
 
@@ -660,10 +691,12 @@ public class SimRunner : MonoBehaviour
             walls = governor.Builder.WallCount,
             towers = governor.Builder.TowerCount,
             campfireHpStart = fire != null ? fire.GetCurrentHealth() : 0f,
-            campfireHpMin = fire != null ? fire.GetCurrentHealth() : 0f
+            campfireHpMin = fire != null ? fire.GetCurrentHealth() : 0f,
+            spareDusk = fire != null ? fire.WeaponsInStock() : 0   // the rack the alarm can levy tonight (2026-09-16)
         };
         lastEnemyCount = Enemy.ActiveList.Count;
         warriorsLostThisNight = 0;
+        levyLostThisNight = 0;
         metrics.dayReached = night.day;
         if (night.raid) metrics.raids++;
     }
@@ -722,6 +755,8 @@ public class SimRunner : MonoBehaviour
         night.chunksDawn = fire != null ? fire.Stockpile.Count(ItemCatalog.StoneChunk) : 0;
         night.queueDawn = fire != null && fire.Station != null ? fire.Station.Status : "";
         night.warriorsLost = warriorsLostThisNight;
+        night.levyLost = levyLostThisNight;
+        metrics.levyLostTotal += levyLostThisNight;
         night.ringHoles = governor.Builder.RingHoles;
         night.chunksLoose = LooseChunks();
         CaptureRivals();

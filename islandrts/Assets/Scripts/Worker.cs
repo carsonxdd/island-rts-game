@@ -72,6 +72,9 @@ public class Worker : UnitBase<Worker>
     /// <summary>Hidden inside a hut right now (Flee or Sleep). The levy calls a sleeper last.</summary>
     public bool IsGarrisoned => isGarrisoned;
 
+    /// <summary>The Sleep action is running (in a hut or by the fire). Read by the sim's landing count (2026-09-16).</summary>
+    public bool IsAsleep => aiBrain != null && aiBrain.GetCurrentActionName() == "Sleep";
+
     public void SetLevied(bool on)
     {
         if (levied == on) return;

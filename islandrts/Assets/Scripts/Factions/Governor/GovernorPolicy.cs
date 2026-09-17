@@ -95,12 +95,25 @@ public abstract class GovernorPolicy
 
     /// <summary>Warriors a colony must have before it will send half of them to an ally.</summary>
     public const int ReliefMinWarriors = 4;
+
+    /// <summary>
+    /// The share of the wanted strength a governor leaves to the levy (2026-09-16):
+    /// spare weapons in the stockpile count as soldiers, because the alarm puts
+    /// each one in a colonist's hands (<see cref="Militia"/>). A colony that
+    /// wants ten fields five full-time warriors and keeps five weapons on the
+    /// rack; the other five bodies work by day and muster at night. Half by
+    /// default — a levy walks to the fire first, so a colony of nothing but levy
+    /// meets the first raiders unarmed. Rush keeps two thirds standing, the
+    /// Conqueror everything (it sails with real warriors).
+    /// </summary>
+    protected virtual float LevyShare => 0.5f;
     /// <summary>Surplus over the wanted militia that is worth sailing with.</summary>
     public const int LandingMinParty = 3;
     /// <summary>Days between one colony's landings.</summary>
     public const int LandingCooldownDays = 3;
 
     private int lastWantedWarriors;   // written by SetGoal every tick; 0 until the first
+    private int lastWantedFullTime;   // the full-time part of it: a landing sails the surplus over THIS
     private int nextLandingDay;
 
     /// <summary>
@@ -132,7 +145,8 @@ public abstract class GovernorPolicy
                 {
                     // By day, on a quiet day, with men to spare past what the raid needs.
                     if (s.Night || s.RaidTonight || s.Day < nextLandingDay) continue;
-                    int surplus = s.Warriors - lastWantedWarriors;
+                    // The levy holds the fire; full-timers past the full-time want can sail (2026-09-16).
+                    int surplus = s.Warriors - lastWantedFullTime;
                     if (surplus < LandingMinParty) continue;
                     int sent = Expedition.Send(faction, other, surplus, relief: false);
                     if (sent > 0)
@@ -148,13 +162,14 @@ public abstract class GovernorPolicy
         return false;
     }
 
-    /// <summary>The one line every strategy's caption shares.</summary>
-    protected void SetGoal(ColonyState s, int wantedWarriors, int wantedWorkers, string extra = null)
+    /// <summary>The one line every strategy's caption shares. "army 3+4/8 (5 full-time)" = warriors + levy over the wanted strength.</summary>
+    protected void SetGoal(ColonyState s, int wantedWarriors, int fullTime, int wantedWorkers, string extra = null)
     {
         lastWantedWarriors = wantedWarriors;
+        lastWantedFullTime = fullTime;
         Population pop = faction.Population;
         int beds = pop != null ? pop.GetAvailableHousing() : 0;
-        Goal = $"army {s.Warriors}/{wantedWarriors} · workers {s.Workers}/{wantedWorkers} · beds {beds} free"
+        Goal = $"army {s.Warriors}+{s.Levy}/{wantedWarriors} ({fullTime} full-time) · workers {s.Workers}/{wantedWorkers} · beds {beds} free"
                + (string.IsNullOrEmpty(extra) ? "" : " · " + extra);
         if (Time.time - intentTime > 30f && Intent.Length > 0 && !Intent.StartsWith("(")) Intent = "(" + Intent + ")";
     }
@@ -473,6 +488,22 @@ public abstract class GovernorPolicy
         => Mathf.Max(floor, Mathf.CeilToInt(s.NextRaidSize * perRaider));
 
     /// <summary>
+    /// The full-time part of a wanted strength (2026-09-16): what is left after the
+    /// <see cref="LevyShare"/>, never under the strategy's floor, never over the whole.
+    /// </summary>
+    protected int FullTimeWanted(int wanted, int floor)
+        => Mathf.Min(wanted, Mathf.Max(floor, Mathf.CeilToInt(wanted * (1f - LevyShare))));
+
+    /// <summary>
+    /// Bodies the strategy needs on the roster (2026-09-16): the full-timers, then
+    /// enough colonists for the jobs OR for the levy's weapons, whichever is more
+    /// (a levied colonist is a worker by day), plus the builder reserve. What
+    /// <see cref="KeepHousing"/> buys beds ahead of.
+    /// </summary>
+    protected int WantedColonists(ColonyState s, int wantedWorkers, int wantedStrength, int fullTime)
+        => fullTime + Mathf.Max(wantedWorkers, wantedStrength - fullTime) + BuilderReserve(s);
+
+    /// <summary>
     /// Workers the strategy wants on jobs: its own floor, or half the standing
     /// army if that is more, never above the campfire's job cap. The second lab
     /// of 2026-09-10 lost Rush to food, not raiders: five workers fed 25 warriors
@@ -507,14 +538,21 @@ public abstract class GovernorPolicy
     }
 
     /// <summary>
-    /// Spears first (never more than two ahead of the men to hold them), then a
-    /// recruit. One action per call.
+    /// Keep the colony's strength at <paramref name="wanted"/> (2026-09-16): the rack
+    /// first — every weapon the levy will need and the recruits will take, capped
+    /// at the bodies there are to hold them, the mustered ones already out of the
+    /// stockpile not re-queued — then a full-time recruit while the standing army
+    /// is under <paramref name="fullTime"/>. One action per call. Until the levy
+    /// this kept the rack two ahead of the men and recruited to the whole want.
     /// </summary>
-    protected bool KeepArmy(ColonyState s, int wanted)
+    protected bool KeepArmy(ColonyState s, int wanted, int fullTime)
     {
-        if (s.Warriors >= wanted) return false;
-        if (KeepSpears(s, Mathf.Min(2, wanted - s.Warriors))) return true;
-        return Recruit(s);
+        if (s.Strength >= wanted && s.Warriors >= fullTime) return false;
+        int bodies = Mathf.Max(0, s.Colonists - s.Warriors);
+        int rack = Mathf.Min(wanted - s.Warriors, bodies) - s.Mustered;
+        if (s.Warriors < fullTime) rack = Mathf.Max(rack, 1);   // a recruit takes one off the rack
+        if (rack > 0 && KeepSpears(s, rack)) return true;
+        return s.Warriors < fullTime && Recruit(s);
     }
 
     /// <summary>Construction research gates every placement.</summary>
@@ -561,13 +599,14 @@ public class TurtlePolicy : GovernorPolicy
         // second lab measured is ~1.0, so a turtle at 0.6 is built to lose. The
         // wall is meant to be the edge on top of parity, not a substitute for it.
         int wantedWarriors = WantedWarriors(s, 1f, 2) + (s.RaidTonight ? 1 : 0);
+        int fullTime = FullTimeWanted(wantedWarriors, 2);
         int wantedWorkers = WantedWorkers(s, WorkerFloor);
-        SetGoal(s, wantedWarriors, wantedWorkers,
+        SetGoal(s, wantedWarriors, fullTime, wantedWorkers,
             ringOrdered ? $"ring up · gates {builder.GateCount}/8" : "ring pending");
 
         // Enough economy to pay for a wall, then wall, then the guard.
         if (s.Workers < 4) { if (HireWorker(s, 2f, 1f, 2f)) return; }
-        if (KeepHousing(s, MaxHuts, wantedWorkers + wantedWarriors + BuilderReserve(s))) return;
+        if (KeepHousing(s, MaxHuts, WantedColonists(s, wantedWorkers, wantedWarriors, fullTime))) return;
 
         // Build the ring in segments, keeping a wood reserve. Committing the
         // whole bank to 48 wall sites at once is what made this policy lose
@@ -583,7 +622,7 @@ public class TurtlePolicy : GovernorPolicy
         // a wall site per cell, converted the tick it finishes (2026-09-10).
         if (ringOrdered && builder.GateOpenings(BuildingType.WoodenWall, RingHalf) > 0) { Did("gate an opening"); return; }
 
-        if (KeepArmy(s, wantedWarriors)) return;
+        if (KeepArmy(s, wantedWarriors, fullTime)) return;
         if (s.Workers < wantedWorkers) { if (HireWorker(s, 2f, 1f, 2f, 0.5f)) return; }
         if (RunWorkshop(s)) return;   // bows for the wall
 
@@ -601,6 +640,9 @@ public class TurtlePolicy : GovernorPolicy
 /// </summary>
 public class RushPolicy : GovernorPolicy
 {
+    /// <summary>Army first: two thirds of the strength stands full-time, a third is the rack (2026-09-16).</summary>
+    protected override float LevyShare => 1f / 3f;
+
     public override string Name => "Rush";
 
     private const int MaxHuts = 8;
@@ -620,13 +662,14 @@ public class RushPolicy : GovernorPolicy
                         "crafting", "quarrying", "mining", "iron_work", "bowyery")) return;
 
         int wantedWarriors = WantedWarriors(s, 1f, 2) + (s.RaidTonight ? 1 : 0);
+        int fullTime = FullTimeWanted(wantedWarriors, 2);
         int wantedWorkers = WantedWorkers(s, WorkerFloor);   // grows with the army it feeds (2026-09-10)
-        SetGoal(s, wantedWarriors, wantedWorkers);
+        SetGoal(s, wantedWarriors, fullTime, wantedWorkers);
 
         // Minimum viable economy, then everything into warriors.
         if (s.Workers < 3) { if (HireWorker(s, 2f, 2f, 1f)) return; }
-        if (KeepHousing(s, MaxHuts, wantedWorkers + wantedWarriors + BuilderReserve(s))) return;
-        if (KeepArmy(s, wantedWarriors)) return;
+        if (KeepHousing(s, MaxHuts, WantedColonists(s, wantedWorkers, wantedWarriors, fullTime))) return;
+        if (KeepArmy(s, wantedWarriors, fullTime)) return;
         if (RunWorkshop(s)) return;
         if (s.Workers < wantedWorkers) { if (HireWorker(s, 2f, 2f, 1f, 1f)) return; }
     }
@@ -656,18 +699,19 @@ public class EcoPolicy : GovernorPolicy
                         "crafting", "mining", "iron_work", "bowyery")) return;
 
         int wantedWarriors = WantedWarriors(s, 0.7f, 1) + (s.RaidTonight ? 1 : 0);
+        int fullTime = FullTimeWanted(wantedWarriors, 1);
         int wantedWorkers = WantedWorkers(s, WorkerFloor);
         bool escapes = faction.IsPlayer;   // a rival's Shipyard would end the PLAYER's run (GameManager.TriggerEscape)
-        SetGoal(s, wantedWarriors, wantedWorkers, escapes && s.Day >= 12 ? "escape" : null);
+        SetGoal(s, wantedWarriors, fullTime, wantedWorkers, escapes && s.Day >= 12 ? "escape" : null);
 
-        if (KeepHousing(s, MaxHuts, wantedWorkers + wantedWarriors + BuilderReserve(s))) return;
+        if (KeepHousing(s, MaxHuts, WantedColonists(s, wantedWorkers, wantedWarriors, fullTime))) return;
         if (RunWorkshop(s)) return;
         if (s.Workers < wantedWorkers) { if (HireWorker(s, 3f, 2f, 1f, 1f)) return; }
 
         // The dawn roll is public knowledge — a human who sees "raiders land
         // tonight" spends the reserve on warriors, so the policy does too.
         bool spend = s.RaidTonight || (s.Wood > 60 && s.Food > 60);
-        if (spend && KeepArmy(s, wantedWarriors)) return;
+        if (spend && KeepArmy(s, wantedWarriors, fullTime)) return;
 
         if (CanBuild && s.Day >= 4 && s.Wood >= 250 && s.Stone >= 150)
         {
@@ -724,6 +768,8 @@ public class ConquerorPolicy : GovernorPolicy
     public const int MinParty = 4;
     /// <summary>Men the army is kept above the rival's, so a landing outnumbers its militia.</summary>
     public const int Overmatch = 4;
+    /// <summary>A landing sails with real warriors: nothing is left to the levy (2026-09-16).</summary>
+    protected override float LevyShare => 0f;
 
     private int nextSailDay;
 
@@ -740,12 +786,13 @@ public class ConquerorPolicy : GovernorPolicy
 
         int wantedWarriors = WantedWarriors(s, 1f, 2) + (s.RaidTonight ? 1 : 0);
         if (theirFireStands) wantedWarriors = Mathf.Max(wantedWarriors, rivalWarriors + Overmatch + Mathf.CeilToInt(s.NextRaidSize * HomeGuardShare));
+        int fullTime = FullTimeWanted(wantedWarriors, 2);   // LevyShare 0: all of it
         int wantedWorkers = WantedWorkers(s, WorkerFloor);
-        SetGoal(s, wantedWarriors, wantedWorkers,
+        SetGoal(s, wantedWarriors, fullTime, wantedWorkers,
             rival == null ? "no rival yet" : !theirFireStands ? "rival fire out" : atWar ? "at war · " + rivalWarriors + " of theirs" : "war on day " + WarDay);
 
         if (s.Workers < 3) { if (HireWorker(s, 2f, 2f, 1f)) return; }
-        if (KeepHousing(s, MaxHuts, wantedWorkers + wantedWarriors + BuilderReserve(s))) return;
+        if (KeepHousing(s, MaxHuts, WantedColonists(s, wantedWorkers, wantedWarriors, fullTime))) return;
 
         // The war, and the daily landing
         if (faction.IsPlayer && theirFireStands && !atWar && s.Day >= WarDay)
@@ -770,7 +817,7 @@ public class ConquerorPolicy : GovernorPolicy
             }
         }
 
-        if (KeepArmy(s, wantedWarriors)) return;
+        if (KeepArmy(s, wantedWarriors, fullTime)) return;
         if (RunWorkshop(s)) return;
         if (s.Workers < wantedWorkers) { if (HireWorker(s, 2f, 2f, 1f, 1f)) return; }
     }

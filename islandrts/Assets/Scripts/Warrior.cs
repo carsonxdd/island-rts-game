@@ -14,9 +14,15 @@ public class Warrior : UnitBase<Warrior>
 {
     // Static event: fires when any warrior dies (with death position for proximity checks)
     public static event System.Action<Vector3> OnAnyWarriorDied;
+    /// <summary>
+    /// The warrior itself, the frame it dies (2026-09-16, sim telemetry): a reader
+    /// that needs to know WHO fell (a full-time warrior or a mustered levy, whose
+    /// faction) subscribes here; the positional event stays for the allies' reeval.
+    /// </summary>
+    public static event System.Action<Warrior> OnAnyWarriorKilled;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    static void ResetStatics() { OnAnyWarriorDied = null; }
+    static void ResetStatics() { OnAnyWarriorDied = null; OnAnyWarriorKilled = null; }
 
     [Header("Stats")]
     public float maxHealth = 75f;
@@ -351,6 +357,7 @@ public class Warrior : UnitBase<Warrior>
         FormationSlots.Release(this);   // the rank passes on (2026-09-16)
 
         // Fire static death event for nearby allies to react
+        OnAnyWarriorKilled?.Invoke(this);
         OnAnyWarriorDied?.Invoke(transform.position);
 
         // Play death sound (3D spatial audio)

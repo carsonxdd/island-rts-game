@@ -167,6 +167,10 @@ and a `*` while an expedition party is at sea in either direction; `status.csv`
 carries the same as `rival, rival_opinion, rival_attitude, rival_warriors,
 rival_fire_pct, rival_party`, appended at the END so an older heartbeat still
 parses. The caption under a visual window prints the same line.
+The `war` column reads `5+3` while the levy is up (full-time warriors + colonists
+mustered right now, 2026-09-16) and `rack` is the spare weapons the next alarm
+can hand out; `status.csv` carries them as `levy_mustered, levy_spare` at the
+END. The caption prints `levy 3 up / 4 spare`.
 Since 2026-09-11 the dashboard runs in every mode — a headless sweep (and each
 sweep of the overnight batch) shows its eight processes the same way the lab
 shows nine windows, titled `SIMULATION HEADLESS`.
@@ -405,8 +409,13 @@ shore, landings on and relief to the player's shore, the rival's fate (`alive` /
 config_id, strategy, seed, outcome, day_reached, days_to_survive, raids,
 enemies_killed, peak_workers, peak_warriors, final_wood/food/stone,
 colonists_left, game_seconds, wall_seconds, frames, note, rival_strategy,
-rival_fate, rival_fell_day
+rival_fate, rival_fell_day, rival_opinion_min, rival_opinion_max,
+player_landings, loot_wood, loot_food, loot_stone, loot_metal,
+peak_mustered, levy_lost
 ```
+
+`peak_mustered` / `levy_lost` (2026-09-16, the levy): the most colonists standing
+in a warrior body at once over the run, and how many of them died in all.
 
 `rival_strategy` (2026-09-16) is the first landed rival's governor policy name,
 empty on a run with no rivals. `rival_fate` is how that colony ended: `none`
@@ -436,8 +445,21 @@ workers/warriors/huts/walls/towers at dusk AND dawn,
 enemies_spawned, enemies_killed_total,
 campfire_hp_dusk, campfire_hp_min, campfire_hp_dawn,
 hunger_dawn, left_total, archers_dawn,
-idle_dawn, weapons_dawn, sticks_dawn, chunks_dawn, queue_dawn, warriors_lost, ring_holes
+idle_dawn, weapons_dawn, sticks_dawn, chunks_dawn, queue_dawn, warriors_lost, ring_holes,
+chunks_loose, rival_arrival_day, rival_contact, rival_opinion, rival_warriors,
+raid_at_rival, rival_opinion_pts, rival_landings, rival_relief,
+rival_fire_pct, rival_huts, rival_colonists, rival_food_dawn,
+spare_dusk, mustered_peak, levy_lost, asleep_landing
 ```
+
+The last four (2026-09-16) are the levy's night: `spare_dusk` the weapons on the
+rack at dusk (what the alarm can hand out; `weapons_dawn` is the same rack AFTER
+the night, a fallen levy having lost its weapon), `mustered_peak` the most
+colonists standing in a warrior body at once, `levy_lost` how many of them died,
+and `asleep_landing` how many colonists were asleep (hut or fire) the moment the
+raiders came ashore (−1 on a night with no landing at the player's shore).
+`warriors_lost` is the PLAYER's full-time warriors only since the same day — it
+used to count every warrior death on the island, a rival's militia included.
 
 `hunger_dawn` is 0 fed / 1 hungry / 2 starving at that dawn; `left_total` is
 cumulative; `archers_dawn` is how many of `warriors_dawn` carry a bow. A run whose `hunger_dawn` is 2 for several days in a row is losing

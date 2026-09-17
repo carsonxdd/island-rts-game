@@ -70,6 +70,13 @@ public class SimMetrics
         public int rivalHuts;            // its huts at dawn
         public int rivalColonists;       // its roster at dawn (warriors included)
         public float rivalFoodDawn;      // its food at dawn
+        // The levy (2026-09-16): spare weapons are soldiers now, so a night reads
+        // as "who stood up" as well as "who stood". weapons_dawn is the rack AFTER
+        // the night (a fallen levy loses its weapon); this is the rack BEFORE it.
+        public int spareDusk;            // weapons in the stockpile at dusk
+        public int musteredPeak;         // most colonists standing in a warrior body at once this night
+        public int levyLost;             // mustered colonists that died between dusk and dawn (warriors_lost is full-time only now)
+        public int asleepLanding = -1;   // colonists asleep (hut or fire) the moment the raid came ashore; -1 = no landing here
         public bool survived;
     }
 
@@ -107,6 +114,9 @@ public class SimMetrics
     /// <summary>The conquest test (2026-09-16): landings the player made, and what the rival's fallen fire dropped.</summary>
     public int playerLandings;
     public int lootWood, lootFood, lootStone, lootMetal;
+    /// <summary>The levy over the run (2026-09-16): most mustered at once, and mustered colonists lost in all.</summary>
+    public int peakMustered;
+    public int levyLostTotal;
 
     private readonly StringBuilder sb = new StringBuilder(256);
 
@@ -134,7 +144,8 @@ public class SimMetrics
                 "enemies_killed,peak_workers,peak_warriors," +
                 "final_wood,final_food,final_stone,colonists_left," +
                 "game_seconds,wall_seconds,frames,note,rival_strategy,rival_fate,rival_fell_day," +
-                "rival_opinion_min,rival_opinion_max,player_landings,loot_wood,loot_food,loot_stone,loot_metal\n");
+                "rival_opinion_min,rival_opinion_max,player_landings,loot_wood,loot_food,loot_stone,loot_metal," +
+                "peak_mustered,levy_lost\n");
         }
 
         string days = Path.Combine(dir, DaysFile);
@@ -151,7 +162,8 @@ public class SimMetrics
                 "idle_dawn,weapons_dawn,sticks_dawn,chunks_dawn,queue_dawn,warriors_lost,ring_holes,chunks_loose," +
                 "rival_arrival_day,rival_contact,rival_opinion,rival_warriors," +
                 "raid_at_rival,rival_opinion_pts,rival_landings,rival_relief," +
-                "rival_fire_pct,rival_huts,rival_colonists,rival_food_dawn\n");
+                "rival_fire_pct,rival_huts,rival_colonists,rival_food_dawn," +
+                "spare_dusk,mustered_peak,levy_lost,asleep_landing\n");
         }
     }
 
@@ -184,7 +196,8 @@ public class SimMetrics
           .Append(F(rivalOpinionMin)).Append(',')
           .Append(F(rivalOpinionMax)).Append(',')
           .Append(playerLandings).Append(',')
-          .Append(lootWood).Append(',').Append(lootFood).Append(',').Append(lootStone).Append(',').Append(lootMetal).Append('\n');
+          .Append(lootWood).Append(',').Append(lootFood).Append(',').Append(lootStone).Append(',').Append(lootMetal).Append(',')
+          .Append(peakMustered).Append(',').Append(levyLostTotal).Append('\n');
         File.AppendAllText(Path.Combine(dir, RunsFile), sb.ToString());
 
         sb.Clear();
@@ -231,7 +244,11 @@ public class SimMetrics
               .Append(n.rivalFirePct).Append(',')
               .Append(n.rivalHuts).Append(',')
               .Append(n.rivalColonists).Append(',')
-              .Append(F(n.rivalFoodDawn)).Append('\n');
+              .Append(F(n.rivalFoodDawn)).Append(',')
+              .Append(n.spareDusk).Append(',')
+              .Append(n.musteredPeak).Append(',')
+              .Append(n.levyLost).Append(',')
+              .Append(n.asleepLanding).Append('\n');
         }
         if (sb.Length > 0) File.AppendAllText(Path.Combine(dir, DaysFile), sb.ToString());
     }
