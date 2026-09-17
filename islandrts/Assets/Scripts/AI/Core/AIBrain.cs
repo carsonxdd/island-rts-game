@@ -39,6 +39,7 @@ public class AIBrain : MonoBehaviour
     private const float MinEvalInterval = 0.25f;
     private const int MinEvalsPerFrame = 5;
     private const int MaxEvalsPerFrame = 64;
+    private const float MaxBudgetDeltaTime = 1f / 30f;   // the budget never sees a frame slower than 30 fps
 
     private static int evalFrame = -1;
     private static int evalCount = 0;
@@ -64,7 +65,11 @@ public class AIBrain : MonoBehaviour
         evalFrame = Time.frameCount;
         evalCount = 0;
 
-        int needed = Mathf.CeilToInt(activeBrains * Time.deltaTime / MinEvalInterval);
+        // Clamp the frame's share: a hitch frame has a big deltaTime, and an unclamped
+        // budget would then evaluate every brain on the frame after it — the second,
+        // self-inflicted hitch. Deferred evals still catch up at the clamped rate.
+        float dt = Mathf.Min(Time.deltaTime, MaxBudgetDeltaTime);
+        int needed = Mathf.CeilToInt(activeBrains * dt / MinEvalInterval);
         frameBudget = Mathf.Clamp(needed, MinEvalsPerFrame, MaxEvalsPerFrame);
     }
 

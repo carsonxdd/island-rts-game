@@ -45,6 +45,12 @@
 # that loses quests from the middle needs a RESET on the DEV tab (done 2026-09-13
 # after the first report, Playtests/playtest_2026-09-13_2204.md).
 
+## 2026-09-16 Big village hitch
+- At 50 colonists nobody freezes in unison; F6 log gcAllocB stays near 0
+- Labels on (Options): names, states and carry counts still read right
+- A raid: "Attacking X!" / "Moving to X" labels still follow the target
+- Start from the main menu: PerfLogs/perf_latest.log shows the island scene
+
 ## 2026-09-16 The levy
 - The Levy row on the Defence section counts the spare weapons in stock
 - @muster:bell Ring the bell (F10 or the panel) and see the banner

@@ -82,6 +82,11 @@ public class PerfLogger : MonoBehaviour
     {
         if (instance != null && instance != this) { Destroy(gameObject); return; }
         instance = this;
+        // Bootstrap runs once per launch and the object was born in whatever scene
+        // was active — MainMenu, from the front door — so the MainIsland load used to
+        // destroy it and every F6 capture from a normal session was a menu log.
+        DontDestroyOnLoad(gameObject);
+        UnityEngine.SceneManagement.SceneManager.sceneLoaded += OnSceneLoaded;
 
         try
         {
@@ -389,8 +394,14 @@ public class PerfLogger : MonoBehaviour
 
     void OnApplicationQuit() { Close(); }
 
+    void OnSceneLoaded(UnityEngine.SceneManagement.Scene scene, UnityEngine.SceneManagement.LoadSceneMode mode)
+    {
+        Event("SCENE", scene.name);
+    }
+
     void OnDestroy()
     {
+        UnityEngine.SceneManagement.SceneManager.sceneLoaded -= OnSceneLoaded;
         if (instance == this) instance = null;
         Close();
         recGcAlloc.Dispose();

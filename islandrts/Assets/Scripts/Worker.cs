@@ -99,6 +99,8 @@ public class Worker : UnitBase<Worker>
         }
     }
     private string namePrefix;   // "<b>Wren</b>\n", built once for the head label
+    private string lastLabelState;   // the label is rebuilt only when these two move
+    private int lastLabelCarryTenths = -1;
 
     /// <summary>The unit a colonist is about to become, for the gear-up label.</summary>
     public string RoleTitle()
@@ -749,6 +751,13 @@ public class Worker : UnitBase<Worker>
     {
         // Get display name from brain
         string displayName = StateDisplayName("Thinking");
+
+        // Zero-GC steady state: the executor's DisplayName is a constant, so the same
+        // reference and the same carry tenth mean the same string as last frame.
+        int carryTenths = (int)(carryAmount * 10f);
+        if (ReferenceEquals(displayName, lastLabelState) && carryTenths == lastLabelCarryTenths) return;
+        lastLabelState = displayName;
+        lastLabelCarryTenths = carryTenths;
 
         // The name rides above the state (2026-09-16), built once
         if (namePrefix == null)

@@ -395,9 +395,13 @@ public class Warrior : UnitBase<Warrior>
 
     // --- State text ---
 
+    private string lastLabelState;   // rebuilt only when the action's DisplayName changes
+
     void UpdateStateText()
     {
         string displayName = StateDisplayName("Initializing...");
+        if (ReferenceEquals(displayName, lastLabelState)) return;   // zero-GC steady state
+        lastLabelState = displayName;
 
         // Color based on action
         Color color;

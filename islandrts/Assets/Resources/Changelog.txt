@@ -8,6 +8,12 @@
 # Lines starting with a single # are comments. Anything else that is not a
 # heading, a bullet or an indented continuation is ignored.
 
+## 2026-09-16 — Smoother big villages
+- Fifty colonists no longer freeze together for a blink: the head labels, the
+  fighting labels and the crowd spacing stopped churning memory every frame,
+  and the AI no longer piles every decision onto the frame after a slow one.
+- The F6 performance log now follows you from the main menu into the game.
+
 ## 2026-09-16 — The levy: every spare spear finds a hand when the bell rings
 - Every weapon sitting in the stockpile now arms a colonist when the colony is
   threatened. Nothing to enlist or assign: craft more weapons than you recruit and

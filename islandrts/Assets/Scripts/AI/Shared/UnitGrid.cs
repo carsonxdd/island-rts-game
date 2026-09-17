@@ -89,13 +89,13 @@ public class UnitGrid : MonoBehaviour
         if (pc != null) Add(pc.transform, pc.GetComponent<NavMeshAgent>());
     }
 
-    void Add<T>(IReadOnlyList<T> list) where T : MonoBehaviour
+    void Add<T>(IReadOnlyList<T> list) where T : UnitBase<T>
     {
         for (int i = 0; i < list.Count; i++)
         {
             T u = list[i];
             if (u == null) continue;
-            Add(u.transform, u.GetComponent<NavMeshAgent>());
+            Add(u.transform, u.CachedAgent);   // fetched once in the unit's Start, never per tick
         }
     }
 

@@ -29,6 +29,17 @@ public class EnemyAttackExecutor : ActionExecutor
     public override string DisplayName => displayName;
     private string displayName = "Searching";
 
+    // The two per-frame labels are rebuilt only when the target's name changes: a
+    // concat per warrior per frame through a whole raid was a steady GC source.
+    private string labelTargetName, attackLabel, moveLabel;
+    void RefreshLabels(AIBlackboard bb, string attackPrefix, string attackSuffix, string movePrefix)
+    {
+        if (ReferenceEquals(bb.currentTargetName, labelTargetName) && attackLabel != null) return;
+        labelTargetName = bb.currentTargetName;
+        attackLabel = attackPrefix + labelTargetName + attackSuffix;
+        moveLabel = movePrefix + labelTargetName;
+    }
+
     // Target selection cadence
     private const float RetargetInterval = 1f;
     private float retargetTimer;
@@ -116,13 +127,15 @@ public class EnemyAttackExecutor : ActionExecutor
         if (bb.isInAttackRange)
         {
             bb.agent.isStopped = true;
-            displayName = "Attacking " + bb.currentTargetName;
+            RefreshLabels(bb, "Attacking ", "", "Moving to ");
+            displayName = attackLabel;
             AttemptAttack(bb);
         }
         else
         {
             bb.agent.isStopped = false;
-            displayName = "Moving to " + bb.currentTargetName;
+            RefreshLabels(bb, "Attacking ", "", "Moving to ");
+            displayName = moveLabel;
         }
     }
 

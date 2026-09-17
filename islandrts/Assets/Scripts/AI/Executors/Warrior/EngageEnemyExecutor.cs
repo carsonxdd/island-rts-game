@@ -27,6 +27,17 @@ public class EngageEnemyExecutor : ActionExecutor
     public override string DisplayName => displayName;
     private string displayName = "Engaging";
 
+    // The two per-frame labels are rebuilt only when the target's name changes: a
+    // concat per warrior per frame through a whole raid was a steady GC source.
+    private string labelTargetName, attackLabel, moveLabel;
+    void RefreshLabels(AIBlackboard bb, string attackPrefix, string attackSuffix, string movePrefix)
+    {
+        if (ReferenceEquals(bb.currentTargetName, labelTargetName) && attackLabel != null) return;
+        labelTargetName = bb.currentTargetName;
+        attackLabel = attackPrefix + labelTargetName + attackSuffix;
+        moveLabel = movePrefix + labelTargetName;
+    }
+
     private const float SlotStoppingDistance = 0.5f;
 
     // The attack slot on the current target (2026-09-07); null when the target is another colony's warrior
@@ -178,11 +189,13 @@ public class EngageEnemyExecutor : ActionExecutor
             }
 
             AttemptAttack(bb);
-            displayName = "Attacking " + bb.currentTargetName + "!";
+            RefreshLabels(bb, "Attacking ", "!", "Engaging ");
+            displayName = attackLabel;
         }
         else
         {
-            displayName = "Engaging " + bb.currentTargetName;
+            RefreshLabels(bb, "Attacking ", "!", "Engaging ");
+            displayName = moveLabel;
         }
     }
 
