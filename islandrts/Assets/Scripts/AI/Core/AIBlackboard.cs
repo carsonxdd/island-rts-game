@@ -54,6 +54,10 @@ public class AIBlackboard
     public float wakeTime = 0.25f;
     public float standScale = 1f;
     public bool asleepInHut;
+    // Levied (2026-09-16): a colonist with a claim on a spare weapon in the stockpile,
+    // or the warrior body they stand in once mustered. Mirrored from Worker.levied /
+    // Warrior.levied; MusterCall and StandDownDue gate on it beside the faction's alarm.
+    public bool levied;
 
     // Warrior fields
     public Warrior warrior;

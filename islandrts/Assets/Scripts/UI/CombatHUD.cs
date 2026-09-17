@@ -33,10 +33,13 @@ public class CombatHUD : MonoBehaviour
     private TextMeshProUGUI keyHint;
     private Button[] stanceButtons;
     private Button[] formationButtons;
+    private Button[] bellButtons;   // one button: the bell (2026-09-16), lit while it rings
 
     private int lastStance = -1;
     private int lastFormation = -1;
     private int lastCount = -1;
+    private int lastBell = -1;
+    private int lastLevy = -1;
 
     /// <summary>Create the box for this scene if it does not exist yet. Skipped under the sim.</summary>
     public static void Ensure()
@@ -63,7 +66,10 @@ public class CombatHUD : MonoBehaviour
     {
         if (root == null) Build();
 
-        bool show = PlayerWarriors() > 0;
+        // Shown with a warrior on the field OR a levy to raise (spare weapons, or people already armed): the bell is the box's business too
+        Militia militia = Factions.Player.Militia;
+        int levy = militia.SpareWeapons + militia.Claimed + militia.Mustered;
+        bool show = PlayerWarriors() > 0 || levy > 0;
         if (root.gameObject.activeSelf != show)
         {
             root.gameObject.SetActive(show);
@@ -83,6 +89,22 @@ public class CombatHUD : MonoBehaviour
                 Factions.Player.SetStance(GuardStance.Mode.Follow);
                 DevQuests.Signal("stance_key:follow");
             }
+            else if (KeyBindings.Down(KeyBindings.Action.MusterBell))
+            {
+                Factions.Player.Militia.Toggle();
+                DevQuests.Signal("muster:key");
+            }
+        }
+
+        int bell = Factions.Player.Militia.Called ? 1 : 0;
+        if (bell != lastBell || levy != lastLevy)
+        {
+            lastBell = bell;
+            lastLevy = levy;
+            MenuBuilder.TintTabs(bellButtons, bell == 1 ? 0 : -1);
+            TextMeshProUGUI label = bellButtons[0].GetComponentInChildren<TextMeshProUGUI>();
+            if (label != null) label.text = bell == 1 ? "Stand down" : "Muster " + levy;
+            bellButtons[0].interactable = levy > 0 || bell == 1;
         }
 
         int stance = (int)Factions.Player.Stance;
@@ -112,7 +134,8 @@ public class CombatHUD : MonoBehaviour
         keyHint.text =
             KeyBindings.Name(KeyBindings.Get(KeyBindings.Action.StanceDefensive).primary) + " · " +
             KeyBindings.Name(KeyBindings.Get(KeyBindings.Action.StanceOffensive).primary) + " · " +
-            KeyBindings.Name(KeyBindings.Get(KeyBindings.Action.StanceFollow).primary);
+            KeyBindings.Name(KeyBindings.Get(KeyBindings.Action.StanceFollow).primary) + "  ·  bell " +
+            KeyBindings.Name(KeyBindings.Get(KeyBindings.Action.MusterBell).primary);
     }
 
     // ------------------------------------------------------------------
@@ -185,8 +208,12 @@ public class CombatHUD : MonoBehaviour
         formationButtons = ButtonRow(box.transform, Formation.Names, FormationWidth, FormationHeight, MenuStyle.SmallSize - 1f,
             i => Factions.Player.SetFormation((Formation.Kind)i));
 
+        // Line 4: the bell (2026-09-16) — raises the levy, or stands it down
+        bellButtons = ButtonRow(box.transform, new[] { "Muster" }, StanceWidth * 2f + 6f, FormationHeight, MenuStyle.SmallSize - 1f,
+            i => { Factions.Player.Militia.Toggle(); DevQuests.Signal("combat_box:bell"); });
+
         RefreshKeyHint();
-        lastStance = lastFormation = lastCount = -1;
+        lastStance = lastFormation = lastCount = lastBell = lastLevy = -1;
     }
 
     /// <summary>A row of fixed-size buttons; the caller tints the active one with <see cref="MenuBuilder.TintTabs"/>.</summary>

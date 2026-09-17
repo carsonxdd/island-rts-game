@@ -39,6 +39,7 @@ A Unity real-time-strategy survival game. You are one named character on a proce
 | **G** · **R** · **Shift** | Wall to gate · toggle wall path or rotate · diagonal wall path |
 | **Delete / X** | Demolish, 50% refund |
 | **F5 / F8 / F9** | Militia stance: Defensive / Offensive / Follow |
+| **F10** | Ring the bell: one colonist per spare weapon in stock arms; press again to stand them down |
 | **Right-click** | Command your character: fetch, hand-harvest, deposit and work the queue, work a bench, build a site, or walk. A green ring marks the click and a trail shows the path |
 | **Shift + Right-click** | Queue the order behind the current one; a plain right-click clears the queue. In build mode, **Shift + Left-click** places a building and keeps the ghost for the next |
 | **Left-click** | Open a building's panel. The only gesture that opens UI |
@@ -145,7 +146,7 @@ Deeper technical notes, the gotcha list and the session log: [`.claude/CLAUDE.md
 | **Building** | Hut, Wooden and Stone Wall, Gate, Watchtower, Workshop, Shipyard. Placement flattens a pad. A site only rises while a colonist or your castaway works it. Repair costs a quarter of the build price. |
 | **Research and crafting** | Research is one-time and opens jobs, build mode, weapons and the Workshop, and hands your character the matching tool. Recipes are repeatable and gated behind research. Both live on stations with a queue that only moves while someone stands at the bench. Costs are paid on completion; a short entry waits rather than failing. |
 | **Storage** | Materials, spears and tools live in the campfire stockpile, 60 items to start, raised by research. The four pooled resources are uncapped. |
-| **Combat** | The militia takes one colony-wide stance — Defensive, Offensive or Follow — and stands in a Line, Wedge or Ring. Warriors converge on a raider from different sides; archers keep their distance. Watchtowers buff nearby damage. Housing is the only cap on army size. |
+| **Combat** | The militia takes one colony-wide stance — Defensive, Offensive or Follow — and stands in a Line, Wedge or Ring. Warriors converge on a raider from different sides; archers keep their distance. Watchtowers buff nearby damage. Housing is the only cap on army size. The levy: every spare weapon in the stockpile arms a colonist when raiders reach the fire or the bell rings (F10); they walk to the fire for it, fight, and half a minute after the last threat put it back and return to their job. |
 | **Calendar and raids** | 150 s day, 75 s night, 30 days to rescue, about two hours. Colonists sleep from midnight to dawn. A dawn roll decides whether raiders land that night, never before day 3 and forced after five quiet ones, and the size is fixed at the roll from the day number and the colony's prosperity. A raid night lasts until the last raider is dead. |
 | **Difficulty** | Six presets plus Custom, chosen on New Game and locked for the run. Scales raid size and frequency, enemy stats, night length, starting resources and run length. |
 | **Menus** | Main menu, New Game, pause, options across four tabs, rebindable controls, changelog, field guide, end screens. All built at runtime in code — see [`docs/MENU_WIREFRAMES.md`](docs/MENU_WIREFRAMES.md). |

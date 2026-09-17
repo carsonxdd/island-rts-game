@@ -36,12 +36,31 @@
 #   loiter:step_aside  loiter:patrol_moved_on
 #   persona  persona:kept  sleep  sleep:hut  sleep:fire  sleep:delivered  sleep:wake  sleep:raid
 #   trait:<steady|night_owl|early_riser|hardy|lazy>
+#   levy:fell  muster  muster:called  muster:threat  muster:asleep
+#   muster:bell  muster:dismiss  muster:key  combat_box:bell  stand_down  stand_down:job_back
 # crowd:split, dropoff:spread and patrol:spread are STATE checks polled by the
 # tracker twice a second while their quest is open; everything else is an event.
 # A finished batch is deleted from here once its report is in; it stays in the
 # changelog and the phase history. Quest ids are batch slug + index, so a batch
 # that loses quests from the middle needs a RESET on the DEV tab (done 2026-09-13
 # after the first report, Playtests/playtest_2026-09-13_2204.md).
+
+## 2026-09-16 The levy
+- The Levy row on the Defence section counts the spare weapons in stock
+- @muster:bell Ring the bell (F10 or the panel) and see the banner
+- @muster A colonist walks to the fire and comes out a warrior
+- @muster:threat Raiders at the fire raise the levy with no bell rung
+- @muster:asleep A hut sleeper gets up and walks to the fire for a spear
+- One colonist per spare weapon walks, jobless first; nobody else moves
+- Recruit a warrior mid-muster: the claimant finds no spear and goes back
+- @stand_down After a quiet half minute an armed colonist walks to the fire
+- @stand_down:job_back They put the weapon in stock and pick up the same job
+- @muster:dismiss Silence the bell and they stand down at once
+- @combat_box:bell The militia box's bell button reads "Muster N" / "Stand down"
+- @levy:fell A levy dies as a warrior and the weapon is gone from stock
+- The People list reads "Warrior (levy)" while they are armed
+- The Warriors count and the raid banner ignore the levy
+- A carried load is banked, not lost, when a levy arms
 
 ## 2026-09-16 Sleep and personalities
 - @persona A survivor lands with a name over their head

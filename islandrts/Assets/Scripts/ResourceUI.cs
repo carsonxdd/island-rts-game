@@ -105,6 +105,7 @@ public class ResourceUI : MonoBehaviour
         if (SimHooks.Headless) { enabled = false; return; }
         Build();
         RaidDirector.OnRaidRolled += OnRaidRolled;
+        Militia.OnBell += OnBell;
         RivalLandingDirector.OnRivalLanded += OnRivalLanded;
         RivalLandingDirector.OnRivalMet += OnRivalMet;
         Diplomacy.OnAttitudeChanged += OnAttitudeChanged;
@@ -117,6 +118,7 @@ public class ResourceUI : MonoBehaviour
     void OnDestroy()
     {
         RaidDirector.OnRaidRolled -= OnRaidRolled;
+        Militia.OnBell -= OnBell;
         RivalLandingDirector.OnRivalLanded -= OnRivalLanded;
         RivalLandingDirector.OnRivalMet -= OnRivalMet;
         Diplomacy.OnAttitudeChanged -= OnAttitudeChanged;
@@ -148,6 +150,14 @@ public class ResourceUI : MonoBehaviour
 
     /// <summary>The dawn roll came back: flash the warning for a few seconds. The chip carries it all day.</summary>
     private bool lurkFlashed;
+
+    /// <summary>The player's bell (2026-09-16): one line either way.</summary>
+    void OnBell(Faction who, bool ringing)
+    {
+        if (who == null || !who.IsPlayer) return;
+        if (ringing) Flash("THE BELL RINGS  \u2014  the levy takes up arms", MenuStyle.TextAccent, BannerSeconds);
+        else Flash("STAND DOWN  \u2014  the levy goes back to work", MenuStyle.TextMuted, BannerSeconds);
+    }
 
     void OnRaidRolled(bool raid)
     {

@@ -64,6 +64,9 @@ public sealed class Faction
     /// <summary>Build / Craft / Repair / Forage weights for the jobless ladder (commit 4).</summary>
     public LaborPriorities Priorities { get; } = new LaborPriorities();
 
+    /// <summary>The call to arms (2026-09-16): the bell, the threat-at-home scan and the levy it raises on the spare weapons. Ticked by <c>PopulationManager</c>.</summary>
+    public Militia Militia { get; }
+
     /// <summary>The militia's standing order (commit 4). Set through <see cref="SetStance"/> so the playtest signal fires once per change.</summary>
     public GuardStance.Mode Stance { get; private set; } = GuardStance.Mode.Defensive;
 
@@ -97,6 +100,7 @@ public sealed class Faction
         Color = color;
         Population = new Population(this);
         Knowledge = new Knowledge(this);
+        Militia = new Militia(this);
     }
 
     /// <summary>What this faction thinks of <paramref name="other"/>. Self is Allied. Zero-cost: one matrix read.</summary>

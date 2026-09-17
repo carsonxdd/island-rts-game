@@ -8,6 +8,21 @@
 # Lines starting with a single # are comments. Anything else that is not a
 # heading, a bullet or an indented continuation is ignored.
 
+## 2026-09-16 — The levy: every spare spear finds a hand when the bell rings
+- Every weapon sitting in the stockpile now arms a colonist when the colony is
+  threatened. Nothing to enlist or assign: craft more weapons than you recruit and
+  the Levy row on the campfire panel's Defence section shows how many hands that is.
+- Raiders reaching the fire, or raiders lurking on the island, raise the levy on
+  their own: one colonist per spare weapon (the jobless first, then whoever is
+  nearest) drops what they are doing, walks to the fire, takes a weapon and fights
+  as a warrior. Everyone else keeps working.
+- Ring the bell yourself with F10, the Bell row on the panel, or the new button in the
+  bottom-right militia box: the levy musters and stays armed until you silence it.
+  Otherwise, half a minute after the last threat they walk back to the fire, put the
+  weapon in stock and go straight back to the job they had.
+- The levy is not the militia: no food cost, no idle colonist needed, and they do not
+  make the next raid bigger. The People list marks them while they are armed.
+
 ## 2026-09-16 — Names, traits and a night's sleep
 - Every survivor lands with a name and a trait, shown over their head and in the new
   People list on the campfire panel's Colonists tab, with what each of them is doing.

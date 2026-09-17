@@ -95,6 +95,8 @@ one and the weapon comes back; lose one and it is gone.
 - Warriors going for the same raider come at it from different sides instead of queueing up on one path.
 - The Formation row sets how the militia stands when it rallies or escorts: Line (spearmen in front, archers behind), Wedge (a point and two edges, archers inside) or Ring. Auto picks Line, Wedge and Ring for the three stances; Loose is no formation at all.
 - On Offensive the militia advances on the raiders together and charges when one is close. Archers keep their distance on Offensive, backing off and shooting; on Defensive and Follow they hold their rank and only step back a pace or two.
+- The levy: every spare weapon in the stockpile arms a colonist when raiders reach the fire or lurk on the island. One colonist per weapon (the jobless first, then the nearest) walks to the fire, takes it and fights as a warrior; half a minute after the last threat they walk back, put it in stock and go back to the job they had. The Levy row on the Defence section counts the spare weapons.
+- Ring the bell (F10, the Bell row, or the militia box's bottom button) to raise the levy and keep it armed until you silence it. The levy costs only the weapons already in stock: no food, no idle colonist, and they do not make the next raid bigger.
 @weapons
 
 ### Hunger

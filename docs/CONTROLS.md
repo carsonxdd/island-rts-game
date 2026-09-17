@@ -76,6 +76,7 @@ and the debug keys F3 / F4 / F6 / F7.
 | Click workshop | Crafting panel (Esc closes) |
 | Space | Centre the camera on your character (rebindable, "Character" group) |
 | F5 / F8 / F9 | Militia stance: Defensive / Offensive / Follow (rebindable, "Militia" group). The same three buttons, plus the formation buttons, sit in the bottom-right box once you have a warrior |
+| F10 | Ring the bell: one colonist per spare weapon in stock arms and stays armed; press again to stand them down (rebindable, "Militia" group). Also the Bell row on the Defence section and the bottom button of the militia box, which shows once you have a warrior or a spare weapon |
 | Click a section header | Campfire panel, Colonists tab: Jobs / Specialists / Priorities / Defence fold and unfold (remembered) |
 | Esc | Cancels the active mode; pauses when nothing is active (not rebindable) |
 | F2 | Build grid overlay — also auto-shows while build mode is active |

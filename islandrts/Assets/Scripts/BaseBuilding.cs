@@ -678,11 +678,11 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
             return;
         }
 
-        // Find the first living warrior
+        // Find the first living full-time warrior (a mustered levy stands down on its own)
         Warrior warriorToRemove = null;
         foreach (Warrior warrior in activeWarriors)
         {
-            if (warrior != null)
+            if (warrior != null && !warrior.levied)
             {
                 warriorToRemove = warrior;
                 break;
@@ -700,7 +700,9 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
     /// </summary>
     public Worker DismissWarrior(Warrior warrior)
     {
-        if (warrior == null || !activeWarriors.Remove(warrior)) return null;
+        if (warrior == null) return null;
+        if (warrior.levied) return StandDownLevy(warrior);   // a mustered levy: the weapon goes back to stock either way
+        if (!activeWarriors.Remove(warrior)) return null;
         currentWarriors--;
 
         if (warrior.weapon != null) Stockpile.Add(warrior.weapon, 1);
@@ -739,7 +741,9 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         Warrior warriorComponent = warrior.GetComponent<Warrior>();
         if (warriorComponent != null)
         {
-            if (activeWarriors.Remove(warriorComponent)) currentWarriors--;
+            // A fallen levy was never in currentWarriors; the weapon in their hands is gone
+            if (activeWarriors.Remove(warriorComponent) && !warriorComponent.levied) currentWarriors--;
+            if (warriorComponent.levied && Faction.IsPlayer) DevQuests.Signal("levy:fell");
             if (Faction.Population != null)
             {
                 Faction.Population.RemoveColonist(warriorComponent);
@@ -747,10 +751,110 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing
         }
     }
 
-    // Get current warrior count
+    /// <summary>Full-time warriors only. A mustered levy is <see cref="Population.MusteredCount"/>.</summary>
     public int GetWarriorCount()
     {
         return currentWarriors;
+    }
+
+    // ------------------------------------------------------------------
+    // The levy (2026-09-16): there is no militia role. Under the alarm
+    // (Faction.Militia) every spare weapon in the stockpile is claimed by one
+    // colonist, who walks here and takes it (the Muster action); quiet sends
+    // them back to put it away (StandDown). Two paths write the roster entry's
+    // mustered / paused job: these. A mustered levy never counts as a full-time
+    // warrior (currentWarriors, prosperity, the governor's army).
+    // ------------------------------------------------------------------
+
+    /// <summary>The weapon the next levy takes: the picker's choice when in stock, else the best there is. Null with an empty rack.</summary>
+    public ItemDef LevyWeapon()
+    {
+        ItemDef chosen = SelectedWeapon;
+        if (chosen != null && Stockpile.Count(chosen) > 0) return chosen;
+        return FirstWeaponInStock();
+    }
+
+    /// <summary>
+    /// A levied colonist at the fire takes up arms (the Muster executor's last step):
+    /// a weapon leaves the stockpile, the job waits on the roster entry, the worker
+    /// body goes and a warrior stands in its place. Null when they hold no claim,
+    /// are already mustered, the rack is bare, or there is no warrior prefab.
+    /// </summary>
+    public Warrior MusterLevy(Worker recruit)
+    {
+        if (recruit == null || !recruit.levied || warriorPrefab == null || Faction.Population == null) return null;
+        Population.Colonist c = Faction.Population.EntryOf(recruit);
+        if (c == null || c.mustered) return null;
+        ItemDef weapon = LevyWeapon();
+        if (weapon == null || Stockpile.Remove(weapon, 1) <= 0) return null;
+
+        c.pausedHasJob = recruit.hasJob;
+        c.pausedSpecialty = recruit.specialty;
+        c.pausedJob = recruit.assignedResourceType;
+        c.mustered = true;
+
+        Vector3 spawnPos = recruit.transform.position;
+        NavMeshHit hit;
+        if (NavMesh.SamplePosition(spawnPos, out hit, 2f, NavMesh.AllAreas)) spawnPos = hit.position;
+
+        GameObject warriorObj = Spawn.Owned(warriorPrefab, spawnPos, recruit.transform.rotation, Faction);
+        Warrior warrior = warriorObj.GetComponent<Warrior>();
+        if (warrior == null)
+        {
+            Debug.LogError("BaseBuilding: Warrior prefab doesn't have Warrior component!");
+            Destroy(warriorObj);
+            c.mustered = false;
+            Stockpile.Add(weapon, 1);
+            return null;
+        }
+        warriorObj.name = "Levy_" + (c.persona != null ? c.persona.Name : recruit.name);
+        warrior.baseBuilding = this;
+        warrior.weapon = weapon;   // before Start, which copies its stats into the unit
+        warrior.levied = true;
+        activeWarriors.Add(warrior);        // fights and dies as one of ours; never in currentWarriors
+
+        Faction.Population.ReplaceUnit(recruit, warrior);
+        activeWorkers.Remove(recruit);
+        Destroy(recruit.gameObject);
+        if (Faction.IsPlayer)
+        {
+            DevQuests.Signal("muster");
+            DevQuests.Signal(Faction.Militia.Called ? "muster:called" : "muster:threat");
+        }
+        return warrior;
+    }
+
+    /// <summary>
+    /// A mustered levy at the fire puts the weapon back in the stockpile (the
+    /// StandDown executor's last step, and the − button's): a colonist body stands
+    /// in the warrior's place with the job they had. The weapon they carry is what
+    /// goes back, so a Rearm in the field sticks. Null when they are not a mustered levy.
+    /// </summary>
+    public Worker StandDownLevy(Warrior warrior)
+    {
+        if (warrior == null || !warrior.levied || Faction.Population == null) return null;
+        Population.Colonist c = Faction.Population.EntryOf(warrior);
+        if (c == null) return null;
+
+        Worker colonist = InstantiateColonist(warrior.transform.position);
+        if (colonist == null) return null;
+
+        activeWarriors.Remove(warrior);
+        if (warrior.weapon != null) Stockpile.Add(warrior.weapon, 1);
+        c.mustered = false;
+        // The job comes straight back — no gear-up trip, they are standing at the fire
+        colonist.hasJob = c.pausedHasJob;
+        colonist.specialty = c.pausedSpecialty;
+        colonist.assignedResourceType = c.pausedJob;
+
+        Faction.Population.ReplaceUnit(warrior, colonist);
+        Destroy(warrior.gameObject);
+        if (Faction.IsPlayer)
+        {
+            DevQuests.Signal("stand_down");
+            if (colonist.hasJob) DevQuests.Signal("stand_down:job_back");
+        }
+        return colonist;
     }
 
     // Called when campfire is destroyed

@@ -34,6 +34,8 @@ public static class KeyBindings
         CenterOnCharacter,
         // Militia stance (2026-09-07): the combat HUD's three buttons, on keys
         StanceDefensive, StanceOffensive, StanceFollow,
+        // The bell (2026-09-16): the levy arms, or stands down again
+        MusterBell,
         // Held with a right-click, the character's order waits behind the current one (2026-09-13)
         QueueCommand,
     }
@@ -80,6 +82,7 @@ public static class KeyBindings
         ("Militia", Action.StanceDefensive,   "Stance: Defensive"),
         ("Militia", Action.StanceOffensive,   "Stance: Offensive"),
         ("Militia", Action.StanceFollow,      "Stance: Follow"),
+        ("Militia", Action.MusterBell,        "Ring the bell (muster / stand down)"),
     };
 
     private static readonly Dictionary<Action, Binding> Defaults = new Dictionary<Action, Binding>
@@ -110,6 +113,7 @@ public static class KeyBindings
         { Action.StanceDefensive,    new Binding(KeyCode.F5) },
         { Action.StanceOffensive,    new Binding(KeyCode.F8) },
         { Action.StanceFollow,       new Binding(KeyCode.F9) },
+        { Action.MusterBell,         new Binding(KeyCode.F10) },
     };
 
     private static readonly Dictionary<Action, Binding> current = new Dictionary<Action, Binding>();

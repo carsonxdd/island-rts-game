@@ -55,6 +55,15 @@ public class Warrior : UnitBase<Warrior>
     [System.NonSerialized] public ItemDef weapon;
 
     /// <summary>
+    /// A mustered levy (2026-09-16): a colonist standing in this body for the
+    /// length of the alarm, who walks back to the fire and returns the weapon to
+    /// the stockpile when it has been quiet (StandDown). Set by
+    /// <see cref="BaseBuilding.MusterLevy"/> before Start, like <see cref="weapon"/>.
+    /// Not counted as a full-time warrior.
+    /// </summary>
+    [System.NonSerialized] public bool levied;
+
+    /// <summary>
     /// The ONE place a weapon's stats land on a warrior (2026-09-04): recruit
     /// (from Start) and rearm (from BaseBuilding.RearmWarrior) both come through
     /// here. Copies damage / range / interval into the unit fields, into the
@@ -186,6 +195,7 @@ public class Warrior : UnitBase<Warrior>
         bb.warriorSearchRadius = searchRadius;
         bb.patrolRadius = patrolRadius;
         bb.isRanged = IsRanged;
+        bb.levied = levied;
 
         // Setup StuckResolver
         var stuckResolver = CreateStuckResolver();
@@ -291,7 +301,18 @@ public class Warrior : UnitBase<Warrior>
             {
                 new EnemyPresence(0f, ResponseCurve.InverseLinear(1f, 0f)),   // Peacetime only
                 new RearmAvailable(ResponseCurve.Linear(1f, 0f))            // 1 with something better in stock
-            }, new RearmExecutor(), basePriority: 0.5f, momentumBonus: 0f)
+            }, new RearmExecutor(), basePriority: 0.5f, momentumBonus: 0f),
+
+            // Stand Down (2026-09-16) — a mustered levy returns the weapon to the
+            // stockpile once the alarm has been quiet for Militia.StandDownSeconds and nothing
+            // hostile is alive. 0.8: under Engage (1.0) and a wounded warrior's Heal
+            // (0.9 x damage), over Patrol (0.3) and Rearm (0.5). Zero momentum and
+            // no yShift; the gate is 0 for every full-time warrior.
+            new ActionOption("StandDown", new Consideration[]
+            {
+                new StandDownDue(ResponseCurve.Linear(1f, 0f)),                // Zero-cost gate
+                new EnemyPresence(0f, ResponseCurve.InverseLinear(1f, 0f))    // Nobody hostile alive
+            }, new StandDownExecutor(), basePriority: 0.8f, momentumBonus: 0f)
         };
 
         bb.brain = aiBrain;
@@ -379,7 +400,7 @@ public class Warrior : UnitBase<Warrior>
             color = Color.red;
         else if (displayName.Contains("Engaging") || displayName.Contains("defeated"))
             color = Color.yellow;
-        else if (displayName.Contains("Defending") || displayName.Contains("Guarding") || displayName.Contains("Rearming"))
+        else if (displayName.Contains("Defending") || displayName.Contains("Guarding") || displayName.Contains("Rearming") || displayName.Contains("Standing down"))
             color = new Color(0.3f, 0.8f, 1f);
         else if (displayName.Contains("Intercepting"))
             color = new Color(1f, 0.6f, 0f);  // Orange for intercept/rally

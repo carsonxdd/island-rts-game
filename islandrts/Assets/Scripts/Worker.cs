@@ -61,6 +61,27 @@ public class Worker : UnitBase<Worker>
     [System.NonSerialized] public int dropoffSlot = -1;
 
     /// <summary>
+    /// Levied (2026-09-16): this colonist holds a claim on a spare weapon in the
+    /// stockpile and answers the colony's alarm (<see cref="Militia"/>) by walking
+    /// to the fire and standing in a warrior body. Only <see cref="SetLevied"/>
+    /// writes it: the militia's 2 Hz levy hands claims out and takes them back, the
+    /// Muster executor drops one it could not honour.
+    /// </summary>
+    [System.NonSerialized] public bool levied;
+
+    /// <summary>Hidden inside a hut right now (Flee or Sleep). The levy calls a sleeper last.</summary>
+    public bool IsGarrisoned => isGarrisoned;
+
+    public void SetLevied(bool on)
+    {
+        if (levied == on) return;
+        levied = on;
+        if (aiBrain == null || aiBrain.blackboard == null) return;   // Initialize copies the field
+        aiBrain.blackboard.levied = on;
+        aiBrain.ForceReeval();
+    }
+
+    /// <summary>
     /// Who this colonist is (2026-09-16): name and trait, held on the roster entry so
     /// it survives becoming a warrior. Null until the campfire has rostered them
     /// (Start or later — the roster is filled right after Instantiate).
@@ -320,6 +341,7 @@ public class Worker : UnitBase<Worker>
         bb.specialty = specialty;
         bb.leaving = leaving;
         bb.gearingUp = gearingUp;
+        bb.levied = levied;
         bb.carryType = assignedResourceType;
         bb.carryCapacity = carryCapacity;
         bb.gatherDistance = gatherDistance;
@@ -520,6 +542,17 @@ public class Worker : UnitBase<Worker>
                 new ThreatNearby(1f, ResponseCurve.Logistic(12f, 0.3f)),      // 1 enemy in grid → raw 1.0 → logistic ~0.999
                 new HealthPercent(ResponseCurve.InverseLinear(0.3f, 0.7f))    // Full HP=0.7, low HP=1.0 — nudge not gate
             }, new FleeToHutExecutor(), basePriority: 1.2f, momentumBonus: 0.2f),
+
+            // Muster (2026-09-16) — a levied colonist answers the alarm: walk to the
+            // fire, take a spare weapon from the stockpile, stand in a warrior body.
+            // 1.8 clears Flee's 1.2 + 0.2 momentum by the 20% bar (1.68) and Sleep's
+            // 1.45, so a raid ARMS them instead of hiding them; Leave (2.0) still
+            // wins. One zero-cost gate, zero momentum, no yShift: the alarm dropping
+            // or the claim being taken back mid-walk ends it.
+            new ActionOption("Muster", new Consideration[]
+            {
+                new MusterCall(ResponseCurve.Linear(1f, 0f))
+            }, new MusterExecutor(), basePriority: 1.8f, momentumBonus: 0f),
 
             // Leave — a starving colonist walks out (2026-09-04, Slice 4). One
             // zero-cost gate, priority 2.0 so it beats Flee; the executor ends in
@@ -749,6 +782,8 @@ public class Worker : UnitBase<Worker>
             color = Color.yellow;
         else if (displayName.Contains("Gearing up"))
             color = new Color(0.3f, 0.8f, 1f);   // the warriors' guard blue: kitting out
+        else if (displayName.Contains("arms"))
+            color = new Color(1f, 0.6f, 0f);   // the intercept orange: the levy answering the bell
         else if (displayName.Contains("Sleeping") || displayName.Contains("bed") || displayName.Contains("Turning in"))
             color = new Color(0.6f, 0.6f, 0.85f);   // a night's lavender: asleep or on the way
         else

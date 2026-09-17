@@ -117,6 +117,7 @@ public class PopulationManager : MonoBehaviour
             Faction f = all[i];
             if (f.IsRaiders) continue;   // no colony, nobody to house or feed
             f.Population.Tick(dt);
+            f.Militia.Tick(dt);   // the levy's alarm rides the same ticker (2026-09-16)
         }
     }
 }

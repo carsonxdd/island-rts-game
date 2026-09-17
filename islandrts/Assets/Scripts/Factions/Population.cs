@@ -35,6 +35,15 @@ public sealed class Population
         public MonoBehaviour unit;
         public IHousing home;   // null = homeless
         public Persona persona; // who they are (2026-09-16); rolled once, kept across body swaps
+
+        // Mustered (2026-09-16): this person answered the alarm and stands in a
+        // Warrior body with a weapon out of the stockpile; the job they had waits
+        // here to be handed back on stand-down. Only BaseBuilding's MusterLevy /
+        // StandDownLevy write these.
+        public bool mustered;           // in the warrior body right now
+        public bool pausedHasJob;
+        public Worker.Specialty pausedSpecialty;
+        public ResourceNode.ResourceType pausedJob;
     }
 
     public enum HungerState { Fed, Hungry, Starving }
@@ -177,6 +186,21 @@ public sealed class Population
 
     /// <summary>Everyone on the roster, in arrival order (the campfire panel's People list walks this). Entries may hold a dead unit until the next prune.</summary>
     public IReadOnlyList<Colonist> Roster => roster;
+
+    /// <summary>The roster entry behind a unit, or null. The campfire's muster paths read and write it.</summary>
+    public Colonist EntryOf(MonoBehaviour unit) => Find(unit);
+
+    /// <summary>Levied colonists standing in a warrior body right now.</summary>
+    public int MusteredCount()
+    {
+        int n = 0;
+        for (int i = 0; i < roster.Count; i++)
+        {
+            Colonist c = roster[i];
+            if (c.unit != null && c.mustered) n++;
+        }
+        return n;
+    }
 
     /// <summary>The name and trait of a rostered unit, or null.</summary>
     public Persona PersonaOf(MonoBehaviour unit)

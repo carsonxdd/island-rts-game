@@ -109,6 +109,9 @@ public class WorkerAssignmentUI : MonoBehaviour
 
     private TextMeshProUGUI warriorCount, warriorCost, housingText, colonistText;
     private Button warriorMinus, warriorPlus;
+    // The levy (2026-09-16): the read-only row and the bell stepper under Defence
+    private TextMeshProUGUI levyValue;
+    private int lastSpare = -1, lastMustered = -1, lastClaimed = -1;
     // The specialist rows (2026-09-07; the Crafter row of 2026-09-04 became one of
     // three): same controls as a gathering job, no swatch. Idle colonists do all
     // three trades on their own; a row pins one colonist to that trade alone.
@@ -232,6 +235,7 @@ public class WorkerAssignmentUI : MonoBehaviour
         for (int i = 0; i < researchRows.Count; i++) researchRows[i].stateLast = -1;
         for (int i = 0; i < queueRows.Count; i++) queueRows[i].textLast = null;
         lastWarriors = lastHousingUsed = lastHousingCap = -1;
+        lastSpare = lastMustered = lastClaimed = -1;
         lastColonists = lastIdle = lastArrival = -1;
         peopleActive = -1;   // the People rows re-fit on open
         warriorLineLast = int.MinValue;
@@ -415,6 +419,15 @@ public class WorkerAssignmentUI : MonoBehaviour
 
         warriorCost = MenuBuilder.RowDescription(body, "");
 
+        // The levy (2026-09-16): nothing to set. Every spare weapon in the stockpile
+        // arms one colonist when the bell rings or raiders reach the fire; the
+        // row just says how many that is right now.
+        levyValue = MenuBuilder.ValueRow(body, "Levy", "",
+            description: "Every spare weapon in stock arms a colonist when the bell rings or raiders reach the fire. Craft more than you recruit.");
+        bellSetter = MenuBuilder.StepperRow(body, "Bell", Militia.BellNames, Factions.Player.Militia.Called ? 1 : 0,
+            i => { if (i == 1) Factions.Player.Militia.Call(); else Factions.Player.Militia.Dismiss(); });
+        MenuBuilder.RowDescription(body, "Ring: the levy arms and stays armed. Quiet: they put the weapons back once nothing hostile is near.");
+
         // Stance (2026-09-07): the colony-wide order every warrior reads live
         // (Faction.Stance), like the priority sliders. The combat HUD and its
         // hotkeys set the same static, so UpdateDisplay keeps the stepper in step.
@@ -429,8 +442,8 @@ public class WorkerAssignmentUI : MonoBehaviour
         MenuBuilder.RowDescription(body, "Auto: Line on Defensive, Wedge on Offensive, Ring on Follow. Spearmen in front, archers behind.");
     }
 
-    private Action<int> stanceSetter, formationSetter;
-    private int stanceShown = -1, formationShown = -1;
+    private Action<int> stanceSetter, formationSetter, bellSetter;
+    private int stanceShown = -1, formationShown = -1, bellShown = -1;
 
     /// <summary>
     /// The People rows: shown to the roster size (a change refits the panel), text
@@ -489,6 +502,7 @@ public class WorkerAssignmentUI : MonoBehaviour
                 else if (war != null)
                 {
                     peopleLine.Append("  ·  ").Append(war.weapon != null && war.weapon.equipment != null && war.weapon.equipment.ranged ? "Archer" : "Warrior");
+                    if (war.levied) peopleLine.Append(" (levy)");
                     string doing = war.CurrentActivity;
                     if (!string.IsNullOrEmpty(doing)) peopleLine.Append("  ·  ").Append(doing);
                 }
@@ -733,6 +747,12 @@ public class WorkerAssignmentUI : MonoBehaviour
             formationShown = (int)Factions.Player.FormationKind;
             formationSetter(formationShown);
         }
+        int bell = Factions.Player.Militia.Called ? 1 : 0;
+        if (bellSetter != null && bellShown != bell)
+        {
+            bellShown = bell;
+            bellSetter(bell);
+        }
 
         if (baseBuilding == null || station == null) return;
 
@@ -912,6 +932,24 @@ public class WorkerAssignmentUI : MonoBehaviour
             warriorPlus.interactable = canRecruit;
         }
         warriorMinus.interactable = warriors > 0;
+
+        // The levy: "3 spare weapons", "2 armed · 1 on the way", "2 armed"
+        Militia levyState = Factions.Player.Militia;
+        int spare = levyState.SpareWeapons, mustered = levyState.Mustered, claimed = levyState.Claimed;
+        if (spare != lastSpare || mustered != lastMustered || claimed != lastClaimed)
+        {
+            lastSpare = spare;
+            lastMustered = mustered;
+            lastClaimed = claimed;
+            if (mustered == 0 && claimed == 0)
+                levyValue.text = spare == 1 ? "1 spare weapon" : spare + " spare weapons";
+            else
+            {
+                levyValue.text = mustered + " armed";
+                if (claimed > 0) levyValue.text += " <size=78%>· " + claimed + " on the way</size>";
+            }
+            levyValue.color = mustered > 0 ? MenuStyle.TextAccent : (spare > 0 ? MenuStyle.TextPrimary : MenuStyle.TextMuted);
+        }
     }
 
     void UpdateCraftTab()
@@ -1260,6 +1298,7 @@ public class WorkerAssignmentUI : MonoBehaviour
 
         UpdateDisplay();
     }
+
 
     void OnWarriorMinusClicked()
     {

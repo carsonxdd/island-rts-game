@@ -324,6 +324,7 @@ public class SleepExecutor : ActionExecutor
         if (phase == Phase.Asleep)
         {
             AIWorldState ws = AIWorldState.Instance;
+            if (bb.levied && garrisoned && bb.faction != null && bb.faction.Militia.Alarm) DevQuests.Signal("muster:asleep");   // a hut sleeper levied: Muster enters next and walks to the fire
             if (ws != null && ws.GetNearbyHostileCount(bb.transform.position, bb.faction) > 0) DevQuests.Signal("sleep:raid");
             else DevQuests.Signal("sleep:wake");
         }
