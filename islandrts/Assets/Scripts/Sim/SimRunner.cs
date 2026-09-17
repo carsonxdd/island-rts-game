@@ -1,4 +1,4 @@
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
+﻿#if UNITY_EDITOR || DEVELOPMENT_BUILD
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -254,6 +254,8 @@ public class SimRunner : MonoBehaviour
         SimHooks.IslandStyle = cfg.islandStyle ?? "";
         SimHooks.RivalCount = cfg.rivalCount;
         SimHooks.RivalStrategy = cfg.rivalStrategy ?? "";
+        SimHooks.LevyShare = cfg.levyShare;
+        SimHooks.LevyRackExtra = cfg.levyRackExtra;
     }
 
     private void BeginNextRun(bool alreadyLoaded)

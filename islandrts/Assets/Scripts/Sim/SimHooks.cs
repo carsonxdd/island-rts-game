@@ -1,4 +1,4 @@
-/// <summary>
+﻿/// <summary>
 /// Global switches the balance-simulation harness flips before a run.
 ///
 /// TWO flags, because "the harness is driving" and "nothing is being drawn" are
@@ -74,6 +74,14 @@ public static class SimHooks
     /// under <see cref="Simulating"/>.
     /// </summary>
     public static string RivalStrategy = "";
+
+    /// <summary>
+    /// The levy sweep's dials (2026-09-16 night): a <see cref="GovernorPolicy"/>
+    /// reads them through <c>LevyShare</c> / <c>RackExtra</c>, only under
+    /// <see cref="Simulating"/>. -1 = the policy's own value / 0 extra.
+    /// </summary>
+    public static float LevyShare = -1f;
+    public static int LevyRackExtra = -1;
 
     /// <summary>Case-insensitive lookup of a name in a name table; -1 when empty or unknown.</summary>
     public static int IndexOfName(string[] names, string name)

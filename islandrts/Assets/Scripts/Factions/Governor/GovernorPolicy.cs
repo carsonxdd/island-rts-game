@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 /// <summary>
 /// Everything a player decides in a run — what to research, what to queue at
@@ -106,7 +106,11 @@ public abstract class GovernorPolicy
     /// meets the first raiders unarmed. Rush keeps two thirds standing, the
     /// Conqueror everything (it sails with real warriors).
     /// </summary>
-    protected virtual float LevyShare => 0.5f;
+    protected virtual float PolicyLevyShare => 0.5f;
+    /// <summary>The share in force: the sweep's <see cref="SimHooks.LevyShare"/> when it names one, else the policy's own.</summary>
+    protected float LevyShare => SimHooks.Simulating && SimHooks.LevyShare >= 0f ? SimHooks.LevyShare : PolicyLevyShare;
+    /// <summary>Weapons kept on the rack past the army's gap - 0 shipped, the levy sweep's <see cref="SimHooks.LevyRackExtra"/> under the sim.</summary>
+    protected int RackExtra => SimHooks.Simulating && SimHooks.LevyRackExtra > 0 ? SimHooks.LevyRackExtra : 0;
     /// <summary>Surplus over the wanted militia that is worth sailing with.</summary>
     public const int LandingMinParty = 3;
     /// <summary>Days between one colony's landings.</summary>
@@ -547,9 +551,10 @@ public abstract class GovernorPolicy
     /// </summary>
     protected bool KeepArmy(ColonyState s, int wanted, int fullTime)
     {
-        if (s.Strength >= wanted && s.Warriors >= fullTime) return false;
+        int extra = RackExtra;   // the levy sweep's spare rack, 0 shipped
+        if (s.Strength >= wanted + extra && s.Warriors >= fullTime) return false;
         int bodies = Mathf.Max(0, s.Colonists - s.Warriors);
-        int rack = Mathf.Min(wanted - s.Warriors, bodies) - s.Mustered;
+        int rack = Mathf.Min(wanted + extra - s.Warriors, bodies) - s.Mustered;
         if (s.Warriors < fullTime) rack = Mathf.Max(rack, 1);   // a recruit takes one off the rack
         if (rack > 0 && KeepSpears(s, rack)) return true;
         return s.Warriors < fullTime && Recruit(s);
@@ -641,7 +646,7 @@ public class TurtlePolicy : GovernorPolicy
 public class RushPolicy : GovernorPolicy
 {
     /// <summary>Army first: two thirds of the strength stands full-time, a third is the rack (2026-09-16).</summary>
-    protected override float LevyShare => 1f / 3f;
+    protected override float PolicyLevyShare => 1f / 3f;
 
     public override string Name => "Rush";
 
@@ -769,7 +774,7 @@ public class ConquerorPolicy : GovernorPolicy
     /// <summary>Men the army is kept above the rival's, so a landing outnumbers its militia.</summary>
     public const int Overmatch = 4;
     /// <summary>A landing sails with real warriors: nothing is left to the levy (2026-09-16).</summary>
-    protected override float LevyShare => 0f;
+    protected override float PolicyLevyShare => 0f;
 
     private int nextSailDay;
 

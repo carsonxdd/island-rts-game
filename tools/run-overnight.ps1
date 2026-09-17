@@ -35,6 +35,19 @@
         rivals      0 / 1 / 2 neighbours, a fixed        what a neighbour costs the
                     Turtle / Rush / Eco one, 6 islands   player; how the rival fares
 
+    Added 2026-09-16 night, after the levy / sleep / 150-75 clock landed:
+
+        levy        levyShare 0 / .33 / .5 / .75 and     the new AI's own dial: how
+                    levyRackExtra 0 / 2 / 4, 6 islands   much army may be spare spears
+        conquest    the player as Conqueror against a    does war ever pay; how many
+                    Turtle / Rush / Eco / random / two   fires fall, what loot comes back
+                    rivals, 6 islands
+        long        45- and 60-day calendars, 6 islands  raids of 28-35 and 50+ people
+        clock       day/night 100/50, 150/75, 200/100    how much of the post-sleep drop
+                    6 islands                            is the clock
+        economy     foodPerDay .5 / 1.5 / 2, starting    where the sleep-shortened day
+                    food 25 / 100, warrior 25F, 6 islands starves a colony
+
     Every sweep file it plays is saved next to its results, so any one can be
     replayed alone: .\tools\run-sim.ps1 -Sweep SimLogs\overnight-<date>\raids.sweep.json
 
@@ -46,7 +59,7 @@
     box); more than that mostly buys NavMesh job contention.
 
 .PARAMETER Sweeps
-    Which of the five to run, in order. Default all.
+    Which of the ten to run, in order. Default all.
 
 .PARAMETER SkipBuild
     Use the sim player as built. Only when you have just built it yourself and
@@ -73,7 +86,7 @@
 param(
     [string]$OutDir = "",
     [int]$Parallel = 8,
-    [string[]]$Sweeps = @("baseline", "raids", "difficulty", "islands", "rivals"),
+    [string[]]$Sweeps = @("baseline", "raids", "difficulty", "islands", "rivals", "levy", "conquest", "long", "clock", "economy"),
     [switch]$SkipBuild,
     [switch]$DryRun,
     [string]$UnityExe = "",
@@ -89,7 +102,15 @@ $runSim = Join-Path $PSScriptRoot "run-sim.ps1"
 $summarize = Join-Path $PSScriptRoot "summarize-sim.ps1"
 $simLogs = Join-Path $root "SimLogs"
 
-if (-not $OutDir) { $OutDir = "SimLogs/overnight-{0:yyyy-MM-dd}" -f (Get-Date) }
+if (-not $OutDir) {
+    $OutDir = "SimLogs/overnight-{0:yyyy-MM-dd}" -f (Get-Date)
+    # A second batch on the same day must not land in a finished batch's folder:
+    # run-sim APPENDS runs.csv, so the two nights would merge and REPORT.md be overwritten
+    # (2026-09-16). Step aside to a -HHmm suffix when the default folder already holds a report.
+    if (Test-Path (Join-Path (Join-Path $root $OutDir) "REPORT.md")) {
+        $OutDir = "SimLogs/overnight-{0:yyyy-MM-dd-HHmm}" -f (Get-Date)
+    }
+}
 $outPath = if ([System.IO.Path]::IsPathRooted($OutDir)) { $OutDir } else { Join-Path $root $OutDir }
 New-Item -ItemType Directory -Force -Path $outPath | Out-Null
 
@@ -126,7 +147,7 @@ function New-Run {
 }
 
 function New-Sweep {
-    param([string]$Name, [int]$Repeats, [object[]]$Runs)
+    param([string]$Name, [int]$Repeats, [object[]]$Runs, [int]$WallSeconds = 2400)
     [pscustomobject]@{
         name                 = $Name
         outputDir            = "SimLogs"
@@ -135,7 +156,7 @@ function New-Sweep {
         # Headless is 15-30x realtime on this box but eight processes share it;
         # a full 30-day run with held dawns is 6000 game seconds. The frozen-clock
         # guard (60 s of no game time) is what catches a real hang.
-        maxWallSecondsPerRun = 2400
+        maxWallSecondsPerRun = $WallSeconds
         runs                 = $Runs
     }
 }
@@ -196,7 +217,83 @@ function Build-Sweep {
             $runs = @(foreach ($v in $variants.Keys) { foreach ($i in $islands6) { foreach ($s in $strategies) { New-Run $v $s $i $variants[$v] } } })
             return New-Sweep $Name 1 $runs
         }
-        default { throw "Unknown sweep '$Name' (baseline | raids | difficulty | islands | rivals)" }
+        "levy" {
+            # The levy's own dial (2026-09-16 night). levyShare overrides every
+            # policy's share of the wanted strength left to spare spears (Turtle /
+            # Eco ship at 0.5, Rush at 1/3); the "ls" cells vary it alone, the
+            # "re" cells keep the shipped share and pad the rack past the army's
+            # gap. ls050 IS the shipped Turtle/Eco cell (Rush's shipped is 1/3),
+            # re0 is the shipped rule for all three, so both ladders have a
+            # same-night control.
+            $variants = [ordered]@{
+                "ls000" = @{ levyShare = 0.0 }
+                "ls033" = @{ levyShare = 0.33 }
+                "ls050" = @{ levyShare = 0.5 }
+                "ls075" = @{ levyShare = 0.75 }
+                "re0"   = @{ levyRackExtra = 0 }
+                "re2"   = @{ levyRackExtra = 2 }
+                "re4"   = @{ levyRackExtra = 4 }
+            }
+            $runs = @(foreach ($v in $variants.Keys) { foreach ($i in $islands6) { foreach ($s in $strategies) { New-Run $v $s $i $variants[$v] } } })
+            return New-Sweep $Name 1 $runs
+        }
+        "conquest" {
+            # The player plays the Conqueror (2026-09-16: declares war on the first
+            # landed rival at day 12, sails every quiet day with the surplus) against
+            # a pinned neighbour, a random one, and two. Read player_landings and the
+            # loot columns in runs.csv and "conquered" under rival fate; the r1 cells
+            # of the rivals sweep are the same islands played without the war.
+            $variants = [ordered]@{
+                "vturtle" = @{ rivalCount = 1; rivalStrategy = "Turtle" }
+                "vrush"   = @{ rivalCount = 1; rivalStrategy = "Rush" }
+                "veco"    = @{ rivalCount = 1; rivalStrategy = "Eco" }
+                "vrandom" = @{ rivalCount = 1 }
+                "vtwo"    = @{ rivalCount = 2 }
+            }
+            $runs = @(foreach ($v in $variants.Keys) { foreach ($i in $islands6) { New-Run $v "Conqueror" $i $variants[$v] } })
+            return New-Sweep $Name 1 $runs
+        }
+        "long" {
+            # Past the 30-day calendar (2026-09-16 night): the levy and the full-time
+            # army against day-45 raids of ~28 and day-60 raids of ~35, villages past
+            # 50 people (the hitch report's size). The game-time cap follows the
+            # calendar (SimRunner.CalendarCapSeconds); the wall cap here does not,
+            # so a 60-day run at eight processes gets twice the usual wall time.
+            $lengths = [ordered]@{ "d45" = 45; "d60" = 60 }
+            $runs = @(foreach ($l in $lengths.Keys) { foreach ($i in $islands6) { foreach ($s in $strategies) {
+                New-Run $l $s $i @{ daysToSurvive = $lengths[$l] } } } })
+            return New-Sweep $Name 1 $runs 4800
+        }
+        "clock" {
+            # The day clock (2026-09-16 night): 100/50 was the shipped clock until
+            # sleep landed, 150/75 is shipped now, 200/100 is the next step. With
+            # sleep from midnight to dawn a longer day is more labor per calendar
+            # day AND a longer night to hold; c150 is the same-night control.
+            $clocks = [ordered]@{
+                "c100" = @{ dayLengthSeconds = 100; nightLengthSeconds = 50 }
+                "c150" = @{ dayLengthSeconds = 150; nightLengthSeconds = 75 }
+                "c200" = @{ dayLengthSeconds = 200; nightLengthSeconds = 100 }
+            }
+            $runs = @(foreach ($c in $clocks.Keys) { foreach ($i in $islands6) { foreach ($s in $strategies) { New-Run $c $s $i $clocks[$c] } } })
+            return New-Sweep $Name 1 $runs
+        }
+        "economy" {
+            # Food after sleep cut the working day (2026-09-16 night): one knob at a
+            # time around the shipped values (1 food per colonist-day, 50 starting
+            # food, 15 food per warrior). Read hungry dawns and departures before
+            # the win rate - a colony that starved is a food problem, not a raid one.
+            $variants = [ordered]@{
+                "fd050" = @{ foodPerDay = 0.5 }
+                "fd150" = @{ foodPerDay = 1.5 }
+                "fd200" = @{ foodPerDay = 2.0 }
+                "sf25"  = @{ startingFood = 25 }
+                "sf100" = @{ startingFood = 100 }
+                "wc25"  = @{ warriorCostFood = 25 }
+            }
+            $runs = @(foreach ($v in $variants.Keys) { foreach ($i in $islands6) { foreach ($s in $strategies) { New-Run $v $s $i $variants[$v] } } })
+            return New-Sweep $Name 1 $runs
+        }
+        default { throw "Unknown sweep '$Name' (baseline | raids | difficulty | islands | rivals | levy | conquest | long | clock | economy)" }
     }
 }
 

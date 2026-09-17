@@ -197,6 +197,32 @@ foreach ($sd in $sweepDirs) {
         W
     }
 
+    # ---- conquest (2026-09-16 night): only when the player landed on somebody ----
+    $withWar = @($annotated | Where-Object { (Num $_.run.player_landings) -gt 0 })
+    if ($withWar.Count -gt 0) {
+        W "### Conquest"
+        W
+        W '`landings` = parties the player sailed, summed. `conquered` = runs whose rival fire fell to the player (rival_fate). `loot` = wood / food / stone / metal dropped by fires the player burned, summed. `w.lost` = full-time warriors lost, summed - the price of the war.'
+        W
+        W "| variant | strategy | n | won | landings | conquered | loot W/F/S/M | w.lost |"
+        W "|---|---|---:|---:|---:|---:|---|---:|"
+        foreach ($v in $variantOrder) {
+            foreach ($st in $stratOrder) {
+                $g = @($annotated | Where-Object { $_.variant -eq $v -and $_.strategy -eq $st })
+                if ($g.Count -eq 0) { continue }
+                $landings = ($g | ForEach-Object { Num $_.run.player_landings } | Measure-Object -Sum).Sum
+                if ($landings -le 0) { continue }
+                $won = @($g | Where-Object { $_.run.outcome -eq "victory" -or $_.run.outcome -eq "escape" }).Count
+                $conq = @($g | Where-Object { $_.run.rival_fate -eq "conquered" }).Count
+                $loot = @("loot_wood", "loot_food", "loot_stone", "loot_metal") | ForEach-Object { $c = $_; F0 (($g | ForEach-Object { Num $_.run.$c } | Measure-Object -Sum).Sum) }
+                $wl = ($g | ForEach-Object { $_.days } | ForEach-Object { $_ } | ForEach-Object { Num $_.warriors_lost } | Measure-Object -Sum).Sum
+                $vLabel = if ($v -eq "-") { "" } else { $v }
+                W ("| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} |" -f $vLabel, $st, $g.Count, $won, (F0 $landings), $conq, ($loot -join " / "), (F0 $wl))
+            }
+        }
+        W
+    }
+
     # ---- island grid, when the cells carry islands and more than one variant is not in play ----
     $islands = @($annotated | Where-Object { $_.island -ge 0 } | ForEach-Object { $_.island } | Select-Object -Unique | Sort-Object)
     if ($islands.Count -gt 1 -and $variantOrder.Count -eq 1) {

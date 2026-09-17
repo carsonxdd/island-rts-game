@@ -1,4 +1,4 @@
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
+﻿#if UNITY_EDITOR || DEVELOPMENT_BUILD
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -143,6 +143,23 @@ public class SimConfig
     /// rival, drawn from the seeded stream so a seeded run lands the same one.
     /// </summary>
     public string rivalStrategy = "";
+
+    [Header("Levy (2026-09-16 night)")]
+    /// <summary>
+    /// Overrides every governor's <c>LevyShare</c> - the share of the wanted
+    /// strength left to spare weapons on the rack instead of full-time warriors
+    /// (0 = recruit the whole want, 1 = nobody stands full-time past the floor).
+    /// -1 = each policy's own value (Turtle/Eco 0.5, Rush 1/3, Conqueror 0).
+    /// </summary>
+    public float levyShare = -1f;
+
+    /// <summary>
+    /// Extra weapons every governor keeps on the rack beyond the army's gap
+    /// (<c>KeepArmy</c>), so the levy can stand up more colonists than the
+    /// want asked for. Still capped by the bodies there are to hold them.
+    /// -1 = 0, the shipped rule.
+    /// </summary>
+    public int levyRackExtra = -1;
 
     public string Label(int index)
     {

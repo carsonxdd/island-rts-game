@@ -1,0 +1,10 @@
+{
+    "outputDir": "SimLogs",
+    "captureDeltaTime": 0.016666668,
+    "maxWallSecondsPerRun": 900,
+    "repeats": 1,
+    "runs": [
+        { "id": "smoke_levy", "strategy": "Turtle", "seed": 1042, "terrainSeed": 1042, "daysToSurvive": 5, "levyShare": 0.75, "levyRackExtra": 4 },
+        { "id": "smoke_conq", "strategy": "Conqueror", "seed": 1042, "terrainSeed": 1042, "daysToSurvive": 5, "rivalCount": 1, "rivalStrategy": "Eco" }
+    ]
+}
