@@ -94,6 +94,9 @@ public abstract class UnitBase<T> : MonoBehaviour, ITargetable where T : UnitBas
         floatingText.initialColor = initialColor;
     }
 
+    /// <summary>What the unit is doing, as its label says it (the People list reads this). Empty before the brain exists.</summary>
+    public string CurrentActivity => StateDisplayName("");
+
     /// <summary>Current AI action display name from the blackboard, or <paramref name="fallback"/> if unavailable.</summary>
     protected string StateDisplayName(string fallback)
     {

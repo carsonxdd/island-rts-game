@@ -2568,8 +2568,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 10ad4514327cc96489696652d728ff4c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  dayLengthInSeconds: 100
-  nightLengthInSeconds: 50
+  dayLengthInSeconds: 150
+  nightLengthInSeconds: 75
   currentTimeOfDay: 0.33333334
   sunLight: {fileID: 410087040}
   dayPreset: {fileID: 11400000, guid: e0547484aaaf5f44fbebf9ee251d7f89, type: 2}

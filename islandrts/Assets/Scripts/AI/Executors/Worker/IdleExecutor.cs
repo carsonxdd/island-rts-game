@@ -153,7 +153,7 @@ public class IdleExecutor : ActionExecutor
         }
         else
         {
-            standTimer = Random.Range(StandMin, StandMax);   // nowhere to go right now — try again later
+            standTimer = Random.Range(StandMin, StandMax) * bb.standScale;   // nowhere to go right now — try again later
         }
     }
 
@@ -369,7 +369,7 @@ public class IdleExecutor : ActionExecutor
         displayName = bb.specialty != Worker.Specialty.Any && bb.worker != null
             ? bb.worker.RoleTitle() + ", idle"
             : "Idle";
-        standTimer = Random.Range(StandMin, StandMax);
+        standTimer = Random.Range(StandMin, StandMax) * bb.standScale;   // a Lazy colonist lingers (Persona, 2026-09-16)
         if (AgentReady(bb))
         {
             bb.agent.ResetPath();

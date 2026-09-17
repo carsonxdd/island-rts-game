@@ -8,6 +8,19 @@
 # Lines starting with a single # are comments. Anything else that is not a
 # heading, a bullet or an indented continuation is ignored.
 
+## 2026-09-16 — Names, traits and a night's sleep
+- Every survivor lands with a name and a trait, shown over their head and in the new
+  People list on the campfire panel's Colonists tab, with what each of them is doing.
+  A recruit keeps their name as a warrior.
+- Colonists work into the evening and sleep from midnight to dawn: hut dwellers go
+  inside, anyone bunking at the fire lies down beside it. A load in hand is delivered
+  first. Raiders nearby still send everyone running for the huts.
+- Traits shift the hours: a Night Owl turns in an hour late, an Early Riser is up an
+  hour before dawn, the Hardy do both, the Lazy sleep in and linger between strolls.
+  Steady keeps plain hours. Nothing else about a person changes.
+- The day is half again as long: 150 seconds of daylight and 75 of night. A 30-day run
+  is about two hours now.
+
 ## 2026-09-16 — Room to pass
 - People no longer jam: a unit keeps a little space around itself but can squeeze
   past when the only alternative is standing still, and two who meet head-on

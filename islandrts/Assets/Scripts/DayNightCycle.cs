@@ -17,8 +17,8 @@ using UnityEngine.Rendering;
 public class DayNightCycle : MonoBehaviour
 {
     [Header("Time Settings")]
-    public float dayLengthInSeconds = 100f;    // scene: 100. A 30-day run is 75 real minutes (2026-09-02; was 120/60)
-    public float nightLengthInSeconds = 50f;   // scene: 50
+    public float dayLengthInSeconds = 150f;    // scene: 150. A 30-day run is ~112 real minutes (2026-09-16; was 100/50, before that 120/60)
+    public float nightLengthInSeconds = 75f;   // scene: 75. Colonists sleep from midnight (the night's midpoint) to dawn
     [Range(0f, 1f)]
     // 0 = midnight, 0.25 = dawn (6 am), 0.5 = noon, 0.75 = dusk, 1 = midnight. A run
     // starts at 8 am (scene: 0.33333): 0.25 sat in the middle of the dawn blend, so

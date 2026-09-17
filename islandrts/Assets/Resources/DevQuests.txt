@@ -34,12 +34,30 @@
 #   diplomacy:war  diplomacy:screen  diplomacy:landing  diplomacy:relief  raid:target_rival
 #   queue:add  queue:run  deposit:walk_on  craft:shared  build:keep_placing
 #   loiter:step_aside  loiter:patrol_moved_on
+#   persona  persona:kept  sleep  sleep:hut  sleep:fire  sleep:delivered  sleep:wake  sleep:raid
+#   trait:<steady|night_owl|early_riser|hardy|lazy>
 # crowd:split, dropoff:spread and patrol:spread are STATE checks polled by the
 # tracker twice a second while their quest is open; everything else is an event.
 # A finished batch is deleted from here once its report is in; it stays in the
 # changelog and the phase history. Quest ids are batch slug + index, so a batch
 # that loses quests from the middle needs a RESET on the DEV tab (done 2026-09-13
 # after the first report, Playtests/playtest_2026-09-13_2204.md).
+
+## 2026-09-16 Sleep and personalities
+- @persona A survivor lands with a name over their head
+- @persona:kept A recruit keeps their name as a warrior
+- @sleep:delivered A colonist carrying a load at midnight delivers it first
+- @sleep:hut After midnight hut dwellers vanish into their hut
+- @sleep:fire Someone bunking at the fire lies down beside it
+- @sleep:wake Everyone is up and working again at dawn
+- @sleep:raid Raiders near a fire-side sleeper wake them (they flee)
+- @trait:night_owl A Night Owl is still working past midnight
+- @trait:early_riser An Early Riser is up before the sky brightens
+- @trait:lazy A Lazy colonist sleeps in past dawn
+- The People list on the Colonists tab shows name, trait, role, doing
+- A sleeper by the fire never blocks a deposit or the bench
+- A sleeper inside a hut sleeps through a raid outside it
+- The longer day (150 s / 75 s) reads right on the HUD dial
 
 ## 2026-09-16 Room to pass
 - Ten workers at one tree and the fire: nobody stands frozen nose to nose

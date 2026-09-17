@@ -358,7 +358,7 @@ public class SimRunner : MonoBehaviour
     private float CalendarCapSeconds(SimConfig cfg)
     {
         int days = cfg.daysToSurvive > 0 ? cfg.daysToSurvive : 30;
-        float cycle = clock != null ? clock.CycleSeconds : 150f;
+        float cycle = clock != null ? clock.CycleSeconds : 225f;
         float hold = clock != null && clock.maxDawnHoldSeconds > 0f ? clock.maxDawnHoldSeconds : 180f;
         return (days + 1) * (cycle + hold) + 300f;
     }

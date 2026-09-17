@@ -60,6 +60,22 @@ public class Worker : UnitBase<Worker>
     /// </summary>
     [System.NonSerialized] public int dropoffSlot = -1;
 
+    /// <summary>
+    /// Who this colonist is (2026-09-16): name and trait, held on the roster entry so
+    /// it survives becoming a warrior. Null until the campfire has rostered them
+    /// (Start or later — the roster is filled right after Instantiate).
+    /// </summary>
+    private Persona persona;
+    public Persona Persona
+    {
+        get
+        {
+            if (persona == null) persona = Persona.Of(this, Faction);
+            return persona;
+        }
+    }
+    private string namePrefix;   // "<b>Wren</b>\n", built once for the head label
+
     /// <summary>The unit a colonist is about to become, for the gear-up label.</summary>
     public string RoleTitle()
     {
@@ -311,6 +327,11 @@ public class Worker : UnitBase<Worker>
         bb.searchRadius = searchRadius;
         bb.gatherRatePerSecond = gatherRatePerSecond;
         bb.carryAmount = carryAmount;
+        // The hours this person keeps (Persona, 2026-09-16); midnight to dawn without one
+        Persona who = Persona;
+        bb.bedtime = who != null ? who.Bedtime : 0f;
+        bb.wakeTime = who != null ? who.WakeTime : 0.25f;
+        bb.standScale = who != null ? who.StandScale : 1f;
 
         // Setup StuckResolver
         var stuckResolver = CreateStuckResolver();
@@ -465,6 +486,19 @@ public class Worker : UnitBase<Worker>
                 new ResourceCarry(ResponseCurve.InverseLinear(0.9f, 0.1f)),  // Full hands head home instead
                 new ThreatNearby(1f, ResponseCurve.InverseLinear(1f, 0f))    // Civilians flee, they don't forage
             }, new CollectPickupExecutor(), basePriority: 1.0f, momentumBonus: 0.15f),
+
+            // Sleep (2026-09-16) — at this colonist's hour (SleepUrge: bedtime to wake
+            // time off their Persona, midnight to dawn by default) they deliver what
+            // they carry and go to bed: inside the hut they are homed to, or on the
+            // ground by the fire. 1.45 clears every errand's 1.15-with-momentum by
+            // the 20% bar; GearUp (1.5) and Leave (2.0) still come first, and a raider
+            // in the grid zeroes the urge so Flee (1.2) wins — except for a sleeper
+            // already inside a hut, who is where Flee would put them. Zero momentum,
+            // no yShift: the executor is dead the moment the hour passes.
+            new ActionOption("Sleep", new Consideration[]
+            {
+                new SleepUrge(ResponseCurve.Linear(1f, 0f))   // Zero-cost gate (one density-grid read)
+            }, new SleepExecutor(), basePriority: 1.45f, momentumBonus: 0f),
 
             // Idle at home (walks to the hut or campfire it is homed to, then waits)
             new ActionOption("Idle", new Consideration[]
@@ -680,6 +714,13 @@ public class Worker : UnitBase<Worker>
         // Get display name from brain
         string displayName = StateDisplayName("Thinking");
 
+        // The name rides above the state (2026-09-16), built once
+        if (namePrefix == null)
+        {
+            Persona who = Persona;
+            if (who != null) namePrefix = "<b>" + who.Name + "</b>\n";
+        }
+
         // Include carry info if carrying
         string fullText;
         if (carryAmount > 0.5f)
@@ -690,6 +731,7 @@ public class Worker : UnitBase<Worker>
         {
             fullText = displayName;
         }
+        if (namePrefix != null) fullText = namePrefix + fullText;
 
         // Color based on action
         Color color;
@@ -707,6 +749,8 @@ public class Worker : UnitBase<Worker>
             color = Color.yellow;
         else if (displayName.Contains("Gearing up"))
             color = new Color(0.3f, 0.8f, 1f);   // the warriors' guard blue: kitting out
+        else if (displayName.Contains("Sleeping") || displayName.Contains("bed") || displayName.Contains("Turning in"))
+            color = new Color(0.6f, 0.6f, 0.85f);   // a night's lavender: asleep or on the way
         else
             color = Color.gray;
 

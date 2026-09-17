@@ -34,6 +34,18 @@ public class Warrior : UnitBase<Warrior>
     [Header("References")]
     public BaseBuilding baseBuilding;  // Reference to campfire
 
+    /// <summary>The same person they were as a colonist (Persona, 2026-09-16): the roster entry moved with them.</summary>
+    private Persona persona;
+    public Persona Persona
+    {
+        get
+        {
+            if (persona == null) persona = Persona.Of(this, Faction);
+            return persona;
+        }
+    }
+    private string namePrefix;
+
     /// <summary>
     /// The weapon this warrior was armed with (2026-09-03): one piece of
     /// ItemKind.Equipment taken from the campfire stockpile on recruit, returned
@@ -384,7 +396,12 @@ public class Warrior : UnitBase<Warrior>
         else
             color = new Color(0.5f, 0.5f, 1f);
 
-        floatingText.SetText(displayName, color);
+        if (namePrefix == null)
+        {
+            Persona who = Persona;
+            if (who != null) namePrefix = "<b>" + who.Name + "</b>\n";
+        }
+        floatingText.SetText(namePrefix != null ? namePrefix + displayName : displayName, color);
     }
 
     protected override void OnDestroy()

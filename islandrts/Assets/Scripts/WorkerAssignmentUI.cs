@@ -123,6 +123,17 @@ public class WorkerAssignmentUI : MonoBehaviour
         public int lockedLast = -1;
     }
     private readonly List<SpecialtyRow> specialties = new List<SpecialtyRow>();
+    // The People list (2026-09-16): one line per person on the roster — name, trait,
+    // role and what they are doing right now. A fixed pool of rows toggled to the
+    // roster size (the Queue tab's pattern); text is rebuilt twice a second, not per
+    // frame, and only assigned when it changed.
+    const int PeopleRowsShown = 12;
+    const float PeopleRefreshSeconds = 0.5f;
+    private readonly List<TextMeshProUGUI> peopleRows = new List<TextMeshProUGUI>();
+    private readonly List<string> peopleLast = new List<string>();
+    private int peopleActive = -1;
+    private float peopleNextRefresh;
+    private static readonly System.Text.StringBuilder peopleLine = new System.Text.StringBuilder(96);
     // The recruit picker: which weapon the next warrior takes
     private TextMeshProUGUI weaponLabel;
     private Button weaponPrev, weaponNext;
@@ -222,6 +233,7 @@ public class WorkerAssignmentUI : MonoBehaviour
         for (int i = 0; i < queueRows.Count; i++) queueRows[i].textLast = null;
         lastWarriors = lastHousingUsed = lastHousingCap = -1;
         lastColonists = lastIdle = lastArrival = -1;
+        peopleActive = -1;   // the People rows re-fit on open
         warriorLineLast = int.MinValue;
         for (int i = 0; i < specialties.Count; i++) { specialties[i].last = -1; specialties[i].lockedLast = -1; }
         weaponShown = null;
@@ -358,6 +370,19 @@ public class WorkerAssignmentUI : MonoBehaviour
         specialties.Add(MakeSpecialtyRow(sec, Worker.Specialty.Repairer, "Repairers"));
         MenuBuilder.RowDescription(sec, "Idle colonists build, then craft, then repair, then tidy. A specialist does only their trade.");
 
+        // People (2026-09-16): who is who. Rows are pooled and shown to the roster size.
+        sec = MenuBuilder.CollapsibleSection(body, "People", "ui.campfire.people", OnSectionToggled).transform;
+        for (int i = 0; i < PeopleRowsShown; i++)
+        {
+            TextMeshProUGUI row = MenuBuilder.RowDescription(sec, "");
+            row.textWrappingMode = TextWrappingModes.NoWrap;
+            row.overflowMode = TextOverflowModes.Ellipsis;
+            row.gameObject.SetActive(false);
+            peopleRows.Add(row);
+            peopleLast.Add(null);
+        }
+        MenuBuilder.RowDescription(sec, "Name, trait, role and what they are up to. Everyone sleeps from midnight; traits shift the hours.");
+
         // Priorities (2026-09-07): the colony-wide weights behind that order. Live
         // statics read by every idle colonist's next decision; nothing to refresh.
         sec = MenuBuilder.CollapsibleSection(body, "Priorities", "ui.campfire.priorities", OnSectionToggled).transform;
@@ -406,6 +431,78 @@ public class WorkerAssignmentUI : MonoBehaviour
 
     private Action<int> stanceSetter, formationSetter;
     private int stanceShown = -1, formationShown = -1;
+
+    /// <summary>
+    /// The People rows: shown to the roster size (a change refits the panel), text
+    /// rebuilt every <see cref="PeopleRefreshSeconds"/> from the roster entry's Persona,
+    /// the unit's role and its Activity. Past the pool, the last row counts the rest.
+    /// </summary>
+    void UpdatePeople(Population pm)
+    {
+        IReadOnlyList<Population.Colonist> roster = pm != null ? pm.Roster : null;
+        int living = 0;
+        if (roster != null)
+        {
+            for (int i = 0; i < roster.Count; i++) if (roster[i].unit != null) living++;
+        }
+        int shown = Mathf.Min(living, peopleRows.Count);
+        if (shown != peopleActive)
+        {
+            peopleActive = shown;
+            for (int i = 0; i < peopleRows.Count; i++)
+            {
+                bool on = i < shown;
+                if (peopleRows[i].gameObject.activeSelf != on) peopleRows[i].gameObject.SetActive(on);
+                peopleLast[i] = null;
+            }
+            MenuBuilder.FitPanelHeight(panel, mainColumn);
+            drag.Clamp();
+            peopleNextRefresh = 0f;
+        }
+        if (shown == 0 || Time.unscaledTime < peopleNextRefresh) return;
+        peopleNextRefresh = Time.unscaledTime + PeopleRefreshSeconds;
+
+        int row = 0;
+        for (int i = 0; i < roster.Count && row < shown; i++)
+        {
+            Population.Colonist c = roster[i];
+            if (c.unit == null) continue;
+            bool last = row == shown - 1 && living > shown;
+            peopleLine.Length = 0;
+            if (last)
+            {
+                peopleLine.Append("… and ").Append(living - shown + 1).Append(" more");
+            }
+            else
+            {
+                Persona p = c.persona;
+                peopleLine.Append(p != null ? p.Name : c.unit.name);
+                if (p != null) peopleLine.Append("  ·  ").Append(p.TraitName);
+                Worker w = c.unit as Worker;
+                Warrior war = c.unit as Warrior;
+                if (w != null)
+                {
+                    peopleLine.Append("  ·  ").Append(w.RoleTitle());
+                    string doing = w.CurrentActivity;
+                    if (!string.IsNullOrEmpty(doing)) peopleLine.Append("  ·  ").Append(doing);
+                }
+                else if (war != null)
+                {
+                    peopleLine.Append("  ·  ").Append(war.weapon != null && war.weapon.equipment != null && war.weapon.equipment.ranged ? "Archer" : "Warrior");
+                    string doing = war.CurrentActivity;
+                    if (!string.IsNullOrEmpty(doing)) peopleLine.Append("  ·  ").Append(doing);
+                }
+            }
+            string text = peopleLine.ToString();
+            if (text != peopleLast[row])
+            {
+                peopleLast[row] = text;
+                peopleRows[row].text = text;
+                peopleRows[row].color = MenuStyle.TextPrimary;
+            }
+            row++;
+        }
+    }
 
     /// <summary>A section folded or unfolded: the column changed height under the panel.</summary>
     void OnSectionToggled()
@@ -795,6 +892,8 @@ public class WorkerAssignmentUI : MonoBehaviour
                 + (colonists >= housingCap ? "  —  build a hut and more survivors will come ashore" : "");
             housingText.color = colonists >= housingCap ? MenuStyle.TextAccent : MenuStyle.TextMuted;
         }
+
+        UpdatePeople(pm);
 
         int warriors = baseBuilding.GetWarriorCount();
         if (warriors != lastWarriors)

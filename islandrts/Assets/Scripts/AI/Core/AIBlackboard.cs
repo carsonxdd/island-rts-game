@@ -46,6 +46,14 @@ public class AIBlackboard
     public float deliveryDistance;
     public float searchRadius;
     public float gatherRatePerSecond;
+    // Sleep (2026-09-16): the hours this colonist keeps, copied from their Persona in
+    // Worker.InitializeUtilityAI. SleepUrge reads the clock against them; IdleExecutor
+    // scales its standing time by standScale. asleepInHut is set ONLY by SleepExecutor
+    // while the body is garrisoned in a hut: a sleeper indoors ignores raiders outside.
+    public float bedtime;
+    public float wakeTime = 0.25f;
+    public float standScale = 1f;
+    public bool asleepInHut;
 
     // Warrior fields
     public Warrior warrior;

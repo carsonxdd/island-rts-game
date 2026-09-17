@@ -35,12 +35,12 @@ back up beside the fire.
 - Space centres the camera on you.
 
 ### The day
-A day lasts 100 seconds and a night 50; harder difficulties stretch the night. The
+A day lasts 150 seconds and a night 75; harder difficulties stretch the night. The
 dial on the HUD shows where you are in the cycle and the day counter shows the
 calendar. Dawn is when the colony decides things: a raid is rolled for the coming
 night, and survivors only land by day.
 - The sky is rolled at dawn too: sunny, slightly cloudy, partly cloudy or cloudy. Clouds shade whatever they drift over; a cloudy day is dimmer everywhere.
-- Colonists work through the night, but foragers keep close to the fire after dusk and everyone hides in the huts when raiders are near.
+- Colonists work into the evening, then sleep from midnight to dawn: in their hut, or on the ground by the fire if that is where they bunk. Foragers keep close to the fire after dusk and everyone hides in the huts when raiders are near.
 - The colony eats once per calendar day, per colonist.
 - The run ends at the dawn after the last day, or earlier if you sail away.
 
@@ -54,6 +54,15 @@ an item.
 - A worker carries five of one resource at a time and delivers when full, when night falls, or when raiders are close.
 
 ## COLONY
+
+### People
+Every survivor has a name and one trait, shown over their head and in the People list
+on the campfire panel. The trait moves only the hours they keep; nobody works harder
+or eats more for it.
+- Steady keeps plain hours: bed at midnight, up at dawn.
+- A Night Owl turns in an hour later. An Early Riser is up an hour before dawn. The Hardy do both and get by on four hours.
+- The Lazy sleep in an hour past dawn and linger longer between strolls.
+- A load in hand is delivered before bed, and a recruit keeps their name as a warrior.
 
 ### Survivors
 Every so often by day a survivor lands at the cove and walks to the fire, as long as

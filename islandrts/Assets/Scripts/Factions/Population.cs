@@ -34,6 +34,7 @@ public sealed class Population
     {
         public MonoBehaviour unit;
         public IHousing home;   // null = homeless
+        public Persona persona; // who they are (2026-09-16); rolled once, kept across body swaps
     }
 
     public enum HungerState { Fed, Hungry, Starving }
@@ -169,7 +170,30 @@ public sealed class Population
     public void AddColonist(MonoBehaviour unit, IHousing home)
     {
         if (unit == null || Find(unit) != null) return;
-        roster.Add(new Colonist { unit = unit, home = home });
+        Persona persona = Persona.Roll(this);
+        roster.Add(new Colonist { unit = unit, home = home, persona = persona });
+        if (faction != null && faction.IsPlayer) DevQuests.Signal("persona");
+    }
+
+    /// <summary>Everyone on the roster, in arrival order (the campfire panel's People list walks this). Entries may hold a dead unit until the next prune.</summary>
+    public IReadOnlyList<Colonist> Roster => roster;
+
+    /// <summary>The name and trait of a rostered unit, or null.</summary>
+    public Persona PersonaOf(MonoBehaviour unit)
+    {
+        Colonist c = Find(unit);
+        return c != null ? c.persona : null;
+    }
+
+    /// <summary>True while a living colonist here carries this name (Persona.Roll steps past it).</summary>
+    public bool NameInUse(string name)
+    {
+        for (int i = 0; i < roster.Count; i++)
+        {
+            Colonist c = roster[i];
+            if (c.unit != null && c.persona != null && c.persona.Name == name) return true;
+        }
+        return false;
     }
 
     /// <summary>The single removal path. Safe to call for a unit that was never (or is no longer) on the roster.</summary>
@@ -189,6 +213,7 @@ public sealed class Population
         Colonist c = Find(oldUnit);
         if (c == null) { AddColonist(newUnit, FindHomeWithRoom()); return; }
         c.unit = newUnit;
+        if (faction != null && faction.IsPlayer && c.persona != null) DevQuests.Signal("persona:kept");   // same name, new body
     }
 
     /// <summary>Everyone alive: workers with jobs, idle colonists and warriors.</summary>
