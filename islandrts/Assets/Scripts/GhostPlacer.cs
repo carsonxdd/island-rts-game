@@ -295,6 +295,14 @@ public class GhostPlacer
                 && Mathf.Abs(position.z - y.transform.position.z) < y.noBuildRadius + gridBuffer)
                 return true;
         }
+        for (int i = 0; i < Storehouse.ActiveList.Count; i++)
+        {
+            Storehouse s = Storehouse.ActiveList[i];
+            if (s == null) continue;
+            if (Mathf.Abs(position.x - s.transform.position.x) < s.noBuildRadius + gridBuffer
+                && Mathf.Abs(position.z - s.transform.position.z) < s.noBuildRadius + gridBuffer)
+                return true;
+        }
 
         // Check all Watchtower objects (finished towers)
         for (int i = 0; i < Watchtower.ActiveList.Count; i++)

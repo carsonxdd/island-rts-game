@@ -9,14 +9,15 @@ using UnityEngine;
 /// <para>There is no militia role. The <b>levy</b> is whoever can reach a spare
 /// weapon: while the <see cref="Alarm"/> is up, every weapon in the stockpile that
 /// no full-time warrior holds is claimed by one colonist (<see cref="Worker.levied"/>),
-/// who walks to the fire, takes it and stands in a warrior body
-/// (<see cref="BaseBuilding.MusterLevy"/>). When it has been quiet for
-/// <see cref="StandDownSeconds"/> they walk back, put it in the stockpile and pick up
+/// who walks HOME (their own hut, else the fire — the weapons are kept in the
+/// homes since 2026-09-17, the stockpile is the count), takes it and stands in a
+/// warrior body (<see cref="BaseBuilding.MusterLevy"/>). When it has been quiet for
+/// <see cref="StandDownSeconds"/> they walk home again, put it back and pick up
 /// the job they had (<see cref="BaseBuilding.StandDownLevy"/>). The player's only
 /// knob is the stock itself: craft more weapons than you recruit.</para>
 /// <para>Claims are handed out here at 2 Hz, jobless colonists first, then the
 /// nearest to the fire, a hut sleeper last; never a leaver. A claim is only a
-/// promise to walk — the weapon leaves the stockpile at the fire, so a recruit
+/// promise to walk — the weapon leaves the stockpile at the swap, so a recruit
 /// or a second colony's needs can still take it first, and a claimant who finds
 /// the rack bare simply goes back to the ladder.</para>
 /// <para>The alarm has two sources: the <b>bell</b> (<see cref="Call"/> /
@@ -40,8 +41,17 @@ public sealed class Militia
     /// <summary>The bell rang (true) or was silenced (false) for this colony. The HUD flashes a banner on the player's.</summary>
     public static event System.Action<Faction, bool> OnBell;
 
+    /// <summary>A colonist took up arms (2026-09-17, sim telemetry): the colony, and whether at their own hut (true) or the fire.</summary>
+    public static event System.Action<Faction, bool> OnMustered;
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    static void ResetStatics() { OnBell = null; }
+    static void ResetStatics() { OnBell = null; OnMustered = null; }
+
+    /// <summary>The MusterExecutor's last step reports here; the sim reads the walk's length off <see cref="AlarmSince"/>.</summary>
+    public static void NoteMustered(Faction f, bool atHome) { OnMustered?.Invoke(f, atHome); }
+
+    /// <summary>When the alarm last went UP (Time.time), for "how long from the alarm to the first spear". NegativeInfinity before any.</summary>
+    public float AlarmSince { get; private set; } = float.NegativeInfinity;
 
     public static readonly string[] BellNames = { "Quiet", "Ring" };
 
@@ -75,6 +85,7 @@ public sealed class Militia
     public void Call()
     {
         if (Called) return;
+        if (!Alarm) AlarmSince = Time.time;
         Called = true;
         lastAlarmTime = Time.time;
         if (faction.IsPlayer) DevQuests.Signal("muster:bell");
@@ -102,7 +113,9 @@ public sealed class Militia
         scanTimer -= dt;
         if (scanTimer > 0f) return;
         scanTimer = ScanInterval;
+        bool was = Alarm;
         ThreatAtHome = Scan();
+        if (Alarm && !was) AlarmSince = Time.time;
         if (Alarm) lastAlarmTime = Time.time;
         Levy();
     }

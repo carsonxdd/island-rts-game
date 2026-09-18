@@ -142,6 +142,13 @@ public class RaidDirector : MonoBehaviour
     /// <summary>True while a raid is on the island but nothing has happened for <see cref="LurkSeconds"/>.</summary>
     public bool RaidLurking { get; private set; }
 
+    /// <summary>
+    /// The raid that landed tonight is dead to the last raider (2026-09-17). The HUD
+    /// reads "Raid repelled" off it instead of "Raid underway" until dawn — the
+    /// night still runs its clock, but the raid is over. Cleared at nightfall and at dawn.
+    /// </summary>
+    public bool RaidRepelled { get; private set; }
+
     void Update()
     {
         int alive = 0;
@@ -162,9 +169,15 @@ public class RaidDirector : MonoBehaviour
         {
             RaidLurking = false;
             lurkSignalled = false;
+            if (lastAlive > 0 && !RaidRepelled)
+            {
+                RaidRepelled = true;
+                if (LastRaidTarget == null || LastRaidTarget.IsPlayer) DevQuests.Signal("raid:repelled");
+            }
         }
         else
         {
+            RaidRepelled = false;
             if (fighting || lastAlive == 0 || alive != lastAlive || kills != lastKills || fireHp < lastFireHp - 0.01f)
                 lastFightTime = Time.time;
             RaidLurking = Time.time - lastFightTime > LurkSeconds;
@@ -177,6 +190,7 @@ public class RaidDirector : MonoBehaviour
 
     void HandleDayStart()
     {
+        RaidRepelled = false;
         if (LastRaidDay > 0 && CurrentDay() - LastRaidDay <= 1 && LastRaidTarget == Factions.Player
             && Factions.Player.Campfire != null) DevQuests.Signal("raid_survived");
         RollForTonight();
@@ -189,6 +203,7 @@ public class RaidDirector : MonoBehaviour
         if (spawner == null) return;
 
         RaidsSoFar++;
+        RaidRepelled = false;
         LastRaidDay = CurrentDay();
         LastRaidTarget = Target ?? Factions.Player;
         spawner.SpawnRaid(PlannedSize, RaidsSoFar, LastRaidTarget);
@@ -349,6 +364,7 @@ public class RaidDirector : MonoBehaviour
         p += TargetingUtil.CountOwned(Watchtower.ActiveList, me) * 6f;
         p += TargetingUtil.CountOwned(Workshop.ActiveList, me) * 4f;
         p += TargetingUtil.CountOwned(Shipyard.ActiveList, me) * 8f;   // a ship on the slipway is worth raiding (2026-09-04)
+        p += TargetingUtil.CountOwned(Storehouse.ActiveList, me) * 3f;  // a store is a hut's worth of loot (2026-09-16)
         // Walls count HALF of what they used to (0.3 until 2026-09-11). A wall
         // is wood and stone the colony spent, not loot sitting there for the
         // taking, and at 0.3 the 94-wall ring of the 2026-09-11 lab was handing

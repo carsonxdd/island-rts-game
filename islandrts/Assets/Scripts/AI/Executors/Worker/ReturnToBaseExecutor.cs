@@ -2,21 +2,26 @@ using UnityEngine;
 using UnityEngine.AI;
 
 /// <summary>
-/// Worker executor: Deliver carried resources back to the campfire.
+/// Worker executor: Deliver carried resources to the nearest drop-off.
 /// Uses multiple delivery checks with a timer-based fallback to prevent
 /// workers from getting stuck near the campfire due to NavMesh carving
 /// or agent stoppingDistance edge cases.
 ///
-/// Phase 6.25: delivery is measured from the campfire's collider EDGE
+/// Phase 6.25: delivery is measured from the building's collider EDGE
 /// (bb.deliveryDistance = 1.5 from the edge), not its center. The campfire
 /// carves the NavMesh, so center distance never gets small — the old
 /// center-based check only ever succeeded via the timer fallbacks.
 ///
-/// 2026-09-08: the drop-off destination is a claimed slot on the fire's edge
-/// ring (<see cref="BaseBuilding.ClaimDropoffSlot"/>), so a group returning
-/// from one forest fans out over the fire's sides instead of queueing on the
-/// one closest face. A worker stopped behind someone else is treated as
-/// arrived after a short stall rather than the old 3 s / 8 s waits.
+/// 2026-09-08: the drop-off destination is a claimed slot on the building's
+/// edge ring (<see cref="DropoffRing"/>), so a group returning from one forest
+/// fans out over its sides instead of queueing on the one closest face. A
+/// worker stopped behind someone else is treated as arrived after a short
+/// stall rather than the old 3 s / 8 s waits.
+///
+/// 2026-09-16: the destination is the NEAREST drop-off of the colony
+/// (<see cref="Dropoff.Nearest"/>) — the campfire or a <see cref="Storehouse"/>
+/// — chosen on entry and held for the trip (<see cref="AIBlackboard.dropoff"/>).
+/// One colony store: the hand-in itself is the same wherever it happens.
 /// </summary>
 public class ReturnToBaseExecutor : ActionExecutor
 {
@@ -25,8 +30,8 @@ public class ReturnToBaseExecutor : ActionExecutor
     // Timer to detect when the worker has been trying to return for too long
     private float returnTimer;
 
-    // Campfire collider, cached on entry for edge-distance checks
-    private Collider campfireCollider;
+    // Drop-off collider, cached on entry for edge-distance checks
+    private Collider dropoffCollider;
 
     // Stopped short behind another colonist: after this long standing still within
     // StallReach of the edge, hand over from where we are (the fire is a big warm target)
@@ -38,9 +43,15 @@ public class ReturnToBaseExecutor : ActionExecutor
     {
         returnTimer = 0f;
         stallTimer = 0f;
-        campfireCollider = bb.baseBuilding != null ? bb.baseBuilding.GetComponent<Collider>() : null;
 
-        if (bb.baseBuilding == null || !bb.agent.isOnNavMesh || !bb.agent.enabled) return;
+        // The nearest place to hand in, chosen once per trip. Falls back to the
+        // home fire so a colonist with no living drop-off still delivers in place.
+        float unused;
+        bb.dropoff = Dropoff.Nearest(bb.faction, bb.transform.position, out unused);
+        if (bb.dropoff == null) bb.dropoff = bb.baseBuilding;
+        dropoffCollider = bb.dropoff != null ? bb.dropoff.ApproachCollider : null;
+
+        if (bb.dropoff == null || !bb.agent.isOnNavMesh || !bb.agent.enabled) return;
 
         // Release resource claim if any
         if (bb.targetResource != null)
@@ -74,7 +85,20 @@ public class ReturnToBaseExecutor : ActionExecutor
 
     public override void OnUpdate(AIBlackboard bb)
     {
-        if (bb.baseBuilding == null)
+        // The drop-off fell mid-trip (a raid burned the Storehouse): pick again
+        // rather than deliver into thin air; with nothing left, hand in where we stand.
+        if (bb.dropoff != null && (!bb.dropoff.IsAlive || (bb.dropoff as Object) == null))
+        {
+            ReleaseSlot(bb);
+            float unused;
+            bb.dropoff = Dropoff.Nearest(bb.faction, bb.transform.position, out unused);
+            dropoffCollider = bb.dropoff != null ? bb.dropoff.ApproachCollider : null;
+            returnTimer = 0f;
+            if (bb.dropoff != null && bb.agent.isOnNavMesh && bb.agent.enabled
+                && AINavHelper.TrySetDestination(bb.agent, GetDropoffPoint(bb)))
+                bb.agent.isStopped = false;
+        }
+        if (bb.dropoff == null)
         {
             DeliverResources(bb);
             return;
@@ -88,22 +112,22 @@ public class ReturnToBaseExecutor : ActionExecutor
             bb.stuckResolver.UpdateMoving();
         }
 
-        // Distance to the campfire's collider edge (center distance if no collider)
+        // Distance to the drop-off's collider edge (center distance if no collider)
         float edgeDistance = TargetingUtil.EdgeDistance(
-            bb.transform.position, bb.baseBuilding.transform, campfireCollider);
+            bb.transform.position, bb.dropoff.transform, dropoffCollider);
 
         // --- Delivery checks (from most specific to most generous) ---
 
-        // 1. Within delivery distance of the campfire edge
+        // 1. Within delivery distance of the edge
         bool withinRange = edgeDistance <= bb.deliveryDistance;
 
-        // 2. Agent finished its path and is reasonably close to the campfire
+        // 2. Agent finished its path and is reasonably close
         bool pathFinished = bb.agent.isOnNavMesh
             && !bb.agent.pathPending
             && bb.agent.remainingDistance <= bb.agent.stoppingDistance + 0.5f;
         bool pathFinishedNearBase = pathFinished && edgeDistance <= bb.deliveryDistance + 1.5f;
 
-        // 3. Agent has stopped moving and is in the general area of the campfire
+        // 3. Agent has stopped moving and is in the general area
         bool agentStopped = bb.agent.isOnNavMesh && bb.agent.velocity.sqrMagnitude < 0.05f;
         bool stoppedNearBase = agentStopped && edgeDistance <= bb.deliveryDistance + 1.5f;
 
@@ -122,6 +146,8 @@ public class ReturnToBaseExecutor : ActionExecutor
 
         if (withinRange || pathFinishedNearBase || stoppedNearBase || stalledNearBase || timerFallback || nuclearFallback)
         {
+            if (bb.dropoff is Storehouse && (withinRange || pathFinishedNearBase || stoppedNearBase || stalledNearBase))
+                DevQuests.Signal("dropoff:storehouse");
             DeliverResources(bb);
             if (bb.stuckResolver != null)
                 bb.stuckResolver.ResetStuckDetection();
@@ -149,6 +175,7 @@ public class ReturnToBaseExecutor : ActionExecutor
     /// bb.carryType and the hauled materials on bb.carryItem. The ONE delivery
     /// path (2026-09-07: GearUpExecutor banks through here too). Safe with
     /// empty hands. Ends in a ForceReeval so the brain moves on at once.
+    /// Where the colonist stands does not matter — one colony store.
     /// </summary>
     public static void Deliver(AIBlackboard bb)
     {
@@ -180,7 +207,8 @@ public class ReturnToBaseExecutor : ActionExecutor
     /// (2026-09-03). This is what lets colonists pay for research and spears;
     /// before it, every stick a colonist carried home dissolved into wood and
     /// the stockpile only ever filled by the player's own hands. Whatever does
-    /// not fit is lost, which is the stockpile cap doing its job.
+    /// not fit is lost, which is the stockpile cap doing its job. The campfire
+    /// stockpile IS the colony store, so a Storehouse hand-in lands here too.
     /// </summary>
     static void BankMaterials(AIBlackboard bb)
     {
@@ -194,20 +222,26 @@ public class ReturnToBaseExecutor : ActionExecutor
     }
 
     /// <summary>
-    /// Walkable point on the campfire's edge at this worker's claimed drop-off slot
-    /// (the free bearing nearest its line of approach). The campfire carves the
+    /// Walkable point on the drop-off's edge at this worker's claimed slot (the
+    /// free bearing nearest its line of approach). The building carves the
     /// NavMesh, so the slot point goes through the shared approach-point pattern.
     /// </summary>
     Vector3 GetDropoffPoint(AIBlackboard bb)
     {
-        int slot = bb.baseBuilding.ClaimDropoffSlot(bb.worker, bb.transform.position);
-        return bb.baseBuilding.DropoffPoint(slot);
+        int slot = bb.dropoff.ClaimDropoffSlot(bb.worker, bb.transform.position);
+        return bb.dropoff.DropoffPoint(slot);
+    }
+
+    static void ReleaseSlot(AIBlackboard bb)
+    {
+        if (bb.dropoff != null) bb.dropoff.ReleaseDropoffSlot(bb.worker);
+        else if (bb.worker != null) bb.worker.dropoffSlot = -1;
     }
 
     public override void OnExit(AIBlackboard bb)
     {
-        if (bb.baseBuilding != null) bb.baseBuilding.ReleaseDropoffSlot(bb.worker);
-        else if (bb.worker != null) bb.worker.dropoffSlot = -1;
+        ReleaseSlot(bb);
+        bb.dropoff = null;
 
         // Restore stopping distance for gathering
         if (bb.agent != null && bb.agent.isOnNavMesh)

@@ -69,6 +69,9 @@ public class Warrior : UnitBase<Warrior>
     /// </summary>
     [System.NonSerialized] public bool levied;
 
+    /// <summary>The action this warrior is running, for the sim's death ledger (2026-09-17).</summary>
+    public string CurrentActionName => aiBrain != null ? aiBrain.GetCurrentActionName() : "None";
+
     /// <summary>
     /// The ONE place a weapon's stats land on a warrior (2026-09-04): recruit
     /// (from Start) and rearm (from BaseBuilding.RearmWarrior) both come through
@@ -106,6 +109,9 @@ public class Warrior : UnitBase<Warrior>
 
     /// <summary>Away with a party sent by sea (<see cref="Expedition"/>, 2026-09-16); back at dawn.</summary>
     public bool OnExpedition { get; private set; }
+
+    /// <summary>Standing on (or walking to) a Defensive post right now (2026-09-17, sim telemetry).</summary>
+    public bool HasHoldPost => aiBrain != null && aiBrain.blackboard != null && aiBrain.blackboard.hasHoldPost;
 
     /// <summary>
     /// The fire this warrior's AI fights around: <paramref name="fire"/> for the
@@ -247,7 +253,9 @@ public class Warrior : UnitBase<Warrior>
             {
                 new StanceAllows(GuardStance.Role.Intercept, ResponseCurve.Linear(1f, 0f)),
                 enemyScanner,  // Enemies must exist
-                new EnemyProximity(searchRadius, ResponseCurve.InverseLinear(0.6f, 0.3f))  // Far = high
+                // Far = high, but never under 0.5: a Defensive line is HELD with the
+                // raiders in sight (2026-09-17), not abandoned as they close
+                new EnemyProximity(searchRadius, ResponseCurve.InverseLinear(0.5f, 0.5f))
             }, new InterceptExecutor(), basePriority: 0.7f, momentumBonus: 0.15f),
 
             // Defend Wall (not while following) — walls under attack, rush to defend

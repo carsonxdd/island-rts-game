@@ -24,8 +24,14 @@ public class EnemyPresence : Consideration
         // TargetingUtil nearest-alive scan (Phase 6.25).
         if (bb.enemyScanFrame != Time.frameCount)
         {
+            // A raider anywhere is a war; a hostile colony's warrior only near OUR fire
+            // (2026-09-17, TargetingUtil.FindNearestThreat) — otherwise a neighbour's
+            // militia at home kept every peacetime action at 0 for the rest of the run.
             float dist;
-            ITargetable nearest = TargetingUtil.FindNearestHostileCombatant(bb.transform.position, 0f, bb.faction, out dist);
+            BaseBuilding fire = bb.baseBuilding != null ? bb.baseBuilding : (bb.faction != null ? bb.faction.Campfire : null);
+            ITargetable nearest = fire != null
+                ? TargetingUtil.FindNearestThreat(bb.transform.position, bb.faction, fire.transform.position, Militia.AlarmRadius, out dist)
+                : TargetingUtil.FindNearestHostileCombatant(bb.transform.position, 0f, bb.faction, out dist);
 
             bb.scannedNearestEnemy = nearest != null ? nearest.transform : null;
             bb.scannedNearestEnemyDist = dist;

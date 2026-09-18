@@ -247,7 +247,7 @@ public class EngageEnemyExecutor : ActionExecutor
             if (bb.currentTarget != null && bb.IsTargetAlive()
                 && (currentTargetable == null
                     || (Siege.IsBuilding(currentTargetable) ? siegeOf != null
-                        : GuardStance.Allows(currentTargetable, from, bb.baseBuilding, bb.faction))))
+                        : GuardStance.Allows(currentTargetable, bb))))
             {
                 if (Time.time - targetAcquiredTime < minTargetLockDuration)
                     return;
@@ -286,7 +286,7 @@ public class EngageEnemyExecutor : ActionExecutor
         if (distance >= nearestDistance) return;
 
         // The stance's filter, after the cheap distance cull (2026-09-07)
-        if (!GuardStance.Allows(t, from, bb.baseBuilding, bb.faction)) return;
+        if (!GuardStance.Allows(t, bb)) return;
 
         nearestDistance = distance;
         nearest = t;

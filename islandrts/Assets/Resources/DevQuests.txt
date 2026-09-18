@@ -28,6 +28,7 @@
 #   fog:node_skipped  fog:raider_unseen  fog:ghost  fog:wall  minimap:click  minimap:landing
 #   sky:<sunny|slightly|partly|cloudy|off>  graphics:<preset|custom>
 #   faction:bootstrap  faction:rival  faction:<hostile|neutral|allied>  loot
+#   changelog:<expand|collapse>
 #   repair  repair:gate  raid:rested  raider:wall_stop  raider:wall_over_warrior
 #   rival:landed  rival:met  rival:territory  rival:governed  rival:built  rival:recruited
 #   diplomacy:<hostile|neutral|allied>  diplomacy:attacked  diplomacy:trespass  diplomacy:peace
@@ -36,14 +37,55 @@
 #   loiter:step_aside  loiter:patrol_moved_on
 #   persona  persona:kept  sleep  sleep:hut  sleep:fire  sleep:delivered  sleep:wake  sleep:raid
 #   trait:<steady|night_owl|early_riser|hardy|lazy>
-#   levy:fell  muster  muster:called  muster:threat  muster:asleep
+#   levy:fell  muster  muster:called  muster:threat  muster:asleep  muster:home
 #   muster:bell  muster:dismiss  muster:key  combat_box:bell  stand_down  stand_down:job_back
+#   sleep:moved_in  raid:repelled  hold:gate  hold:post
+#   build:storehouse  dropoff:storehouse  deposit:storehouse
 # crowd:split, dropoff:spread and patrol:spread are STATE checks polled by the
 # tracker twice a second while their quest is open; everything else is an event.
 # A finished batch is deleted from here once its report is in; it stays in the
 # changelog and the phase history. Quest ids are batch slug + index, so a batch
 # that loses quests from the middle needs a RESET on the DEV tab (done 2026-09-13
 # after the first report, Playtests/playtest_2026-09-13_2204.md).
+
+## 2026-09-17 Changelog folds
+- @changelog:expand Unfold an older changelog entry from its summary line
+- @changelog:collapse Fold the open entry back to its summary
+- Each summary reads as one plain sentence about that entry
+- Bullets and summaries wrap without clipping in the scroll list
+- The main menu "updated" line still shows the newest entry's date
+
+## 2026-09-17 Overnight read
+- A rival's ring gate stays theirs: your militia never posts at it (F3)
+- Raiders at a rival's gate do not read as "your wall under attack"
+- Castaway on a Work order stays at the bench when a colonist's lane is evicted
+
+## 2026-09-17 Holding the line
+- @hold:gate Defensive militia forms up inside the gate the raiders come at
+- @hold:post A warrior holds a post on the line (no gate: camp edge)
+- Line stays put as raiders approach; nobody charges out at 30 m
+- Spearmen never run out through the gate after a raider; archers shoot over
+- A raider that backs off is dropped and the warrior returns to the line
+- Switch to Offensive mid-raid: the line breaks into the advance
+- @muster:home A levied colonist with a hut arms at their own door
+- Stand down walks home too; fire-homed colonists still use the fire
+- @sleep:moved_in Fire-side sleepers move into the first hut with room
+- A colonist lying by the fire gets up and goes in the night a hut finishes
+- New arrivals take a hut bed before the fire's three
+- Castaway walks through an idle crowd at the fire; they step aside
+- @raid:repelled Calendar reads "Raid repelled" once the last raider falls
+- Levy stands down about 30 s after the last raider (heal first if hurt)
+
+## 2026-09-16 Storehouse
+- @research:storage_pits Research Storage Pits; key 7 in build mode shows the Storehouse
+- @build:storehouse Place a Storehouse beside a far forest and let it finish
+- @dropoff:storehouse A worker from that forest hands in at the store, not the fire
+- Workers by the fire still deliver at the fire (nearest wins)
+- @deposit:storehouse Right-click the Storehouse with sticks in hand: they land in the fire's stockpile
+- Stockpile tab capacity rose by 20 per Storehouse
+- Demolish the Storehouse (Delete / X): half its cost back, workers go back to the fire
+- Raiders attack a Storehouse on their way in; a worker whose store burns mid-trip walks to the fire
+- F4 rival camp: the rival builds its own Storehouse by its far work in time
 
 ## 2026-09-16 Big village hitch
 - At 50 colonists nobody freezes in unison; F6 log gcAllocB stays near 0

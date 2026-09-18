@@ -166,6 +166,7 @@ public static class RivalFounder
         if (!ClearOf(BaseBuilding.ActiveList, pos, 5f)) return false;
         if (!ClearOf(Hut.ActiveList, pos, 4.5f)) return false;
         if (!ClearOf(Watchtower.ActiveList, pos, 4.5f)) return false;
+        if (!ClearOf(Storehouse.ActiveList, pos, 4.5f)) return false;
         if (!ClearOf(ConstructionSite.ActiveList, pos, 4f)) return false;
         if (!ClearOf(ResourceNode.ActiveList, pos, 3f)) return false;
         return true;

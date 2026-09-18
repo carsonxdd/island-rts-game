@@ -43,6 +43,68 @@ namespace IslandRTS.ArtGen
 
             list.Add(new AssetDef("Shipyard", AssetCategory.Buildings,
                 () => Shipyard(4f, 2.5f), "4.0 x 2.5 footprint, ~1.8 tall"));
+
+            list.Add(new AssetDef("Storehouse", AssetCategory.Buildings,
+                () => Storehouse(2f), "2.0 x 2.0 footprint, ~1.7 tall"));
+        }
+
+        // ==================================================================
+        // Storehouse — a drop-off point by the far work (2026-09-16)
+        // ==================================================================
+
+        /// <summary>
+        /// An open log rack under a lean-to roof: four posts, a plank roof that
+        /// slopes toward the back, stacked logs along one side, a chunk pile
+        /// and a crate on the other. Open on the front so the goods read from
+        /// the RTS camera; lower than a hut so it never hides the colonists at it.
+        /// </summary>
+        private static MeshBuilder Storehouse(float footprint)
+        {
+            MeshBuilder b = new MeshBuilder(2701);
+            float half = footprint * 0.5f;
+            float postH = 1.35f;
+
+            // ---- Base slab ------------------------------------------------------
+            b.Use("WoodDark");
+            b.BoxOnGround(Vector3.zero, new Vector3(footprint, 0.08f, footprint));
+
+            // ---- Four posts, the back pair shorter so the roof sheds rain --------
+            b.Use("WoodLog");
+            b.Prism(new Vector3(-half * 0.88f, 0.08f, -half * 0.88f), 0.07f, 0.06f, postH, 4);
+            b.Prism(new Vector3(half * 0.88f, 0.08f, -half * 0.88f), 0.07f, 0.06f, postH, 4);
+            b.Prism(new Vector3(-half * 0.88f, 0.08f, half * 0.88f), 0.07f, 0.06f, postH - 0.35f, 4);
+            b.Prism(new Vector3(half * 0.88f, 0.08f, half * 0.88f), 0.07f, 0.06f, postH - 0.35f, 4);
+
+            // ---- Lean-to roof: a plank slab tilted toward the back ---------------
+            b.Use("ThatchDark");
+            b.Push();
+            b.Translate(0f, 0.08f + postH - 0.17f, 0f);
+            b.Rotate(Mathf.Atan2(0.35f, footprint * 0.88f) * Mathf.Rad2Deg, 0f, 0f);
+            b.Box(Vector3.zero, new Vector3(footprint * 1.08f, 0.09f, footprint * 1.12f));
+            b.Pop();
+
+            // ---- Log stack along the left side, three then two ------------------
+            b.Use("WoodLog");
+            float lx = -half * 0.5f;
+            b.LogBetween(new Vector3(lx - 0.2f, 0.19f, -half * 0.7f), new Vector3(lx - 0.2f, 0.19f, half * 0.7f), 0.10f, 6);
+            b.LogBetween(new Vector3(lx, 0.19f, -half * 0.72f), new Vector3(lx, 0.19f, half * 0.68f), 0.10f, 6);
+            b.LogBetween(new Vector3(lx + 0.2f, 0.19f, -half * 0.66f), new Vector3(lx + 0.2f, 0.19f, half * 0.7f), 0.10f, 6);
+            b.LogBetween(new Vector3(lx - 0.1f, 0.36f, -half * 0.68f), new Vector3(lx - 0.1f, 0.36f, half * 0.66f), 0.10f, 6);
+            b.LogBetween(new Vector3(lx + 0.1f, 0.36f, -half * 0.7f), new Vector3(lx + 0.1f, 0.36f, half * 0.64f), 0.10f, 6);
+            b.LogBetween(new Vector3(lx, 0.53f, -half * 0.6f), new Vector3(lx, 0.53f, half * 0.6f), 0.10f, 6);
+
+            // ---- Chunk pile and a crate on the right ------------------------------
+            b.Use("StoneBlock");
+            b.Prism(new Vector3(half * 0.5f, 0.08f, half * 0.35f), 0.34f, 0.12f, 0.36f, 6);
+            b.Use("StoneShadow");
+            b.Prism(new Vector3(half * 0.62f, 0.08f, -half * 0.05f), 0.16f, 0.06f, 0.2f, 5);
+            b.Use("WoodPale");
+            b.BoxOnGround(new Vector3(half * 0.5f, 0.08f, -half * 0.55f), new Vector3(0.48f, 0.42f, 0.48f));
+            b.Use("WoodDark");
+            b.Box(new Vector3(half * 0.5f, 0.31f, -half * 0.55f), new Vector3(0.5f, 0.05f, 0.06f));
+            b.Box(new Vector3(half * 0.5f, 0.31f, -half * 0.55f), new Vector3(0.06f, 0.05f, 0.5f));
+
+            return b;
         }
 
         // ==================================================================

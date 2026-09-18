@@ -1,0 +1,11 @@
+{
+    "outputDir": "SimLogs/check-line-2026-09-17",
+    "captureDeltaTime": 0.016666668,
+    "maxWallSecondsPerRun": 2400,
+    "repeats": 6,
+    "runs": [
+        { "id": "line_turtle", "strategy": "Turtle", "seed": 1, "terrainSeed": 20260909, "daysToSurvive": 30 },
+        { "id": "line_rush",   "strategy": "Rush",   "seed": 1, "terrainSeed": 20260909, "daysToSurvive": 30 },
+        { "id": "line_eco",    "strategy": "Eco",    "seed": 1, "terrainSeed": 20260909, "daysToSurvive": 30 }
+    ]
+}

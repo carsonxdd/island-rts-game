@@ -1,0 +1,518 @@
+# Changelog archive (moved out of the game on 2026-09-17)
+
+The in-game changelog (`islandrts/Assets/Resources/Changelog.txt`) was rewritten on 2026-09-17 as a short themed history with a summary line per entry. Every entry it replaced is kept here verbatim, newest first, in the old format. Nothing reads this file; it is the record.
+
+---
+
+## 2026-09-17 — Holding the line
+- A neighbour's gate is theirs: a wall a rival turns into a gate stayed yours,
+  so your militia walked over to hold it and raiders counted it as your wall.
+- Defensive really means it now: the militia forms up inside the gate the raiders
+  are heading for (or on the edge of camp without walls) and fights what reaches
+  the line, then walks back to it. Spearmen never chase out through the gate;
+  archers shoot over the wall.
+- The levy arms and stands down at home: a colonist with a hut runs to their own
+  door for a spear, not to the fire.
+- Huts come first: the founding crew moves off the ground by the fire and into the
+  first hut with room, and anyone lying by the fire gets up and goes in the night
+  a bed comes free.
+- The castaway has right of way: idle colonists step aside instead of blocking the
+  path.
+- The calendar line reads "Raid repelled" once the last raider falls, instead of
+  "Raid underway" until dawn. A hostile neighbour's militia at its own fire no
+  longer keeps yours on alert forever.
+
+## 2026-09-16 — The Storehouse
+- A new building, the Storehouse (build key 7, opened by Storage Pits, 15 wood
+  10 stone): colonists carry their loads to the nearest Storehouse or the fire,
+  whichever is closer, so a store beside a far forest ends the long walk home.
+- Everything dropped at a Storehouse lands in the colony store at once; the
+  campfire is still where crafting and research happen. Each Storehouse also
+  adds twenty items of stockpile room.
+- Right-click a Storehouse to empty your character's hands there.
+- Raiders count a Storehouse as a building worth burning, so one out by the
+  trees is a thing to defend. Rival colonies build them too.
+
+## 2026-09-16 — Smoother big villages
+- Fifty colonists no longer freeze together for a blink: the head labels, the
+  fighting labels and the crowd spacing stopped churning memory every frame,
+  and the AI no longer piles every decision onto the frame after a slow one.
+- The F6 performance log now follows you from the main menu into the game.
+
+## 2026-09-16 — The levy: every spare spear finds a hand when the bell rings
+- Every weapon sitting in the stockpile now arms a colonist when the colony is
+  threatened. Nothing to enlist or assign: craft more weapons than you recruit and
+  the Levy row on the campfire panel's Defence section shows how many hands that is.
+- Raiders reaching the fire, or raiders lurking on the island, raise the levy on
+  their own: one colonist per spare weapon (the jobless first, then whoever is
+  nearest) drops what they are doing, walks to the fire, takes a weapon and fights
+  as a warrior. Everyone else keeps working.
+- Ring the bell yourself with F10, the Bell row on the panel, or the new button in the
+  bottom-right militia box: the levy musters and stays armed until you silence it.
+  Otherwise, half a minute after the last threat they walk back to the fire, put the
+  weapon in stock and go straight back to the job they had.
+- The levy is not the militia: no food cost, no idle colonist needed, and they do not
+  make the next raid bigger. The People list marks them while they are armed.
+
+## 2026-09-16 — Names, traits and a night's sleep
+- Every survivor lands with a name and a trait, shown over their head and in the new
+  People list on the campfire panel's Colonists tab, with what each of them is doing.
+  A recruit keeps their name as a warrior.
+- Colonists work into the evening and sleep from midnight to dawn: hut dwellers go
+  inside, anyone bunking at the fire lies down beside it. A load in hand is delivered
+  first. Raiders nearby still send everyone running for the huts.
+- Traits shift the hours: a Night Owl turns in an hour late, an Early Riser is up an
+  hour before dawn, the Hardy do both, the Lazy sleep in and linger between strolls.
+  Steady keeps plain hours. Nothing else about a person changes.
+- The day is half again as long: 150 seconds of daylight and 75 of night. A 30-day run
+  is about two hours now.
+
+## 2026-09-16 — Room to pass
+- People no longer jam: a unit keeps a little space around itself but can squeeze
+  past when the only alternative is standing still, and two who meet head-on
+  decide who yields the same way every time (cargo first, then a fixed order;
+  whoever is already in a gateway has the right of way).
+- A stuck unit recovers in steps: a sidestep, a fresh path, a squeeze through,
+  and only then does it give the task up. F3 counts each step.
+- Warriors own their place in the line or wedge and keep it into the fight, so a
+  formation holds its shape instead of reshuffling every time a man falls.
+
+## 2026-09-16 — Taking a neighbour's camp
+- A landing party on a hostile neighbour's shore now besieges its camp: huts and
+  works first, then the wall, then the campfire itself.
+- A campfire your warriors put out spills its colony's whole hoard onto the ground
+  around it as pickups for any hauler. Raiders burning a camp leave nothing.
+
+## 2026-09-16 — Raids that build up, neighbours that grow
+- On Hard and Brutal the raids now start at Normal size and grow to full strength
+  over the first week ashore. The late ones are still swarms.
+- A neighbouring camp that finds no room for its first hut keeps a builder free
+  and puts one up itself, instead of sitting at three people for the whole game.
+- A colony keeps spears as its main arm and bows to a third of the militia. Before,
+  a stock of bows could stop spears being made and leave the whole line archers.
+- A camp's wall ring treats the sea and a cliff as walls of their own rather than
+  gaps to build around.
+
+## 2026-09-16 — Shared ground is not trespass
+- A neighbour's opinion of you no longer cools just because your two camps' patches
+  overlap. Your people count as trespassing only on THEIR side of the shared ground,
+  nearer their fire than yours. Before this every neighbour turned hostile by itself.
+- A colony that washes up always gets its hut now; one that could not find room for
+  it sat at three people for two weeks.
+
+## 2026-09-16 — Neighbours, allies and enemies
+- A DIPLOMACY screen (Esc, or the Neighbours entry on the bar) shows what each colony
+  you have met thinks of you, as a word. Propose peace with a gift once a day, or
+  declare war
+- Their opinion moves on its own: warriors in their patch and blows landed cool it,
+  quiet days and peace warm it. Two cool days make an enemy, two warm days an ally
+- Raiders now pick a shore: the dawn warning says whose, and the richer camp draws
+  them more often
+- A hostile camp with warriors to spare lands a party on your shore by day; it hunts
+  your militia and sails home at dawn
+- An ally sends half its warriors when raiders are at your fire, and you can see its
+  camp on the minimap
+
+## 2026-09-16 — Neighbours that grow
+- A rival colony now runs itself: it researches, builds huts and a wall ring,
+  crafts spears and arms warriors against the same raids you face
+- Each rival lands with its own temperament (a fortifier, a militarist or a
+  builder of economy), and the F3 overlay shows what it is working on
+- A neighbour never leaves by ship; the escape is yours alone
+
+## 2026-09-13 — Nobody idles in the gateway
+- Idle colonists and patrolling warriors no longer stand in a gate or on the wall
+  line. A wander spot or guard post is never picked there, and anyone who ends up
+  stopped in a gateway anyway, day or night, takes a few steps to clear ground
+  first. Warriors guard beside the gate, not in it.
+
+## 2026-09-13 — Queued orders, shared benches, a morning start
+- Hold Shift and right-click to queue orders for your castaway: fetch this, then
+  that, then carry it all to the fire. Each one runs when the last is done and
+  the label under your name counts what is still waiting. A plain right-click
+  drops the queue and does that instead.
+- A green ring marks where you clicked, and a thin trail shows the path your
+  castaway is about to walk, riding the hills. Both fade on their own.
+- Hold Shift while placing a hut, tower, Workshop or Shipyard to stay in build
+  mode and place the next one straight away.
+- Right-click the ground beside the fire and your castaway now walks to that spot,
+  emptying their hands as they pass the fire. With nothing to drop it is just a
+  walk. Right-click the fire itself to deposit and work its queue as before.
+- Several pairs of hands share a bench. Queue five spears and every idle
+  colonist who comes takes one, so the whole order comes off the bench together.
+  Research is still one person's work. Your castaway always gets a place.
+- The run starts at eight in the morning with the sun up, not in the half-dark
+  of dawn.
+
+## 2026-09-12 — The fog hides the island by day
+- Ground nobody has explored is now one solid dark colour at every hour. In
+  bright daylight you could make out the hills and coastline through it before.
+
+## 2026-09-11 — Castaways on the far shore
+- New Game has a Rivals option beside island size and terrain. It is off by default.
+- Turn it on and another ship breaks up about a third of the way through the run.
+  Its survivors land on a beach of their own and found their own colony.
+- A banner tells you a ship broke up. It does not tell you where. Their camp stays
+  under the fog until your own people find it.
+- Every colony now works the ground around its own fire by preference, and only
+  reaches further out once its own patch is bare.
+
+## 2026-09-11 — Smaller raids for a full storehouse, more sticks underfoot
+- A big bank of wood, food and stone no longer makes raids grow without limit.
+  A hoard still draws attention, but only up to a point, so a colony that has
+  run out of things to build is not punished for it night after night.
+- Worked trees, bushes and rocks shed sticks and chunks a little faster, and
+  three may now lie around a node instead of two. Arming a militia after a bad
+  night no longer waits on the forest.
+- Your walls now draw half as much raider attention as they used to. A wall is
+  wood and stone you already spent, not treasure sitting out for the taking, so
+  fortifying no longer costs you extra raiders on top of the build.
+
+## 2026-09-10 — Raiders stay outside the wall
+- A raid never lands inside a closed ring any more, and a raider that gets
+  stuck is never moved through a wall. When nothing outside reaches your fire,
+  they come ashore on the near side and go for the wall.
+- A raider that cannot reach a warrior (say, behind a wall) no longer stands
+  at the wall staring at them all night; it attacks the wall instead.
+
+## 2026-09-10 — A breather after every raid
+- Raiders never come two nights running any more. After a raid the colony is
+  owed two quiet nights before the next can roll, so a night that cost half the
+  militia leaves time to arm replacements. Only the last night of the calendar
+  ignores the rule.
+
+## 2026-09-10 — Gates get repaired
+- A chewed gate now gets repaired like a wall. Before, a colonist would never
+  touch one, so a gate that survived a raid stayed at that health for the rest
+  of the game.
+
+## 2026-09-10 — Raiders that get stuck
+- Raiders sometimes wedged themselves on a rock or a cut-off ledge and stood there
+  all night, and the dawn waited on them. They now come ashore only where a path
+  to your fire exists, and one that stops making progress for twenty seconds is
+  moved onto ground it can fight from.
+- When raiders are on the island but nothing has happened for half a minute, the
+  day counter reads "Raiders lurking" and a banner names the Offensive key, so you
+  can send the militia out to finish the night instead of waiting for it.
+
+## 2026-09-10 — Watchtowers watch
+- The Watchtower is a vision building for now: it sees further than anything else and
+  shows a raid coming, and that is all it does. The damage aura it used to promise
+  never actually worked, so it is gone until towers that shoot arrive as an upgrade.
+- Under the hood the tower's script had stopped loading, so a placed tower had no
+  health and no sight either. Fixed.
+
+## 2026-09-10 — Your castaway can build
+- Right-click a construction site and your castaway walks over and raises it, the
+  same as a colonist would. Standing at the site is the work; walking away pauses it.
+- This is the way out of a stuck colony: if all your colonists are on gathering jobs
+  there is nobody to build, and until now the hut you paid for would wait forever.
+
+## 2026-09-09 — Minimap
+- A north-up map of the island sits in the top-right corner. Unexplored ground is
+  dark, ground nobody is watching is dim, watched ground shows its true colours.
+- It marks your buildings and walls, colonists (light), warriors (gold), your castaway
+  (white) and raiders on watched ground (red), plus the outline of what the camera sees.
+- When a raid comes ashore the map pulses red where it landed, even in the dark.
+- Left-click or drag on the map to move the camera there.
+
+## 2026-09-09 — Trees no longer draw two trees at once
+- Every tree grew a second, taller crown that never shrank as it was chopped.
+  The fog was switching on an old hidden tree model kept inside the tree prefab.
+  Only the low-poly tree draws now, and it shrinks as workers cut it down.
+
+## 2026-09-09 — The fog now matters
+- Colonists only gather from trees and rocks the colony has discovered. Send
+  your castaway, a colonist or a Watchtower's sight out to find more.
+- Your warriors only fight raiders something of yours can see. A raid in the
+  dark is an ambush until it reaches your lights; a Watchtower sees it coming.
+- You cannot place a building or a wall on ground nobody has seen yet. The
+  ghost turns red there, and a wall line stops at the dark.
+
+## 2026-09-09 — Playtest quests tick themselves
+- Most playtest quests (editor and development builds only) now tick and PASS
+  on their own the moment the thing happens; only looks, feel and "nothing went
+  wrong over time" checks are still ticked by hand. A quest you saw go wrong
+  can be flipped to FAIL on the DEV tab, and that verdict sticks.
+
+## 2026-09-09 — Map edges: no lit band to the horizon, no hard line in the shallows
+- When your explored ground reached the edge of the map, a bright strip of open
+  ocean stretched from it all the way off the screen. The sea beyond the map is
+  now unexplored and dark like the rest of the unseen water.
+- Where a cove's shallows met the map edge, the light water stopped on a
+  straight line (behind the wreck on some islands). Every island now sits in
+  20 m more open sea on each side, so nothing of it reaches the map edge.
+- Turning the F4 "Reveal map" cheat off gives the real fog back. Before, the
+  whole island stayed in the grey shroud once the cheat had been on.
+- The F4 "+5 spears / bows" cheats work with a full stockpile: they grant the
+  missing room instead of silently adding nothing.
+
+## 2026-09-09 — Foraging colonists no longer stutter at a pickup
+- A colonist who cannot quite reach a stick or chunk (one lying under a bush or
+  at the edge of a ledge) now picks it up from a step away if that is as close
+  as the ground allows, and otherwise leaves it alone for a while and finds
+  other work. Before, they shuffled a metre forward and back at it forever, and
+  anyone who walked into the pile caught the same shuffle.
+- Colonists only fetch sticks, chunks and crates lying on ground the colony has
+  explored.
+
+## 2026-09-09 — Fog of war
+- The island starts in the dark. Ground clears for good once one of your people
+  or buildings has seen it, and ground nobody is watching right now sits in a
+  dim grey shroud. Explore to find trees, rocks, ore and the wreck's cargo.
+- Raiders are hidden until something of yours can see them, so a raid can be an
+  ambush. Every colonist, warrior and building keeps watch around itself; the
+  Watchtower sees far further than anything else.
+- Your castaway sees a little further than a colonist, and the campfire lights a
+  wide circle. The sea darkens with the shore it laps.
+- Not yet: colonists still gather from trees you have not found, building is
+  still allowed anywhere, the dawn raid warning still says how many are coming,
+  and there is no minimap. Those follow in the next updates.
+
+## 2026-09-08 — Colonists spread out at the fire and in the forest
+- Colonists bringing resources home now fan out around the campfire instead of
+  queueing on one side of it, and one stuck behind another hands over after a
+  moment rather than standing there.
+- Workers count the people already chopping a tree, not just those walking to
+  it, so they spread across nearby trees and rocks instead of piling onto one.
+- A Builder, Crafter or Repairer with nothing to do now waits at home and says
+  so ("Builder, idle") instead of loitering at the fire labelled "Gathering".
+  Colonists with nothing to do at all stroll the village as intended.
+
+## 2026-09-08 — Trees and buildings open a window instead of fading
+- A tree, hut, tower, workshop, shipyard or wall standing between the camera and
+  one of your people now stays solid and opens a soft round window right where
+  they are, instead of the whole object going see-through.
+- Walls join in: a colonist behind a wall line is visible through it.
+- Fixes trees that never faded at all: some tree variants swapped their materials
+  after the fade had taken hold of the old ones.
+
+## 2026-09-08 — Stone chunks look like stone chunks
+- Loose stone you can pick up is now a small pile of chunks instead of a single
+  small rock, so it no longer looks the same as the scenery rocks. Small rocks
+  are decoration: nobody can mine or collect them.
+
+## 2026-09-08 — Idle colonists stroll the village
+- A colonist with nothing to do now wanders between the campfire, huts and
+  workshops by day instead of standing at the door: a short stand, a stroll to
+  another building, another stand. Their label reads "Wandering" on the walk.
+- At night they walk home and stay there, as before.
+
+## 2026-09-08 — A version number
+- The main menu now shows the build's version (v0.2.0-alpha.1 to start) next to the
+  updated date, and every playtest report opens with it, so a report can always be
+  matched to the build it came from.
+
+## 2026-09-08 — Nothing hides your people
+- Buildings fade now too. A worker standing behind a hut, the Watchtower, the Workshop or the Shipyard used to simply vanish; those buildings go see-through while someone is behind them, the way trees already did. Rocks and bushes are left alone, because nothing short enough to see over needs to move out of your way.
+- Tall palms stop going see-through for someone walking in FRONT of them. The check now measures depth at the part of the tree that actually covers your colonist, so the trunk answers for their feet and the crown for their head, and only someone genuinely behind the tree makes it fade.
+- The fade is quicker and more accurate. It checks twice as often, fades out more than twice as fast as it fades back, and looks at your whole colonist rather than one point at their chest, so a head behind a canopy or a body under a roofline no longer goes unnoticed. Walking along the edge of a tree cannot make it flicker any more.
+
+## 2026-09-08 — Boulders you can actually quarry
+- Stone boulders no longer appear halfway up cliff faces, where there was nowhere for a colonist to stand and no amount of waiting would get one mined. Quarryable rocks now settle on ground a colonist can walk on, and the steep faces keep their scenery rocks.
+- The same rule covers every resource the island places: if nothing can stand around it, it is not put there. A node that gets closed in later is passed over instead of drawing workers to a spot they cannot reach.
+
+## 2026-09-08 — Clouds, softer shadows and graphics options
+- Weather, part one: each dawn the sky rolls sunny, slightly cloudy, partly cloudy or cloudy. Clouds drift over the island as soft, see-through puffs, and their shade slides across the ground, the huts and everyone under them with no hard edge. A cloudy day dims the whole island and softens every shadow, but light still gets through the thin parts.
+- Shadows are sharper close up and no longer crawl while you pan: the camera fits its shadow range to what is on screen instead of a fixed box, and far trees keep their shadows at full zoom-out. Daylight shadows are a little lighter.
+- Options > Video has a GRAPHICS preset (Low, Medium, High, Ultra) and the rows it sets: shadow detail, shadow distance, soft shadows, anti-aliasing, resolution scale and clouds. Change any row and the preset reads Custom. The old Quality stepper is gone.
+- F4 debug menu: a Sky row forces any cloud condition.
+
+## 2026-09-07 — Warrior stances and the trip to the fire
+- A Stance row on the campfire panel's Defence section gives every warrior one order. Defensive holds the colony: patrol, hold the walls, and fight only what comes within reach of the fire or the walls. Offensive hunts: warriors go for any raider anywhere on the island. Follow escorts your castaway: warriors keep a loose ring around you and fight whatever comes near you. A badly hurt escort still walks home to heal, and the militia falls back to Defensive while you are knocked out.
+- Warriors going for the same raider now spread out around it, each coming in from its own side on its own path, instead of queueing up behind one another on the same line.
+- Formations. When the militia rallies or escorts, each warrior takes a place in a Line (spearmen in front, archers a few steps behind), a Wedge (a point man, edges fanning back, archers inside the V) or a Ring (spearmen around, archers inside). A Formation row under Stance picks one; Auto uses Line on Defensive, Wedge on Offensive and Ring on Follow, and Loose is the old every-warrior-for-themselves spread.
+- Offensive now advances as a group: the militia walks toward the raiders in formation and breaks into the charge once a raider is within about twenty paces, instead of everyone sprinting off alone.
+- A raid night now lasts until the last raider is dead. The sky holds just short of dawn while any are still on the island, and the calendar chip says so. Raiders no longer vanish at sunrise.
+- Fixed idle warriors freezing on the spot and crowding the campfire. A warrior that could not quite reach its guard post used to stand there for good, and the posts themselves sat right on the fire's delivery edge. Posts now ring the fire and the huts a few paces further out, a warrior that cannot reach one picks another, and the group no longer changes posts in step.
+- Militia orders on the main screen: once you have a warrior, a small box appears bottom-right with the three stance buttons and the five formation buttons, the active ones lit. The stances are also on keys, F5, F8 and F9 by default, rebindable under Options > Controls in a new Militia group.
+- The campfire panel's Jobs, Specialists, Priorities and Defence sections fold: click a heading to collapse it, click again to open it. The game remembers which you left closed.
+- The five-warrior limit is gone. A warrior still needs a bed and an idle colonist, so how big a militia you can field is now down to your housing. The Warriors row shows the count on its own.
+- Fixed a bright shallow-water stripe running from the cove out to the horizon on some islands.
+- Archers move again. On Offensive an archer keeps its distance, backing off whenever a raider gets close and shooting as it goes. On Defensive and Follow it holds its place in the formation and shoots, taking a short step back toward the fire or toward you if a raider gets on top of it, but never leaving the line behind.
+- Changing a colonist's job (or making them a specialist, or sending them back to idle) now sends them to the campfire first. They hand in whatever they were carrying, spend a moment gearing up for the new trade, and only then head out as that unit. A raid interrupts the trip and it resumes afterwards.
+
+## 2026-09-07 — Utility colonists and the Information screen
+- Idle colonists now do everything the colony needs on their own: they build a waiting site first, then work any bench with a queue, then repair damaged buildings, then tidy the beach. Crafting research opens the bench work; Construction opens building and repair, as before.
+- The Crafters row on the campfire panel became a Specialists section: Builders, Crafters and Repairers. A specialist is pinned to that one trade and does nothing else, for when you want a hand on the bench no matter what is being built. Idle colonists stay the flexible pool.
+- INFORMATION on the main menu and the pause menu: a field guide to the castaway, the day, resources, colonists, hunger, research, building, raids and the endings, with the research tree, the recipes, the weapons, the difficulty presets and the raid roll listed from the game's own numbers. Building costs appear in the pause-menu copy during a game. The Story tab is empty for now.
+- Priorities on the Colonists tab: four sliders (Build, Craft, Repair, Tidy the beach) set what an idle colonist reaches for first. Zero switches that work off. Left-click an idle colonist in the world to open the panel there.
+- Playtest quests (editor and development builds): a PLAYTEST tracker top-right lists the next things to try, some tick themselves as you play, and Esc > Information > DEV holds the full list with PASS / FAIL, notes and SUBMIT REPORT, which copies a markdown report to the clipboard and saves it under Playtests/.
+
+## 2026-09-04 — The escape ship
+- Shipwright, researched at the Workshop after Iron Work, opens the Shipyard: press 6 in build mode. It only stands on a beach, within a few steps of the water, and costs 200 wood, 120 stone and 30 metal. It is a slow build: about a minute and a half for one builder, half a minute with three.
+- Click a finished Shipyard and choose to set sail. The colony's ship slides out to sea while the camera follows, and the run ends as an escape, with the day you left on the end screen. You can keep playing from there if you like.
+- Raiders go for the Shipyard like any other building, and a colony with one draws bigger raids. Repairs and demolition refunds now include metal.
+
+## 2026-09-04 — Archers
+- Bowyery, researched at the Workshop after Spearcraft, opens the Bow: 12 damage at 9 range, made from 4 sticks and 5 wood.
+- Arm a recruit with a Bow on the Warriors row and you get an archer: a green-clad warrior who holds back at range and shoots over your walls. Arrows arc to their target and hit on arrival.
+- Archers keep their bow when a better spear turns up; spearmen never swap to a bow on their own. Raiders charge an archer they can see like any other warrior.
+
+## 2026-09-04 — The colony eats
+- Every colonist now eats one food a day, taken from the stores a unit at a time. The Food chip shows the daily drain, turns amber with under a day of food in hand and red when the stores are empty; click it to see how many days the reserve lasts.
+- A quarter of a day without food and the colony is Hungry: gathering and building slow to 60% and no new survivors come ashore. A full day and it is Starving: each day one colonist walks down to the cove and leaves, the idle first, then workers, then warriors. Feed them and it stops.
+- Your own character does not eat.
+- Difficulty gained a food consumption knob: Peaceful halves it, Brutal raises it by half; Custom has a slider.
+- The end screen counts colonists who left.
+
+## 2026-09-04 — Crafters, the Workshop bench, and the Iron Spear
+- A new Crafters job on the Colonists tab. A crafter walks to whichever bench has a queue and works it, so research and spears keep moving while you are away from the fire. Your character still takes over the bench the moment you step up to it.
+- The Workshop now makes tools and weapons twice as fast as the campfire. Research runs at the same speed at both.
+- Iron Work, researched at the Workshop after Mining, opens the Iron Spear: 35 damage against the Wooden Spear's 25, costing 2 sticks, 5 wood and 4 metal. Metal finally has a use.
+- The Warriors row has an "Arm with" picker. Step through the weapons in stock to choose what the next recruit carries.
+- A warrior with a plain spear walks to the fire and swaps it for an iron one on their own, as long as no raiders are about. The old spear goes back to the stockpile.
+
+## 2026-09-04 — Changelog
+- What's new, in the game itself. Reach it from the main menu or the pause menu; newest first.
+
+## 2026-09-03 — Byproducts get collected, campfire clicks split
+- Idle colonists now fetch the sticks and chunks that workers shed at forests and quarries, island-wide by day and close to home after dusk.
+- Working a rock or tree with full hands leaves the extra chunks and sticks on the ground instead of losing them (at most two per node).
+- Right-click on the fire deposits and starts the queue; left-click opens the campfire panel. Depositing no longer pops the panel open.
+
+## 2026-09-03 — Research hands you its tool; stockpile caps; stone and metal
+- Finishing a research puts its tool straight in your hands: Woodcutting gives the Stone Axe, Quarrying the Stone Pick, Construction the Mallet, Foraging the Fishing Spear, Mining the Metal Pick. The separate tool recipes are gone.
+- The campfire stockpile holds 60 items. Storage Pits raises it to 100 and Racks and Baskets at the Workshop to 180. The Stockpile tab shows held / cap and turns red when full.
+- Colonists hauling sticks and chunks home now add them to the stockpile as well as the pool, so research and spears can be paid for by the colony, not only by your own hands.
+- Rock nodes hold 40 stone and ore nodes 25 metal. The big scattered boulders can be quarried for 70 stone, medium rocks for 30.
+- Right-clicking the ground a step from the fire deposits; your character stops close and the deposit lands at once.
+
+## 2026-09-03 — Glow, hand-harvest, HUD breakdowns and a sky dial
+- Hovering the campfire, the Workshop or any tree, bush or rock warms it with a soft golden glow instead of a flat yellow tint. Sticks, chunks and crates light up under the cursor.
+- Your character can work nodes by hand: right-click a bush for food, a tree for wood once you have the axe, a rock for stone once you have the pick. Working a node also yields sticks and chunks.
+- Workers shed the odd stick or chunk around the nodes they work, and the shore has more loose pickups, including big ones worth three.
+- Click a resource on the HUD to see where it comes from and who is gathering it. Housing lists every building and who sleeps there.
+- A sun and moon dial replaced the debug clock: the sun crosses the sky by day, the moon by night, so you can see how long until the raiders land.
+- Trees only fade when a unit is genuinely behind the trunk, not anywhere under the canopy.
+- Scrolling the wheel over a list scrolls the list instead of zooming the camera, and every list has a scrollbar.
+- Idle colonists tidy the clearing around the fire, carrying loose pickups home.
+
+## 2026-09-03 — Research and crafting split; benches; spears
+- Research teaches, crafting supplies. The campfire panel has Colonists, Stockpile, Craft, Research and Queue tabs; the Workshop opens the same panel with its own Craft, Research and Queue.
+- A bench only works while someone stands at it. Right-click the fire or the Workshop to put your character to work on the queue.
+- Wooden Spears are a repeatable craft, and a warrior now costs a spear, 15 food and an idle colonist. Dismissing a warrior returns the spear.
+- Costs are paid when an item finishes. A queue short of materials waits rather than failing.
+- The Workshop unlocks with the Crafting research. Sharpened Tools, Sturdy Scaffolds and the storage upgrades are Workshop research.
+
+## 2026-09-02 — A thirty-day calendar and announced raids
+- The run is thirty days to rescue instead of a wave every night. Raiders can land from day 3; the odds climb with every quiet night and a raid is certain after five.
+- The roll happens at dawn and is announced for the whole day on the calendar chip and a banner, so you know when to arm up.
+- Raid size scales with the day and with how prosperous the colony looks: people, warriors, buildings and stock on hand.
+- Days last 100 seconds and nights 50. Peaceful and Relaxed are 20 days; Hard and Brutal raid more often instead of lasting longer.
+- Victory is the dawn after the final day. The end screens show days survived.
+
+## 2026-09-02 — Your castaway, hands and the campfire stockpile
+- Name your castaway at the start of a run. They are your character for the whole run and no longer turn into the first colonist when the fire is lit.
+- Right-click to fetch sticks, stone chunks and salvage into a six-slot inventory on a strip at the bottom of the screen, and deposit at the fire.
+- Materials go into the campfire stockpile and resources into the pool. Crafting at the campfire is what unlocks the colony's jobs, construction and militia.
+- Your character can be knocked out but not killed, and recovers at the fire. Space centres the camera on them.
+- Locked buttons say what to craft to unlock them.
+
+## 2026-09-02 — Colonists arrive by housing; builders
+- Survivors come ashore at the cove on their own while there is room to sleep, and walk to their home. Colonists are free; housing is the only limit.
+- The campfire panel assigns jobs to idle colonists instead of spawning workers. Colonists without a job build and repair.
+- Construction needs a builder: one finishes a site in about ten seconds, up to three work together, and an untouched site reads "Awaiting builder".
+- Warriors are armed from the idle pool and sleep in the huts. Dismissing a warrior returns them to the pool.
+- Repairs cost a quarter of the build price for a full repair, paid as the health ticks up.
+
+## 2026-09-02 — Salvage: crates and barrels
+- The shipwreck's cargo and the crates and barrels along the shore can be hauled home. A crate is 6 food, a barrel 5 wood.
+- Salvage is finite: sticks and stones keep washing up, crates do not.
+
+## 2026-09-02 — Trees fade, palms can be chopped, plain ore
+- Trees between the camera and a unit fade to about 30%, so nobody vanishes behind a canopy.
+- Every scattered palm can be chopped and shrinks as it depletes.
+- Ore nodes are plain boulders; stone nodes keep their crystals, so the two read apart at a glance.
+
+## 2026-09-01 — World options, metal, a new HUD and real water
+- New Game asks for island size (Small, Medium, Large), terrain style (Rolling, Terraced, Rugged) and a seed.
+- Metal is a fourth resource, mined from ore boulders by miners.
+- The resource bar and the campfire panel were rebuilt. The panel can be dragged by its title.
+- Nodes sit where they belong: forests in dark lowland, bushes on meadows, stone on high ground, ore on plateaus and at cliff feet. There are fewer of them, spread with purpose.
+- Stylized water: depth-tinted shallows, shoreline foam, a gentle swell and sparkle, no more grey mirror.
+- Terrain colours flow with the land: dark grass in valleys, dry grass on plateau tops, wet sand at the shore.
+
+## 2026-09-01 — Random islands with terraces, cliffs and ponds
+- Every new game is a different island: terraced plateaus, cliffs climbable only by ramps, ponds, rocky and sandy shores. Restart keeps the same island.
+- Every island is checked so the whole landmass is reachable from the campfire, with ramps carved where a plateau would otherwise be cut off.
+- Trees, ferns, grass, rocks and flotsam are scattered by terrain rules at the start of each run.
+
+## 2026-08-31 — Settings with depth, key rebinding and difficulty
+- Options grew to four tabs. Audio: mute when unfocused. Video: display mode, resolution, frame cap. Camera: zoom and rotation speed, invert tilt, screen shake amount. Interface: UI scale, health-bar mode, unit labels, pause when unfocused.
+- Every gameplay key can be rebound, with two slots per action. Escape and the mouse buttons stay fixed.
+- Difficulty is chosen on the New Game screen and locked for the run: Peaceful, Relaxed, Normal, Hard, Brutal or Custom.
+- Victory and defeat use the menu system, show the run's stats and can return to the main menu.
+- Trees shake in time with the chopping sound.
+
+## 2026-08-28 — Main menu, pause menu and a balance pass
+- A main menu (New Game, Options, Credits, Quit) and a pause menu on Esc.
+- Esc first cancels whatever is active, such as a building ghost, a wall line or an open panel, and only pauses when nothing is.
+- Balance retuned from hundreds of simulated runs.
+
+## 2026-08-27 — Movement and placement feel
+- Units accelerate three times faster. Warrior and enemy speeds were swapped and are fixed: warriors had been the slowest thing on the field.
+- Placement ghosts sit exactly under the cursor instead of a building-height off.
+
+## 2026-08-26 — Camera and pathing
+- Middle-mouse drag tilts the camera (30 to 60 degrees) and rotates it around the point you are looking at.
+- Units are no longer sliced open at the bottom of the screen when zoomed out.
+- The grid overlay is F2 (G clashed with gate conversion), drapes on the terrain, shows only buildable cells, and appears automatically in build mode.
+- The AI keeps up with bigger colonies. Decisions no longer slow down past about ninety units.
+
+## 2026-08-26 — A bigger island, ground pickups and the Workshop
+- The island is 150 metres across, up from 100. Trees are taller, in five shapes and shades.
+- Units path around trees and rocks instead of rubbing along them, and enemies no longer freeze behind trunks.
+- Buildings flatten a pad and sit flush on slopes; the ghost previews at the exact placed height. Red no-build lines hug the hills.
+- Workers shelter in the nearest hut when enemies are near and come out when it is safe.
+- Sticks and stone chunks lie around the island, and wood and stone workers pick them up on the way.
+- The Workshop (build key 5) with three one-time upgrades: Sharpened Tools, Sturdy Scaffolds, Forged Blades.
+
+## 2026-08-25 — The opening, a shaped island and a debug menu
+- The game opens with a lone survivor in the shallows beside the wreck. Right-click them ashore and press B to place the campfire.
+- The world is a shaped island with beaches, a rolling interior and rock facets, surrounded by ocean. Units can wade but not swim.
+- Camera smoothing: eased pan, zoom and rotation, with pan speed scaling with zoom.
+- The day and night clock had been ignoring its configured lengths; fixed, with a gentler dawn.
+- F4 opens a debug menu in the editor and development builds.
+
+## 2026-08-24 — Low-poly art, moonlight and tighter crowds
+- Every unit, building and resource is low-poly art instead of primitive shapes.
+- Nights are moonlit blue with soft shadows instead of black.
+- Workers stand next to what they gather, pack tighter around nodes, give way to each other and spring back to their spot when bumped.
+- Workers walk right up to the campfire to deliver.
+
+## 2026-08-22 — Engine upgrade
+- Upgraded to Unity 6000.5, with large internal refactors behind the scenes.
+
+## 2026-07-03 — Code health pass
+- Dead workers free their housing, and so do demolished huts. Warriors no longer get stuck healing at the fire. Many performance fixes.
+
+## 2026-05-01 — Post-processing and lighting
+- Bloom, colour grading, tonemapping and vignette. A warm gold sun with separate day and night lighting. The campfire glows.
+
+## 2026-04-30 — Enemy targeting rewrite
+- Enemies chew through huts on the way to the campfire instead of jogging past, retarget the moment a target dies, and no longer freeze at building edges.
+
+## 2026-03-26 — Gates, demolish, screen shake and healing
+- G converts a wall to a gate reliably. Delete or X demolishes for a 50% refund. Combat shakes the screen. Warriors heal at the campfire between fights.
+
+## 2026-03-24 — Workers flee
+- Workers run from enemies, day or night.
+
+## 2026-03-03 — Smarter units
+- Every unit decides what to do by weighing its options rather than following a fixed script: workers, warriors and enemies alike.
+
+## 2026-02-04 — Stutter-free
+- The periodic stutter is gone: no per-frame garbage, staggered AI, preloaded audio.
+
+## 2026-01-29 — Walls, gates and watchtowers
+- Wall lines drawn click to click, L-shaped or a staircase with Shift, with wall pieces that connect to their neighbours. Gates, watchtowers and housing.
+
+## 2025-12-10 — Audio
+- 3D spatial audio: music, gathering, combat and ambience, crossfading between day and night.
+
+## 2025-11-24 — Combat alpha
+- Warriors, enemy waves at night, combat effects, victory and defeat.
+
+## 2025-11-16 — First alpha
+- An island, a campfire, workers gathering wood, food and stone, huts, and a day and night cycle.

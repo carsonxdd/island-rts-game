@@ -66,13 +66,15 @@ public class ReturnUrgency : Consideration
             nightBoost = carryRatio * nightPressure * 0.25f;
         }
 
-        // 4) Drop-off efficiency: if base is closer than the next resource and
-        //    worker has significant carry, it's smarter to drop off first than
-        //    run to a far node, gather 1, and run all the way back.
+        // 4) Drop-off efficiency: if a drop-off is closer than the next resource
+        //    and worker has significant carry, it's smarter to drop off first than
+        //    run to a far node, gather 1, and run all the way back. The nearest
+        //    drop-off, not the fire (2026-09-16): a Storehouse by the forest is
+        //    exactly the case this signal is for.
         float efficiencyBoost = 0f;
-        if (carryRatio > 0.5f && bb.baseBuilding != null && bb.bestResource != null)
+        if (carryRatio > 0.5f && bb.bestResource != null)
         {
-            float distToBase = Vector3.Distance(bb.transform.position, bb.baseBuilding.transform.position);
+            float distToBase = Dropoff.NearestDistance(bb.faction, bb.transform.position);
             float distToResource = Vector3.Distance(bb.transform.position, bb.bestResource.transform.position);
 
             if (distToBase < distToResource && distToResource > 1f)

@@ -1,4 +1,5 @@
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -23,6 +24,34 @@ public static class SimPlayerDriver
 
         CraftStation station = fire.Station;
         if (station == null) return;
+
+        // A fetch that failed is not tried again (2026-09-17). Islands 7 and 23
+        // lost every strategy on the first raid with 47-60 sticks and a queued
+        // spear: the nearest chunk sat on ground the castaway could not reach,
+        // "Fetching" became "Can't reach that", and the next tick picked the same
+        // chunk - all run, while before Crafting nobody else works the bench.
+        // An order that outlives CollectTimeout (a stutter never stalls) is
+        // cancelled the same way.
+        if (lastPickup != null)
+        {
+            if (pc.HasTask)
+            {
+                if (Time.time - lastIssued > CollectTimeout)
+                {
+                    Ban(lastPickup);
+                    lastPickup = null;
+                    pc.CommandDeposit(fire);   // any new order drops the fetch
+                    return;
+                }
+            }
+            else
+            {
+                // Still on the ground and not in hand: the fetch failed
+                if (pc.Inventory.Count(lastPickup.Item) <= lastHave) Ban(lastPickup);
+                lastPickup = null;
+            }
+        }
+        else if (!pc.HasTask) lastPickup = null;
 
         // Mid-errand: let it finish (a stalled task drops itself)
         if (pc.HasTask) return;
@@ -58,7 +87,15 @@ public static class SimPlayerDriver
         }
 
         GroundPickup pickup = NearestPickup(missing, pc);
-        if (pickup != null) { exploring = false; pc.CommandCollect(pickup); return; }
+        if (pickup != null)
+        {
+            exploring = false;
+            lastPickup = pickup;
+            lastIssued = Time.time;
+            lastHave = pc.Inventory.Count(missing);
+            pc.CommandCollect(pickup);
+            return;
+        }
 
         // Nothing of it is known. Go and LOOK (2026-09-11). Waiting for the
         // trickle was a deadlock: a colony cannot make a stone chunk without the
@@ -79,11 +116,40 @@ public static class SimPlayerDriver
     private const float ArriveDistance = 5f;
     private const float LegSeconds = 45f;
 
+    // ---- fetches that failed (2026-09-17) -----------------------------------
+
+    private static GroundPickup lastPickup;
+    private static float lastIssued;
+    private static int lastHave;
+    private static readonly Dictionary<GroundPickup, float> bannedUntil = new Dictionary<GroundPickup, float>();
+
+    /// <summary>A fetch still outstanding after this long is dropped and its pickup banned.</summary>
+    private const float CollectTimeout = 45f;
+    /// <summary>How long a failed pickup stays off the list (the ground may change: a flatten, a wall).</summary>
+    private const float BanSeconds = 240f;
+
+    static void Ban(GroundPickup p)
+    {
+        if (p == null) return;
+        if (bannedUntil.Count > 64)
+        {
+            // Prune destroyed keys and expired bans before it grows
+            var stale = new List<GroundPickup>();
+            foreach (var kv in bannedUntil) if (kv.Key == null || kv.Value < Time.time) stale.Add(kv.Key);
+            for (int i = 0; i < stale.Count; i++) bannedUntil.Remove(stale[i]);
+        }
+        bannedUntil[p] = Time.time + BanSeconds;
+    }
+
+    static bool Banned(GroundPickup p) => bannedUntil.TryGetValue(p, out float until) && until > Time.time;
+
     /// <summary>Per-run state; the driver is static and the sim reloads the scene.</summary>
     public static void ResetRun()
     {
         exploring = false;
         exploreDeadline = 0f;
+        lastPickup = null;
+        bannedUntil.Clear();
     }
 
     /// <summary>
@@ -167,11 +233,14 @@ public static class SimPlayerDriver
         GroundPickup best = null;
         float bestSq = float.MaxValue;
         Vector3 from = pc.transform.position;
+        TerrainGrid grid = TerrainGrid.Instance;
         var list = GroundPickup.ActiveList;
         for (int i = 0; i < list.Count; i++)
         {
             GroundPickup p = list[i];
             if (p == null || p.Item != item || p.IsClaimedByOther(pc)) continue;
+            if (Banned(p)) continue;
+            if (grid != null && !grid.IsReachable(p.transform.position)) continue;   // a cliff-side chunk (2026-09-17)
             float d = (p.transform.position - from).sqrMagnitude;
             if (d < bestSq) { bestSq = d; best = p; }
         }

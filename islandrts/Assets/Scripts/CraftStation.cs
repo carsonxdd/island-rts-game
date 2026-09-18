@@ -457,6 +457,9 @@ public class CraftStation : MonoBehaviour
 
         lane.lastLaborTime = Time.time;
         QueueEntry entry = lane.entry;
+        // An evicted lane can hold no entry (DropEntry nulls it, PruneLanes
+        // reaps it later) - the player would inherit null (overnight 2026-09-17).
+        if (entry == null) { lanes.Remove(lane); return false; }
 
         // Research finished elsewhere (or a tool made elsewhere) while it waited here
         if (entry.research != null && Faction.Knowledge.IsDone(entry.research)) { RemoveEntry(entry); return true; }

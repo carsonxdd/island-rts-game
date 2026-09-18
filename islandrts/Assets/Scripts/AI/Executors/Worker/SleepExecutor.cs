@@ -26,6 +26,12 @@ using UnityEngine.AI;
 /// </remarks>
 public class SleepExecutor : ActionExecutor
 {
+    /// <summary>Player colonists who lay down by the fire, cumulative this process (2026-09-17, sim telemetry reads deltas per night).</summary>
+    public static int FireSleeps { get; private set; }
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetStatics() { FireSleeps = 0; }
+
     public override string DisplayName => displayName;
     private string displayName = "Turning in";
 
@@ -49,6 +55,7 @@ public class SleepExecutor : ActionExecutor
     private bool garrisoned;
     private bool lying;
     private float walkTimer;
+    private float homeCheckTimer;                      // a fire-side sleeper looks for a bed once a second
     private Transform model;
     private Quaternion modelRestRotation;
 
@@ -58,6 +65,7 @@ public class SleepExecutor : ActionExecutor
         lying = false;
         destinationQueued = false;
         walkTimer = 0f;
+        homeCheckTimer = 1f;
         hut = null;
         hutCollider = null;
         fireCollider = bb.baseBuilding != null ? bb.baseBuilding.GetComponent<Collider>() : null;
@@ -274,6 +282,7 @@ public class SleepExecutor : ActionExecutor
         else
         {
             LieDown(bb);
+            if (bb.faction != null && bb.faction.IsPlayer) FireSleeps++;
             DevQuests.Signal("sleep:fire");
         }
         DevQuests.Signal("sleep");
@@ -283,7 +292,19 @@ public class SleepExecutor : ActionExecutor
 
     void UpdateAsleep(AIBlackboard bb)
     {
-        if (!garrisoned) return;
+        if (!garrisoned)
+        {
+            // Lying by the fire: a hut finished tonight, or a bed in one came free
+            // (2026-09-17) — get up and go inside rather than wait for tomorrow's bedtime
+            homeCheckTimer -= Time.deltaTime;
+            if (homeCheckTimer > 0f || bb.faction == null || bb.faction.Population == null) return;
+            homeCheckTimer = 1f;
+            if (!(bb.faction.Population.HomeOf(bb.worker) is Hut) || !AgentReady(bb)) return;
+            StandUp();
+            Worker.RollMovingAvoidance(bb.agent, bb.carryAmount);
+            StartToBed(bb);
+            return;
+        }
         if (HutAlive()) return;
 
         // The hut fell out from under us: up, and find somewhere else to lie

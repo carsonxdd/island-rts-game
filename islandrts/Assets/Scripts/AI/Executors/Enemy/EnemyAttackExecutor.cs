@@ -227,19 +227,21 @@ public class EnemyAttackExecutor : ActionExecutor
         // No distance gate — enemies should engage any hut/tower they can reach, so
         // they destroy structures on the way to the campfire instead of jogging past
         // them. Campfire (priority 5) only wins when no huts/towers are alive + reachable.
-        float hutDist, towerDist, shopDist, yardDist;
+        float hutDist, towerDist, shopDist, yardDist, storeDist;
         Faction me = bb.faction;
         Hut hut = TargetingUtil.FindNearestHostile(Hut.ActiveList, myPos, 0f, me, out hutDist);
         Watchtower tower = TargetingUtil.FindNearestHostile(Watchtower.ActiveList, myPos, 0f, me, out towerDist);
         Workshop shop = TargetingUtil.FindNearestHostile(Workshop.ActiveList, myPos, 0f, me, out shopDist);
         Shipyard yard = TargetingUtil.FindNearestHostile(Shipyard.ActiveList, myPos, 0f, me, out yardDist);   // raiders threaten the escape (2026-09-04)
+        Storehouse store = TargetingUtil.FindNearestHostile(Storehouse.ActiveList, myPos, 0f, me, out storeDist);   // a store out by the trees is a target (2026-09-16)
 
         Transform nearest = null;
         float nearestDist = float.MaxValue;
         if (hut != null) { nearest = hut.transform; nearestDist = hutDist; }
         if (tower != null && towerDist < nearestDist) { nearest = tower.transform; nearestDist = towerDist; }
         if (shop != null && shopDist < nearestDist) { nearest = shop.transform; nearestDist = shopDist; }
-        if (yard != null && yardDist < nearestDist) { nearest = yard.transform; }
+        if (yard != null && yardDist < nearestDist) { nearest = yard.transform; nearestDist = yardDist; }
+        if (store != null && storeDist < nearestDist) { nearest = store.transform; }
 
         if (nearest == null) return null;
 

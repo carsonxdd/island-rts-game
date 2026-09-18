@@ -12,6 +12,8 @@ public class AIBlackboard
     public NavMeshAgent agent;
     public Health health;
     public BaseBuilding baseBuilding;
+    /// <summary>Where the current Return trip hands in (2026-09-16): the nearest drop-off, the fire or a Storehouse. Set by ReturnToBaseExecutor, null outside it.</summary>
+    public IDropoff dropoff;
     /// <summary>
     /// Who this unit fights for (lap step 1): the unit's own <c>Faction</c>, copied
     /// in its Start. Considerations and executors read this, never <c>Factions.Player</c>.
@@ -61,6 +63,15 @@ public class AIBlackboard
 
     // Warrior fields
     public Warrior warrior;
+    // The post this warrior holds under Defensive (2026-09-17): its slot in the
+    // colony's line, written by InterceptExecutor each time it places the rally and
+    // read by GuardStance.Allows — a raider is fought when it comes within reach of
+    // the post or gets behind it, never chased across the island. holdLineRadius is
+    // the held gate's distance from the fire (float.MaxValue with no gate line): a
+    // spearman refuses anything outside the wall, an archer shoots over it.
+    public Vector3 holdPost;
+    public bool hasHoldPost;
+    public float holdLineRadius = float.MaxValue;
     // Armed with a bow (2026-09-04): Engage looses an arrow instead of striking. Set by Warrior.ApplyWeapon.
     public bool isRanged;
     public float attackRange;

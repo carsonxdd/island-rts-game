@@ -135,6 +135,7 @@ public class Wall : MonoBehaviour, ITargetable
 
         // Add required components
         Gate gate = gateObj.AddComponent<Gate>();
+        gate.Faction = Faction;   // the wall's owner, or a rival's gate is the player's (overnight 2026-09-17)
         gate.isStoneGate = stone;
         gate.maxHealth = stone ? 150f : 75f;
 

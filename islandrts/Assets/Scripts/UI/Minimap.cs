@@ -394,6 +394,8 @@ public class Minimap : MonoBehaviour
         for (int i = 0; i < shops.Count; i++) StampOwned(fog, shops[i], 3, BuildingFill);
         var yards = Shipyard.ActiveList;
         for (int i = 0; i < yards.Count; i++) StampOwned(fog, yards[i], 4, BuildingFill);
+        var stores = Storehouse.ActiveList;
+        for (int i = 0; i < stores.Count; i++) StampOwned(fog, stores[i], 3, BuildingFill);
         var fires = BaseBuilding.ActiveList;
         for (int i = 0; i < fires.Count; i++) StampOwned(fog, fires[i], 4, CampfireFill);
 

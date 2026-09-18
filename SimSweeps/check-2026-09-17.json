@@ -1,0 +1,397 @@
+{
+ "outputDir": "SimLogs",
+ "captureDeltaTime": 0.016666668,
+ "repeats": 1,
+ "maxWallSecondsPerRun": 2400,
+ "runs": [
+  {
+   "id": "base__turtle__7",
+   "strategy": "Turtle",
+   "seed": 7,
+   "terrainSeed": 7,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "base__rush__7",
+   "strategy": "Rush",
+   "seed": 7,
+   "terrainSeed": 7,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "base__eco__7",
+   "strategy": "Eco",
+   "seed": 7,
+   "terrainSeed": 7,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "base__turtle__23",
+   "strategy": "Turtle",
+   "seed": 23,
+   "terrainSeed": 23,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "base__rush__23",
+   "strategy": "Rush",
+   "seed": 23,
+   "terrainSeed": 23,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "base__eco__23",
+   "strategy": "Eco",
+   "seed": 23,
+   "terrainSeed": 23,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "base__turtle__101",
+   "strategy": "Turtle",
+   "seed": 101,
+   "terrainSeed": 101,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "base__rush__101",
+   "strategy": "Rush",
+   "seed": 101,
+   "terrainSeed": 101,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "base__eco__101",
+   "strategy": "Eco",
+   "seed": 101,
+   "terrainSeed": 101,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "base__turtle__314",
+   "strategy": "Turtle",
+   "seed": 314,
+   "terrainSeed": 314,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "base__rush__314",
+   "strategy": "Rush",
+   "seed": 314,
+   "terrainSeed": 314,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "base__eco__314",
+   "strategy": "Eco",
+   "seed": 314,
+   "terrainSeed": 314,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "base__turtle__777",
+   "strategy": "Turtle",
+   "seed": 777,
+   "terrainSeed": 777,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "base__rush__777",
+   "strategy": "Rush",
+   "seed": 777,
+   "terrainSeed": 777,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "base__eco__777",
+   "strategy": "Eco",
+   "seed": 777,
+   "terrainSeed": 777,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "base__turtle__1042",
+   "strategy": "Turtle",
+   "seed": 1042,
+   "terrainSeed": 1042,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "base__rush__1042",
+   "strategy": "Rush",
+   "seed": 1042,
+   "terrainSeed": 1042,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "base__eco__1042",
+   "strategy": "Eco",
+   "seed": 1042,
+   "terrainSeed": 1042,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "base__turtle__2024",
+   "strategy": "Turtle",
+   "seed": 2024,
+   "terrainSeed": 2024,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "base__rush__2024",
+   "strategy": "Rush",
+   "seed": 2024,
+   "terrainSeed": 2024,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "base__eco__2024",
+   "strategy": "Eco",
+   "seed": 2024,
+   "terrainSeed": 2024,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "base__turtle__3141",
+   "strategy": "Turtle",
+   "seed": 3141,
+   "terrainSeed": 3141,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "base__rush__3141",
+   "strategy": "Rush",
+   "seed": 3141,
+   "terrainSeed": 3141,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "base__eco__3141",
+   "strategy": "Eco",
+   "seed": 3141,
+   "terrainSeed": 3141,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "base__turtle__4711",
+   "strategy": "Turtle",
+   "seed": 4711,
+   "terrainSeed": 4711,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "base__rush__4711",
+   "strategy": "Rush",
+   "seed": 4711,
+   "terrainSeed": 4711,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "base__eco__4711",
+   "strategy": "Eco",
+   "seed": 4711,
+   "terrainSeed": 4711,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "base__turtle__5150",
+   "strategy": "Turtle",
+   "seed": 5150,
+   "terrainSeed": 5150,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "base__rush__5150",
+   "strategy": "Rush",
+   "seed": 5150,
+   "terrainSeed": 5150,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "base__eco__5150",
+   "strategy": "Eco",
+   "seed": 5150,
+   "terrainSeed": 5150,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "base__turtle__8851",
+   "strategy": "Turtle",
+   "seed": 8851,
+   "terrainSeed": 8851,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "base__rush__8851",
+   "strategy": "Rush",
+   "seed": 8851,
+   "terrainSeed": 8851,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "base__eco__8851",
+   "strategy": "Eco",
+   "seed": 8851,
+   "terrainSeed": 8851,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "base__turtle__9001",
+   "strategy": "Turtle",
+   "seed": 9001,
+   "terrainSeed": 9001,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "base__rush__9001",
+   "strategy": "Rush",
+   "seed": 9001,
+   "terrainSeed": 9001,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "base__eco__9001",
+   "strategy": "Eco",
+   "seed": 9001,
+   "terrainSeed": 9001,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000
+  },
+  {
+   "id": "r1__rush__1042",
+   "strategy": "Rush",
+   "seed": 1042,
+   "terrainSeed": 1042,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000,
+   "rivalCount": 1
+  },
+  {
+   "id": "r1__rush__8851",
+   "strategy": "Rush",
+   "seed": 8851,
+   "terrainSeed": 8851,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000,
+   "rivalCount": 1
+  },
+  {
+   "id": "r1__rush__101",
+   "strategy": "Rush",
+   "seed": 101,
+   "terrainSeed": 101,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000,
+   "rivalCount": 1
+  },
+  {
+   "id": "r1__rush__7",
+   "strategy": "Rush",
+   "seed": 7,
+   "terrainSeed": 7,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000,
+   "rivalCount": 1
+  },
+  {
+   "id": "r1__rush__23",
+   "strategy": "Rush",
+   "seed": 23,
+   "terrainSeed": 23,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000,
+   "rivalCount": 1
+  },
+  {
+   "id": "r1__rush__4711",
+   "strategy": "Rush",
+   "seed": 4711,
+   "terrainSeed": 4711,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000,
+   "rivalCount": 1
+  },
+  {
+   "id": "peaceful__eco__7_t0",
+   "strategy": "Eco",
+   "seed": 7,
+   "terrainSeed": 7,
+   "daysToSurvive": 20,
+   "maxGameSeconds": 6000,
+   "difficulty": "peaceful"
+  },
+  {
+   "id": "peaceful__eco__7_t1",
+   "strategy": "Eco",
+   "seed": 7,
+   "terrainSeed": 7,
+   "daysToSurvive": 20,
+   "maxGameSeconds": 6000,
+   "difficulty": "peaceful"
+  },
+  {
+   "id": "peaceful__eco__23_t0",
+   "strategy": "Eco",
+   "seed": 23,
+   "terrainSeed": 23,
+   "daysToSurvive": 20,
+   "maxGameSeconds": 6000,
+   "difficulty": "peaceful"
+  },
+  {
+   "id": "large-rugged__rush__7",
+   "strategy": "Rush",
+   "seed": 7,
+   "terrainSeed": 7,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000,
+   "islandSize": "Large",
+   "islandStyle": "Rugged"
+  },
+  {
+   "id": "large-rugged__rush__1042",
+   "strategy": "Rush",
+   "seed": 1042,
+   "terrainSeed": 1042,
+   "daysToSurvive": 30,
+   "maxGameSeconds": 6000,
+   "islandSize": "Large",
+   "islandStyle": "Rugged"
+  }
+ ]
+}

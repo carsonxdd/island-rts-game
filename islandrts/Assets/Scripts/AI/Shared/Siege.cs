@@ -47,6 +47,7 @@ public static class Siege
         Consider(Nearest(Watchtower.ActiveList, from, of, out d), d, from, ref best, ref distance);
         Consider(Nearest(Workshop.ActiveList, from, of, out d), d, from, ref best, ref distance);
         Consider(Nearest(Shipyard.ActiveList, from, of, out d), d, from, ref best, ref distance);
+        Consider(Nearest(Storehouse.ActiveList, from, of, out d), d, from, ref best, ref distance);
         if (best != null) return best;
 
         // The wall: a gate reads as three tenths of its distance, like the raiders

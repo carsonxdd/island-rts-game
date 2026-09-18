@@ -12,20 +12,24 @@ using UnityEngine;
 /// <code>
 /// # a comment line (ignored)
 /// ## 2026-09-04 — Title of the entry
+/// One plain line under the heading is the summary the folded entry shows.
 /// - one bullet per change, in player language
 /// - a bullet may
 ///   continue on an indented line
 /// </code>
 ///
-/// Anything that is not a heading, a bullet, a continuation or a comment is
-/// ignored, so a stray line can never break the screen — the worst outcome of
-/// a typo is a missing bullet.
+/// The summary is every plain, unindented line between the heading and the
+/// first bullet (joined with spaces). Anything else that is not a heading, a
+/// bullet, a continuation or a comment is ignored, so a stray line can never
+/// break the screen — the worst outcome of a typo is a missing bullet.
 /// </summary>
 public static class Changelog
 {
     public sealed class Entry
     {
         public string heading;
+        /// <summary>The one-line gist shown while the entry is folded; empty when the file gave none.</summary>
+        public string summary = "";
         public readonly List<string> bullets = new List<string>();
     }
 
@@ -119,7 +123,12 @@ public static class Changelog
             {
                 int last = current.bullets.Count - 1;
                 current.bullets[last] = current.bullets[last] + " " + line;
+                continue;
             }
+
+            // A plain line between the heading and the first bullet is the summary.
+            if (!indented && current != null && current.bullets.Count == 0)
+                current.summary = current.summary.Length == 0 ? line : current.summary + " " + line;
         }
     }
 }

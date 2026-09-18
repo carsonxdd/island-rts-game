@@ -112,16 +112,18 @@ public static class ResearchCatalog
         },
 
         // Storage: the campfire stockpile starts small on purpose — a colony
-        // that wants to hoard has to invest in it (a Warehouse building comes
-        // later; see README).
+        // that wants to hoard has to invest in it. Since 2026-09-16 the same
+        // research opens the Storehouse: a drop-off point colonists deliver to
+        // (the nearest one wins) that adds a little room of its own.
         new ResearchDef
         {
             id = "storage_pits", title = "Storage Pits", tier = 2, station = Station.Campfire,
-            description = "+40 room in the campfire stockpile",
+            description = "+40 room in the campfire stockpile; the Storehouse can be built (a drop-off point near far work)",
             itemCosts = new[] { new ItemCost(ItemCatalog.Stick, 4) },
             woodCost = 15,
             seconds = 10f,
             prerequisites = new[] { "construction" },
+            grants = new[] { Unlocks.Kind.Storage },
             apply = k => k.StockpileRoom += 40,
         },
 

@@ -237,7 +237,7 @@ Parked with no committed order:
 
 ### History
 
-The player-facing history is `islandrts/Assets/Resources/Changelog.txt`, which is also the in-game CHANGELOG screen. The developer history — every session, what broke and what it taught — is [`docs/PHASE_HISTORY.md`](docs/PHASE_HISTORY.md). Design plans that are already built are kept for their locked decisions: [`docs/plans/RESEARCH_AND_DAYS_PLAN.md`](docs/plans/RESEARCH_AND_DAYS_PLAN.md), [`docs/plans/CRAFTING_AND_PLAYER_CHARACTER_PLAN.md`](docs/plans/CRAFTING_AND_PLAYER_CHARACTER_PLAN.md), [`docs/plans/TERRAIN_SYSTEM_PLAN.md`](docs/plans/TERRAIN_SYSTEM_PLAN.md).
+The player-facing history is `islandrts/Assets/Resources/Changelog.txt`, which is also the in-game CHANGELOG screen: a short themed history where each entry folds to a one-line summary, with every entry before 2026-09-17 kept verbatim in [`docs/CHANGELOG_ARCHIVE.md`](docs/CHANGELOG_ARCHIVE.md). The developer history — every session, what broke and what it taught — is [`docs/PHASE_HISTORY.md`](docs/PHASE_HISTORY.md). Design plans that are already built are kept for their locked decisions: [`docs/plans/RESEARCH_AND_DAYS_PLAN.md`](docs/plans/RESEARCH_AND_DAYS_PLAN.md), [`docs/plans/CRAFTING_AND_PLAYER_CHARACTER_PLAN.md`](docs/plans/CRAFTING_AND_PLAYER_CHARACTER_PLAN.md), [`docs/plans/TERRAIN_SYSTEM_PLAN.md`](docs/plans/TERRAIN_SYSTEM_PLAN.md).
 
 ---
 

@@ -77,6 +77,21 @@ public class SimMetrics
         public int musteredPeak;         // most colonists standing in a warrior body at once this night
         public int levyLost;             // mustered colonists that died between dusk and dawn (warriors_lost is full-time only now)
         public int asleepLanding = -1;   // colonists asleep (hut or fire) the moment the raid came ashore; -1 = no landing here
+        public int storehouses;          // the player's standing Storehouses at dawn (2026-09-16)
+        public int rivalStorehouses;     // the first rival's, same dawn
+        // The Defensive line, the levy at home and the huts (2026-09-17): the
+        // playtest-five changes, each with the number that says whether it happened.
+        public int gateHeld;             // 1 when the player's militia held a gate line at any point this night
+        public int postsPeak;            // most player warriors on a Defensive post at once this night
+        public int killsGate;            // raiders killed within HoldLine reach of the held gate
+        public int killsInside;          // raiders killed nearer the fire than the held gate (through the line)
+        public int levyHome, levyFire;   // musters this night at a hut / at the fire
+        public float alarmToMusterS = -1f;   // seconds from the alarm rising to the first muster; -1 = none
+        public int homedFire, homedHut;  // roster entries homed to the fire / a hut at dawn
+        public int sleptFire;            // colonists who lay down by the fire this night
+        public float repelS = -1f;       // seconds from the landing to the last raider dead; -1 = no landing here / never
+        public float standDownS = -1f;   // seconds from the last raider dead to the last levy standing down; -1 = never / no levy
+        public int diedEngage, diedIntercept, diedOther;   // the player's fighters (levy included) by the action they died in (2026-09-17)
         public bool survived;
     }
 
@@ -117,6 +132,9 @@ public class SimMetrics
     /// <summary>The levy over the run (2026-09-16): most mustered at once, and mustered colonists lost in all.</summary>
     public int peakMustered;
     public int levyLostTotal;
+    public int storehouses;   // standing at the end of the run (2026-09-16)
+    /// <summary>The line over the run (2026-09-17): nights a gate was held, kills at and behind it, musters at home vs the fire.</summary>
+    public int nightsGateHeld, killsGate, killsInside, levyHome, levyFire;
 
     private readonly StringBuilder sb = new StringBuilder(256);
 
@@ -145,7 +163,8 @@ public class SimMetrics
                 "final_wood,final_food,final_stone,colonists_left," +
                 "game_seconds,wall_seconds,frames,note,rival_strategy,rival_fate,rival_fell_day," +
                 "rival_opinion_min,rival_opinion_max,player_landings,loot_wood,loot_food,loot_stone,loot_metal," +
-                "peak_mustered,levy_lost\n");
+                "peak_mustered,levy_lost,storehouses," +
+                "nights_gate_held,kills_gate,kills_inside,levy_home,levy_fire\n");
         }
 
         string days = Path.Combine(dir, DaysFile);
@@ -163,7 +182,10 @@ public class SimMetrics
                 "rival_arrival_day,rival_contact,rival_opinion,rival_warriors," +
                 "raid_at_rival,rival_opinion_pts,rival_landings,rival_relief," +
                 "rival_fire_pct,rival_huts,rival_colonists,rival_food_dawn," +
-                "spare_dusk,mustered_peak,levy_lost,asleep_landing\n");
+                "spare_dusk,mustered_peak,levy_lost,asleep_landing,storehouses,rival_storehouses," +
+                "gate_held,posts_peak,kills_gate,kills_inside,levy_home,levy_fire,alarm_to_muster_s," +
+                "homed_fire,homed_hut,slept_fire,repel_s,stand_down_s," +
+                "died_engage,died_intercept,died_other\n");
         }
     }
 
@@ -197,7 +219,9 @@ public class SimMetrics
           .Append(F(rivalOpinionMax)).Append(',')
           .Append(playerLandings).Append(',')
           .Append(lootWood).Append(',').Append(lootFood).Append(',').Append(lootStone).Append(',').Append(lootMetal).Append(',')
-          .Append(peakMustered).Append(',').Append(levyLostTotal).Append('\n');
+          .Append(peakMustered).Append(',').Append(levyLostTotal).Append(',').Append(storehouses).Append(',')
+          .Append(nightsGateHeld).Append(',').Append(killsGate).Append(',').Append(killsInside).Append(',')
+          .Append(levyHome).Append(',').Append(levyFire).Append('\n');
         File.AppendAllText(Path.Combine(dir, RunsFile), sb.ToString());
 
         sb.Clear();
@@ -248,7 +272,24 @@ public class SimMetrics
               .Append(n.spareDusk).Append(',')
               .Append(n.musteredPeak).Append(',')
               .Append(n.levyLost).Append(',')
-              .Append(n.asleepLanding).Append('\n');
+              .Append(n.asleepLanding).Append(',')
+              .Append(n.storehouses).Append(',')
+              .Append(n.rivalStorehouses).Append(',')
+              .Append(n.gateHeld).Append(',')
+              .Append(n.postsPeak).Append(',')
+              .Append(n.killsGate).Append(',')
+              .Append(n.killsInside).Append(',')
+              .Append(n.levyHome).Append(',')
+              .Append(n.levyFire).Append(',')
+              .Append(F(n.alarmToMusterS)).Append(',')
+              .Append(n.homedFire).Append(',')
+              .Append(n.homedHut).Append(',')
+              .Append(n.sleptFire).Append(',')
+              .Append(F(n.repelS)).Append(',')
+              .Append(F(n.standDownS)).Append(',')
+              .Append(n.diedEngage).Append(',')
+              .Append(n.diedIntercept).Append(',')
+              .Append(n.diedOther).Append('\n');
         }
         if (sb.Length > 0) File.AppendAllText(Path.Combine(dir, DaysFile), sb.ToString());
     }

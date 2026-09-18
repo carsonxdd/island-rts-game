@@ -8,6 +8,11 @@ using UnityEngine.AI;
 /// Produces natural grouping behavior — all warriors converge to the same intercept point.
 /// 2026-09-07: each warrior takes its Formation slot around that point (Line /
 /// Wedge / Ring), and on Offensive the point advances on the raiders instead.
+/// 2026-09-17: on Defensive the line forms INSIDE the gate the raiders are coming
+/// at (<see cref="HoldLine"/>, one choice per colony with hysteresis), and the
+/// warrior's slot becomes its POST (<c>bb.holdPost</c>) — GuardStance.Allows fights
+/// only what reaches it, so the line holds instead of charging the first raider
+/// that crosses HoldRadius.
 /// Phase 6.25: TrySetDestination's return is honored — a rejected set retries
 /// next frame instead of leaving the warrior standing until the next recalc tick.
 /// </summary>
@@ -125,6 +130,22 @@ public class InterceptExecutor : ActionExecutor
         if (bb.faction.FormationKind == Formation.Kind.Auto && Formation.Effective(bb.faction) == Formation.Kind.Line)
             DevQuests.Signal("formation:auto_line");   // Defensive rally under Auto resolved to a Line
 
+        // A gate to hold (2026-09-17): the line stands GateStandoff inside the gate
+        // nearest the raiders, facing out through it, and every warrior of the
+        // colony reads the same gate. The raiders' own targeting drives them onto a
+        // gate, so this is where the fight is.
+        Gate held = HoldLine.HeldGate(bb.faction, enemyCentroid);
+        if (held != null)
+        {
+            Vector3 centre, facing;
+            float gateRadius;
+            HoldLine.LineAt(held, bb.baseBuilding, out centre, out facing, out gateRadius);
+            DevQuests.Signal("hold:gate");
+            PlaceRally(bb, centre, facing, basePos);
+            SetPost(bb, gateRadius);
+            return;
+        }
+
         // Colony perimeter with no walls: well clear of the fire, so a Line's second
         // rank (4 u behind the centre) still leaves the delivery edge open
         float perimeterRadius = bb.baseBuilding.noBuildRadius + 8f;
@@ -158,6 +179,21 @@ public class InterceptExecutor : ActionExecutor
 
         // Rally point: base + direction_to_enemies * perimeterRadius
         PlaceRally(bb, basePos + dirToEnemies * perimeterRadius, dirToEnemies, basePos);
+        SetPost(bb, float.MaxValue);
+    }
+
+    /// <summary>
+    /// The rally just placed is this warrior's post for the stance to read
+    /// (2026-09-17). Defensive only: Offensive's advancing rally is not a line, and
+    /// a post written under it would leash the charge when the orders change back.
+    /// </summary>
+    void SetPost(AIBlackboard bb, float lineRadius)
+    {
+        if (GuardStance.Effective(bb.faction) != GuardStance.Mode.Defensive) { bb.hasHoldPost = false; return; }
+        bb.holdPost = rallyPoint;
+        bb.holdLineRadius = lineRadius;
+        if (!bb.hasHoldPost) DevQuests.Signal("hold:post");
+        bb.hasHoldPost = true;
     }
 
     /// <summary>

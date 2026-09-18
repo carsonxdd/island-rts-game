@@ -2,8 +2,9 @@ using UnityEngine;
 
 /// <summary>
 /// Warrior executor: a mustered levy stands down once the alarm has been quiet
-/// (2026-09-16). Walks to the fire's edge, where the campfire puts the weapon back
-/// in the stockpile and hands back the job they had
+/// (2026-09-16). Walks home — their own hut, else the fire (2026-09-17: the weapons
+/// live in the homes) — where the campfire puts the weapon back in the stockpile
+/// count and hands back the job they had
 /// (<see cref="BaseBuilding.StandDownLevy"/>). 0.8 with zero momentum: below
 /// Engage and a wounded warrior's Heal, above Patrol and Rearm, and the gate
 /// (<see cref="StandDownDue"/>) is 0 for every full-time warrior.
@@ -36,7 +37,9 @@ public class StandDownExecutor : ActionExecutor
         bb.ClearTarget();
         FormationSlots.Release(bb.warrior);   // the rank passes on while we walk home
 
-        if (bb.baseBuilding != null) { rack = bb.baseBuilding.transform; rackCollider = bb.baseBuilding.GetComponent<Collider>(); }
+        Hut home = bb.faction != null && bb.faction.Population != null ? bb.faction.Population.HomeOf(bb.warrior) as Hut : null;
+        if (home != null && home.CachedHealth != null && home.CachedHealth.IsAlive) { rack = home.transform; rackCollider = home.GetComponent<Collider>(); }
+        else if (bb.baseBuilding != null) { rack = bb.baseBuilding.transform; rackCollider = bb.baseBuilding.GetComponent<Collider>(); }
         else { rack = null; rackCollider = null; }
 
         if (!AgentReady(bb) || rack == null || RackEdge(bb) <= ArriveEdge)

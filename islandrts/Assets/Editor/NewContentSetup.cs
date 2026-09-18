@@ -47,6 +47,12 @@ public static class NewContentSetup
     private const string ShipyardPrefabPath = "Assets/Prefabs/Shipyard.prefab";
     private const string ShipyardGhostPrefabPath = "Assets/Prefabs/ShipyardGhost.prefab";
 
+    // The Storehouse (2026-09-16): a drop-off point with a little stockpile room
+    private const string StorehouseArtPath = "Assets/Art/Prefabs/Buildings/Storehouse.prefab";
+    private const string StorehouseMeshPath = "Assets/Art/Meshes/Storehouse.asset";
+    private const string StorehousePrefabPath = "Assets/Prefabs/Storehouse.prefab";
+    private const string StorehouseGhostPrefabPath = "Assets/Prefabs/StorehouseGhost.prefab";
+
     [MenuItem("Tools/Island RTS/Session Content/Setup Pickups + Workshop", false, 10)]
     public static void Setup()
     {
@@ -72,6 +78,12 @@ public static class NewContentSetup
         BuildingData shipyardData = BuildShipyardData(shipyardPrefab, shipyardGhost, summary);
         RegisterInDatabase(shipyardData, summary);
 
+        // The Storehouse (2026-09-16): the Workshop steps with the rack art, key 7
+        GameObject storehousePrefab = BuildStorehousePrefab(summary);
+        GameObject storehouseGhost = BuildStorehouseGhost(summary);
+        BuildingData storehouseData = BuildStorehouseData(storehousePrefab, storehouseGhost, summary);
+        RegisterInDatabase(storehouseData, summary);
+
         BuildPickupSpawner(stickPrefab, stonePrefab, summary);
         WireResourceSpawner(summary);
 
@@ -80,7 +92,7 @@ public static class NewContentSetup
         EditorSceneManager.SaveScene(scene);
         AssetDatabase.SaveAssets();
 
-        summary.AppendLine("[Session Content] Done. Build mode key 5 = Workshop, key 6 = Shipyard (beach only); pickups spawn at Play.");
+        summary.AppendLine("[Session Content] Done. Build mode key 5 = Workshop, key 6 = Shipyard (beach only), key 7 = Storehouse; pickups spawn at Play.");
         Debug.Log(summary.ToString());
     }
 
@@ -453,6 +465,139 @@ public static class NewContentSetup
         {
             Object.DestroyImmediate(root);
         }
+    }
+
+    // ------------------------------------------------------------------
+    // Storehouse (2026-09-16): the Workshop steps with the log-rack art. A
+    // 2x2 box collider like the Workshop's (the drop-off ring measures edge
+    // distance against it) and a carving obstacle so the approach points
+    // land outside it.
+    // ------------------------------------------------------------------
+
+    private static GameObject BuildStorehousePrefab(StringBuilder summary)
+    {
+        GameObject art = AssetDatabase.LoadAssetAtPath<GameObject>(StorehouseArtPath);
+        if (art == null)
+        {
+            Debug.LogError("[Session Content] Storehouse art missing: " + StorehouseArtPath
+                + " — run 'Low-Poly Templates > Generate All Assets' first (it includes the Storehouse shape).");
+            return AssetDatabase.LoadAssetAtPath<GameObject>(StorehousePrefabPath);
+        }
+
+        GameObject root = new GameObject("Storehouse");
+        try
+        {
+            root.AddComponent<Storehouse>();
+
+            BoxCollider box = root.AddComponent<BoxCollider>();
+            box.size = new Vector3(2f, 1.4f, 2f);
+            box.center = new Vector3(0f, 0.7f, 0f);
+
+            NavMeshObstacle obstacle = root.AddComponent<NavMeshObstacle>();
+            obstacle.shape = NavMeshObstacleShape.Box;
+            obstacle.size = new Vector3(2.2f, 1.5f, 2.2f);
+            obstacle.center = new Vector3(0f, 0.75f, 0f);
+            obstacle.carving = true;
+            obstacle.carveOnlyStationary = true;
+
+            GameObject model = (GameObject)PrefabUtility.InstantiatePrefab(art);
+            model.name = "Model";
+            model.transform.SetParent(root.transform, false);
+            model.transform.localPosition = Vector3.zero;
+
+            GameObject saved = PrefabUtility.SaveAsPrefabAsset(root, StorehousePrefabPath);
+            summary.AppendLine("    Storehouse.prefab rebuilt (Storehouse + collider 2x1.4x2 + carving obstacle)");
+            return saved;
+        }
+        finally
+        {
+            Object.DestroyImmediate(root);
+        }
+    }
+
+    private static GameObject BuildStorehouseGhost(StringBuilder summary)
+    {
+        Mesh mesh = AssetDatabase.LoadAssetAtPath<Mesh>(StorehouseMeshPath);
+        Material ghostMat = AssetDatabase.LoadAssetAtPath<Material>(GhostMaterialPath);
+        if (mesh == null || ghostMat == null)
+        {
+            Debug.LogError("[Session Content] Storehouse mesh or ghost material missing ("
+                + StorehouseMeshPath + " / " + GhostMaterialPath + ") — run the art generation first.");
+            return AssetDatabase.LoadAssetAtPath<GameObject>(StorehouseGhostPrefabPath);
+        }
+
+        GameObject root = new GameObject("StorehouseGhost");
+        try
+        {
+            MeshFilter mf = root.AddComponent<MeshFilter>();
+            mf.sharedMesh = mesh;
+
+            MeshRenderer mr = root.AddComponent<MeshRenderer>();
+            Material[] mats = new Material[mesh.subMeshCount];
+            for (int i = 0; i < mats.Length; i++) mats[i] = ghostMat;
+            mr.sharedMaterials = mats;
+
+            GameObject saved = PrefabUtility.SaveAsPrefabAsset(root, StorehouseGhostPrefabPath);
+            summary.AppendLine("    StorehouseGhost.prefab rebuilt (" + mesh.subMeshCount + " ghost material slots)");
+            return saved;
+        }
+        finally
+        {
+            Object.DestroyImmediate(root);
+        }
+    }
+
+    private static BuildingData BuildStorehouseData(GameObject storehousePrefab, GameObject ghostPrefab, StringBuilder summary)
+    {
+        BuildingData hutData = null;
+        string dataFolder = "Assets";
+        foreach (string guid in AssetDatabase.FindAssets("t:BuildingData"))
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            BuildingData data = AssetDatabase.LoadAssetAtPath<BuildingData>(path);
+            if (data != null && data.buildingType == BuildingType.Hut)
+            {
+                hutData = data;
+                dataFolder = System.IO.Path.GetDirectoryName(path).Replace('\\', '/');
+                break;
+            }
+        }
+        if (hutData == null)
+        {
+            Debug.LogError("[Session Content] HutData not found — cannot borrow the construction site prefab for the Storehouse.");
+            return null;
+        }
+
+        string dataPath = dataFolder + "/StorehouseData.asset";
+        BuildingData storeData = AssetDatabase.LoadAssetAtPath<BuildingData>(dataPath);
+        bool isNew = storeData == null;
+        if (isNew) storeData = ScriptableObject.CreateInstance<BuildingData>();
+
+        storeData.buildingType = BuildingType.Storehouse;
+        storeData.buildingName = "Storehouse";
+        storeData.woodCost = 15;
+        storeData.foodCost = 0;
+        storeData.stoneCost = 10;
+        storeData.metalCost = 0;
+        storeData.ghostPrefab = ghostPrefab;
+        storeData.constructionSitePrefab = hutData.constructionSitePrefab;
+        storeData.finishedBuildingPrefab = storehousePrefab;
+        storeData.buildingSize = new Vector3(2f, 1.4f, 2f);
+        storeData.noBuildRadius = 3f;
+        storeData.visualNoBuildRadius = 3f;
+        storeData.placementHeight = 0f;
+        storeData.maxHealth = 120f;
+        storeData.blocksNavMesh = false;
+        storeData.isWall = false;
+        storeData.requiresShore = false;
+        storeData.buildTimeOverride = 0f;   // the hut site's own time: a quick build
+
+        if (isNew) AssetDatabase.CreateAsset(storeData, dataPath);
+        else EditorUtility.SetDirty(storeData);
+
+        summary.AppendLine("    StorehouseData.asset " + (isNew ? "created" : "updated")
+            + " (15W 10S, HP 120) at " + dataPath);
+        return storeData;
     }
 
     private static BuildingData BuildShipyardData(GameObject shipyardPrefab, GameObject ghostPrefab, StringBuilder summary)

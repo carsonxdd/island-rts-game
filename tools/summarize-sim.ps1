@@ -59,7 +59,7 @@ W
 W ("Commit {0} - started {1:yyyy-MM-dd HH:mm} - written {2:yyyy-MM-dd HH:mm}" -f $Commit, $Started, (Get-Date))
 W
 # Single-quoted on purpose: a backtick inside double quotes is an escape.
-W 'Win = victory or escape. CI = Wilson 95%. `day` = mean calendar day reached on a LOSS. `fire min` = mean campfire_hp_min over raid nights (a breach reads as a low number here before it reads as a defeat). `w.lost` = full-time warriors lost, summed. `levy` = mean mustered_peak over raid nights (colonists who stood up with a spare weapon, 2026-09-16). `l.lost` = mustered colonists lost, summed. `weap` = mean weapons_dawn (spare weapons in the stockpile at dawn). `holes` = mean ring_holes on the last logged day. `hungry` = dawns with hunger > 0. **Read err/timeout first - those are harness problems, not balance.**'
+W 'Win = victory or escape. CI = Wilson 95%. `day` = mean calendar day reached on a LOSS. `fire min` = mean campfire_hp_min over raid nights (a breach reads as a low number here before it reads as a defeat). `w.lost` = full-time warriors lost, summed. `levy` = mean mustered_peak over raid nights (colonists who stood up with a spare weapon, 2026-09-16). `l.lost` = mustered colonists lost, summed. `weap` = mean weapons_dawn (spare weapons in the stockpile at dawn). `holes` = mean ring_holes on the last logged day. `hungry` = dawns with hunger > 0. A *The line* table follows when the sweep carries the 2026-09-17 columns. **Read err/timeout first - those are harness problems, not balance.**'
 W
 
 $sweepDirs = Get-ChildItem $dirPath -Directory | Where-Object { Test-Path (Join-Path $_.FullName "runs.csv") } | Sort-Object Name
@@ -218,6 +218,47 @@ foreach ($sd in $sweepDirs) {
                 $wl = ($g | ForEach-Object { $_.days } | ForEach-Object { $_ } | ForEach-Object { Num $_.warriors_lost } | Measure-Object -Sum).Sum
                 $vLabel = if ($v -eq "-") { "" } else { $v }
                 W ("| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} |" -f $vLabel, $st, $g.Count, $won, (F0 $landings), $conq, ($loot -join " / "), (F0 $wl))
+            }
+        }
+        W
+    }
+
+    # ---- the line (2026-09-17): only when days.csv carries the columns ----
+    # gate_held and friends were appended for the playtest-five changes (the
+    # Defensive gate line, the levy arming at home, huts before the fire's beds).
+    $anyDay = @($annotated | ForEach-Object { $_.days } | ForEach-Object { $_ } | Select-Object -First 1)
+    if ($anyDay.Count -gt 0 -and $null -ne $anyDay[0].PSObject.Properties['gate_held']) {
+        W "### The line"
+        W
+        W '`gate nights` = raid nights the militia held a gate line / raid nights. `posts` = mean posts_peak over raid nights (warriors on a Defensive post at once). `kills gate/inside` = raiders killed within reach of the held gate / behind it, summed (only counted on nights with a gate line). `levy home/fire` = musters at a hut / at the fire, summed. `muster s` = mean seconds from the alarm to the first spear. `repel s` = mean seconds from the landing to the last raider dead. `stand down s` = mean seconds from the last raider to the last levy standing down. `homed fire` = mean colonists still homed to the fire at the last dawn. `slept fire` = colonists who lay down by the fire, summed. `died E/I/O` = the player's fighters (levy included) killed while Engaging / on Intercept / anything else, summed (2026-09-17).'
+        W
+        W "| variant | strategy | n | gate nights | posts | kills gate | kills inside | levy home | levy fire | muster s | repel s | stand down s | homed fire | slept fire | died E/I/O |"
+        W "|---|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"
+        foreach ($v in $variantOrder) {
+            foreach ($st in $stratOrder) {
+                $g = @($annotated | Where-Object { $_.variant -eq $v -and $_.strategy -eq $st })
+                if ($g.Count -eq 0) { continue }
+                $allDays = @($g | ForEach-Object { $_.days } | ForEach-Object { $_ })
+                $raidNights = @($allDays | Where-Object { (Num $_.raid) -gt 0 })
+                $gateNights = @($raidNights | Where-Object { (Num $_.gate_held) -gt 0 }).Count
+                $posts = Mean ($raidNights | ForEach-Object { Num $_.posts_peak })
+                $kg = ($allDays | ForEach-Object { Num $_.kills_gate } | Measure-Object -Sum).Sum
+                $ki = ($allDays | ForEach-Object { Num $_.kills_inside } | Measure-Object -Sum).Sum
+                $lh = ($allDays | ForEach-Object { Num $_.levy_home } | Measure-Object -Sum).Sum
+                $lf = ($allDays | ForEach-Object { Num $_.levy_fire } | Measure-Object -Sum).Sum
+                $muster = Mean ($allDays | Where-Object { (Num $_.alarm_to_muster_s) -ge 0 } | ForEach-Object { Num $_.alarm_to_muster_s })
+                $repel = Mean ($allDays | Where-Object { (Num $_.repel_s) -ge 0 } | ForEach-Object { Num $_.repel_s })
+                $sd = Mean ($allDays | Where-Object { (Num $_.stand_down_s) -ge 0 } | ForEach-Object { Num $_.stand_down_s })
+                $lastDays = @($g | ForEach-Object { $ds = @($_.days); if ($ds.Count -gt 0) { $ds[$ds.Count - 1] } })
+                $homedFire = Mean ($lastDays | ForEach-Object { Num $_.homed_fire })
+                $slept = ($allDays | ForEach-Object { Num $_.slept_fire } | Measure-Object -Sum).Sum
+                $dE = ($allDays | ForEach-Object { Num $_.died_engage } | Measure-Object -Sum).Sum
+                $dI = ($allDays | ForEach-Object { Num $_.died_intercept } | Measure-Object -Sum).Sum
+                $dO = ($allDays | ForEach-Object { Num $_.died_other } | Measure-Object -Sum).Sum
+                $vLabel = if ($v -eq "-") { "" } else { $v }
+                W ("| {0} | {1} | {2} | {3}/{4} | {5} | {6} | {7} | {8} | {9} | {10} | {11} | {12} | {13} | {14} | {15}/{16}/{17} |" -f
+                    $vLabel, $st, $g.Count, $gateNights, $raidNights.Count, (F1 $posts), (F0 $kg), (F0 $ki), (F0 $lh), (F0 $lf),
+                    (F0 $muster), (F0 $repel), (F0 $sd), (F1 $homedFire), (F0 $slept), (F0 $dE), (F0 $dI), (F0 $dO))
             }
         }
         W

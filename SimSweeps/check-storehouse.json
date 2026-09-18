@@ -1,0 +1,11 @@
+{
+    "outputDir": "SimLogs/check-storehouse-2026-09-16",
+    "captureDeltaTime": 0.016666668,
+    "maxWallSecondsPerRun": 2400,
+    "repeats": 6,
+    "runs": [
+        { "id": "store_turtle", "strategy": "Turtle", "seed": 1, "terrainSeed": 20260909, "daysToSurvive": 30 },
+        { "id": "store_rush",   "strategy": "Rush",   "seed": 1, "terrainSeed": 20260909, "daysToSurvive": 30 },
+        { "id": "store_eco",    "strategy": "Eco",    "seed": 1, "terrainSeed": 20260909, "daysToSurvive": 30 }
+    ]
+}

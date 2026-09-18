@@ -384,12 +384,18 @@ public class GatherExecutor : ActionExecutor
     void StartHeadingToBase(AIBlackboard bb)
     {
         if (bb.carryAmount <= 0f) return; // Nothing to deliver, brain will switch to Idle
-        if (bb.baseBuilding == null) return;
         if (headingToBase) return; // Already started heading to base
+
+        // The nearest drop-off (a Storehouse or the fire, 2026-09-16); ReturnToBase
+        // picks the same one on entry, so the first steps are not wasted
+        float unused;
+        IDropoff target = Dropoff.Nearest(bb.faction, bb.transform.position, out unused);
+        if (target == null) target = bb.baseBuilding;
+        if (target == null) return;
 
         // Only latch headingToBase on success so a rejected set can retry;
         // the ForceReeval below hands over to ReturnToBase either way
-        if (AINavHelper.TrySetDestination(bb.agent, bb.baseBuilding.transform.position))
+        if (AINavHelper.TrySetDestination(bb.agent, target.transform.position))
         {
             headingToBase = true;
             bb.agent.isStopped = false;

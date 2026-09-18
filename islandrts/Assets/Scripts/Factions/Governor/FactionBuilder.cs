@@ -47,6 +47,7 @@ public sealed class FactionBuilder
     public int TowerCount => TargetingUtil.CountOwned(Watchtower.ActiveList, faction);
     public int WorkshopCount => TargetingUtil.CountOwned(Workshop.ActiveList, faction);
     public int ShipyardCount => TargetingUtil.CountOwned(Shipyard.ActiveList, faction);
+    public int StorehouseCount => TargetingUtil.CountOwned(Storehouse.ActiveList, faction);
     /// <summary>Gates standing. The ring's eight opening cells are the only place a governor makes them.</summary>
     public int GateCount => TargetingUtil.CountOwned(Gate.ActiveList, faction);
 
@@ -91,13 +92,22 @@ public sealed class FactionBuilder
     /// </summary>
     public bool PlaceBuilding(BuildingType type, float startRadius, float maxRadius)
     {
+        if (Campfire == null) return false;
+        return PlaceBuildingAround(type, Campfire.transform.position, startRadius, maxRadius);
+    }
+
+    /// <summary>
+    /// The same spiral around any point (2026-09-16): a Storehouse goes up beside
+    /// the forest the colonists are working, not beside the fire. Ring rules and
+    /// clearance apply exactly as at the fire.
+    /// </summary>
+    public bool PlaceBuildingAround(BuildingType type, Vector3 origin, float startRadius, float maxRadius)
+    {
         BuildingData data = BuildingDatabase.Instance != null
             ? BuildingDatabase.Instance.GetBuildingData(type) : null;
         if (data == null || data.constructionSitePrefab == null) return false;
         if (Campfire == null) return false;
         if (!faction.Resources.CanAfford(data.woodCost, data.foodCost, data.stoneCost, data.metalCost)) return false;
-
-        Vector3 origin = Campfire.transform.position;
 
         // 8 candidate spots per lap, laps 1.5m apart, offset per lap so later
         // laps don't sit in the shadow of a blocked earlier one.

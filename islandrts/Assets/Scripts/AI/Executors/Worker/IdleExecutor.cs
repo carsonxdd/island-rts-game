@@ -325,6 +325,11 @@ public class IdleExecutor : ActionExecutor
             var s = Shipyard.ActiveList[i];
             if (s != null && s.Faction == f) buildingBuffer.Add((s.transform, s.noBuildRadius));
         }
+        for (int i = 0; i < Storehouse.ActiveList.Count; i++)
+        {
+            var s = Storehouse.ActiveList[i];
+            if (s != null && s.Faction == f) buildingBuffer.Add((s.transform, s.noBuildRadius));
+        }
     }
 
     /// <summary>A spot this close to the fire's collider edge would stand on the delivery edge.</summary>

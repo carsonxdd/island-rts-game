@@ -25,7 +25,7 @@ public static class FullSetup
     [MenuItem("Tools/Island RTS/Setup Everything (In Order)", false, -100)]
     public static void SetupEverything()
     {
-        if (!EditorUtility.DisplayDialog(
+        if (!Application.isBatchMode && !EditorUtility.DisplayDialog(
                 "Set up everything?",
                 "Runs all eight setup steps in dependency order:\n\n" +
                 "1. Generate the low-poly art library\n" +
@@ -53,6 +53,24 @@ public static class FullSetup
             return;
         }
 
+        RunAllSteps();
+    }
+
+    /// <summary>
+    /// The same eight steps from the command line (2026-09-16), so a sim
+    /// player can be built on a tree whose new content has not been set up
+    /// in the editor yet:
+    /// <c>Unity.exe -batchmode -nographics -quit -projectPath … -executeMethod FullSetup.SetupEverythingBatch</c>.
+    /// No dialog, and the open scene is saved without asking.
+    /// </summary>
+    public static void SetupEverythingBatch()
+    {
+        EditorSceneManager.SaveOpenScenes();
+        RunAllSteps();
+    }
+
+    private static void RunAllSteps()
+    {
         StringBuilder log = new StringBuilder("[Setup] Full setup complete:\n");
 
         try

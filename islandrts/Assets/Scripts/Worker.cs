@@ -74,6 +74,8 @@ public class Worker : UnitBase<Worker>
 
     /// <summary>The Sleep action is running (in a hut or by the fire). Read by the sim's landing count (2026-09-16).</summary>
     public bool IsAsleep => aiBrain != null && aiBrain.GetCurrentActionName() == "Sleep";
+    /// <summary>The node this colonist is gathering at or walking to, or null (2026-09-16: where a governor puts a Storehouse).</summary>
+    public ResourceNode WorkingNode => aiBrain != null && aiBrain.blackboard != null ? aiBrain.blackboard.targetResource : null;
 
     public void SetLevied(bool on)
     {

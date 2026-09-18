@@ -118,6 +118,7 @@ public class BuildPlacement : MonoBehaviour
             if (KeyBindings.Down(KeyBindings.Action.SelectWatchtower)) SelectBuilding(BuildingType.Watchtower);
             if (KeyBindings.Down(KeyBindings.Action.SelectWorkshop)) SelectBuilding(BuildingType.Workshop);
             if (KeyBindings.Down(KeyBindings.Action.SelectShipyard)) SelectBuilding(BuildingType.Shipyard);
+            if (KeyBindings.Down(KeyBindings.Action.SelectStorehouse)) SelectBuilding(BuildingType.Storehouse);
 
             // Convert the wall under the cursor to a gate (grid-based detection)
             if (KeyBindings.Down(KeyBindings.Action.ConvertToGate))
@@ -231,6 +232,14 @@ public class BuildPlacement : MonoBehaviour
         {
             if (PlayerCharacter.Instance != null)
                 PlayerCharacter.Instance.SetActivity("Research Shipwright at the Workshop to build a Shipyard", 3f);
+            return;
+        }
+
+        // The Storehouse is the Storage Pits research's building (2026-09-16)
+        if (type == BuildingType.Storehouse && !Factions.Player.Knowledge.Has(Unlocks.Kind.Storage))
+        {
+            if (PlayerCharacter.Instance != null)
+                PlayerCharacter.Instance.SetActivity("Research Storage Pits at the fire to build a Storehouse", 3f);
             return;
         }
 

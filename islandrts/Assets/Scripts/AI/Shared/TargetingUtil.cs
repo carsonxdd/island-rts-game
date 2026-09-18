@@ -124,6 +124,42 @@ public static class TargetingUtil
     }
 
     /// <summary>
+    /// <see cref="FindNearestHostileCombatant"/> for "is the colony at war right
+    /// now" (2026-09-17): a raider counts anywhere on the island, another colony's
+    /// warrior only within <paramref name="homeRadius"/> of <paramref name="home"/>
+    /// (the colony's fire). Without the split a hostile neighbour's militia at its
+    /// own fire kept every peacetime action (Patrol, Heal, Rearm, StandDown) at 0
+    /// for the rest of the run, and a mustered levy never stood down.
+    /// </summary>
+    public static ITargetable FindNearestThreat(Vector3 from, Faction me, Vector3 home, float homeRadius, out float distance)
+    {
+        float dEnemy;
+        Enemy e = FindNearestHostile(Enemy.ActiveList, from, 0f, me, out dEnemy);
+
+        Warrior best = null;
+        float bestSqr = float.MaxValue;
+        float homeSqr = homeRadius * homeRadius;
+        var warriors = Warrior.ActiveList;
+        for (int i = 0; i < warriors.Count; i++)
+        {
+            Warrior w = warriors[i];
+            if (w == null) continue;
+            Vector3 p = w.transform.position;
+            float sqr = (p - from).sqrMagnitude;
+            if (sqr >= bestSqr || (p - home).sqrMagnitude > homeSqr) continue;
+            if (me != null && Relations.Get(me, w.Faction) != Attitude.Hostile) continue;
+            Health h = w.CachedHealth;
+            if (h == null || !h.IsAlive) continue;
+            bestSqr = sqr;
+            best = w;
+        }
+        float dWarrior = best != null ? Mathf.Sqrt(bestSqr) : float.MaxValue;
+        if (best != null && (e == null || dWarrior < dEnemy)) { distance = dWarrior; return best; }
+        distance = dEnemy;
+        return e;
+    }
+
+    /// <summary>
     /// Average position of every living fighter hostile to <paramref name="me"/>
     /// (the Intercept rally's "where the raiders are"). count = 0 when none.
     /// </summary>

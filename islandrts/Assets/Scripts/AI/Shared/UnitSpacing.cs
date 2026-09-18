@@ -34,6 +34,8 @@ public static class UnitSpacing
     /// <summary>Positional push-apart is clamped to this.</summary>
     public const float MaxSeparationSpeed = 1.5f;
 
+    /// <summary>The castaway: under every colonist's number, so movers steer round them and never the reverse (2026-09-17).</summary>
+    public const int PlayerPriority = 5;
     public const int GatewayPriority = 20;
     public const int CargoPriority = 35;
     public const int EmptyPriority = 50;

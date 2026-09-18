@@ -28,6 +28,8 @@ public static class Unlocks
         IronWork,
         /// <summary>The Shipyard and the escape (Slice 6).</summary>
         Shipwright,
+        /// <summary>The Storehouse building (2026-09-16), granted by Storage Pits.</summary>
+        Storage,
     }
 
     public static readonly int Count = Enum.GetValues(typeof(Kind)).Length;

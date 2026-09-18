@@ -766,9 +766,15 @@ public class MenuScreens : MonoBehaviour
     /// <see cref="Changelog"/> for the format). Shared by the main menu and the
     /// pause menu like Credits, so it must read correctly over a frozen game too.
     ///
-    /// Bullets are ordinary wrapping labels with no fixed height: inside a
-    /// ScrollColumn the ContentSizeFitter re-measures every layout pass, so TMP's
-    /// wrapped height is picked up without the one-line rule the Options
+    /// Each entry is a fold (2026-09-17): the title and its summary line are one
+    /// click surface, the bullets sit in a column under it that hides when the
+    /// entry is folded. The newest entry opens by default; every other one is
+    /// folded until clicked, and the folds are static so a rebuild (pause menu
+    /// round trip) keeps them.
+    ///
+    /// Bullets and summaries are ordinary wrapping labels with no fixed height:
+    /// inside a ScrollColumn the ContentSizeFitter re-measures every layout pass,
+    /// so TMP's wrapped height is picked up without the one-line rule the Options
     /// descriptions need (those are sized on the same frame the panel is).
     /// </summary>
     private void BuildChangelog()
@@ -778,7 +784,7 @@ public class MenuScreens : MonoBehaviour
 
         MenuBuilder.Label(col.transform, "CHANGELOG", MenuStyle.HeadingSize, MenuStyle.TextAccent)
             .gameObject.AddComponent<LayoutElement>().preferredHeight = 38f;
-        MenuBuilder.Label(col.transform, "What changed, newest first.", MenuStyle.SmallSize, MenuStyle.TextMuted)
+        MenuBuilder.Label(col.transform, "What changed, newest first. Click an entry for the details.", MenuStyle.SmallSize, MenuStyle.TextMuted)
             .gameObject.AddComponent<LayoutElement>().preferredHeight = 22f;
         MenuBuilder.Divider(col.transform);
 
@@ -793,30 +799,93 @@ public class MenuScreens : MonoBehaviour
                 .gameObject.AddComponent<LayoutElement>().preferredHeight = 40f;
         }
 
+        if (changelogOpen == null || changelogOpen.Length != entries.Count)
+        {
+            changelogOpen = new bool[entries.Count];
+            if (entries.Count > 0) changelogOpen[0] = true;
+        }
+
         for (int i = 0; i < entries.Count; i++)
         {
-            Changelog.Entry e = entries[i];
-
-            MenuBuilder.Spacer(t, i == 0 ? 4f : 14f);
-            TextMeshProUGUI heading = MenuBuilder.Label(t, e.heading, MenuStyle.BodySize,
-                MenuStyle.TextAccent, TextAlignmentOptions.MidlineLeft);
-            heading.gameObject.name = "EntryHeading";
-            MenuBuilder.Divider(t);
-            MenuBuilder.Spacer(t, 2f);
-
-            for (int b = 0; b < e.bullets.Count; b++)
-            {
-                // <indent> holds every wrapped line at the bullet text's left
-                // edge — a hanging indent — while the glyph sits in the gutter.
-                TextMeshProUGUI line = MenuBuilder.Label(t, "•  <indent=1.2em>" + e.bullets[b] + "</indent>",
-                    MenuStyle.SmallSize + 1f, MenuStyle.TextPrimary, TextAlignmentOptions.TopLeft);
-                line.gameObject.name = "Bullet";
-                line.margin = new Vector4(6f, 0f, 0f, 0f);
-            }
+            MenuBuilder.Spacer(t, i == 0 ? 4f : 10f);
+            BuildChangelogEntry(t, entries[i], i);
         }
 
         MenuBuilder.Spacer(col.transform, 6f);
         MenuBuilder.MenuButton(col.transform, "BACK", () => Back());
+    }
+
+    /// <summary>Which changelog entries are unfolded, by index; survives a rebuild.</summary>
+    private static bool[] changelogOpen;
+
+    private void BuildChangelogEntry(Transform parent, Changelog.Entry e, int index)
+    {
+        // The header block (title + summary) is the button. Its image is
+        // invisible but MUST be a raycast target or the click never lands; the
+        // +/− glyph is the feedback, as on the campfire panel's sections.
+        GameObject go = new GameObject("EntryHeader", typeof(RectTransform), typeof(Image), typeof(Button),
+                                       typeof(VerticalLayoutGroup));
+        go.transform.SetParent(parent, false);
+        Image img = go.GetComponent<Image>();
+        img.color = new Color(1f, 1f, 1f, 0.004f);
+        img.raycastTarget = true;
+        Button btn = go.GetComponent<Button>();
+        btn.targetGraphic = img;
+        btn.transition = Selectable.Transition.None;
+
+        VerticalLayoutGroup head = go.GetComponent<VerticalLayoutGroup>();
+        head.spacing = 2f;
+        head.padding = new RectOffset(0, 0, 2, 4);
+        head.childControlWidth = true;
+        head.childControlHeight = true;
+        head.childForceExpandWidth = true;
+        head.childForceExpandHeight = false;
+
+        TextMeshProUGUI title = MenuBuilder.Label(go.transform, "", MenuStyle.BodySize,
+            MenuStyle.TextAccent, TextAlignmentOptions.MidlineLeft);
+        title.gameObject.name = "EntryHeading";
+        title.textWrappingMode = TextWrappingModes.NoWrap;
+        title.gameObject.AddComponent<LayoutElement>().preferredHeight = 26f;
+
+        if (e.summary.Length > 0)
+        {
+            TextMeshProUGUI summary = MenuBuilder.Label(go.transform, "<indent=1.2em>" + e.summary + "</indent>",
+                MenuStyle.SmallSize + 1f, MenuStyle.TextMuted, TextAlignmentOptions.TopLeft);
+            summary.gameObject.name = "EntrySummary";
+        }
+
+        MenuBuilder.Divider(parent);
+
+        VerticalLayoutGroup bullets = MenuBuilder.Column(parent, 4f, new RectOffset(0, 0, 2, 0));
+        bullets.gameObject.name = "EntryBullets";
+        Transform bt = bullets.transform;
+        for (int b = 0; b < e.bullets.Count; b++)
+        {
+            // <indent> holds every wrapped line at the bullet text's left
+            // edge — a hanging indent — while the glyph sits in the gutter.
+            TextMeshProUGUI line = MenuBuilder.Label(bt, "•  <indent=1.2em>" + e.bullets[b] + "</indent>",
+                MenuStyle.SmallSize + 1f, MenuStyle.TextPrimary, TextAlignmentOptions.TopLeft);
+            line.gameObject.name = "Bullet";
+            line.margin = new Vector4(6f, 0f, 0f, 0f);
+        }
+
+        Action apply = () =>
+        {
+            bool open = changelogOpen[index];
+            bullets.gameObject.SetActive(open);
+            title.text = (open ? "−  " : "+  ") + e.heading;
+        };
+        apply();
+
+        btn.onClick.AddListener(() =>
+        {
+            changelogOpen[index] = !changelogOpen[index];
+            apply();
+            DevQuests.Signal(changelogOpen[index] ? "changelog:expand" : "changelog:collapse");
+            // The content column re-measures on the next layout pass; ask for it
+            // now so the scroll range is right on the frame of the click.
+            LayoutRebuilder.MarkLayoutForRebuild((RectTransform)parent);
+        });
     }
 
     // ---- Information --------------------------------------------------------
@@ -1305,7 +1374,7 @@ public class MenuScreens : MonoBehaviour
                 + "% for every quiet night since the last raid, times the difficulty. Certain after " + maxQuiet + " quiet nights.",
             "After a raid the colony is owed " + minQuiet + " quiet nights before another can come. Only the last night of the calendar ignores that.",
             "Raiders: " + baseSize.ToString("0.#") + " + " + perDay.ToString("0.##") + " per day + " + perProsperity.ToString("0.##")
-                + " per point of prosperity, times the difficulty, never fewer than " + minSize + ". Every colonist, hut, tower, the Workshop and the Shipyard add prosperity.",
+                + " per point of prosperity, times the difficulty, never fewer than " + minSize + ". Every colonist, hut, tower, storehouse, the Workshop and the Shipyard add prosperity.",
             "With nothing built: day " + Mathf.Max(firstDay, 5) + " brings " + Size(Mathf.Max(firstDay, 5)) + ", day 20 brings " + Size(20) + ", day 30 brings " + Size(30) + ".",
         };
         for (int i = 0; i < lines.Length; i++)

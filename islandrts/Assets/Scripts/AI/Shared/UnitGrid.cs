@@ -35,6 +35,7 @@ public class UnitGrid : MonoBehaviour
         public Vector3 position;
         public bool stationary;
         public int basePriority;   // the priority the unit had outside a gateway
+        public bool isPlayer;      // the castaway: right of way over every colonist (2026-09-17)
     }
 
     Entry[] entries = new Entry[64];
@@ -86,7 +87,7 @@ public class UnitGrid : MonoBehaviour
         Add(Warrior.ActiveList);
         Add(Enemy.ActiveList);
         PlayerCharacter pc = PlayerCharacter.Instance;
-        if (pc != null) Add(pc.transform, pc.GetComponent<NavMeshAgent>());
+        if (pc != null && Add(pc.transform, pc.CachedAgent)) entries[count - 1].isPlayer = true;
     }
 
     void Add<T>(IReadOnlyList<T> list) where T : UnitBase<T>
@@ -99,9 +100,9 @@ public class UnitGrid : MonoBehaviour
         }
     }
 
-    void Add(Transform t, NavMeshAgent agent)
+    bool Add(Transform t, NavMeshAgent agent)
     {
-        if (agent == null || !agent.enabled || !agent.isOnNavMesh) return;
+        if (agent == null || !agent.enabled || !agent.isOnNavMesh) return false;
         if (count == entries.Length)
         {
             System.Array.Resize(ref entries, entries.Length * 2);
@@ -109,13 +110,14 @@ public class UnitGrid : MonoBehaviour
         }
         Vector3 p = t.position;
         int cell = CellOf(p);
-        if (cell < 0) return;
+        if (cell < 0) return false;
         bool stationary = agent.isStopped || !agent.hasPath || agent.velocity.sqrMagnitude < 0.01f;
         entries[count] = new Entry { transform = t, agent = agent, position = p, stationary = stationary,
                                      basePriority = agent.avoidancePriority };
         next[count] = head[cell];
         head[cell] = count;
         count++;
+        return true;
     }
 
     int CellOf(Vector3 p)
@@ -172,7 +174,8 @@ public class UnitGrid : MonoBehaviour
             ref Entry ea = ref entries[a];
 
             // The chokepoint rule: a unit inside a gateway outranks anyone entering it.
-            if (!ea.stationary || ea.agent.avoidancePriority != Worker.StationaryAvoidancePriority)
+            // The castaway keeps UnitSpacing.PlayerPriority everywhere.
+            if (!ea.isPlayer && (!ea.stationary || ea.agent.avoidancePriority != Worker.StationaryAvoidancePriority))
             {
                 bool inGate = Gate.ActiveList.Count > 0 && UnitSpacing.InGateway(ea.position);
                 if (inGate && ea.agent.avoidancePriority > UnitSpacing.GatewayPriority)
@@ -210,8 +213,13 @@ public class UnitGrid : MonoBehaviour
                         Vector3 dir = dist > 0.001f ? d / dist : new Vector3(1f, 0f, 0f);
                         float overlap = minDist - dist;
                         float step = Mathf.Min(overlap * 0.5f, maxStep);
+                        // The castaway has right of way (2026-09-17): the colonist takes the
+                        // whole shove, standing still or not. Before this a stationary
+                        // idler was never moved and the player was the one pushed off them.
+                        if (ea.isPlayer) { Push(ref eb, dir * (step * 2f)); }
+                        else if (eb.isPlayer) { Push(ref ea, -dir * (step * 2f)); }
                         // A stationary unit takes none of it: the mover takes both halves
-                        if (ea.stationary) { Push(ref eb, dir * (step * 2f)); }
+                        else if (ea.stationary) { Push(ref eb, dir * (step * 2f)); }
                         else if (eb.stationary) { Push(ref ea, -dir * (step * 2f)); }
                         else { Push(ref ea, -dir * step); Push(ref eb, dir * step); }
                         pushes++;

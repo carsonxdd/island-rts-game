@@ -1,4 +1,4 @@
-﻿#if UNITY_EDITOR || DEVELOPMENT_BUILD
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -77,6 +77,10 @@ public class SimRunner : MonoBehaviour
     private int lastEnemyCount;
     private int warriorsLostThisNight;   // the player's full-time warriors killed between dusk and dawn (2026-09-10)
     private int levyLostThisNight;       // the player's mustered colonists killed between dusk and dawn (2026-09-16)
+    // The line, the levy at home and the huts (2026-09-17): per-night scratch that
+    // CaptureDawn folds into the row. Times are Time.time; -1 = not yet.
+    private float landingTime = -1f, repelTime = -1f, standDownTime = -1f;
+    private int fireSleepsAtDusk;
 
     /// <summary>
     /// The player's own losses only (2026-09-16): before the typed event every
@@ -88,11 +92,48 @@ public class SimRunner : MonoBehaviour
         if (night == null || w == null || !w.Faction.IsPlayer) return;
         if (w.levied) levyLostThisNight++;
         else warriorsLostThisNight++;
+        // What it was doing when it fell (2026-09-17): 22 fighters that kill 16
+        // of 20 raiders and all die were mostly not fighting back.
+        string a = w.CurrentActionName;
+        if (a == "Engage") diedEngageThisNight++;
+        else if (a == "Intercept") diedInterceptThisNight++;
+        else diedOtherThisNight++;
+    }
+    private int diedEngageThisNight, diedInterceptThisNight, diedOtherThisNight;
+
+    /// <summary>A colonist took up arms (2026-09-17): at a hut or at the fire, and how long after the alarm the first one did.</summary>
+    private void OnMustered(Faction f, bool atHome)
+    {
+        if (night == null || f == null || !f.IsPlayer) return;
+        if (atHome) night.levyHome++; else night.levyFire++;
+        if (atHome) metrics.levyHome++; else metrics.levyFire++;
+        if (night.alarmToMusterS < 0f && !float.IsInfinity(f.Militia.AlarmSince))
+            night.alarmToMusterS = Mathf.Max(0f, Time.time - f.Militia.AlarmSince);
+    }
+
+    /// <summary>
+    /// Where a raider fell (2026-09-17): at the gate the player's line holds, or
+    /// behind it. Nothing is counted on a night with no gate line — the columns
+    /// say "the line was where the fight was", not "how many died".
+    /// </summary>
+    private void OnEnemyDied(Vector3 where)
+    {
+        if (night == null) return;
+        Gate gate = HoldLine.CurrentGate(Factions.Player);
+        BaseBuilding fire = Factions.Player.Campfire;
+        if (gate == null || fire == null) return;
+        Vector3 g = gate.transform.position, f = fire.transform.position;
+        where.y = g.y = f.y = 0f;
+        float reach = GuardStance.LineReach + HoldLine.GateStandoff;
+        if ((where - g).sqrMagnitude <= reach * reach) { night.killsGate++; metrics.killsGate++; return; }
+        float inside = (g - f).magnitude - GuardStance.GateSlack;
+        if ((where - f).sqrMagnitude < inside * inside) { night.killsInside++; metrics.killsInside++; }
     }
 
     /// <summary>Who was in bed when the raiders came ashore (2026-09-16): the first landing of a night at the player's shore.</summary>
     private void OnRaidLanded(Vector3 where)
     {
+        if (night != null && night.raid && landingTime < 0f) landingTime = Time.time;
         if (night == null || !night.raid || night.asleepLanding >= 0) return;
         int asleep = 0;
         var list = Worker.ActiveList;
@@ -205,6 +246,8 @@ public class SimRunner : MonoBehaviour
         DayNightCycle.OnDayStart += OnDayStart;
         Warrior.OnAnyWarriorKilled += OnWarriorKilled;
         EnemySpawner.OnRaidLanded += OnRaidLanded;
+        Militia.OnMustered += OnMustered;
+        Enemy.OnAnyEnemyDied += OnEnemyDied;
     }
 
     private void OnDestroy()
@@ -214,6 +257,8 @@ public class SimRunner : MonoBehaviour
         DayNightCycle.OnDayStart -= OnDayStart;
         Warrior.OnAnyWarriorKilled -= OnWarriorKilled;
         EnemySpawner.OnRaidLanded -= OnRaidLanded;
+        Militia.OnMustered -= OnMustered;
+        Enemy.OnAnyEnemyDied -= OnEnemyDied;
         Time.captureDeltaTime = 0f;
         UnityEngine.Rendering.OnDemandRendering.renderFrameInterval = 1;
     }
@@ -645,7 +690,32 @@ public class SimRunner : MonoBehaviour
         if (night != null && mustered > night.musteredPeak) night.musteredPeak = mustered;
         if (mustered > metrics.peakMustered) metrics.peakMustered = mustered;
 
+        if (night != null) SampleLine(mustered);
         WatchRivalFire();
+    }
+
+    /// <summary>
+    /// The line and the raid's end, once a frame (2026-09-17): a gate held, warriors
+    /// on a post, the moment the last raider fell and the moment the last levy
+    /// stood down after it. All of it happens inside a night, so a dawn read
+    /// would miss every one.
+    /// </summary>
+    private void SampleLine(int mustered)
+    {
+        if (HoldLine.CurrentGate(Factions.Player) != null) night.gateHeld = 1;
+
+        int posts = 0;
+        var warriors = Warrior.ActiveList;
+        for (int i = 0; i < warriors.Count; i++)
+        {
+            Warrior w = warriors[i];
+            if (w != null && w.Faction.IsPlayer && w.HasHoldPost) posts++;
+        }
+        if (posts > night.postsPeak) night.postsPeak = posts;
+
+        RaidDirector rd = RaidDirector.Instance;
+        if (landingTime >= 0f && repelTime < 0f && rd != null && rd.RaidRepelled) repelTime = Time.time;
+        if (repelTime >= 0f && standDownTime < 0f && night.musteredPeak > 0 && mustered == 0) standDownTime = Time.time;
     }
 
     /// <summary>
@@ -699,6 +769,9 @@ public class SimRunner : MonoBehaviour
         lastEnemyCount = Enemy.ActiveList.Count;
         warriorsLostThisNight = 0;
         levyLostThisNight = 0;
+        diedEngageThisNight = diedInterceptThisNight = diedOtherThisNight = 0;
+        landingTime = repelTime = standDownTime = -1f;
+        fireSleepsAtDusk = SleepExecutor.FireSleeps;
         metrics.dayReached = night.day;
         if (night.raid) metrics.raids++;
     }
@@ -759,9 +832,34 @@ public class SimRunner : MonoBehaviour
         night.warriorsLost = warriorsLostThisNight;
         night.levyLost = levyLostThisNight;
         metrics.levyLostTotal += levyLostThisNight;
+        night.diedEngage = diedEngageThisNight;
+        night.diedIntercept = diedInterceptThisNight;
+        night.diedOther = diedOtherThisNight;
         night.ringHoles = governor.Builder.RingHoles;
         night.chunksLoose = LooseChunks();
+        night.storehouses = TargetingUtil.CountOwned(Storehouse.ActiveList, Factions.Player);   // 2026-09-16
+        CaptureLine(pm);
         CaptureRivals();
+    }
+
+    /// <summary>The dawn half of the 2026-09-17 columns: who sleeps where, and the night's two clocks.</summary>
+    private void CaptureLine(Population pm)
+    {
+        if (pm != null)
+        {
+            var roster = pm.Roster;
+            for (int i = 0; i < roster.Count; i++)
+            {
+                Population.Colonist c = roster[i];
+                if (c.unit == null || c.home == null) continue;
+                if (c.home is BaseBuilding) night.homedFire++;
+                else if (c.home is Hut) night.homedHut++;
+            }
+        }
+        night.sleptFire = SleepExecutor.FireSleeps - fireSleepsAtDusk;
+        if (landingTime >= 0f && repelTime >= 0f) night.repelS = repelTime - landingTime;
+        if (repelTime >= 0f && standDownTime >= 0f) night.standDownS = standDownTime - repelTime;
+        if (night.gateHeld > 0) metrics.nightsGateHeld++;
     }
 
     /// <summary>
@@ -805,6 +903,7 @@ public class SimRunner : MonoBehaviour
         night.rivalHuts = TargetingUtil.CountOwned(Hut.ActiveList, first);
         night.rivalColonists = first.Population != null ? first.Population.GetColonistCount() : 0;
         night.rivalFoodDawn = first.Resources.food;
+        night.rivalStorehouses = TargetingUtil.CountOwned(Storehouse.ActiveList, first);
     }
 
     /// <summary>
@@ -847,6 +946,7 @@ public class SimRunner : MonoBehaviour
         metrics.wallClockSeconds = Time.realtimeSinceStartup - runStartRealTime;
         metrics.frames = Time.frameCount - runStartFrame;
         metrics.rivalFate = RivalFate();
+        metrics.storehouses = TargetingUtil.CountOwned(Storehouse.ActiveList, Factions.Player);
         metrics.playerLandings = Expedition.LandingsByPlayer;
         metrics.lootWood = Loot.DroppedWood;
         metrics.lootFood = Loot.DroppedFood;

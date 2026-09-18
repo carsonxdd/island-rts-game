@@ -768,8 +768,9 @@ public class ResourceUI : MonoBehaviour
         bool night = dayNight.IsNightTime();
         bool held = dayNight.DawnHeld;   // the night is waiting on the last raider (2026-09-07)
         bool lurking = rd != null && rd.RaidLurking;   // alive, but nothing has happened for a while (2026-09-10)
+        bool repelled = raid && night && rd.RaidRepelled;   // the last raider fell; the night runs on (2026-09-17)
 
-        int key = ((((((day * 128 + total) * 2 + (night ? 1 : 0)) * 2 + (raid ? 1 : 0)) * 2 + (held ? 1 : 0)) * 2 + (lurking ? 1 : 0)) * 2 + (elsewhere ? 1 : 0)) * 64 + Mathf.Min(size, 63);
+        int key = (((((((day * 128 + total) * 2 + (night ? 1 : 0)) * 2 + (raid ? 1 : 0)) * 2 + (held ? 1 : 0)) * 2 + (lurking ? 1 : 0)) * 2 + (elsewhere ? 1 : 0)) * 2 + (repelled ? 1 : 0)) * 64 + Mathf.Min(size, 63);
         if (key == lastCalKey) return;
         lastCalKey = key;
 
@@ -801,6 +802,14 @@ public class ResourceUI : MonoBehaviour
             calValue.color = MenuStyle.TextDanger;
             calLabel.color = MenuStyle.TextDanger;
             calLabel.text = "Dawn waits on the raiders";
+        }
+        else if (repelled)
+        {
+            // Every raider is dead: the night is just a night now. Before this the
+            // line read "Raid underway" until dawn and the raid seemed never to end.
+            calValue.color = MenuStyle.TextPrimary;
+            calLabel.color = MenuStyle.TextMuted;
+            calLabel.text = "Raid repelled";
         }
         else if (raid && night)
         {

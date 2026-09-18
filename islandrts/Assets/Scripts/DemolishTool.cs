@@ -102,6 +102,17 @@ public class DemolishTool
 
             if (targetObj == null)
             {
+                Storehouse store = hit.collider.GetComponent<Storehouse>();
+                if (store == null) store = hit.collider.GetComponentInParent<Storehouse>();
+                if (store != null)
+                {
+                    targetObj = store.gameObject;
+                    targetType = BuildingType.Storehouse;
+                }
+            }
+
+            if (targetObj == null)
+            {
                 ConstructionSite site = hit.collider.GetComponent<ConstructionSite>();
                 if (site == null) site = hit.collider.GetComponentInParent<ConstructionSite>();
                 if (site != null)

@@ -10,10 +10,16 @@ using UnityEngine;
 /// </summary>
 /// <remarks>
 /// <para><b>Defensive</b> is the stay-at-home order: Patrol / Intercept / DefendWall
-/// as before, and Engage only fights an enemy that is a threat to the colony —
-/// within <see cref="HoldRadius"/> of the campfire, heading for a wall, or within
-/// <see cref="SelfDefenceRadius"/> of the warrior itself. A raider crossing the
-/// island is left to arrive.</para>
+/// as before, and Engage only fights an enemy that reaches the LINE (2026-09-17):
+/// once Intercept has given the warrior a post (<c>bb.holdPost</c> — a slot in the
+/// line inside the gate the raiders are coming at, see <see cref="HoldLine"/>, or on
+/// the perimeter without one) a raider is fought within <see cref="LineReach"/> of
+/// that post (plus the bow's reach for an archer), or once it is nearer the fire
+/// than the post is — and a spearman never takes one outside the wall the line
+/// holds. A target that walks back out of reach is dropped and the warrior returns
+/// to the post. Before a post exists the old rule stands: within <see cref="HoldRadius"/>
+/// of the campfire or heading for a wall. <see cref="SelfDefenceRadius"/> applies in
+/// every stance — inside the wall, for a spearman on a gate line.</para>
 /// <para><b>Offensive</b> goes and gets them: Intercept's rally becomes a point
 /// advancing on the raiders (<see cref="AdvanceStandoff"/> short of their centroid,
 /// in formation), and Engage takes any raider within <see cref="OffensiveEngageRadius"/>
@@ -40,8 +46,14 @@ public static class GuardStance
     /// <summary>Caption per <see cref="Mode"/>, in enum order (the panel's stepper).</summary>
     public static readonly string[] Names = { "Defensive", "Offensive", "Follow" };
 
-    /// <summary>Defensive: an enemy this close to the campfire is the colony's business.</summary>
+    /// <summary>Defensive with no post yet: an enemy this close to the campfire is the colony's business.</summary>
     public const float HoldRadius = 30f;
+    /// <summary>Defensive: a raider this close to the warrior's post is fought (an archer adds its bow's reach).</summary>
+    public const float LineReach = 8f;
+    /// <summary>Defensive: nearer the fire than the post by this much counts as through the line.</summary>
+    public const float BreachSlack = 2f;
+    /// <summary>Defensive gate line: this far past the gate's radius still counts as in the gateway (a raider chewing the gate).</summary>
+    public const float GateSlack = 1.5f;
     /// <summary>Any stance: an enemy this close to the warrior is fought regardless of orders.</summary>
     public const float SelfDefenceRadius = 10f;
     /// <summary>Follow: an enemy this close to the character is fought.</summary>
@@ -101,6 +113,16 @@ public static class GuardStance
     /// not have scored.
     /// </summary>
     public static bool Allows(ITargetable target, Vector3 warriorPos, BaseBuilding fire, Faction f)
+        => Allows(target, warriorPos, fire, f, null);
+
+    /// <summary>
+    /// <see cref="Allows(ITargetable, Vector3, BaseBuilding, Faction)"/> for a warrior
+    /// with a blackboard: under Defensive its held post decides reach (2026-09-17).
+    /// </summary>
+    public static bool Allows(ITargetable target, AIBlackboard bb)
+        => Allows(target, bb.transform.position, bb.baseBuilding, bb.faction, bb);
+
+    static bool Allows(ITargetable target, Vector3 warriorPos, BaseBuilding fire, Faction f, AIBlackboard bb)
     {
         Vector3 pos = target.transform.position;
 
@@ -132,9 +154,59 @@ public static class GuardStance
             }
 
             default:
+            {
+                BaseBuilding at = fire != null ? fire : f.Campfire;
+                bool hasPost = bb != null && bb.hasHoldPost;
+                Vector3 post = hasPost ? bb.holdPost : Vector3.zero;
+                float lineRadius = hasPost ? bb.holdLineRadius : float.MaxValue;
+                // No post of its own yet but the colony holds a gate (2026-09-17, the line
+                // check): the line's centre stands in for it. A levy body is NEW every
+                // night and its first tick came after the raiders were inside HoldRadius,
+                // so the old rule sent each one charging out through the gate alone —
+                // the check tripled Turtle's levy losses (2.4 → 5.3 a raid night).
+                if (!hasPost && bb != null && at != null)
+                {
+                    Gate held = HoldLine.CurrentGate(f);
+                    if (held != null)
+                    {
+                        Vector3 facing;
+                        HoldLine.LineAt(held, at, out post, out facing, out lineRadius);
+                        hasPost = true;
+                    }
+                }
+                // A gate line: a spearman never goes for what is outside the wall — the
+                // path out is through the gate, and that is the "Defensive turns Offensive
+                // when they arrive" the line exists to stop. An archer shoots over it.
+                if (hasPost && !bb.isRanged && lineRadius < float.MaxValue && at != null)
+                {
+                    Vector3 d = pos - at.transform.position;
+                    d.y = 0f;
+                    float limit = lineRadius + GateSlack;
+                    if (d.sqrMagnitude > limit * limit) return false;
+                }
                 if ((pos - warriorPos).sqrMagnitude <= SelfDefenceRadius * SelfDefenceRadius) return true;
+                if (hasPost) return ReachesLine(pos, at, post, bb);
                 return ThreatensColony(target, pos, fire, f);
+            }
         }
+    }
+
+    /// <summary>Within reach of <paramref name="post"/>, or already nearer the fire than the post is (through the line).</summary>
+    static bool ReachesLine(Vector3 pos, BaseBuilding at, Vector3 post, AIBlackboard bb)
+    {
+        float reach = LineReach + (bb.isRanged ? bb.attackRange : 0f);
+        Vector3 toPost = pos - post;
+        toPost.y = 0f;
+        if (toPost.sqrMagnitude <= reach * reach) return true;
+
+        if (at == null) return true;   // no colony to hold — fight what is there
+        Vector3 firePos = at.transform.position;
+        Vector3 postFromFire = post - firePos;
+        Vector3 targetFromFire = pos - firePos;
+        postFromFire.y = 0f;
+        targetFromFire.y = 0f;
+        float inside = postFromFire.magnitude + BreachSlack;
+        return targetFromFire.sqrMagnitude <= inside * inside;
     }
 
     /// <summary>Near the fire, or walking at a wall: the colony's business in any stance but Follow.</summary>

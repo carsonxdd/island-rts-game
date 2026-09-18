@@ -52,7 +52,7 @@ public class StanceTargetAvailable : Consideration
         if (!bb.faction.IsHostileTo(t.Faction)) return;
         Health h = t.CachedHealth;
         if (h == null || !h.IsAlive) return;
-        if (!GuardStance.Allows(t, from, bb.baseBuilding, bb.faction)) return;
+        if (!GuardStance.Allows(t, bb)) return;
 
         bestSqr = sqr;
         best = t;

@@ -18,5 +18,7 @@ public enum BuildingType
     StoneGate,
     Workshop,
     /// <summary>The escape ship's slipway (2026-09-04, Slice 6). Beach-only; clicking it offers to set sail.</summary>
-    Shipyard
+    Shipyard,
+    /// <summary>A drop-off point with a little stockpile room (2026-09-16). Unlocked by Storage Pits.</summary>
+    Storehouse
 }

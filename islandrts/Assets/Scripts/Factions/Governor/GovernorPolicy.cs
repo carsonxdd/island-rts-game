@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 /// <summary>
 /// Everything a player decides in a run — what to research, what to queue at
@@ -104,7 +104,11 @@ public abstract class GovernorPolicy
     /// rack; the other five bodies work by day and muster at night. Half by
     /// default — a levy walks to the fire first, so a colony of nothing but levy
     /// meets the first raiders unarmed. Rush keeps two thirds standing, the
-    /// Conqueror everything (it sails with real warriors).
+    /// Conqueror everything (it sails with real warriors). 0.75 was tried on
+    /// 2026-09-17 (the overnight levy sweep read 3/4/5 of 6 at 0.75 to 0/2/2 at
+    /// 0.5) and did not replicate on the 12 baseline islands: Rush fell 61% →
+    /// 36% and every late defeat was a levy larger than the standing army,
+    /// mustering one body at a time into raiders already at the gate.
     /// </summary>
     protected virtual float PolicyLevyShare => 0.5f;
     /// <summary>The share in force: the sweep's <see cref="SimHooks.LevyShare"/> when it names one, else the policy's own.</summary>
@@ -460,6 +464,75 @@ public abstract class GovernorPolicy
         return true;
     }
 
+    // ---- the Storehouse (2026-09-16) ----------------------------------------
+    // A drop-off by the far work: a colonist on a node 40 m out spent most of a
+    // trip walking five wood home. One store per busy far cluster, at most two.
+    protected const int MaxStorehouses = 2;
+    /// <summary>A node this far from the fire and from every store is "far work".</summary>
+    protected const float StorehouseMinDistance = 24f;
+    private const int StorehouseMinWorkers = 2;
+    private const float StorehouseWoodFloor = 45f;
+
+    /// <summary>
+    /// Place a Storehouse beside the busiest far node when Storage Pits is known
+    /// and the bank can spare it. One action per call; false when nothing is
+    /// far enough, everything is placed, or a site is already in flight.
+    /// </summary>
+    protected bool KeepStorehouse(ColonyState s)
+    {
+        if (!CanBuild || !faction.Knowledge.Has(Unlocks.Kind.Storage)) return false;
+        if (builder.PendingSites(BuildingType.Storehouse) > 0) return false;
+        if (builder.StorehouseCount >= MaxStorehouses) return false;
+        if (s.Wood < StorehouseWoodFloor) return false;
+
+        ResourceNode node = BusiestFarNode(s);
+        if (node == null) return false;
+        if (!builder.PlaceBuildingAround(BuildingType.Storehouse, node.transform.position, 3f, 9f)) return false;
+        Did("place Storehouse");
+        return true;
+    }
+
+    /// <summary>
+    /// The node most of this colony's workers are on, provided it is far from the
+    /// fire and from every standing store. Two passes over the owned workers, no
+    /// allocation — the governor ticks at 1 Hz and a colony has tens of workers.
+    /// </summary>
+    ResourceNode BusiestFarNode(ColonyState s)
+    {
+        BaseBuilding fire = s.Campfire;
+        if (fire == null) return null;
+        var workers = Worker.ActiveList;
+        ResourceNode best = null;
+        int bestCount = 0;
+        float bestDist = 0f;
+        for (int i = 0; i < workers.Count; i++)
+        {
+            Worker w = workers[i];
+            if (w == null || w.Faction != faction) continue;
+            ResourceNode node = w.WorkingNode;
+            if (node == null) continue;
+            bool seen = false;
+            for (int j = 0; j < i && !seen; j++)
+                seen = workers[j] != null && workers[j].Faction == faction && workers[j].WorkingNode == node;
+            if (seen) continue;
+
+            float dist = Dropoff.NearestDistance(faction, node.transform.position);
+            if (dist < StorehouseMinDistance) continue;
+
+            int count = 0;
+            for (int j = i; j < workers.Count; j++)
+                if (workers[j] != null && workers[j].Faction == faction && workers[j].WorkingNode == node) count++;
+            if (count < StorehouseMinWorkers) continue;
+            if (count > bestCount || (count == bestCount && dist > bestDist))
+            {
+                best = node;
+                bestCount = count;
+                bestDist = dist;
+            }
+        }
+        return best;
+    }
+
     /// <summary>Build a hut when housing is the thing capping the colony.</summary>
     protected bool BuildHutIfCapped(ColonyState s, int maxHuts)
     {
@@ -595,7 +668,7 @@ public class TurtlePolicy : GovernorPolicy
         // militia a raid night to Turtle's 30-42%. An Iron Spear is +40% damage
         // and needs no chunk, the one material every re-arm was short of.
         if (Research(s, "woodcutting", "foraging", "spearcraft", "construction", "quarrying",
-                        "crafting", "mining", "iron_work", "bowyery")) return;
+                        "crafting", "storage_pits", "mining", "iron_work", "bowyery")) return;
 
         // A man per raider, not 0.6 of one (2026-09-11). The 2026-09-11 lab
         // watched this colony hold at 9 warriors from day 6 to day 11 with 43
@@ -612,6 +685,7 @@ public class TurtlePolicy : GovernorPolicy
         // Enough economy to pay for a wall, then wall, then the guard.
         if (s.Workers < 4) { if (HireWorker(s, 2f, 1f, 2f)) return; }
         if (KeepHousing(s, MaxHuts, WantedColonists(s, wantedWorkers, wantedWarriors, fullTime))) return;
+        if (KeepStorehouse(s)) return;
 
         // Build the ring in segments, keeping a wood reserve. Committing the
         // whole bank to 48 wall sites at once is what made this policy lose
@@ -664,7 +738,7 @@ public class RushPolicy : GovernorPolicy
         // last three entries here were unreachable for the whole run and Rush
         // never learned to quarry, never saw a chunk, and never re-armed a loss.
         if (Research(s, "woodcutting", "foraging", "spearcraft", "construction",
-                        "crafting", "quarrying", "mining", "iron_work", "bowyery")) return;
+                        "crafting", "quarrying", "mining", "iron_work", "bowyery", "storage_pits")) return;
 
         int wantedWarriors = WantedWarriors(s, 1f, 2) + (s.RaidTonight ? 1 : 0);
         int fullTime = FullTimeWanted(wantedWarriors, 2);
@@ -676,6 +750,7 @@ public class RushPolicy : GovernorPolicy
         if (KeepHousing(s, MaxHuts, WantedColonists(s, wantedWorkers, wantedWarriors, fullTime))) return;
         if (KeepArmy(s, wantedWarriors, fullTime)) return;
         if (RunWorkshop(s)) return;
+        if (KeepStorehouse(s)) return;
         if (s.Workers < wantedWorkers) { if (HireWorker(s, 2f, 2f, 1f, 1f)) return; }
     }
 }
@@ -701,7 +776,7 @@ public class EcoPolicy : GovernorPolicy
         if (ConsiderExpeditions(s)) return;
         builder.SetRing(RingHalf);   // huts stay off the ring line and out of its gate corridors (2026-09-10)
         if (Research(s, "woodcutting", "foraging", "spearcraft", "construction", "quarrying",
-                        "crafting", "mining", "iron_work", "bowyery")) return;
+                        "storage_pits", "crafting", "mining", "iron_work", "bowyery")) return;
 
         int wantedWarriors = WantedWarriors(s, 0.7f, 1) + (s.RaidTonight ? 1 : 0);
         int fullTime = FullTimeWanted(wantedWarriors, 1);
@@ -710,6 +785,7 @@ public class EcoPolicy : GovernorPolicy
         SetGoal(s, wantedWarriors, fullTime, wantedWorkers, escapes && s.Day >= 12 ? "escape" : null);
 
         if (KeepHousing(s, MaxHuts, WantedColonists(s, wantedWorkers, wantedWarriors, fullTime))) return;
+        if (KeepStorehouse(s)) return;
         if (RunWorkshop(s)) return;
         if (s.Workers < wantedWorkers) { if (HireWorker(s, 3f, 2f, 1f, 1f)) return; }
 
@@ -782,7 +858,7 @@ public class ConquerorPolicy : GovernorPolicy
     {
         if (ManageStance(s)) return;
         if (Research(s, "woodcutting", "foraging", "spearcraft", "construction",
-                        "crafting", "quarrying", "mining", "iron_work", "bowyery")) return;
+                        "crafting", "quarrying", "mining", "iron_work", "bowyery", "storage_pits")) return;
 
         Faction rival = FirstRival();
         int rivalWarriors = rival != null ? TargetingUtil.CountOwned(Warrior.ActiveList, rival) : 0;
@@ -824,6 +900,7 @@ public class ConquerorPolicy : GovernorPolicy
 
         if (KeepArmy(s, wantedWarriors, fullTime)) return;
         if (RunWorkshop(s)) return;
+        if (KeepStorehouse(s)) return;
         if (s.Workers < wantedWorkers) { if (HireWorker(s, 2f, 2f, 1f, 1f)) return; }
     }
 

@@ -30,7 +30,11 @@ public static class SimStatus
         "rival,rival_opinion,rival_attitude,rival_warriors,rival_fire_pct,rival_party," +
         // The levy (2026-09-16): mustered colonists and the rack, so the dashboard's
         // war column can read "5+3" with "4" spare beside it.
-        "levy_mustered,levy_spare\n";
+        "levy_mustered,levy_spare," +
+        // What the run is doing (2026-09-17): the governor's goal, its last move
+        // and the castaway's errand - the visual caption's three lines, so a
+        // headless shard's stall can be read by polling this file.
+        "goal,intent,castaway\n";
 
     /// <summary>
     /// Overwrite this process's status line. <paramref name="outcome"/> is empty
@@ -71,6 +75,9 @@ public static class SimStatus
             f.rivalLanded ? Escape(f.rivalParty) : "",
             f.mustered.ToString(),
             f.spareWeapons.ToString(),
+            Escape(f.goal),
+            Escape(f.intent),
+            Escape(f.castaway),
         });
 
         // Written to a sibling and swapped in, so a reader polling once a second

@@ -85,6 +85,9 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
     private GroundPickup taskPickup;
     private BaseBuilding taskFire;
     private Collider taskFireCollider;
+    // A Storehouse deposit (2026-09-16): the walk goes to the store, the goods go
+    // to the one colony store (the fire's stockpile) — taskFire stays the fire.
+    private Storehouse taskStore;
     private CraftStation taskStation;
     private ResourceNode taskNode;
     private ConstructionSite taskSite;
@@ -113,6 +116,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         public ResourceNode node;
         public ConstructionSite site;
         public BaseBuilding fire;
+        public Storehouse store;
         public CraftStation station;
         public Vector3 point;
     }
@@ -227,7 +231,9 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         agent.stoppingDistance = 0.2f;
         agent.baseOffset = 0f;  // base-pivot art: transform origin IS the feet
         UnitSpacing.Apply(agent, worker: false);   // two-radius model (2026-09-16)
-        UnitSpacing.SetMoving(agent, carrying: false);
+        // Right of way (2026-09-17): the lowest number on the island, so ORCA makes
+        // every colonist yield, and UnitGrid shoves the colonist, never the castaway.
+        agent.avoidancePriority = UnitSpacing.PlayerPriority;
 
         CreateStateText(2.2f, PlayerProfile.Name, NameColor);
         if (floatingText != null) floatingText.alwaysShow = true;   // the name never hides with the state-label setting
@@ -338,6 +344,10 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
             o.fire = hitCollider.GetComponentInParent<BaseBuilding>();
             if (o.fire != null) { o.kind = OrderKind.Deposit; return o; }
 
+            // A Storehouse (2026-09-16): a deposit too, with no bench to work after
+            o.store = hitCollider.GetComponentInParent<Storehouse>();
+            if (o.store != null) { o.kind = OrderKind.Deposit; return o; }
+
             // Any other station (the Workshop): walk over and work its queue
             o.station = hitCollider.GetComponentInParent<CraftStation>();
             if (o.station != null) { o.kind = OrderKind.Work; return o; }
@@ -384,7 +394,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
             case OrderKind.Collect: CommandCollect(o.pickup); break;
             case OrderKind.Harvest: CommandHarvest(o.node); break;
             case OrderKind.Build: CommandBuild(o.site); break;
-            case OrderKind.Deposit: CommandDeposit(o.fire); break;
+            case OrderKind.Deposit: if (o.store != null) CommandDepositAt(o.store); else CommandDeposit(o.fire); break;
             case OrderKind.DepositNear: CommandDepositNear(o.fire, o.point); break;
             case OrderKind.Work: WorkAt(o.station); break;
             default: CommandMove(o.point); break;
@@ -465,6 +475,36 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         // Carve-safe approach point, never the centre (the campfire carves the NavMesh)
         MoveTo(TargetingUtil.GetApproachPoint(transform.position, fire.transform, taskFireCollider));
     }
+
+    /// <summary>
+    /// Walk to a Storehouse and deposit everything in hand (2026-09-16). The goods
+    /// land in the colony store exactly as at the fire; the store is only the
+    /// nearer place to stand. Nothing to work afterwards, so the queue continues.
+    /// </summary>
+    public void CommandDepositAt(Storehouse store)
+    {
+        if (knockedOut || store == null || !store.IsAlive) return;
+        BaseBuilding fire = Factions.Player.Campfire;
+        if (fire == null) { CommandMove(store.transform.position); return; }
+        NewOrder();
+        StopWork();
+        StopHarvest();
+        StopBuild();
+        ClearTask();
+
+        task = TaskKind.Deposit;
+        taskFire = fire;
+        taskStore = store;
+        taskFireCollider = store.ApproachCollider;
+        stallTimer = 0f;
+        SetActivity(inventory.IsEmpty ? "Going to the storehouse" : "Carrying to the storehouse");
+
+        // Carve-safe approach point, never the centre (the store carves the NavMesh)
+        MoveTo(TargetingUtil.GetApproachPoint(transform.position, store.transform, taskFireCollider));
+    }
+
+    /// <summary>Where the current deposit walks to: the store when one was clicked, else the fire.</summary>
+    Transform DepositTarget => taskStore != null ? taskStore.transform : taskFire.transform;
 
     /// <summary>
     /// A ground click beside the fire (2026-09-13): walk to <paramref name="point"/>
@@ -732,9 +772,9 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
 
             case TaskKind.Deposit:
             {
-                if (taskFire == null) { ClearTask(); Continue(); return; }
+                if (taskFire == null || (taskStore != null && !taskStore.IsAlive)) { ClearTask(); Continue(); return; }
 
-                float edge = TargetingUtil.EdgeDistance(transform.position, taskFire.transform, taskFireCollider);
+                float edge = TargetingUtil.EdgeDistance(transform.position, DepositTarget, taskFireCollider);
 
                 if (taskWalkOn)
                 {
@@ -760,12 +800,15 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
                 {
                     if (agent != null && agent.isOnNavMesh) agent.ResetPath();
                     BaseBuilding fire = taskFire;
+                    bool atStore = taskStore != null;
                     ClearTask();
                     DepositAll(fire);
+                    if (atStore) DevQuests.Signal("deposit:storehouse");
 
                     // Already standing at the fire: if its bench has work, get on
-                    // with it — unless more orders are waiting, which come first
-                    if (orders.Count > 0) Continue();
+                    // with it — unless more orders are waiting, which come first.
+                    // A store has no bench: the order is simply over.
+                    if (orders.Count > 0 || atStore) Continue();
                     else if (fire.Station != null && fire.Station.HasWork) BeginWork(fire.Station);
 
                     // Deliberately does NOT open the campfire panel (2026-09-03).
@@ -776,8 +819,9 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
                 }
                 else if (Stalled())
                 {
+                    bool atStore = taskStore != null;
                     ClearTask();
-                    SetActivity("Can't reach the fire", FlashSeconds);
+                    SetActivity(atStore ? "Can't reach the storehouse" : "Can't reach the fire", FlashSeconds);
                     Continue();
                 }
                 break;
@@ -1187,6 +1231,7 @@ public class PlayerCharacter : UnitBase<PlayerCharacter>
         task = TaskKind.None;
         taskPickup = null;
         taskFire = null;
+        taskStore = null;
         taskFireCollider = null;
         taskStation = null;
         taskNode = null;

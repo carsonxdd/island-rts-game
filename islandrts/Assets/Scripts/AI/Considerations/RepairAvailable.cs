@@ -43,6 +43,7 @@ public class RepairAvailable : Consideration
         Scan(Hut.ActiveList, BuildingType.Hut);
         Scan(Watchtower.ActiveList, BuildingType.Watchtower);
         Scan(Workshop.ActiveList, BuildingType.Workshop);
+        Scan(Storehouse.ActiveList, BuildingType.Storehouse);
         Scan(BaseBuilding.ActiveList, BuildingType.Hut);   // the campfire is priced like a hut
 
         var walls = Wall.ActiveList;

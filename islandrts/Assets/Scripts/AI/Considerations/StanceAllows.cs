@@ -14,5 +14,14 @@ public class StanceAllows : Consideration
         this.role = role;
     }
 
-    public override float ScoreRaw(AIBlackboard bb) => GuardStance.Permits(role, bb.faction) ? 1f : 0f;
+    public override float ScoreRaw(AIBlackboard bb)
+    {
+        if (!GuardStance.Permits(role, bb.faction)) return 0f;
+        // A spearman holding a gate line stays on it (2026-09-17): DefendWall would walk
+        // it to a wall segment it cannot fight through, and off the gate the raiders
+        // are coming at. An archer goes — it shoots over the wall.
+        if (role == GuardStance.Role.DefendWall && !bb.isRanged && GuardStance.Effective(bb.faction) == GuardStance.Mode.Defensive
+            && ((bb.hasHoldPost && bb.holdLineRadius < float.MaxValue) || HoldLine.CurrentGate(bb.faction) != null)) return 0f;
+        return 1f;
+    }
 }

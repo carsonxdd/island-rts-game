@@ -86,12 +86,13 @@ public sealed class Population
     // Housing (owned by the buildings)
     // ------------------------------------------------------------------
 
-    /// <summary>A building's Start registers its housing here. Homeless colonists move in at once.</summary>
+    /// <summary>A building's Start registers its housing here. Homeless colonists move in at once, and so do the fire's sleepers (a hut is a bed, the fire is a blanket).</summary>
     public void RegisterHousing(IHousing provider)
     {
         if (provider == null || housing.Contains(provider)) return;
         housing.Add(provider);
         RehomeHomeless();
+        MoveInFromFire();
     }
 
     /// <summary>Death or destruction. The building's residents become homeless and are rehomed if anywhere has room.</summary>
@@ -130,13 +131,24 @@ public sealed class Population
         return n;
     }
 
-    /// <summary>The first live building with a free slot (campfire first, then huts in build order).</summary>
+    /// <summary>
+    /// The first live building with a free slot: huts in build order, the campfire
+    /// LAST (2026-09-17). The fire's three beds are where the founding crew sleeps
+    /// until a hut stands — before this they were filled first, so the first three
+    /// colonists slept on the ground beside the fire for the whole run.
+    /// </summary>
     public IHousing FindHomeWithRoom()
     {
         for (int i = 0; i < housing.Count; i++)
         {
             IHousing h = housing[i];
-            if (h == null || !h.HousingAlive) continue;
+            if (h == null || !h.HousingAlive || h is BaseBuilding) continue;
+            if (OccupantsOf(h) < h.HousingCapacity) return h;
+        }
+        for (int i = 0; i < housing.Count; i++)
+        {
+            IHousing h = housing[i];
+            if (h == null || !h.HousingAlive || !(h is BaseBuilding)) continue;
             if (OccupantsOf(h) < h.HousingCapacity) return h;
         }
         return null;
@@ -148,6 +160,20 @@ public sealed class Population
         Colonist c = Find(unit);
         if (c == null || c.home == null || !c.home.HousingAlive) return null;
         return c.home;
+    }
+
+    /// <summary>Everyone homed to the campfire moves into a hut with room, in roster order. Runs when a hut registers.</summary>
+    void MoveInFromFire()
+    {
+        for (int i = 0; i < roster.Count; i++)
+        {
+            Colonist c = roster[i];
+            if (c.unit == null || !(c.home is BaseBuilding)) continue;
+            IHousing hut = FindHomeWithRoom();
+            if (hut == null || hut is BaseBuilding) return;   // no hut has room
+            c.home = hut;
+            if (faction != null && faction.IsPlayer) DevQuests.Signal("sleep:moved_in");
+        }
     }
 
     void RehomeHomeless()
