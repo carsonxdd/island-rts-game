@@ -49,6 +49,8 @@ public static class MenuStyle
     public const float ButtonHeight = 52f;
     public const float ButtonSpacing = 10f;
     public const float RowHeight = 48f;
+    /// <summary>A data row on a gameplay panel (the campfire panel, 2026-09-17): a counter needs 30 px of glyph, not 48.</summary>
+    public const float CompactRowHeight = 32f;
     public const float MenuWidth = 460f;
     public const float OptionsWidth = 720f;
 

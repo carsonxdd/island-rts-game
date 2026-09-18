@@ -524,6 +524,14 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing, IDropoff
         }
     }
 
+    /// <summary>Point the recruit picker at one weapon (the panel's Arm-with segment row, 2026-09-17).</summary>
+    public void SelectWeapon(ItemDef weapon)
+    {
+        if (weapon == null || System.Array.IndexOf(ItemCatalog.Weapons, weapon) < 0) return;
+        selectedWeapon = weapon;
+        DevQuests.Signal("picker");
+    }
+
     /// <summary>Step the recruit picker through <see cref="ItemCatalog.Weapons"/> (+1 / -1, wrapping).</summary>
     public void CycleWeapon(int step)
     {

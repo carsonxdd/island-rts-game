@@ -285,13 +285,42 @@ public static class MenuBuilder
     {
         SettingRow(parent, label, out RectTransform slot);
 
+        Slider slider = BuildSlider(slot, value, min, max, new Vector2(0f, 0.5f), new Vector2(0.78f, 0.5f));
+
+        if (format == null) format = Percent;
+        TextMeshProUGUI readout = Label(slot, format(slider.value),
+            MenuStyle.SmallSize, MenuStyle.TextMuted, TextAlignmentOptions.MidlineRight);
+        RectTransform rrt = readout.rectTransform;
+        rrt.anchorMin = new Vector2(0.80f, 0f);
+        rrt.anchorMax = new Vector2(1f, 1f);
+        rrt.offsetMin = Vector2.zero;
+        rrt.offsetMax = Vector2.zero;
+
+        slider.onValueChanged.AddListener(v =>
+        {
+            readout.text = format(v);
+            onChange?.Invoke(v);
+        });
+
+        if (description != null) RowDescription(parent, description);
+        return slider;
+    }
+
+    /// <summary>
+    /// The slider itself, anchored inside <paramref name="parent"/> by the given
+    /// horizontal anchors on the row's midline — shared by <see cref="RangeSliderRow"/>
+    /// and the campfire panel's four-in-a-row priorities (2026-09-17).
+    /// </summary>
+    public static Slider BuildSlider(RectTransform parent, float value, float min, float max,
+                                     Vector2 anchorMin, Vector2 anchorMax, float halfHeight = 9f)
+    {
         GameObject go = new GameObject("Slider", typeof(Slider));
-        go.transform.SetParent(slot, false);
+        go.transform.SetParent(parent, false);
         RectTransform rt = go.GetComponent<RectTransform>();
-        rt.anchorMin = new Vector2(0f, 0.5f);
-        rt.anchorMax = new Vector2(0.78f, 0.5f);
-        rt.offsetMin = new Vector2(0f, -9f);
-        rt.offsetMax = new Vector2(0f, 9f);
+        rt.anchorMin = anchorMin;
+        rt.anchorMax = anchorMax;
+        rt.offsetMin = new Vector2(0f, -halfHeight);
+        rt.offsetMax = new Vector2(0f, halfHeight);
 
         // The background is the slider's targetGraphic AND its click surface —
         // it must raycast, or the EventSystem never delivers the slider a
@@ -322,23 +351,6 @@ public static class MenuBuilder
         slider.minValue = min;
         slider.maxValue = max;
         slider.SetValueWithoutNotify(Mathf.Clamp(value, min, max));
-
-        if (format == null) format = Percent;
-        TextMeshProUGUI readout = Label(slot, format(slider.value),
-            MenuStyle.SmallSize, MenuStyle.TextMuted, TextAlignmentOptions.MidlineRight);
-        RectTransform rrt = readout.rectTransform;
-        rrt.anchorMin = new Vector2(0.80f, 0f);
-        rrt.anchorMax = new Vector2(1f, 1f);
-        rrt.offsetMin = Vector2.zero;
-        rrt.offsetMax = Vector2.zero;
-
-        slider.onValueChanged.AddListener(v =>
-        {
-            readout.text = format(v);
-            onChange?.Invoke(v);
-        });
-
-        if (description != null) RowDescription(parent, description);
         return slider;
     }
 
@@ -839,6 +851,59 @@ public static class MenuBuilder
         rt.offsetMin = Vector2.zero;
         rt.offsetMax = Vector2.zero;
         return b;
+    }
+
+    /// <summary>
+    /// A row of equal buttons that behave as one choice (2026-09-17): the caller
+    /// lights the active one with <see cref="TintTabs"/>, as the combat box does.
+    /// Replaces the stepper wherever every option should be visible at once —
+    /// three weapons, Make / Learn.
+    /// </summary>
+    public static Button[] SegmentButtons(Transform parent, string[] names, float height, float fontSize, Action<int> onPick,
+                                          float spacing = 4f)
+    {
+        GameObject rowGo = new GameObject("Segments", typeof(RectTransform), typeof(HorizontalLayoutGroup), typeof(LayoutElement));
+        rowGo.transform.SetParent(parent, false);
+        rowGo.GetComponent<LayoutElement>().preferredHeight = height;
+        HorizontalLayoutGroup row = rowGo.GetComponent<HorizontalLayoutGroup>();
+        row.spacing = spacing;
+        row.childControlWidth = true;
+        row.childControlHeight = true;
+        row.childForceExpandWidth = true;
+        row.childForceExpandHeight = true;
+        row.childAlignment = TextAnchor.MiddleCenter;
+
+        Button[] buttons = new Button[names.Length];
+        for (int i = 0; i < names.Length; i++)
+        {
+            int idx = i;
+            Button b = MenuButton(rowGo.transform, names[i], () => onPick(idx));
+            LayoutElement le = b.GetComponent<LayoutElement>();
+            le.preferredHeight = le.minHeight = height;
+            TextMeshProUGUI label = b.GetComponentInChildren<TextMeshProUGUI>();
+            if (label != null)
+            {
+                label.fontSize = fontSize;
+                label.textWrappingMode = TextWrappingModes.NoWrap;
+                label.overflowMode = TextOverflowModes.Ellipsis;
+            }
+            buttons[i] = b;
+        }
+        return buttons;
+    }
+
+    /// <summary>A <see cref="SettingRow"/> whose control slot is a <see cref="SegmentButtons"/> row filling it.</summary>
+    public static Button[] SegmentRow(Transform parent, string label, string[] names, Action<int> onPick,
+                                      float height = -1f, float fontSize = -1f)
+    {
+        float h = height > 0f ? height : MenuStyle.CompactRowHeight;
+        SettingRow(parent, label, out RectTransform slot, h);
+        Button[] buttons = SegmentButtons(slot, names, h - 4f, fontSize > 0f ? fontSize : MenuStyle.SmallSize, onPick);
+        RectTransform rt = (RectTransform)buttons[0].transform.parent;
+        Stretch(rt);
+        rt.offsetMin = new Vector2(0f, 2f);
+        rt.offsetMax = new Vector2(0f, -2f);
+        return buttons;
     }
 
     /// <summary>Fills the parent rect exactly. Code-created RectTransforms do not do this by default.</summary>

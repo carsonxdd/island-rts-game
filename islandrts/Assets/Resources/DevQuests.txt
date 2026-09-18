@@ -17,7 +17,7 @@
 #   priority  priority:forage_back  priority:craft_wins  worker_click  worker_click:busy
 #   craft_by_colonist  craft_by_player  craft:specialist_holds  hud:food
 #   stance:<defensive|offensive|follow>  stance_key:follow  combat_box:<shown|hidden|stance>
-#   formation:<line|wedge|ring|loose|auto>  formation:auto_line  collapse  collapse:restored
+#   formation:<line|wedge|ring|loose|auto>  formation:auto_line
 #   rebind:militia  engage:<follow|offensive>  intercept:advance  kite:<offensive|hold>
 #   attack_slots:3  patrol:archer  patrol:spread  arrow_hit  knockout  knockout:follow
 #   dawn:held  dawn:released  dawn:quiet  garrison  raid:lurking  raider:warped
@@ -41,12 +41,31 @@
 #   muster:bell  muster:dismiss  muster:key  combat_box:bell  stand_down  stand_down:job_back
 #   sleep:moved_in  raid:repelled  hold:gate  hold:post
 #   build:storehouse  dropoff:storehouse  deposit:storehouse
+#   panel:colony  panel:bench  panel:swap  tooltip  bench:learn
 # crowd:split, dropoff:spread and patrol:spread are STATE checks polled by the
 # tracker twice a second while their quest is open; everything else is an event.
 # A finished batch is deleted from here once its report is in; it stays in the
 # changelog and the phase history. Quest ids are batch slug + index, so a batch
 # that loses quests from the middle needs a RESET on the DEV tab (done 2026-09-13
 # after the first report, Playtests/playtest_2026-09-13_2204.md).
+
+## 2026-09-17 Campfire panel in two halves
+- @panel:colony Left-click the fire: COLONY opens, one column, no tabs, no folds
+- COLONY fits on screen at 1080p with the HUD strip beside it
+- @panel:swap BENCH on the title bar swaps to the bench in the same corner
+- @panel:bench Click a Workshop: BENCH alone, titled WORKSHOP, no COLONY button
+- @bench:learn LEARN shows research on one line each; MAKE shows the recipes
+- @tooltip Hover a row: its help shows beside the pointer, never blocks a click
+- Tooltip vanishes when the panel closes under the pointer
+- @picker Click a weapon on the Arm-with row: it lights, the count reads stock
+- Priorities row: four mini sliders, each drags without moving the panel
+- People window scrolls; the wheel over it never zooms the camera
+- Stock line reads Room x / y and every stored kind; empty says so
+- Queue shows five rows and "... and N more"; Remove drops the right entry
+- Send button greys out instead of vanishing; the panel never resizes
+- Esc closes whichever half is open; the next Esc pauses
+- Drag either half by its title; it comes back where you left it
+- Stance, formation and bell are only in the militia box, and still work
 
 ## 2026-09-17 Changelog folds
 - @changelog:expand Unfold an older changelog entry from its summary line
@@ -82,7 +101,7 @@
 - @dropoff:storehouse A worker from that forest hands in at the store, not the fire
 - Workers by the fire still deliver at the fire (nearest wins)
 - @deposit:storehouse Right-click the Storehouse with sticks in hand: they land in the fire's stockpile
-- Stockpile tab capacity rose by 20 per Storehouse
+- The Stock line's room rose by 20 per Storehouse
 - Demolish the Storehouse (Delete / X): half its cost back, workers go back to the fire
 - Raiders attack a Storehouse on their way in; a worker whose store burns mid-trip walks to the fire
 - F4 rival camp: the rival builds its own Storehouse by its far work in time
@@ -94,8 +113,8 @@
 - Start from the main menu: PerfLogs/perf_latest.log shows the island scene
 
 ## 2026-09-16 The levy
-- The Levy row on the Defence section counts the spare weapons in stock
-- @muster:bell Ring the bell (F10 or the panel) and see the banner
+- The Defence hint line counts the spare weapons in stock
+- @muster:bell Ring the bell (F10 or the militia box) and see the banner
 - @muster A colonist walks to the fire and comes out a warrior
 - @muster:threat Raiders at the fire raise the levy with no bell rung
 - @muster:asleep A hut sleeper gets up and walks to the fire for a spear
@@ -121,7 +140,7 @@
 - @trait:night_owl A Night Owl is still working past midnight
 - @trait:early_riser An Early Riser is up before the sky brightens
 - @trait:lazy A Lazy colonist sleeps in past dawn
-- The People list on the Colonists tab shows name, trait, role, doing
+- The People window on COLONY shows name, trait, role, doing
 - A sleeper by the fire never blocks a deposit or the bench
 - A sleeper inside a hut sleeps through a raid outside it
 - The longer day (150 s / 75 s) reads right on the HUD dial
@@ -195,7 +214,7 @@
 - Shift + right-click a site queues the build behind the current order
 - Ground click beside the fire with empty hands is just a walk there
 - Right-click the fire itself still deposits and works the queue
-- Queue tab names how many are at the bench; later rows show a %
+- The BENCH queue names how many are at the bench; later rows show a %
 - One spear queued draws one colonist, not the whole idle pool
 - Your castaway at a full bench still gets a place
 - Walk off mid-spear, come back: the progress is still there
@@ -247,7 +266,7 @@
 - HUD chips read 100W 50F 0S 0M at the fire; deposits, builds, refunds move them
 - A survivor still lands ~20 s after the fire and walks to it; a hut brings another
 - @hungry Zero the food (F4 Starve): HUNGRY banner, then a colonist leaves
-- Priority sliders, stance and formation steppers still move the colony as before
+- Priority sliders and the militia box still move the colony as before
 - F4 Research Everything: every row reads Done, Sharpened Tools speeds gathering
 - @engage:offensive Warriors on Offensive still hunt raiders across the island
 - Workers still flee to the nearest hut; a raider at a wall still draws DefendWall
@@ -374,7 +393,7 @@
 - Workers deliver to the fire without shoving through warriors
 
 ## 2026-09-07 Combat box and folding sections
-- @combat_box:stance Click a stance in the box: the panel's Stance stepper follows
+- @combat_box:stance Click a stance in the box: it lights and the militia obeys
 - @stance_key:follow Press F9: Follow lights up in the box and warriors come to you
 - @rebind:militia Rebind a stance key in Options > Controls, Militia; hint updates
 
@@ -399,7 +418,7 @@
 - @tracker Toggle the HUD tracker off and on from the DEV tab
 
 ## 2026-09-07 Priorities
-- @priority Move a priority slider on the Colonists tab
+- @priority Move a priority slider on COLONY
 - @priority:craft_wins Craft 100 / Build 50: idle colonist picks a bench over a site
 - @priority:forage_back Forage at 0: nobody tidies the beach; back up and they do
 - @worker_click:busy Left-click on a working colonist (with a job) does nothing

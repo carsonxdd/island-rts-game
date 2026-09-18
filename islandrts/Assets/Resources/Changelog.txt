@@ -13,6 +13,22 @@
 # Rewritten 2026-09-17 as a themed history; the 74 entries it replaced are in
 # docs/CHANGELOG_ARCHIVE.md. From here on, add a dated entry per change on top.
 
+## 2026-09-17 — The campfire panel, in two halves
+The five-tab campfire panel is now two short panels, COLONY and BENCH, with no tabs and no fold-outs.
+- Left-click the fire (or a jobless colonist) for COLONY: jobs and specialists as
+  one compact list, the People window, the four priorities on one row, warriors
+  and the weapon the next recruit takes, and the stockpile on one line. It fits
+  on the screen with nothing folded.
+- The BENCH button on its title bar swaps to the bench in the same corner: a
+  MAKE / LEARN switch over one list, each recipe or research on a single line
+  with its cost, and the queue docked underneath with a Remove per entry. A
+  Workshop opens BENCH on its own. COLONY on the bench's title bar swaps back.
+- The help lines under every control are gone from the flow: hover a row for a
+  tooltip. Rows are shorter, so the whole panel is about half the height.
+- Stance, formation and the bell live in the militia box, bottom-right, and
+  nowhere else. The stockpile's breakdown by kind is still the HUD chips.
+- Both panels are draggable by their title and remember where you left them.
+
 ## 2026-09-17 — A shorter changelog
 Every entry now folds to a title and a one-line summary. Click it for the details.
 - The changelog was seventy-odd entries long. It is now a handful of themed

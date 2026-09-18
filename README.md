@@ -21,8 +21,8 @@ A Unity real-time-strategy survival game. You are one named character on a proce
 
 1. **NEW GAME** → difficulty (Normal is the intended balance) → **BEGIN**, then name your castaway.
 2. Right-click sticks and stones on the beach to gather them, right-click to walk ashore, then **B** and click to place the campfire. It is free and one-time.
-3. Right-click the fire to deposit, then use the panel's **Research** tab. Woodcutting teaches the colony to cut wood *and* hands you the Stone Axe; Quarrying does the same with the Stone Pick; Construction opens build mode; Spearcraft opens spears. Your character has to stand at the bench while the queue runs.
-4. Survivors land while there is free housing (the campfire sleeps 3, a hut 2). The **Colonists** tab hands them the jobs you have researched. Press **B** to build huts — a site only rises while someone works it: an idle colonist, or your castaway when you right-click the site. Keep one or two colonists unassigned anyway; a colony where everyone gathers has nobody to build.
+3. Right-click the fire to deposit, then left-click it, press **BENCH** on the panel's title bar and switch to **LEARN**. Woodcutting teaches the colony to cut wood *and* hands you the Stone Axe; Quarrying does the same with the Stone Pick; Construction opens build mode; Spearcraft opens spears. Your character has to stand at the bench while the queue runs.
+4. Survivors land while there is free housing (the campfire sleeps 3, a hut 2). The **COLONY** panel (left-click the fire) hands them the jobs you have researched. Press **B** to build huts — a site only rises while someone works it: an idle colonist, or your castaway when you right-click the site. Keep one or two colonists unassigned anyway; a colony where everyone gathers has nobody to build.
 5. Watch the calendar chip. The first two nights are always quiet; from day 3 a dawn can turn it red with "Raid tonight · N raiders". That is your day to craft spears and arm warriors.
 6. Reach the dawn after day 30 and the rescue ship arrives.
 
@@ -42,7 +42,7 @@ A Unity real-time-strategy survival game. You are one named character on a proce
 | **F10** | Ring the bell: one colonist per spare weapon in stock arms; press again to stand them down |
 | **Right-click** | Command your character: fetch, hand-harvest, deposit and work the queue, work a bench, build a site, or walk. A green ring marks the click and a trail shows the path |
 | **Shift + Right-click** | Queue the order behind the current one; a plain right-click clears the queue. In build mode, **Shift + Left-click** places a building and keeps the ghost for the next |
-| **Left-click** | Open a building's panel. The only gesture that opens UI |
+| **Left-click** | Open a building's panel: the campfire's COLONY (jobs, people, priorities, defence, stock) with a BENCH button for make / learn / queue; a Workshop opens its bench. Hover a row for help. The only gesture that opens UI |
 | **Space** | Centre the camera on your character |
 | **Left-click / drag the minimap** | Centre the camera there (the north-up map in the top-right corner) |
 | **Esc** | Cancel the active mode, or open the pause menu when nothing is active |

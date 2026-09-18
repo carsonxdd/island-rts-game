@@ -73,12 +73,11 @@ and the debug keys F3 / F4 / F6 / F7.
 
 | Input | Action |
 |---|---|
-| Left-click campfire | Campfire panel: Colonists · Stockpile · Craft · Research · Queue tabs. Left-click is the only gesture that opens it; a right-click deposit never does |
-| Click workshop | Crafting panel (Esc closes) |
+| Left-click campfire | COLONY panel (jobs, people, priorities, defence, stock); its BENCH button swaps to the bench (make, learn, queue) in the same corner. Left-click is the only gesture that opens it; a right-click deposit never does. Hover a row for its help |
+| Click workshop | BENCH panel for the Workshop (Esc closes) |
 | Space | Centre the camera on your character (rebindable, "Character" group) |
 | F5 / F8 / F9 | Militia stance: Defensive / Offensive / Follow (rebindable, "Militia" group). The same three buttons, plus the formation buttons, sit in the bottom-right box once you have a warrior |
-| F10 | Ring the bell: one colonist per spare weapon in stock arms and stays armed; press again to stand them down (rebindable, "Militia" group). Also the Bell row on the Defence section and the bottom button of the militia box, which shows once you have a warrior or a spare weapon |
-| Click a section header | Campfire panel, Colonists tab: Jobs / Specialists / Priorities / Defence fold and unfold (remembered) |
+| F10 | Ring the bell: one colonist per spare weapon in stock arms and stays armed; press again to stand them down (rebindable, "Militia" group). Also the bottom button of the militia box, which shows once you have a warrior or a spare weapon |
 | Esc | Cancels the active mode; pauses when nothing is active (not rebindable) |
 | F2 | Build grid overlay — also auto-shows while build mode is active |
 | F3 | AI debug overlay (editor only) |
