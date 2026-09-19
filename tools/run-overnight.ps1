@@ -95,9 +95,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
-$project = Join-Path $root "islandrts"
-$exe = Join-Path $project "Build\SimPlayer\islandrts-sim.exe"
-$dll = Join-Path $project "Build\SimPlayer\islandrts-sim_Data\Managed\Assembly-CSharp.dll"
+$project = Join-Path $root "foundingtide"
+$exe = Join-Path $project "Build\SimPlayer\foundingtide-sim.exe"
+$dll = Join-Path $project "Build\SimPlayer\foundingtide-sim_Data\Managed\Assembly-CSharp.dll"
 $runSim = Join-Path $PSScriptRoot "run-sim.ps1"
 $summarize = Join-Path $PSScriptRoot "summarize-sim.ps1"
 $simLogs = Join-Path $root "SimLogs"

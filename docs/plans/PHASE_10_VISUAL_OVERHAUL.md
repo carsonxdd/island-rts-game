@@ -37,7 +37,7 @@ Replace primitive geometry and default lighting with a cohesive stylized low-pol
 - Townscaper
 - Islanders
 
-Visual reference is the **Castaway Colony main menu mockup** — sunset palette, low-poly islands, stylized water, soft DOF on background.
+Visual reference is the **Founding Tide main menu mockup** — sunset palette, low-poly islands, stylized water, soft DOF on background.
 
 For gameplay we want the same vibe but optimized for top-down RTS framing: **no DOF, no macro lensing, readable silhouettes from the play camera height.** Match the mockup's palette, water quality, and silhouette clarity — not its composition.
 

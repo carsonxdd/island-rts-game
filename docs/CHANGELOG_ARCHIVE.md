@@ -1,6 +1,6 @@
 # Changelog archive (moved out of the game on 2026-09-17)
 
-The in-game changelog (`islandrts/Assets/Resources/Changelog.txt`) was rewritten on 2026-09-17 as a short themed history with a summary line per entry. Every entry it replaced is kept here verbatim, newest first, in the old format. Nothing reads this file; it is the record.
+The in-game changelog (`foundingtide/Assets/Resources/Changelog.txt`) was rewritten on 2026-09-17 as a short themed history with a summary line per entry. Every entry it replaced is kept here verbatim, newest first, in the old format. Nothing reads this file; it is the record.
 
 ---
 

@@ -3,11 +3,11 @@
     Runs a balance-simulation sweep against the headless sim player.
 
 .DESCRIPTION
-    Launches Build/SimPlayer/islandrts-sim.exe with -batchmode -nographics and
+    Launches Build/SimPlayer/foundingtide-sim.exe with -batchmode -nographics and
     the given sweep file, waits for it to finish, and prints a summary of the
     runs.csv it produced.
 
-    Build the player first: Unity > Tools > Island RTS > Simulation >
+    Build the player first: Unity > Tools > Founding Tide > Simulation >
     Build Headless Sim Player.
 
 .PARAMETER Sweep
@@ -110,11 +110,11 @@ param(
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
-$exe = Join-Path $root "islandrts\Build\SimPlayer\islandrts-sim.exe"
+$exe = Join-Path $root "foundingtide\Build\SimPlayer\foundingtide-sim.exe"
 $sweepPath = if ([System.IO.Path]::IsPathRooted($Sweep)) { $Sweep } else { Join-Path $root $Sweep }
 
 if (-not (Test-Path $exe)) {
-    Write-Error "Sim player not found at $exe`nBuild it first: Unity > Tools > Island RTS > Simulation > Build Headless Sim Player"
+    Write-Error "Sim player not found at $exe`nBuild it first: Unity > Tools > Founding Tide > Simulation > Build Headless Sim Player"
 }
 
 # Grid shape, 0 outside the lab: the window sizing and the tiler both read it.
@@ -171,7 +171,7 @@ if ($Lab) {
     $gridRows = $labSeeds.Count
 }
 elseif (-not (Test-Path $sweepPath)) {
-    Write-Error "Sweep file not found: $sweepPath`nWrite a starter one: Unity > Tools > Island RTS > Simulation > Write Example Sweep"
+    Write-Error "Sweep file not found: $sweepPath`nWrite a starter one: Unity > Tools > Founding Tide > Simulation > Write Example Sweep"
 }
 
 $winW = 640

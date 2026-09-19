@@ -1,4 +1,4 @@
-# Island RTS — Controls
+# Founding Tide — Controls
 
 The full control reference for the current build. Every key here is a **default**;
 `KeyBindings.cs` is the single source of truth and *Options → Controls* rebinds all
@@ -6,7 +6,7 @@ of them.
 
 **The playtest checklists that used to live in this file are gone (2026-09-10).**
 They were replaced by the dev-quest loop: each feature adds a batch to
-`islandrts/Assets/Resources/DevQuests.txt`, the game shows the open quests on a
+`foundingtide/Assets/Resources/DevQuests.txt`, the game shows the open quests on a
 PLAYTEST tracker (top-right, editor and development builds) and the full list under
 **Esc → Information → DEV**, where each quest takes done / PASS / FAIL and a note.
 Most quests tick and pass themselves from a signal raised at the point of effect;
@@ -41,7 +41,7 @@ and the debug keys F3 / F4 / F6 / F7.
 | Input | Action |
 |---|---|
 | B | Enter build mode |
-| 1 | Hut |
+| 1 | Tent (upgrades into a Hut; the Hut is never placed directly) |
 | 2 | Wooden Wall |
 | 3 | Stone Wall |
 | 4 | Watchtower |
@@ -54,6 +54,7 @@ and the debug keys F3 / F4 / F6 / F7.
 | G | Convert the hovered wall into a gate (costs 5 wood) |
 | Esc / Right click | Cancel |
 | Delete or X | Demolish mode (50% refund; campfire protected) |
+| Left click a building | Selected-building card: level, health, Upgrade, Demolish (2026-09-18) |
 
 ### Opening sequence — `GameStartController.cs`
 
@@ -132,11 +133,11 @@ builds ship without them.
 
 One menu item does all of it, and its order is load-bearing:
 
-**`Tools > Island RTS > Setup Everything (In Order)`**
+**`Tools > Founding Tide > Setup Everything (In Order)`**
 
 It is idempotent. Re-run it after pulling anything that touched art, prefabs or scene
 wiring. It leaves `MainMenu` open, which is what a build starts on;
-`Tools > Island RTS > Open Game Scene (MainIsland)` jumps straight to gameplay.
+`Tools > Founding Tide > Open Game Scene (MainIsland)` jumps straight to gameplay.
 
 The game scene is `Assets/MainIsland.unity`. `Assets/Scenes/SampleScene.unity` is the
 leftover stock Unity scene and is not in the build.

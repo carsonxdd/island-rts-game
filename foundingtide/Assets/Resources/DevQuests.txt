@@ -1,0 +1,506 @@
+# Founding Tide — playtest quests (editor and development builds only).
+# Shown on the HUD tracker and on Esc > Information > DEV. Newest batch first.
+#
+#   ## yyyy-mm-dd Feature          a batch: one recent change to test
+#   - @signal Short quest text     ticks itself (done + PASS) when the game raises that signal
+#   - Short quest text             the tester ticks it after checking
+#
+# Keep a quest under ~70 characters — it is one line on the panel. A signal is
+# the proof, so a quest only stays manual when nothing in code can see it (a
+# look, a feel, a "nothing bad happened over time"). Signals come from
+# DevQuests.Signal(...) at the point of effect; the set in use:
+#   research:<id>  craft:<id>  build:<buildingtype>  build:player  specialist:<trade>
+#   specialist:idle  specialist:locked  warrior  archer  warrior:6  rearm  picker
+#   recruit:no_idle  recruit:housing_full  hungry  starving  colonist_left
+#   raid  raid:ramp  raid_survived  victory  escape  defeat  continue  continue:escape
+#   deposit  campfire  info  info:<tab>  info:dev  tracker  report  auto  persisted
+#   priority  priority:forage_back  priority:craft_wins  worker_click  worker_click:busy
+#   craft_by_colonist  craft_by_player  craft:specialist_holds  hud:food
+#   stance:<defensive|offensive|follow>  stance_key:follow  combat_box:<shown|hidden|stance>
+#   formation:<line|wedge|ring|loose|auto>  formation:auto_line
+#   rebind:militia  engage:<follow|offensive>  intercept:advance  kite:<offensive|hold>
+#   attack_slots:3  patrol:archer  patrol:spread  arrow_hit  knockout  knockout:follow
+#   dawn:held  dawn:released  dawn:quiet  garrison  raid:lurking  raider:warped
+#   gearup  gearup:job  gearup:idle  gearup:delivered  gearup:after_flee
+#   stroll  stroll:home  stroll:interrupted  stroll:campfire_only
+#   crowd:split  dropoff:spread  forage:shed  pickup:unreachable  shed:stone  pickup:player:stone
+#   fog:node_revealed  fog:raider_revealed  reveal:<on|off>  cheat:stock_full
+#   fog:node_skipped  fog:raider_unseen  fog:ghost  fog:wall  minimap:click  minimap:landing
+#   sky:<sunny|slightly|partly|cloudy|off>  graphics:<preset|custom>
+#   faction:bootstrap  faction:rival  faction:<hostile|neutral|allied>  loot
+#   changelog:<expand|collapse>
+#   repair  repair:gate  raid:rested  raider:wall_stop  raider:wall_over_warrior
+#   rival:landed  rival:met  rival:territory  rival:governed  rival:built  rival:recruited
+#   diplomacy:<hostile|neutral|allied>  diplomacy:attacked  diplomacy:trespass  diplomacy:peace
+#   diplomacy:war  diplomacy:screen  diplomacy:landing  diplomacy:relief  raid:target_rival
+#   queue:add  queue:run  deposit:walk_on  craft:shared  build:keep_placing
+#   loiter:step_aside  loiter:patrol_moved_on
+#   persona  persona:kept  sleep  sleep:hut  sleep:fire  sleep:delivered  sleep:wake  sleep:raid
+#   trait:<steady|night_owl|early_riser|hardy|lazy>
+#   levy:fell  muster  muster:called  muster:threat  muster:asleep  muster:home
+#   muster:bell  muster:dismiss  muster:key  combat_box:bell  stand_down  stand_down:job_back
+#   sleep:moved_in  raid:repelled  hold:gate  hold:post
+#   build:storehouse  dropoff:storehouse  deposit:storehouse
+#   panel:colony  panel:bench  panel:swap  tooltip  bench:learn
+#   build:tent  build:upgrade  build:upgrade:<buildingtype>  build_palette:pick
+#   building_card:open
+# crowd:split, dropoff:spread and patrol:spread are STATE checks polled by the
+# tracker twice a second while their quest is open; everything else is an event.
+# A finished batch is deleted from here once its report is in; it stays in the
+# changelog and the phase history. Quest ids are batch slug + index, so a batch
+# that loses quests from the middle needs a RESET on the DEV tab (done 2026-09-13
+# after the first report, Playtests/playtest_2026-09-13_2204.md).
+
+## 2026-09-19 Build grid respects the fog
+- Press B on day 1: the grid stops at explored ground
+- No grid over the dark island across the map
+- Walk a colonist out: grid fades in behind them
+- Grid still covers every cell a building may go on
+- Grid lines are not magenta (shader loaded)
+
+## 2026-09-18 Hover hints stop eating clicks
+- @panel:swap Click BENCH on the campfire panel and land on the bench
+- @panel:swap Click COLONY on the bench and land back on the colony
+- @research:woodcutting Pick LEARN and research Woodcutting from the bench
+- @build:player Click a build palette tile and place the building
+- Hover a hinted button: the hint still appears, the click still works
+- No placeholder Building Name / Cost / Hint box on screen any more
+
+## 2026-09-18 Tents, the build palette and upgrades
+- @build_palette:pick B opens a bar of tiles; clicking one selects it
+- Bar is grouped HOUSING / PRODUCTION / DEFENCE / SPECIAL
+- Tile shows its hotkey, name and cost; cost turns red when unaffordable
+- Workshop / Shipyard / Storehouse tiles read Locked before their research
+- Hovering a tile explains the building and what it needs
+- Clicking a tile does NOT also place a building under the bar
+- Camera does not edge-pan while the mouse is over the bar
+- Dragging a wall line shows a running "Wood Wall x12" total
+- @build:tent Key 1 places a Tent; there is no Hut in the palette
+- Tent costs 10 wood, sleeps one, and goes up fast
+- @building_card:open Left-clicking a tent opens a card, bottom-left
+- Card shows Level 1, a health bar, and "Sleeps 1 colonist"
+- @build:upgrade Upgrade button turns the tent into a hut site
+- Upgrade button is greyed with a reason when it cannot be used
+- Card warns that the beds go while it builds; red if raiders ashore
+- Colonists build the upgrade site; the sign reads "Upgrading..."
+- Finished hut sleeps two, and the homeless colonist moves back in
+- Esc closes the card without opening the pause menu
+- Right-clicking a tent still commands the castaway, opens nothing
+- Demolish on the card refunds half, same as demolish mode
+- Demolishing a Tent refunds 5 wood, not a Hut's 10
+- A rival's tent opens no card when clicked
+- Rival colonies build tents and upgrade them in their own time
+
+## 2026-09-17 Renamed to Founding Tide
+- Title screen reads FOUNDING TIDE on one line, not clipped
+- Title is not auto-shrunk to a stub; it fills the panel width
+- Version line under the buttons reads v0.3.0-alpha.1
+- CHANGELOG's newest entry is the name change, open by default
+- INFORMATION screen names no old title anywhere
+- Pause menu, victory and defeat screens name no old title
+- Editor: Tools > Founding Tide > Setup Everything runs end to end
+- Nothing renders magenta: water, clouds, trees, walls, buildings
+- Unit windows still open in trees and walls near a colonist
+
+## 2026-09-17 Campfire panel in two halves
+- @panel:colony Left-click the fire: COLONY opens, one column, no tabs, no folds
+- COLONY fits on screen at 1080p with the HUD strip beside it
+- @panel:swap BENCH on the title bar swaps to the bench in the same corner
+- @panel:bench Click a Workshop: BENCH alone, titled WORKSHOP, no COLONY button
+- @bench:learn LEARN shows research on one line each; MAKE shows the recipes
+- @tooltip Hover a row: its help shows beside the pointer, never blocks a click
+- Tooltip vanishes when the panel closes under the pointer
+- @picker Click a weapon on the Arm-with row: it lights, the count reads stock
+- Priorities row: four mini sliders, each drags without moving the panel
+- People window scrolls; the wheel over it never zooms the camera
+- Stock line reads Room x / y and every stored kind; empty says so
+- Queue shows five rows and "... and N more"; Remove drops the right entry
+- Send button greys out instead of vanishing; the panel never resizes
+- Esc closes whichever half is open; the next Esc pauses
+- Drag either half by its title; it comes back where you left it
+- Stance, formation and bell are only in the militia box, and still work
+
+## 2026-09-17 Changelog folds
+- @changelog:expand Unfold an older changelog entry from its summary line
+- @changelog:collapse Fold the open entry back to its summary
+- Each summary reads as one plain sentence about that entry
+- Bullets and summaries wrap without clipping in the scroll list
+- The main menu "updated" line still shows the newest entry's date
+
+## 2026-09-17 Overnight read
+- A rival's ring gate stays theirs: your militia never posts at it (F3)
+- Raiders at a rival's gate do not read as "your wall under attack"
+- Castaway on a Work order stays at the bench when a colonist's lane is evicted
+
+## 2026-09-17 Holding the line
+- @hold:gate Defensive militia forms up inside the gate the raiders come at
+- @hold:post A warrior holds a post on the line (no gate: camp edge)
+- Line stays put as raiders approach; nobody charges out at 30 m
+- Spearmen never run out through the gate after a raider; archers shoot over
+- A raider that backs off is dropped and the warrior returns to the line
+- Switch to Offensive mid-raid: the line breaks into the advance
+- @muster:home A levied colonist with a hut arms at their own door
+- Stand down walks home too; fire-homed colonists still use the fire
+- @sleep:moved_in Fire-side sleepers move into the first hut with room
+- A colonist lying by the fire gets up and goes in the night a hut finishes
+- New arrivals take a hut bed before the fire's three
+- Castaway walks through an idle crowd at the fire; they step aside
+- @raid:repelled Calendar reads "Raid repelled" once the last raider falls
+- Levy stands down about 30 s after the last raider (heal first if hurt)
+
+## 2026-09-16 Storehouse
+- @research:storage_pits Research Storage Pits; key 7 in build mode shows the Storehouse
+- @build:storehouse Place a Storehouse beside a far forest and let it finish
+- @dropoff:storehouse A worker from that forest hands in at the store, not the fire
+- Workers by the fire still deliver at the fire (nearest wins)
+- @deposit:storehouse Right-click the Storehouse with sticks in hand: they land in the fire's stockpile
+- The Stock line's room rose by 20 per Storehouse
+- Demolish the Storehouse (Delete / X): half its cost back, workers go back to the fire
+- Raiders attack a Storehouse on their way in; a worker whose store burns mid-trip walks to the fire
+- F4 rival camp: the rival builds its own Storehouse by its far work in time
+
+## 2026-09-16 Big village hitch
+- At 50 colonists nobody freezes in unison; F6 log gcAllocB stays near 0
+- Labels on (Options): names, states and carry counts still read right
+- A raid: "Attacking X!" / "Moving to X" labels still follow the target
+- Start from the main menu: PerfLogs/perf_latest.log shows the island scene
+
+## 2026-09-16 The levy
+- The Defence hint line counts the spare weapons in stock
+- @muster:bell Ring the bell (F10 or the militia box) and see the banner
+- @muster A colonist walks to the fire and comes out a warrior
+- @muster:threat Raiders at the fire raise the levy with no bell rung
+- @muster:asleep A hut sleeper gets up and walks to the fire for a spear
+- One colonist per spare weapon walks, jobless first; nobody else moves
+- Recruit a warrior mid-muster: the claimant finds no spear and goes back
+- @stand_down After a quiet half minute an armed colonist walks to the fire
+- @stand_down:job_back They put the weapon in stock and pick up the same job
+- @muster:dismiss Silence the bell and they stand down at once
+- @combat_box:bell The militia box's bell button reads "Muster N" / "Stand down"
+- @levy:fell A levy dies as a warrior and the weapon is gone from stock
+- The People list reads "Warrior (levy)" while they are armed
+- The Warriors count and the raid banner ignore the levy
+- A carried load is banked, not lost, when a levy arms
+
+## 2026-09-16 Sleep and personalities
+- @persona A survivor lands with a name over their head
+- @persona:kept A recruit keeps their name as a warrior
+- @sleep:delivered A colonist carrying a load at midnight delivers it first
+- @sleep:hut After midnight hut dwellers vanish into their hut
+- @sleep:fire Someone bunking at the fire lies down beside it
+- @sleep:wake Everyone is up and working again at dawn
+- @sleep:raid Raiders near a fire-side sleeper wake them (they flee)
+- @trait:night_owl A Night Owl is still working past midnight
+- @trait:early_riser An Early Riser is up before the sky brightens
+- @trait:lazy A Lazy colonist sleeps in past dawn
+- The People window on COLONY shows name, trait, role, doing
+- A sleeper by the fire never blocks a deposit or the bench
+- A sleeper inside a hut sleeps through a raid outside it
+- The longer day (150 s / 75 s) reads right on the HUD dial
+
+## 2026-09-16 Room to pass
+- Ten workers at one tree and the fire: nobody stands frozen nose to nose
+- F3: ABANDON stays 0 over a full day; pass-through stays under ten
+- Two workers meeting on a path yield the same way every time (cargo first)
+- F5 Defensive with 6+ warriors: the line holds its spacing as men fall
+- F8 Offensive: the wedge keeps its shape into the fight
+
+## 2026-09-16 Taking a neighbour's camp
+- @diplomacy:landing F4 rival, Hostile, F8 Offensive: a party sails on it
+- The party hits huts and walls, then the fire (F3 "Engaging Hut")
+- @loot The rival fire falls to your warriors and its hoard drops as pickups
+- Your haulers carry the dropped wood and food home
+
+## 2026-09-16 Overnight batch answered
+- @raid:ramp On Hard or Brutal the first raids are smaller than the late ones
+- @rival:built A neighbour whose first hut never seated builds one itself
+- F4 rival, F3: a Turtle neighbour keeps spearmen, bows stay a third
+- F4 rival on a terraced island: its ring leaves cliff and sea unwalled
+
+## 2026-09-16 Shared ground
+- Meet a neighbour; on quiet days their opinion word does not cool by itself
+- @diplomacy:trespass Camp a warrior nearer THEIR fire than yours: it cools
+- A rival camp has a hut beside its fire on the day it lands (F4 or day 10)
+
+## 2026-09-16 Neighbours and the raid
+- @diplomacy:screen Open DIPLOMACY from the Neighbours entry or the pause menu
+- @diplomacy:peace Send a gift; the opinion word warms and the button locks for the day
+- @diplomacy:war Declare war: confirm, banner, the entry reads At war
+- @diplomacy:hostile A neighbour turns hostile on its own after two cool days
+- @diplomacy:allied A neighbour turns allied after two warm days
+- @diplomacy:trespass Your warriors camped in their patch cool them by dawn
+- @diplomacy:attacked A blow on their warrior is remembered
+- @raid:target_rival The dawn warning names the raid landing on another shore
+- @diplomacy:landing A hostile camp lands a party on your shore by day
+- @diplomacy:relief An allied camp sends warriors when raiders are at your fire
+- A raid on the rival lands over THEIR cove, not yours, and their militia meets it
+- A landing party fights your militia only, never your buildings, and is gone at dawn
+- An ally's camp and people show on the minimap without being watched
+- The calendar chip says "raiders sail elsewhere" on a night that is not yours
+- F3 shows the opinion number next to each relation
+
+## 2026-09-16 Neighbours that grow
+- @rival:governed A rival colony gets a governor the moment its fire stands
+- @rival:built A rival places a construction site of its own
+- @rival:recruited A rival arms a warrior from its own stockpile
+- F4 rival camp: F3 shows its strategy, goal and last action within a minute
+- By its fourth day a rival has a second hut and a wall segment under way
+- Its colonists stand at its own bench; the player's queue is untouched
+- Your research is never blocked by an entry queued at a rival bench
+- Raiders lurking at YOUR fire do not send the rival's militia marching over
+- A rival never researches Shipwright or builds a Shipyard
+
+## 2026-09-13 Nobody idles in the gateway
+- @loiter:step_aside An idle colonist stopped in a gate steps out of it
+- @loiter:patrol_moved_on A warrior whose walk ended in a gate moves on
+- Watch a busy gate for a day: no Idle colonist stands in or beside it
+- At night the colonists at home are all clear of the gates
+- Warriors guard beside a gate, on the wall cells, never in the opening
+- The step aside is a few metres, not a stroll, and happens at night too
+
+## 2026-09-13 Queued orders and shared benches
+- A plain right-click wipes the queue and does that instead
+- Queue three pickups then the fire: all fetched, all deposited
+- A queued pickup someone else took is skipped, not stuck on
+- A green ring flashes at every click, queued clicks too
+- A trail runs along the path while walking and is gone on arrival
+- Shift + right-click a site queues the build behind the current order
+- Ground click beside the fire with empty hands is just a walk there
+- Right-click the fire itself still deposits and works the queue
+- The BENCH queue names how many are at the bench; later rows show a %
+- One spear queued draws one colonist, not the whole idle pool
+- Your castaway at a full bench still gets a place
+- Walk off mid-spear, come back: the progress is still there
+- The run starts in the morning with the sun up, not at dawn
+
+## 2026-09-12 Solid unexplored fog
+- At noon, unexplored ground shows no hills, cliffs or coast shape
+- Unexplored land and sea are the same dark colour, day and night
+- Explored-but-unwatched ground still shows its trees in grey shroud
+- A reveal still grows smoothly out of the dark at the edge
+
+## 2026-09-11 Castaways on the far shore
+- @rival:territory Strip their patch bare: a rival works a node outside it
+- Their camp is invisible on the minimap until your people see it
+- Their survivors walk up from their own beach, not yours
+
+## 2026-09-11 Hoard cap and byproducts
+- Raids past day 15 feel sized to the colony, not to its bank
+
+## 2026-09-10 Raiders stay outside
+- @raider:wall_stop Seal the ring (huts in the gate openings): the raid lands outside it
+- @raider:wall_over_warrior Warriors inside, raiders out: they hit the wall, not stare
+- No raider ever appears inside a closed ring, landing or stuck-warp
+
+## 2026-09-10 Raid breather
+- Information > Raids names the two owed nights
+
+## 2026-09-10 Gates get repaired
+- @repair:gate A damaged gate is repaired to full by a jobless colonist
+- No "No BuildingData found for type WoodenGate" error in the console
+
+## 2026-09-10 Lurking raiders
+- @raider:warped A raider wedged for 20 s pops onto ground with a path to the fire
+- Go Offensive on a lurking raid: the militia walks out and finishes it
+- Dawn no longer waits three minutes on one stuck raider
+
+## 2026-09-10 Watchtower watches
+- @build:watchtower Place a Watchtower: it stands, shows a health bar when hit
+- A tower lifts the fog further out than a hut or a colonist does
+- Warriors fighting beside a tower show no "(Tower Buff)" label
+
+## 2026-09-10 Castaway builds
+- The site's percentage climbs while they stand there, stops when they walk off
+- Give every colonist a job, place a hut: it still goes up (no more stuck colony)
+- A colonist and the castaway on one site build it faster than either alone
+
+## 2026-09-09 Factions step 1
+- @faction:hostile F4 relation toggle to Hostile fires (rival camp, later commit)
+- HUD chips read 100W 50F 0S 0M at the fire; deposits, builds, refunds move them
+- A survivor still lands ~20 s after the fire and walks to it; a hut brings another
+- @hungry Zero the food (F4 Starve): HUNGRY banner, then a colonist leaves
+- Priority sliders and the militia box still move the colony as before
+- F4 Research Everything: every row reads Done, Sharpened Tools speeds gathering
+- @engage:offensive Warriors on Offensive still hunt raiders across the island
+- Workers still flee to the nearest hut; a raider at a wall still draws DefendWall
+- Campfire destroyed: defeat screen as before (the faction's campfire slot clears)
+- Rival workers chop, forage and quarry, and deliver to THEIR fire, never yours
+- F3 shows a Rivals line: its own wood/food/stone climb, yours do not
+- Rival things are hidden in your fog and show on the minimap in teal when watched
+- A raid lands nearer the rival camp: the raiders go for it, its warrior fights back
+- Relation Hostile: your warriors and theirs fight; Neutral again: they stop
+- Allied: no fighting, and both militias go for the same raiders
+- Left-click a rival fire or colonist: nothing opens; the combat box counts only yours
+- Rival campfire destroyed (F4 raids): no defeat screen for you
+- Your warriors patrol YOUR fire and huts, never the rival's; theirs stay at theirs
+- Your idle colonists stroll your camp only
+
+## 2026-09-09 Minimap
+- Map in the top-right shows the island shape; sea, sand, grass, rock read right
+- Unexplored ground is dark, explored dim, watched ground full colour, moving with you
+- Campfire (orange), huts/tower/Workshop (gold) and walls (tan) sit where they are
+- Colonists light dots, warriors gold, castaway white with a dark rim
+- Drag across the map: the camera follows smoothly
+- Clicking the map never places a building, demolishes or commands the castaway
+- Hovering the map does not edge-pan the camera
+- The white camera outline rotates with Q/E and grows when zooming out
+- Raiders show as red dots only on ground something of yours watches
+- The landing mark stays about a minute after the pulse stops
+- Dev-quest tracker sits below the map, not over it
+- F4 Reveal map: the whole island shows in full colour
+
+## 2026-09-09 Single tree model
+- Trees show one trunk and one crown, no taller second crown above it
+- A tree being chopped shrinks as a whole, nothing above it stays full size
+- A tree hidden by fog, then explored, still shows only one tree
+- Rocks, bushes, ore, crates and raiders look as before when explored
+
+## 2026-09-09 Fog gates
+- Workers never walk into unexplored ground to chop; they explore it first
+- Depleting the known trees makes workers spread outward, not stall at the fire
+- Raider walks into a warrior's sight: Engage picks it up within a second
+- A warrior in melee keeps its target; no drop when the raider is in reach
+- Watchtower spots a raid early: warriors engage before it reaches the fire
+- @fog:wall Drag a wall line into the dark: the dark cells are blocked
+- F4 Reveal map on: everything above places and gathers as before
+
+## 2026-09-09 Auto quests
+- Flip an auto PASS to FAIL on the DEV tab: it stays FAIL after a relaunch
+- RESET on the DEV tab clears the auto ticks too
+
+## 2026-09-09 Forage stutter
+- No colonist shuffles a metre forward/back at a pickup for more than ~2 s
+- A colonist walking into a group at a pickup does not catch the shuffle
+- Drop a pickup on unexplored ground (F4 reveal off): nobody goes for it
+
+## 2026-09-09 Fog of war
+- Press Play: island dark except a circle around the castaway; nothing magenta
+- Walk ashore: ground clears ahead in a soft-edged circle, no popping cells
+- Walk away: the ground behind you goes grey, not black, and stays grey
+- Sea near the cove is bright, sea past unexplored coast is dark
+- A stick or crate on unexplored ground cannot be hovered or right-clicked
+- Explore to a map edge: no lit strip of sea runs from it to the horizon
+- Open sea all round the cove; the shallows never stop on a straight line
+- Small / Medium / Large islands still look their size (20 m sea margin added)
+- @reveal:off F4 Reveal map on, then off: fog comes back to what you had explored
+- @cheat:stock_full F4 +5 Spears with a full stockpile (60/60): 5 spears appear anyway
+- Raiders in the shroud open no window through trees (no give-away hole)
+- @reveal:on F4 "Reveal map": whole island lit and every raider shown
+- Esc > main menu: menu island is NOT dark; New Game starts dark again
+
+## 2026-09-08 Crowding fixes
+- Nobody stands "Returning to base" at the fire for more than ~2 s
+- @specialist:idle Make a Builder with no site: label reads "Builder, idle"
+- That Builder stands at home (no strolling); a plain colonist strolls by day
+- No two workers stand in one spot at a tree
+
+## 2026-09-08 Occluder cutout
+- Walk a colonist behind a palm: a round window opens on them, tree stays solid
+- Same behind a round tree, a hut, the Watchtower, the Workshop, a wall line
+- Stand a colonist in FRONT of a tall palm: no window, palm untouched
+- The window follows a walking colonist with no lag or flicker
+- Two colonists behind one tree: both visible
+- Hover a tree with a window in it: gold glow still works
+- Bushes and low rocks never cut when a colonist stands beside them
+- The window does not show in the tree shadow on the ground
+- The window edge is a fine stipple, not a hard jagged ring
+- No magenta on any tree, building or wall (shader failed to compile)
+
+## 2026-09-08 Idle stroll
+- @stroll A plain "Idle" colonist stands 6-15 s, then walks to another building
+- On that walk the label reads Wandering, then Idle again when they stop
+- Specialists ("Builder, idle") wait at home by design and never stroll
+- Nobody strolls onto the campfire's drop-off edge or blocks deliveries
+
+## 2026-09-08 Version string
+- Main menu bottom line reads v0.2.0-alpha.1 · updated 2026-09-13
+
+## 2026-09-08 Reachable rocks
+- Walk the cliff feet: no big or medium boulder sits in a rock face
+- Assign a stone worker, then watch: no rock is queued and abandoned
+- Every boulder a worker walks to has room to stand all the way round
+- Small scenery rocks still dress the steep faces
+- Reroll two more seeds: stone count near the fire still feels normal
+- Wall a rock node in, then check nobody keeps walking to it
+
+## 2026-09-08 Clouds and graphics
+- Cloud shade has no hard edge and moves with its cloud all day
+- Puffs are see-through and patchy, never a solid white disc
+- A new sky blends in over about 30 s, nothing pops
+- Clouds at the bottom of the screen are not cut off at full zoom-out
+- Zoom fully out at low tilt: far trees still cast shadows
+- Pan at mid zoom: shadow edges do not crawl or flicker
+- @graphics:preset Options > Video > Graphics Low..Ultra changes shadows live
+- @sky:off Clouds Off: no puffs, no shade, plain sunny lighting
+
+## 2026-09-07 Warrior stances
+- @engage:follow Follow: walk into a raider, warriors engage it, then come back
+- @knockout:follow Get knocked out on Follow: warriors go back to holding the colony
+- Archer on Follow stops a few steps off you, not a bow-length away
+
+## 2026-09-07 Night lasts the raid
+- No raider ever vanishes at sunrise
+
+## 2026-09-07 Patrol freeze
+- Every idle warrior moves to a new post within ~20s; none frozen
+- Workers deliver to the fire without shoving through warriors
+
+## 2026-09-07 Combat box and folding sections
+- @combat_box:stance Click a stance in the box: it lights and the militia obeys
+- @stance_key:follow Press F9: Follow lights up in the box and warriors come to you
+- @rebind:militia Rebind a stance key in Options > Controls, Militia; hint updates
+
+## 2026-09-07 No warrior cap
+- Warriors row reads a plain count, no '/ 5'
+- @recruit:housing_full With every bed full, + on Warriors stays greyed
+
+## 2026-09-07 Water stripe
+- No cyan band from the cove to the horizon on the seed that showed one
+- Water at the very map edge reads deep, no seam on any size
+
+## 2026-09-07 Formations and archers
+- @intercept:advance Offensive: the group walks at the raiders, charges at ~20u
+- @kite:offensive Offensive archer backs off when a raider closes, still shooting
+- An archer never stands idle with a raider in bow range
+
+## 2026-09-07 Gear-up trip
+- 'Gearing up: Quarrier' shows over their head at the fire
+- @gearup:after_flee Change a job during a raid: they flee first, gear up after
+
+## 2026-09-07 Dev quests
+- @tracker Toggle the HUD tracker off and on from the DEV tab
+
+## 2026-09-07 Priorities
+- @priority Move a priority slider on COLONY
+- @priority:craft_wins Craft 100 / Build 50: idle colonist picks a bench over a site
+- @priority:forage_back Forage at 0: nobody tidies the beach; back up and they do
+- @worker_click:busy Left-click on a working colonist (with a job) does nothing
+
+## 2026-09-07 Utility colonists
+- @specialist:builder Pin a Builder from the Specialists rows
+- @specialist:crafter Pin a Crafter
+- @specialist:repairer Pin a Repairer
+- @craft:specialist_holds Pinned Crafter stays at the bench while a hut site waits
+- Pinned Builder ignores a queued bench; Repairer never tidies the beach
+- Unpinned colonist leaves the bench for a new site, then returns
+- @recruit:no_idle Recruit button disables with only specialists and nobody idle
+
+## 2026-09-07 Information screen
+- Six tabs plus DEV, captions on one line, BACK returns where you came from
+- Scroll position remembered per tab and across leaving the screen
+
+## 2026-09-04 Slice 3 Crafters and iron
+- @rearm A spearman fetches an Iron Spear from the stockpile in peacetime
+
+## 2026-09-04 Slice 4 Food
+- @hungry Let food run out: HUNGRY banner, work slows, no arrivals
+- @starving A full day without food: STARVING banner
+- @colonist_left A colonist walks to the cove and leaves
+- @hud:food Food chip breakdown shows the daily drain
+
+## 2026-09-04 Slice 5 Archers
+- Archer body differs from the spearman (after Setup Everything)
+
+## 2026-09-04 Slice 6 Escape
+- @escape Click the finished Shipyard, YES: ship sails, ESCAPED shows
+- @continue:escape KEEP PLAYING after ESCAPED resumes the game

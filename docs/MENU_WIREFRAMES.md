@@ -337,7 +337,7 @@ widths below and to the row rhythm; don't design to a fixed panel height.
 - The victory/defeat screens used to be **hand-built uGUI panels in the scene**
   (`VictoryDefeatUI`), which is why the earlier version of this document listed
   them as not matching the menu system. They now use these widgets, and
-  `Tools > Island RTS > Menus > Remove Legacy Victory-Defeat Panels` deletes the
+  `Tools > Founding Tide > Menus > Remove Legacy Victory-Defeat Panels` deletes the
   old scene objects.
 
 ---
@@ -420,7 +420,7 @@ Options and Controls.
 | Stepper arrows | 2 sprites | Left and right; currently the glyphs `<` and `>` |
 | Keycap chip | 9-slice PNG | Controls screen key slots — needs normal / hover / armed / empty |
 | Scrollbar | optional | Scroll regions currently have no visible track |
-| Wordmark | PNG / SVG | "Castaway Colony" — replaces the stacked-text placeholder |
+| Wordmark | PNG / SVG | "Founding Tide" — replaces the stacked-text placeholder |
 | Title backdrop | Full-bleed art | 16:9, safe area for a 460px panel centred |
 | Display typeface | Font file | Titles and buttons; mostly uppercase |
 | Body typeface | Font file | Settings rows; legible at 15–19px |

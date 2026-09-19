@@ -1,4 +1,4 @@
-# Island RTS Game
+# Founding Tide
 
 A Unity real-time-strategy survival game. You are one named character on a procedurally generated island. Survivors come ashore, you research the colony's first skills, hand out jobs, build defences, and hold the fire through raids that are announced at dawn and grow with your colony.
 
@@ -11,11 +11,11 @@ A Unity real-time-strategy survival game. You are one named character on a proce
 ## Quick Start
 
 1. Clone the repo
-2. Open `islandrts/` in Unity Hub (requires **Unity 6000.5.9f1**)
-3. **Run `Tools > Island RTS > Setup Everything (In Order)` once.** The art library, opening sequence, scatter settings, terrain, pickups/Workshop and the menu scene are all applied by editor tools, and their order is load-bearing. It is idempotent — re-run it after pulling anything that touched art, prefabs or scene wiring.
-4. It leaves `MainMenu` open, which is what a build starts on. Press Play. `Tools > Island RTS > Open Game Scene (MainIsland)` skips the title screen.
+2. Open `foundingtide/` in Unity Hub (requires **Unity 6000.5.9f1**)
+3. **Run `Tools > Founding Tide > Setup Everything (In Order)` once.** The art library, opening sequence, scatter settings, terrain, pickups/Workshop and the menu scene are all applied by editor tools, and their order is load-bearing. It is idempotent — re-run it after pulling anything that touched art, prefabs or scene wiring.
+4. It leaves `MainMenu` open, which is what a build starts on. Press Play. `Tools > Founding Tide > Open Game Scene (MainIsland)` skips the title screen.
 
-> `Assets/Scenes/SampleScene.unity` is the leftover stock Unity scene and is *not* the game. It is not in the build: `Setup Everything` writes the scene list as `MainMenu` then `MainIsland`. The version a build reports is `ProjectSettings > Player > Version` (`0.2.0-alpha.1`); bump it before each build handed out.
+> `Assets/Scenes/SampleScene.unity` is the leftover stock Unity scene and is *not* the game. It is not in the build: `Setup Everything` writes the scene list as `MainMenu` then `MainIsland`. The version a build reports is `ProjectSettings > Player > Version` (`0.3.0-alpha.1`); bump it before each build handed out.
 
 ### First game
 
@@ -71,7 +71,7 @@ All packages are in the project manifest. Nothing to install by hand.
 ## Project Structure
 
 ```
-islandrts/Assets/
+foundingtide/Assets/
 ├── Scripts/
 │   ├── AI/                      # Utility AI: Core, WorldState, Considerations, Executors, Shared, Debug
 │   ├── Factions/                # Faction, Factions registry, Relations, ResourcePool, Population, Knowledge, Spawn
@@ -153,7 +153,7 @@ Deeper technical notes, the gotcha list and the session log: [`.claude/CLAUDE.md
 | **Weather and light** | A sky condition rolled each dawn: drifting cloud puffs whose shade slides across the island as the sun's light cookie. Graphics presets in Options. |
 | **Rival colonies** | Optional, off by default (the Rivals setting on New Game). About a third of the way through the run another ship breaks up and its survivors found a colony on a far beach of their own. A banner says it happened, not where; their camp stays under your fog until your people find it. Every colony, yours included, prefers to gather around its own fire. A rival runs itself with one of the sim's three temperaments: it researches, builds huts and a wall, arms warriors, and faces the same raids you do — the dawn warning names whose shore the raiders make for, and the richer camp draws them more often. |
 | **Diplomacy** | What a colony thinks of you is a word on the DIPLOMACY screen (Esc, or the Neighbours entry on the bar once you have met them). Warriors on their side of the shared ground (nearer their fire than yours) and blows landed cool it; quiet days and peace warm it; two cool days make an enemy, two warm days an ally. Propose peace with a gift once a day, or declare war. A hostile camp with warriors to spare lands a party on your shore by day and sails home at dawn; an ally sends half its warriors when raiders are at your fire, and its camp shows on your minimap. A landing party besieges the camp it lands on — huts and works, then the wall, then the fire — and a campfire your warriors put out spills its colony's whole hoard onto the ground as pickups for any hauler (raiders burning a camp leave nothing). |
-| **Fog of war** | The island starts under one solid dark colour, the same by day and night, and clears for good as your people and buildings see it; ground nobody is watching sits in a grey shroud. Raiders show only while something of yours can see them, so a raid can be an ambush and the Watchtower's long sight is its second job. Colonists only gather and fetch on explored ground, warriors only fight raiders something of yours can see, and nothing can be placed in the dark. A north-up minimap in the top-right corner draws the explored island, your buildings, walls and people, raiders on watched ground, the camera's footprint, and a red pulse where the last raid came ashore; click or drag it to move the camera. |
+| **Fog of war** | The island starts under one solid dark colour, the same by day and night, and clears for good as your people and buildings see it; ground nobody is watching sits in a grey shroud. Raiders show only while something of yours can see them, so a raid can be an ambush and the Watchtower's long sight is its second job. Colonists only gather and fetch on explored ground, warriors only fight raiders something of yours can see, and nothing can be placed in the dark — the build grid stops at explored ground too, so it never traces out an island you have not walked. A north-up minimap in the top-right corner draws the explored island, your buildings, walls and people, raiders on watched ground, the camera's footprint, and a red pulse where the last raid came ashore; click or drag it to move the camera. |
 | **Readability** | Anything standing between the camera and one of your people (a tree, hut, tower, workshop, shipyard or wall) stays solid but opens a soft see-through window right where they are, so nobody is ever lost behind a canopy. Hover glow is emissive so it works through it. |
 | **Balance sim** | Scripted strategies play full games and write CSVs, so balance is measured rather than guessed. Headless for sweeps, with a live dashboard in the terminal; `-Visual` renders the same run with a spectator camera, `-Lab` tiles nine windows — three islands, each played three ways side by side — and `run-overnight.ps1` plays ten sweeps unattended and writes a report. With rivals on, the CSVs, the dashboard, the camera and the report follow the neighbour too. See the **Simulation** section below and [`docs/SIMULATION.md`](docs/SIMULATION.md). |
 
@@ -161,7 +161,7 @@ Deeper technical notes, the gotcha list and the session log: [`.claude/CLAUDE.md
 
 ## Simulation
 
-Scripted strategies (Turtle / Rush / Eco, plus Conqueror, a player-only war test that declares war on the first rival ashore and sails against it every quiet day) play whole games without a human and write CSVs. Full guide: [`docs/SIMULATION.md`](docs/SIMULATION.md). Everything below runs from the repo root in PowerShell and needs the sim player built once (`Tools > Island RTS > Simulation > Build Headless Sim Player`, or let the overnight script do it). **Rebuild the sim player after any code change** — a script-only build rewrites `Build/SimPlayer/islandrts-sim_Data/Managed/Assembly-CSharp.dll`, so check that file's date, not the exe's.
+Scripted strategies (Turtle / Rush / Eco, plus Conqueror, a player-only war test that declares war on the first rival ashore and sails against it every quiet day) play whole games without a human and write CSVs. Full guide: [`docs/SIMULATION.md`](docs/SIMULATION.md). Everything below runs from the repo root in PowerShell and needs the sim player built once (`Tools > Founding Tide > Simulation > Build Headless Sim Player`, or let the overnight script do it). **Rebuild the sim player after any code change** — a script-only build rewrites `Build/SimPlayer/foundingtide-sim_Data/Managed/Assembly-CSharp.dll`, so check that file's date, not the exe's.
 
 ### The four ways to run it
 
@@ -172,7 +172,7 @@ Scripted strategies (Turtle / Rush / Eco, plus Conqueror, a player-only war test
 | `.\tools\run-sim.ps1 -Lab` | **The lab.** Nine tiled windows: three islands (rows) each played three ways (columns), a live dashboard in the terminal, lost cells respawn for the first `-RespawnMinutes` 10. `-Seeds 7,8,9`, `-Strategies Eco`, `-WindowSize 480x270`, `-Rivals 1 -RivalStrategy Turtle` to seat a governed rival in every cell. |
 | `.\tools\run-overnight.ps1` | **Overnight batch.** Close the editor first. Keeps the PC awake, rebuilds the sim player, plays `baseline` / `raids` / `difficulty` / `islands` / `rivals` / `levy` / `conquest` / `long` / `clock` / `economy` headless at `-Parallel 8` (~910 runs, ~10 h), writes `SimLogs/overnight-<date>/REPORT.md` (a second batch the same day gets a `-HHmm` suffix), then sleeps the PC after a 60 s countdown. `-DryRun` to preview, `-SkipBuild`, `-Sweeps baseline,raids`, `-NoSleep`. |
 
-Afterwards: `.\tools\summarize-sim.ps1 -Dir SimLogs\overnight-<date>` regenerates the report for any folder of sweep results. `SimSweeps/smoke.json` is a two-minute sanity run, `SimSweeps/rivals.json` seats zero, one or two rival colonies on the baseline island (the report then adds a Neighbours table: arrival, contact, opinion, landings, relief, the rival's fate); `Tools > Island RTS > Simulation > Run Sweep In Editor…` plays a sweep inside the editor.
+Afterwards: `.\tools\summarize-sim.ps1 -Dir SimLogs\overnight-<date>` regenerates the report for any folder of sweep results. `SimSweeps/smoke.json` is a two-minute sanity run, `SimSweeps/rivals.json` seats zero, one or two rival colonies on the baseline island (the report then adds a Neighbours table: arrival, contact, opinion, landings, relief, the rival's fate); `Tools > Founding Tide > Simulation > Run Sweep In Editor…` plays a sweep inside the editor.
 
 ### Writing a sweep
 
@@ -237,7 +237,7 @@ Parked with no committed order:
 
 ### History
 
-The player-facing history is `islandrts/Assets/Resources/Changelog.txt`, which is also the in-game CHANGELOG screen: a short themed history where each entry folds to a one-line summary, with every entry before 2026-09-17 kept verbatim in [`docs/CHANGELOG_ARCHIVE.md`](docs/CHANGELOG_ARCHIVE.md). The developer history — every session, what broke and what it taught — is [`docs/PHASE_HISTORY.md`](docs/PHASE_HISTORY.md). Design plans that are already built are kept for their locked decisions: [`docs/plans/RESEARCH_AND_DAYS_PLAN.md`](docs/plans/RESEARCH_AND_DAYS_PLAN.md), [`docs/plans/CRAFTING_AND_PLAYER_CHARACTER_PLAN.md`](docs/plans/CRAFTING_AND_PLAYER_CHARACTER_PLAN.md), [`docs/plans/TERRAIN_SYSTEM_PLAN.md`](docs/plans/TERRAIN_SYSTEM_PLAN.md).
+The player-facing history is `foundingtide/Assets/Resources/Changelog.txt`, which is also the in-game CHANGELOG screen: a short themed history where each entry folds to a one-line summary, with every entry before 2026-09-17 kept verbatim in [`docs/CHANGELOG_ARCHIVE.md`](docs/CHANGELOG_ARCHIVE.md). The developer history — every session, what broke and what it taught — is [`docs/PHASE_HISTORY.md`](docs/PHASE_HISTORY.md). Design plans that are already built are kept for their locked decisions: [`docs/plans/RESEARCH_AND_DAYS_PLAN.md`](docs/plans/RESEARCH_AND_DAYS_PLAN.md), [`docs/plans/CRAFTING_AND_PLAYER_CHARACTER_PLAN.md`](docs/plans/CRAFTING_AND_PLAYER_CHARACTER_PLAN.md), [`docs/plans/TERRAIN_SYSTEM_PLAN.md`](docs/plans/TERRAIN_SYSTEM_PLAN.md).
 
 ---
 

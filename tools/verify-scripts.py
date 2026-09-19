@@ -1,4 +1,4 @@
-"""Roslyn compile-verify of islandrts scripts in four configs, no Unity launch.
+"""Roslyn compile-verify of foundingtide scripts in four configs, no Unity launch.
 
     py toolserify-scripts.py        errors per config (exit 1 on any)
     py toolserify-scripts.py -w     also print warnings
@@ -12,7 +12,7 @@ UnityEditor.dll beside the UnityEditor.*Module.dll files (spurious CS0433).
 Response files and logs land in tools/verify-out/ (gitignored).
 """
 import glob, os, subprocess, sys, re
-ROOT = r"V:\islandrtsgame\islandrts"
+ROOT = r"V:\islandrtsgame\foundingtide"
 E = r"D:\Programs\unity editor\6000.5.9f1\Editor\Data"
 CSC = os.path.join(E, r"DotNetSdk\sdk\8.0.318\Roslyn\bincore\csc.dll")
 DOTNET = os.path.join(E, r"DotNetSdk\dotnet.exe")

@@ -11,15 +11,15 @@ It does **not** replace playtesting. See [What it can't test](#what-it-cant-test
 
 ## Quick start
 
-1. **Unity → `Tools > Island RTS > Simulation > Build Headless Sim Player`**
+1. **Unity → `Tools > Founding Tide > Simulation > Build Headless Sim Player`**
    (first build is slow, later ones are incremental). Produces
-   `islandrts/Build/SimPlayer/islandrts-sim.exe`.
+   `foundingtide/Build/SimPlayer/foundingtide-sim.exe`.
 2. **`.\tools\run-sim.ps1`** — runs `SimSweeps/example.json` and prints a
    win/loss table per strategy.
-3. Read `islandrts/Build/SimPlayer/SimLogs/runs.csv` and `days.csv`.
+3. Read `foundingtide/Build/SimPlayer/SimLogs/runs.csv` and `days.csv`.
 
 To iterate on the harness itself without rebuilding, use
-**`Tools > Island RTS > Simulation > Run Sweep In Editor…`** — it queues a sweep,
+**`Tools > Founding Tide > Simulation > Run Sweep In Editor…`** — it queues a sweep,
 enters Play mode, and exits Play mode when the sweep finishes. Slower per run
 (the editor is in the loop) but you get the console and the Inspector.
 

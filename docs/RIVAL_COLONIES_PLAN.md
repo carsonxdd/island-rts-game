@@ -175,7 +175,7 @@ Gotchas that will bite here, all already recorded in CLAUDE.md:
 4. F4 → Spawn rival camp still works and goes through the same `RivalFounder`.
 5. All four Roslyn configs green: `py tools/verify-scripts.py -w`.
 6. A regression lab: `.\tools\run-sim.ps1 -Lab` with `rivalCount: 0` sits inside the post-2026-09-11 range. **Rebuild
-   the sim player first** — a script-only build rewrites `Build/SimPlayer/islandrts-sim_Data/Managed/Assembly-CSharp.dll`,
+   the sim player first** — a script-only build rewrites `Build/SimPlayer/foundingtide-sim_Data/Managed/Assembly-CSharp.dll`,
    so check THAT file's date, not the exe's.
 7. Commit, then a lab with `rivalCount: 1` to see it play.
 
@@ -265,7 +265,7 @@ Neutral neighbour Hostile.
 ## Standing rules while this runs
 
 - Every step green in all four Roslyn configs before commit: `py tools/verify-scripts.py -w`.
-- Re-run `Tools > Island RTS > Setup Everything (In Order)` after touching art, prefabs or scene wiring.
+- Re-run `Tools > Founding Tide > Setup Everything (In Order)` after touching art, prefabs or scene wiring.
 - Player-visible changes get a `Assets/Resources/Changelog.txt` entry; every feature gets a `DevQuests.txt` batch with
   a signal at the point of effect.
 - **Never speed a sim up with `Time.timeScale`.** The AI budget and NavMesh throttles are frame-based.

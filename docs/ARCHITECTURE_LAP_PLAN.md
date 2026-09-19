@@ -15,7 +15,7 @@
 
 ## What the code says today (inventory, 2026-09-09)
 
-The refactor is sized by these numbers, not by feel. All paths relative to `islandrts/Assets/Scripts`.
+The refactor is sized by these numbers, not by feel. All paths relative to `foundingtide/Assets/Scripts`.
 
 | "One colony" assumption | Sites |
 |---|---|
@@ -219,7 +219,7 @@ These four answers replace the step's original "debug-spawned rival beside the p
 
 ### Verification
 
-- **Editor menu `Tools > Island RTS > Save round-trip`** and a sim flag `saveRoundTripDay`: at that dawn the harness saves, reloads the scene from the file, and asserts counts (units per faction, buildings per type, resources, research done, node totals, explored cell count) equal before and after, then continues the run to its normal end. The assert list is the definition of "everything is saved".
+- **Editor menu `Tools > Founding Tide > Save round-trip`** and a sim flag `saveRoundTripDay`: at that dawn the harness saves, reloads the scene from the file, and asserts counts (units per faction, buildings per type, resources, research done, node totals, explored cell count) equal before and after, then continues the run to its normal end. The assert list is the definition of "everything is saved".
 - DevQuests: "Continue appears after a saved run", "Autosave at dawn signals", "Loaded worker keeps its job", "Loaded wall pad is flat" (a state quest on the pad height), "Loaded fog matches".
 - Changelog: "Save and load: autosave at dawn, manual save while no raider is ashore, Continue on the main menu".
 
