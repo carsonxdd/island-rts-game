@@ -22,7 +22,7 @@ A Unity real-time-strategy survival game. You are one named character on a proce
 1. **NEW GAME** → difficulty (Normal is the intended balance) → **BEGIN**, then name your castaway.
 2. Right-click sticks and stones on the beach to gather them, right-click to walk ashore, then **B** and click to place the campfire. It is free and one-time.
 3. Right-click the fire to deposit, then left-click it, press **BENCH** on the panel's title bar and switch to **LEARN**. Woodcutting teaches the colony to cut wood *and* hands you the Stone Axe; Quarrying does the same with the Stone Pick; Construction opens build mode; Spearcraft opens spears. Your character has to stand at the bench while the queue runs.
-4. Survivors land while there is free housing (the campfire sleeps 3, a hut 2). The **COLONY** panel (left-click the fire) hands them the jobs you have researched. Press **B** to build huts — a site only rises while someone works it: an idle colonist, or your castaway when you right-click the site. Keep one or two colonists unassigned anyway; a colony where everyone gathers has nobody to build.
+4. Survivors land while there is free housing (the campfire sleeps 3, a tent 1, a hut 2). The **COLONY** panel (left-click the fire) hands them the jobs you have researched. Press **B** for the build bar and pitch tents, then upgrade them into huts from the building card — a site only rises while someone works it: an idle colonist, or your castaway when you right-click the site. Keep one or two colonists unassigned anyway; a colony where everyone gathers has nobody to build.
 5. Watch the calendar chip. The first two nights are always quiet; from day 3 a dawn can turn it red with "Raid tonight · N raiders". That is your day to craft spears and arm warriors.
 6. Reach the dawn after day 30 and the rescue ship arrives.
 
@@ -35,7 +35,7 @@ A Unity real-time-strategy survival game. You are one named character on a proce
 | **WASD** / Arrows | Pan camera |
 | **Q / E** · **Wheel** · **Middle-drag** | Rotate · zoom · tilt and rotate |
 | **B** | Build mode (during the opening, place the campfire) |
-| **1-6** | Hut, Wood Wall, Stone Wall, Watchtower, Workshop, Shipyard |
+| **1-7** | Tent, Wood Wall, Stone Wall, Watchtower, Workshop, Shipyard, Storehouse |
 | **G** · **R** · **Shift** | Wall to gate · toggle wall path or rotate · diagonal wall path |
 | **Delete / X** | Demolish, 50% refund |
 | **F5 / F8 / F9** | Militia stance: Defensive / Offensive / Follow |
@@ -143,9 +143,9 @@ Deeper technical notes, the gotcha list and the session log: [`.claude/CLAUDE.md
 | **World** | A new island every game: size, terrain style and an optional seed are picked on New Game and locked for the run. Plateaus, cliffs, ramps, ponds; every plateau is reachable. |
 | **Pickups** | Sticks and small piles of stone that trickle-respawn, plus finite salvage along the shore. Single small rocks are scenery. Job workers detour for nearby ones; idle colonists haul anything within 70 m of the fire by day, 30 m after dusk. |
 | **Colonists** | People are a pool, not a purchase. Survivors land while housing has room. Idle colonists are the colony's utility labour — build, then craft, then repair, then tidy — weighted by four priority sliders, with Builder / Crafter / Repairer specialists to pin one. With nothing to do they stroll the village by day, and neither they nor patrolling warriors ever stop in a gateway or on the wall line. Everyone has a name and a trait (Steady, Night Owl, Early Riser, Hardy, Lazy) that shifts the hours they keep; they work into the evening, deliver what they carry and sleep from midnight to dawn in their hut or beside the fire. Warriors are idle colonists taking up a spear and keep their name. |
-| **Building** | Hut, Wooden and Stone Wall, Gate, Watchtower, Workshop, Shipyard. Placement flattens a pad. A site only rises while a colonist or your castaway works it. Repair costs a quarter of the build price. |
+| **Building** | Tent (upgrades in place into a Hut), Wooden and Stone Wall, Gate, Watchtower, Workshop, Shipyard, Storehouse. B opens a build bar grouped Housing / Production / Defence / Special; left-click a finished building for its card (level, health, Upgrade, Demolish). Upgrades are construction sites like any build. Placement flattens a pad. A site only rises while a colonist or your castaway works it. Repair costs a quarter of the build price. |
 | **Research and crafting** | Research is one-time and opens jobs, build mode, weapons and the Workshop, and hands your character the matching tool. Recipes are repeatable and gated behind research. Both live on stations with a queue that only moves while someone stands at the bench. Costs are paid on completion; a short entry waits rather than failing. |
-| **Storage** | Materials, spears and tools live in the campfire stockpile, 60 items to start, raised by research. The four pooled resources are uncapped. |
+| **Storage** | Materials, spears and tools live in the campfire stockpile, 60 items to start, raised by research. The four pooled resources are uncapped. A Storehouse is a second drop-off; haulers use the nearest. |
 | **Combat** | The militia takes one colony-wide stance — Defensive, Offensive or Follow — and stands in a Line, Wedge or Ring. Warriors converge on a raider from different sides; archers keep their distance. Watchtowers buff nearby damage. Housing is the only cap on army size. The levy: every spare weapon in the stockpile arms a colonist when raiders reach the fire or the bell rings (F10); they walk to the fire for it, fight, and half a minute after the last threat put it back and return to their job. |
 | **Calendar and raids** | 150 s day, 75 s night, 30 days to rescue, about two hours. Colonists sleep from midnight to dawn. A dawn roll decides whether raiders land that night, never before day 3 and forced after five quiet ones, and the size is fixed at the roll from the day number and the colony's prosperity. A raid night lasts until the last raider is dead. |
 | **Difficulty** | Six presets plus Custom, chosen on New Game and locked for the run. Scales raid size and frequency, enemy stats, night length, starting resources and run length. |
@@ -230,7 +230,7 @@ The console is intentionally quiet — about 65 calls in the whole project. Only
 Parked with no committed order:
 
 - [`docs/plans/COLONY_EXPANSION_PLAN.md`](docs/plans/COLONY_EXPANSION_PLAN.md) — collector radius and settlement tiers, processing chains, families, livestock and farming
-- Building upgrades (hut to house, campfire to fortress) and a placeable Warehouse
+- More building tiers (hut to house, campfire to fortress). The tier system itself, the Tent → Hut upgrade and the Storehouse are built (2026-09-18)
 - Enemies wading ashore from the shallows, the last unbuilt piece of [`docs/plans/TERRAIN_SYSTEM_PLAN.md`](docs/plans/TERRAIN_SYSTEM_PLAN.md)
 - Phase 10 Stages 3-4: water polish and a lighting bake, [`docs/plans/PHASE_10_VISUAL_OVERHAUL.md`](docs/plans/PHASE_10_VISUAL_OVERHAUL.md)
 - Setting and fiction: whether this stays one castaway's story or becomes pickable civilizations is an open question, not a plan
