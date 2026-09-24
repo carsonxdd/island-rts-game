@@ -36,7 +36,8 @@ A Unity real-time-strategy survival game. You are one named character on a proce
 | **Q / E** · **Wheel** · **Middle-drag** | Rotate · zoom · tilt and rotate |
 | **B** | Build mode (during the opening, place the campfire) |
 | **1-7** | Tent, Wood Wall, Stone Wall, Watchtower, Workshop, Shipyard, Storehouse |
-| **G** · **R** · **Shift** | Wall to gate · toggle wall path or rotate · diagonal wall path |
+| **Walls** | Drag across the ground and release, or click points then double-click / **Enter**; end where you began to close a ring |
+| **G** · **R** · **Shift** | Wall to gate (straight walls only) · rotate, or flip the square wall path · square wall path |
 | **Delete / X** | Demolish, 50% refund |
 | **F5 / F8 / F9** | Militia stance: Defensive / Offensive / Follow |
 | **F10** | Ring the bell: one colonist per spare weapon in stock arms; press again to stand them down |
@@ -127,7 +128,7 @@ Workers, warriors and enemies all run a scoring-based Utility AI — no state ma
 - **Singletons** — AudioManager, WallGrid, AIWorldState, GameManager, BuildingDatabase. No `DontDestroyOnLoad`, so nothing goes stale across a restart.
 - **Point-of-effect reads** — difficulty, settings and unlocks are read where they take effect, never pushed.
 - **Zero GC in hot paths**, throttled NavMesh calls, dirty-checked UI text.
-- **Buildings are data** — `BuildingData` ScriptableObjects define costs, prefabs and placement rules. Walls draw as lines and auto-connect with procedural meshes.
+- **Buildings are data** — `BuildingData` ScriptableObjects define costs, prefabs and placement rules. Walls are drawn (drag or clicked points, smoothed, rasterized 8-connected) and auto-connect with procedural meshes: a post plus one arm per linked neighbour, diagonals included.
 
 Deeper technical notes, the gotcha list and the session log: [`.claude/CLAUDE.md`](.claude/CLAUDE.md) and [`docs/PHASE_HISTORY.md`](docs/PHASE_HISTORY.md).
 
@@ -143,7 +144,7 @@ Deeper technical notes, the gotcha list and the session log: [`.claude/CLAUDE.md
 | **World** | A new island every game: size, terrain style and an optional seed are picked on New Game and locked for the run. Plateaus, cliffs, ramps, ponds; every plateau is reachable. |
 | **Pickups** | Sticks and small piles of stone that trickle-respawn, plus finite salvage along the shore. Single small rocks are scenery. Job workers detour for nearby ones; idle colonists haul anything within 70 m of the fire by day, 30 m after dusk. |
 | **Colonists** | People are a pool, not a purchase. Survivors land while housing has room. Idle colonists are the colony's utility labour — build, then craft, then repair, then tidy — weighted by four priority sliders, with Builder / Crafter / Repairer specialists to pin one. With nothing to do they stroll the village by day, and neither they nor patrolling warriors ever stop in a gateway or on the wall line. Everyone has a name and a trait (Steady, Night Owl, Early Riser, Hardy, Lazy) that shifts the hours they keep; they work into the evening, deliver what they carry and sleep from midnight to dawn in their hut or beside the fire. Warriors are idle colonists taking up a spear and keep their name. |
-| **Building** | Tent (upgrades in place into a Hut), Wooden and Stone Wall, Gate, Watchtower, Workshop, Shipyard, Storehouse. B opens a build bar grouped Housing / Production / Defence / Special; left-click a finished building for its card (level, health, Upgrade, Demolish). Upgrades are construction sites like any build. Placement flattens a pad. A site only rises while a colonist or your castaway works it. Repair costs a quarter of the build price. |
+| **Building** | Tent (upgrades in place into a Hut), Wooden and Stone Wall (drawn freehand or point by point; slants build as slanted walls), Gate (straight walls only), Watchtower, Workshop, Shipyard, Storehouse. B opens a build bar grouped Housing / Production / Defence / Special; left-click a finished building for its card (level, health, Upgrade, Demolish). Upgrades are construction sites like any build. Placement flattens a pad. A site only rises while a colonist or your castaway works it. Repair costs a quarter of the build price. |
 | **Research and crafting** | Research is one-time and opens jobs, build mode, weapons and the Workshop, and hands your character the matching tool. Recipes are repeatable and gated behind research. Both live on stations with a queue that only moves while someone stands at the bench. Costs are paid on completion; a short entry waits rather than failing. |
 | **Storage** | Materials, spears and tools live in the campfire stockpile, 60 items to start, raised by research. The four pooled resources are uncapped. A Storehouse is a second drop-off; haulers use the nearest. |
 | **Combat** | The militia takes one colony-wide stance — Defensive, Offensive or Follow — and stands in a Line, Wedge or Ring. Warriors converge on a raider from different sides; archers keep their distance. Watchtowers buff nearby damage. Housing is the only cap on army size. The levy: every spare weapon in the stockpile arms a colonist when raiders reach the fire or the bell rings (F10); they walk to the fire for it, fight, and half a minute after the last threat put it back and return to their job. |

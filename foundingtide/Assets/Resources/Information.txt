@@ -129,7 +129,8 @@ bottom of the screen with everything you can build, grouped by what it is for; c
 a tile or press its number key. A ghost shows where it goes and whether it fits:
 green is clear, red is water, a slope, a node or too close to another building.
 Placing a building flattens a pad under it and takes the cost at once.
-- Walls are drawn as a line: click to start, click to end. The line bends around a corner; hold Shift for a straight diagonal.
+- Walls are drawn: drag across the ground and let go, or click points and double-click (or press Enter). Slants build as slanted walls; end where you began to close a ring. Hold Shift for a square path.
+- A gate goes on a straight stretch of wall, never a slanted one.
 - G turns a finished wall into a gate. Colonists walk through gates; raiders have to break them.
 - Delete or X demolishes what is under the cursor for half the cost back. The campfire cannot be demolished.
 - Nothing builds itself. A site advances only while an idle colonist or a Builder works it; up to three can stack, and the second and third each add a full share.

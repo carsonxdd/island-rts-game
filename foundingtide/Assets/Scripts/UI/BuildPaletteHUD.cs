@@ -49,6 +49,8 @@ public class BuildPaletteHUD : MonoBehaviour
     private int lastAffordMask = -1;
     private int lastUnlockMask = -1;
     private int lastLineCount = -1;
+    private string lastNotice;
+    private bool hintWall;
     private bool builtRows;
 
     /// <summary>One building's tile: the button, and the labels that change.</summary>
@@ -122,6 +124,7 @@ public class BuildPaletteHUD : MonoBehaviour
         }
         if (selected == lastSelected) return;
         lastSelected = selected;
+        if (placement.IsWallType(placement.selectedBuildingType) != hintWall) RefreshHint();
 
         for (int i = 0; i < tiles.Count; i++)
         {
@@ -173,12 +176,16 @@ public class BuildPaletteHUD : MonoBehaviour
     void RefreshLine()
     {
         int count = placement.wallPlacer != null ? placement.wallPlacer.LineWallCount : 0;
-        if (count == lastLineCount) return;
+        string notice = placement.Notice;
+        if (count == lastLineCount && ReferenceEquals(notice, lastNotice)) return;
         lastLineCount = count;
+        lastNotice = notice;
 
         if (count <= 0)
         {
-            lineText.text = "";
+            // Nothing being drawn: the line shows the placer's last refusal, if any
+            lineText.text = notice ?? "";
+            lineText.color = MenuStyle.TextDanger;
             return;
         }
 
@@ -193,15 +200,20 @@ public class BuildPaletteHUD : MonoBehaviour
         lineText.color = afford ? MenuStyle.TextAccent : MenuStyle.TextDanger;
     }
 
-    /// <summary>The hint line, built from live bindings so a rebind is reflected verbatim.</summary>
+    /// <summary>The hint line, built from live bindings so a rebind is reflected verbatim.
+    /// A wall has its own line (2026-09-22): the drawing gestures would not fit beside the rest.</summary>
     void RefreshHint()
     {
-        hintText.text =
-            Key(KeyBindings.Action.RotateBuilding) + " rotate  ·  " +
-            Key(KeyBindings.Action.StaircaseWalls) + " staircase walls  ·  " +
-            Key(KeyBindings.Action.ConvertToGate) + " wall to gate  ·  " +
-            Key(KeyBindings.Action.QueueCommand) + "+click keep placing  ·  " +
-            Key(KeyBindings.Action.Demolish) + " demolish  ·  Esc cancel";
+        hintWall = placement.IsWallType(placement.selectedBuildingType);
+        hintText.text = hintWall
+            ? "Drag to draw, or click points and " + Key(KeyBindings.Action.FinishWallLine) + " / double-click  ·  " +
+              "hold " + Key(KeyBindings.Action.StraightWallPath) + " square path (" +
+              Key(KeyBindings.Action.RotateBuilding) + " flips)  ·  " +
+              Key(KeyBindings.Action.ConvertToGate) + " wall to gate  ·  Esc cancel"
+            : Key(KeyBindings.Action.RotateBuilding) + " rotate  ·  " +
+              Key(KeyBindings.Action.ConvertToGate) + " wall to gate  ·  " +
+              Key(KeyBindings.Action.QueueCommand) + "+click keep placing  ·  " +
+              Key(KeyBindings.Action.Demolish) + " demolish  ·  Esc cancel";
     }
 
     static string Key(KeyBindings.Action action)

@@ -44,12 +44,28 @@
 #   panel:colony  panel:bench  panel:swap  tooltip  bench:learn
 #   build:tent  build:upgrade  build:upgrade:<buildingtype>  build_palette:pick
 #   building_card:open
+#   wall:drawn  wall:double_click  wall:finish_key  wall:square  wall:loop  wall:slanted
+#   gate:slant_refused
 # crowd:split, dropoff:spread and patrol:spread are STATE checks polled by the
 # tracker twice a second while their quest is open; everything else is an event.
 # A finished batch is deleted from here once its report is in; it stays in the
 # changelog and the phase history. Quest ids are batch slug + index, so a batch
 # that loses quests from the middle needs a RESET on the DEV tab (done 2026-09-13
 # after the first report, Playtests/playtest_2026-09-13_2204.md).
+
+## 2026-09-22 Drawn walls
+- @wall:drawn Drag a wall line across the ground and let go to place it
+- @wall:slanted Draw a slanted line: it builds as one slanted wall
+- @wall:double_click Click three points, then double-click to place
+- @wall:finish_key Click points, then press Enter to place
+- @wall:loop Draw a ring back to its start: the ring closes
+- @wall:square Hold Shift while drawing: square path, R flips it
+- @gate:slant_refused Press G on a slanted wall: it refuses with a note
+- A wobbly stroke comes out as clean runs, not a zig-zag
+- Slanted pieces meet at their corners with no visible gap
+- Raiders cannot slip between two diagonal wall pieces
+- Built slanted walls look like the ghost did
+- A red cell in the line shows as a lone post; the rest still joins
 
 ## 2026-09-19 Build grid respects the fog
 - Press B on day 1: the grid stops at explored ground

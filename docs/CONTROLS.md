@@ -48,9 +48,10 @@ and the debug keys F3 / F4 / F6 / F7.
 | 5 | Workshop |
 | 6 | Shipyard (beach only, after Shipwright) |
 | 7 | Storehouse (after Storage Pits) |
-| Left click | Place (walls: click-start → click-end line) |
-| R | Rotate building / toggle L-path direction in wall mode |
-| Shift (hold) | Bresenham staircase wall path instead of L-path |
+| Left click | Place (walls: drag to draw, release to place — or click points, then double-click / Enter) |
+| Enter | Finish a clicked wall line |
+| R | Rotate building / flip the square wall path's first leg |
+| Shift (hold) | Square (L-shaped) wall path between clicked points instead of the smoothed diagonal line |
 | G | Convert the hovered wall into a gate (costs 5 wood) |
 | Esc / Right click | Cancel |
 | Delete or X | Demolish mode (50% refund; campfire protected) |

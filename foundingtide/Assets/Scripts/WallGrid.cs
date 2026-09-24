@@ -54,6 +54,26 @@ public class WallGrid : MonoBehaviour
 
     public static readonly int[] NeighborBits = new int[] { NORTH, EAST, SOUTH, WEST };
 
+    // Diagonal links (2026-09-22, freehand walls). A LINK mask is the four-bit neighbour
+    // mask plus these four bits; WallConnector builds a post with one arm per link bit.
+    public const int NORTHEAST = 16;
+    public const int SOUTHEAST = 32;
+    public const int SOUTHWEST = 64;
+    public const int NORTHWEST = 128;
+    public const int DiagonalBits = NORTHEAST | SOUTHEAST | SOUTHWEST | NORTHWEST;
+
+    // Parallel arrays in the order NE, SE, SW, NW. A diagonal's two ELBOW cells are the
+    // cardinal neighbours it passes between (NE passes N and E). Treat as read-only.
+    public static readonly Vector2Int[] DiagonalOffsets = new Vector2Int[]
+    {
+        new Vector2Int(1, 1),
+        new Vector2Int(1, -1),
+        new Vector2Int(-1, -1),
+        new Vector2Int(-1, 1)
+    };
+
+    public static readonly int[] DiagonalLinkBits = new int[] { NORTHEAST, SOUTHEAST, SOUTHWEST, NORTHWEST };
+
     private Dictionary<Vector2Int, MonoBehaviour> grid = new Dictionary<Vector2Int, MonoBehaviour>();
 
     private float cellSize = 1f;
@@ -119,6 +139,67 @@ public class WallGrid : MonoBehaviour
         return mask;
     }
 
+    /// <summary>
+    /// The cardinal neighbour mask plus a diagonal bit for each diagonal neighbour this cell
+    /// joins with a slanted arm - which is what lets a freehand line read as one wall.
+    /// </summary>
+    /// <remarks>
+    /// A diagonal joins only when BOTH elbow cells are empty: if either holds a piece, the
+    /// two cells already meet through it and a slanted arm would draw a triangle. Gates
+    /// never take a diagonal (gates are for straight runs, by decision 2026-09-22), and a
+    /// wall never slants into one. A diagonal pair leaves no walkable pinch: the two 0.9 m
+    /// carves are 0.14 m apart corner to corner, and a carve is expanded by the bake's
+    /// 0.5 m agent radius.
+    /// </remarks>
+    public int GetLinkMask(Vector2Int pos)
+    {
+        return ComputeLinkMask(pos, null);
+    }
+
+    /// <summary>Link mask counting existing pieces plus a set of previewed cells (the wall
+    /// line being drawn). A previewed cell is a wall, never a gate.</summary>
+    public int ComputeLinkMask(Vector2Int pos, HashSet<Vector2Int> preview)
+    {
+        int mask = 0;
+        for (int i = 0; i < 4; i++)
+        {
+            if (Occupied(pos + NeighborOffsets[i], preview))
+                mask |= NeighborBits[i];
+        }
+
+        if (IsGateCell(pos, preview)) return mask;
+
+        for (int i = 0; i < 4; i++)
+        {
+            Vector2Int d = DiagonalOffsets[i];
+            Vector2Int other = pos + d;
+            if (!Occupied(other, preview) || IsGateCell(other, preview)) continue;
+            if (Occupied(new Vector2Int(pos.x + d.x, pos.y), preview)) continue;
+            if (Occupied(new Vector2Int(pos.x, pos.y + d.y), preview)) continue;
+            mask |= DiagonalLinkBits[i];
+        }
+        return mask;
+    }
+
+    /// <summary>True when this cell's piece joins a neighbour on a slant. A gate goes only
+    /// on a straight run, so the G key refuses such a wall.</summary>
+    public bool HasDiagonalLink(Vector2Int pos)
+    {
+        return (GetLinkMask(pos) & DiagonalBits) != 0;
+    }
+
+    bool Occupied(Vector2Int pos, HashSet<Vector2Int> preview)
+    {
+        return (preview != null && preview.Contains(pos)) || grid.ContainsKey(pos);
+    }
+
+    bool IsGateCell(Vector2Int pos, HashSet<Vector2Int> preview)
+    {
+        if (preview != null && preview.Contains(pos)) return false;
+        MonoBehaviour occupant;
+        return grid.TryGetValue(pos, out occupant) && occupant is Gate;
+    }
+
     /// <summary>World position to the cell containing it. Height is ignored - the grid is flat.</summary>
     public Vector2Int WorldToGrid(Vector3 worldPos)
     {
@@ -133,7 +214,9 @@ public class WallGrid : MonoBehaviour
     }
 
     /// <summary>
-    /// Refresh the visual shape of the tile at pos and its 4 cardinal neighbors.
+    /// Refresh the visual shape of the tile at pos and its 8 neighbours. The diagonals are
+    /// in the list because this cell is an ELBOW for the diagonal pairs around it, so
+    /// filling or emptying it adds or removes their slanted arms.
     /// </summary>
     public void RefreshTileAndNeighbors(Vector2Int pos)
     {
@@ -141,6 +224,7 @@ public class WallGrid : MonoBehaviour
         for (int i = 0; i < 4; i++)
         {
             RefreshTile(pos + NeighborOffsets[i]);
+            RefreshTile(pos + DiagonalOffsets[i]);
         }
     }
 

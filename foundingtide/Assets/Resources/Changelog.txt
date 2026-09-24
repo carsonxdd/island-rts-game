@@ -13,6 +13,17 @@
 # Rewritten 2026-09-17 as a themed history; the 74 entries it replaced are in
 # docs/CHANGELOG_ARCHIVE.md. From here on, add a dated entry per change on top.
 
+## 2026-09-22 — Draw your walls
+Walls are drawn now: drag a line or click points along the way, and a slanted
+line builds as one slanted wall instead of a staircase.
+- Drag across the ground to draw a wall; let go to place it. The line is
+  smoothed as you draw, so a wobbly hand still gets clean runs and bends.
+- Or click to drop points one at a time, then double-click or press Enter.
+- Walls join on the diagonal, so curves and angled runs look like one wall.
+- End a line where it began to close a ring.
+- Hold Shift for the old square path (R flips which way it turns).
+- Gates still go on straight walls only; G on a slanted piece tells you so.
+
 ## 2026-09-19 — The build grid keeps the map's secrets
 The grid no longer draws over ground you have never explored, so it stops
 showing you the shape of the island through the fog.

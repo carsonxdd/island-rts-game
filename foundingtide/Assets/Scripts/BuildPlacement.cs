@@ -62,6 +62,19 @@ public class BuildPlacement : MonoBehaviour
     internal DemolishTool demolishTool;
     internal NoBuildZoneRenderer zoneRenderer;
 
+    // A refusal the build bar shows for a moment (2026-09-22, a gate on a slanted wall).
+    // Pulled by BuildPaletteHUD like the wall-line total; null when there is none.
+    const float NoticeSeconds = 2.5f;
+    string notice;
+    float noticeUntil;
+    public string Notice => Time.unscaledTime < noticeUntil ? notice : null;
+
+    void ShowNotice(string text)
+    {
+        notice = text;
+        noticeUntil = Time.unscaledTime + NoticeSeconds;
+    }
+
     void Start()
     {
         mainCam = Camera.main;
@@ -339,6 +352,15 @@ public class BuildPlacement : MonoBehaviour
             return;
         }
 
+        // Gates go on straight runs only (2026-09-22): a gate carves nothing and its arch
+        // spans one axis, so a gate in a slanted run would be a hole with no frame.
+        if (WallGrid.Instance.HasDiagonalLink(gridPos))
+        {
+            ShowNotice("Gates go on straight walls, not slanted ones");
+            DevQuests.Signal("gate:slant_refused");
+            return;
+        }
+
         // Check cost: 5 wood
 
         if (!Factions.Player.Resources.CanAfford(5, 0, 0))
@@ -424,15 +446,30 @@ public class BuildPlacement : MonoBehaviour
     /// </summary>
     internal bool GetSnappedMousePosition(out Vector3 snapped)
     {
-        snapped = Vector3.zero;
+        Vector3 point;
+        if (!GetMouseGroundPoint(out point))
+        {
+            snapped = Vector3.zero;
+            return false;
+        }
 
+        snapped = GridSnap.SnapXZ(point, cellSize);
+        snapped.y = GroundYAt(snapped) + placementHeight;
+        return true;
+    }
+
+    /// <summary>
+    /// Raycast to ground and return the UNSNAPPED hit - a freehand wall stroke samples this,
+    /// so its line is smoothed before it is ever snapped to cells.
+    /// </summary>
+    internal bool GetMouseGroundPoint(out Vector3 point)
+    {
         Ray ray = mainCam.ScreenPointToRay(Input.mousePosition);
         RaycastHit hit;
 
         if (Physics.Raycast(ray, out hit, 1000f, groundLayer, QueryTriggerInteraction.Ignore))
         {
-            snapped = GridSnap.SnapXZ(hit.point, cellSize);
-            snapped.y = GroundYAt(snapped) + placementHeight;
+            point = hit.point;
             return true;
         }
 
@@ -441,12 +478,11 @@ public class BuildPlacement : MonoBehaviour
         float distance;
         if (groundPlane.Raycast(ray, out distance))
         {
-            Vector3 worldPos = ray.GetPoint(distance);
-            snapped = GridSnap.SnapXZ(worldPos, cellSize);
-            snapped.y = GroundYAt(snapped) + placementHeight;
+            point = ray.GetPoint(distance);
             return true;
         }
 
+        point = Vector3.zero;
         return false;
     }
 

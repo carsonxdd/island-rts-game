@@ -29,7 +29,7 @@ public static class KeyBindings
         RotateCameraLeft, RotateCameraRight,
         BuildMode,
         SelectTent, SelectWoodWall, SelectStoneWall, SelectWatchtower, SelectWorkshop, SelectShipyard, SelectStorehouse,
-        ConvertToGate, RotateBuilding, StaircaseWalls,
+        ConvertToGate, RotateBuilding, StraightWallPath, FinishWallLine,
         Demolish, ToggleGrid,
         CenterOnCharacter,
         // Militia stance (2026-09-07): the combat HUD's three buttons, on keys
@@ -43,7 +43,7 @@ public static class KeyBindings
     /// <summary>
     /// One action's two slots. A secondary is a real alternate, not a fallback:
     /// WASD and the arrow keys both pan, Delete and X both demolish, and either
-    /// Shift staircases a wall line — all of that is expressible without a
+    /// Shift squares a wall line — all of that is expressible without a
     /// special case because every binding has room for two keys.
     /// </summary>
     public struct Binding
@@ -72,8 +72,9 @@ public static class KeyBindings
         ("Building", Action.SelectShipyard,   "Select shipyard"),
         ("Building", Action.SelectStorehouse, "Select storehouse"),
         ("Building", Action.ConvertToGate,    "Convert wall to gate"),
-        ("Building", Action.RotateBuilding,   "Rotate / flip wall path"),
-        ("Building", Action.StaircaseWalls,   "Staircase wall path"),
+        ("Building", Action.RotateBuilding,   "Rotate / flip square wall path"),
+        ("Building", Action.StraightWallPath, "Square wall path (hold)"),
+        ("Building", Action.FinishWallLine,   "Finish a clicked wall line"),
         ("Building", Action.Demolish,         "Demolish mode"),
         ("Building", Action.ToggleGrid,       "Toggle build grid"),
 
@@ -104,11 +105,12 @@ public static class KeyBindings
         { Action.SelectStorehouse,   new Binding(KeyCode.Alpha7, KeyCode.Keypad7) },
         { Action.ConvertToGate,      new Binding(KeyCode.G) },
         { Action.RotateBuilding,     new Binding(KeyCode.R) },
-        { Action.StaircaseWalls,     new Binding(KeyCode.LeftShift, KeyCode.RightShift) },
+        { Action.StraightWallPath,   new Binding(KeyCode.LeftShift, KeyCode.RightShift) },
+        { Action.FinishWallLine,     new Binding(KeyCode.Return, KeyCode.KeypadEnter) },
         { Action.Demolish,           new Binding(KeyCode.Delete, KeyCode.X) },
         { Action.ToggleGrid,         new Binding(KeyCode.F2) },
         { Action.CenterOnCharacter,  new Binding(KeyCode.Space) },
-        // Shares Shift with the wall staircase on purpose: build mode and a
+        // Shares Shift with the square wall path on purpose: build mode and a
         // character command never happen on the same click.
         { Action.QueueCommand,       new Binding(KeyCode.LeftShift, KeyCode.RightShift) },
         // F5 / F8 / F9: the free function keys (F2 grid, F3 / F4 / F6 / F7 reserved for debug)

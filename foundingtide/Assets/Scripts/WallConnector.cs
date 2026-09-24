@@ -2,41 +2,27 @@ using UnityEngine;
 using System.Collections.Generic;
 
 /// <summary>
-/// Gives a wall its shape. Reads the four-bit neighbour mask from WallGrid and picks the
-/// matching procedural mesh and rotation, so a line of walls joins up on its own and a
-/// broken one re-caps itself.
+/// Gives a wall its shape. Reads the eight-bit link mask from WallGrid and builds a post with
+/// one arm toward each linked neighbour, so a line of walls joins up on its own, a broken one
+/// re-caps itself, and a freehand line reads as one slanted wall instead of a staircase.
 /// </summary>
 /// <remarks>
-/// Six shapes (isolated, endcap, straight, corner, T-junction, cross), each with a gate
-/// variant, are generated in code and cached statically - one mesh per shape for the whole
+/// Replaced the six fixed shapes (isolated, endcap, straight, corner, T, cross) plus rotation
+/// on 2026-09-22: diagonal links make 256 masks, and "a post and its arms" covers all of them
+/// with one builder and no rotation, so a wall's transform always stays axis-aligned (the
+/// carve box and the square colliders are what the NavMesh and the gate trigger see).
+/// Meshes are cached statically per (mask, stone, gate) - one mesh per variant for the whole
 /// game, not one per wall.
 ///
-/// Because this writes the mesh onto the root MeshFilter at runtime, a wall cannot be
-/// given hand-authored art by swapping its mesh: anything assigned is overwritten on the
-/// next refresh. Walls can only be re-materialed until the generator learns to emit all
-/// twelve variants.
+/// Because this writes the mesh onto the root MeshFilter at runtime, a wall cannot be given
+/// hand-authored art by swapping its mesh: anything assigned is overwritten on the next
+/// refresh. Walls can only be re-materialed.
 /// </remarks>
 public class WallConnector : MonoBehaviour
 {
-    public enum WallShape
-    {
-        Isolated,   // 0 neighbors
-        Endcap,     // 1 neighbor
-        Straight,   // 2 opposite neighbors
-        Corner,     // 2 adjacent neighbors
-        TJunction,  // 3 neighbors
-        Cross,      // 4 neighbors
-        GateIsolated,   // Gate: 0 neighbors
-        GateEndcap,     // Gate: 1 neighbor
-        GateStraight,   // Gate: 2 opposite neighbors
-        GateCorner,     // Gate: 2 adjacent neighbors
-        GateTJunction,  // Gate: 3 neighbors
-        GateCross       // Gate: 4 neighbors
-    }
-
     [Header("Debug")]
     public bool showConnectionGizmos = true;
-    public WallShape currentShape = WallShape.Isolated;
+    public int currentLinks;
 
     private Vector2Int gridPos;
     private MeshFilter meshFilter;
@@ -45,8 +31,8 @@ public class WallConnector : MonoBehaviour
     private bool isGate = false;
     private bool initialized = false;
 
-    // Cached procedural meshes (shared across all walls of same type)
-    private static Dictionary<string, Mesh> meshCache = new Dictionary<string, Mesh>();
+    // Cached procedural meshes (shared across all walls of the same variant)
+    private static readonly Dictionary<int, Mesh> meshCache = new Dictionary<int, Mesh>();
 
     // Wall dimensions
     private const float WALL_THICKNESS = 0.3f;
@@ -55,8 +41,12 @@ public class WallConnector : MonoBehaviour
     private const float PILLAR_SIZE = 0.4f;
     private const float Y_OFFSET = 0.02f; // Slight raise to avoid ground z-fighting
     private const float GATE_HEIGHT_RATIO = 0.5f; // Gates are half the height of walls
+    private const float GATE_ARCH_RATIO = 0.6f;   // A gate arm is only its top 40%: the arch below
 
-    private float wallHeight;
+    // A slanted arm starts inside the post's footprint; dropping its top a hair under the
+    // post's keeps the two top faces from being coplanar where they overlap (z-fighting
+    // under the tilted RTS camera).
+    private const float DIAGONAL_TOP_DROP = 0.01f;
 
     void Start()
     {
@@ -72,7 +62,6 @@ public class WallConnector : MonoBehaviour
         Gate gate = GetComponent<Gate>();
         isStoneWall = (wall != null && wall.isStoneWall) || (gate != null && gate.isStoneGate);
         isGate = gate != null;
-        wallHeight = isStoneWall ? STONE_HEIGHT : WOODEN_HEIGHT;
 
         // Disable ALL child renderers so the original prefab mesh doesn't show
         Renderer[] childRenderers = GetComponentsInChildren<Renderer>();
@@ -86,11 +75,6 @@ public class WallConnector : MonoBehaviour
 
         // Reset localScale — the procedural mesh has correct dimensions baked in
         transform.localScale = Vector3.one;
-
-        // Set Y slightly above the ground to avoid z-fighting (terrain height
-        // at this cell when the island terrain exists, 0 on the flat world)
-        float groundY = TerrainGrid.Instance != null ? TerrainGrid.Instance.SampleHeight(transform.position) : 0f;
-        transform.position = new Vector3(transform.position.x, groundY + Y_OFFSET, transform.position.z);
 
         // Set up MeshFilter on root
         meshFilter = GetComponent<MeshFilter>();
@@ -110,7 +94,7 @@ public class WallConnector : MonoBehaviour
             meshRenderer.material.color = isStoneWall ? new Color(0.6f, 0.6f, 0.6f) : new Color(0.55f, 0.35f, 0.15f);
         }
 
-        // Snap to grid (y = terrain height at the snapped cell + lift)
+        // Snap to grid (y = terrain height at the snapped cell + lift, 0 on the flat world)
         gridPos = WallGrid.Instance.WorldToGrid(transform.position);
         Vector3 snapped = WallGrid.Instance.GridToWorld(gridPos, Y_OFFSET);
         if (TerrainGrid.Instance != null)
@@ -118,9 +102,10 @@ public class WallConnector : MonoBehaviour
             snapped.y = TerrainGrid.Instance.SampleHeight(snapped) + Y_OFFSET;
         }
         transform.position = snapped;
+        transform.rotation = Quaternion.identity;
 
-        // Set initial isolated shape
-        meshFilter.mesh = GetOrCreateMesh(isGate ? WallShape.GateIsolated : WallShape.Isolated, isStoneWall);
+        // Bare post until the grid tells us our neighbours
+        meshFilter.mesh = GetOrCreateMesh(0, isStoneWall, isGate);
 
         // Gates use a distinct color tint
         if (isGate && meshRenderer != null && meshRenderer.sharedMaterial != null)
@@ -130,219 +115,44 @@ public class WallConnector : MonoBehaviour
     }
 
     /// <summary>
-    /// Called by WallGrid.RefreshTileAndNeighbors to update this wall's mesh and rotation.
+    /// Called by WallGrid.RefreshTileAndNeighbors to update this wall's mesh.
     /// </summary>
     public void RefreshShape()
     {
         if (!initialized) Initialize();
 
-        int mask = WallGrid.Instance.GetNeighborMask(gridPos);
-        WallShape shape;
-        float yRotation;
-        GetShapeAndRotation(mask, out shape, out yRotation);
-
-        // Convert to gate variant if this is a gate
-        if (isGate)
-        {
-            shape = ToGateShape(shape);
-        }
-
-        currentShape = shape;
+        currentLinks = WallGrid.Instance.GetLinkMask(gridPos);
 
         if (meshFilter != null)
         {
-            meshFilter.mesh = GetOrCreateMesh(shape, isStoneWall);
+            meshFilter.mesh = GetOrCreateMesh(currentLinks, isStoneWall, isGate);
         }
 
         transform.localScale = Vector3.one;
-        transform.rotation = Quaternion.Euler(0f, yRotation, 0f);
+        transform.rotation = Quaternion.identity;
     }
 
     // =============================================
-    // Static API for ghost previews
+    // Static API (also used by the ghost preview)
     // =============================================
 
     /// <summary>
-    /// Compute the shape and Y-rotation for a given neighbor bitmask.
-    /// Can be called by BuildPlacement for ghost previews.
+    /// The cached mesh for a link mask (WallGrid bits: four cardinal, four diagonal). A gate
+    /// ignores diagonal bits - WallGrid never gives it any. Always drawn unrotated.
     /// </summary>
-    public static void GetShapeAndRotation(int mask, out WallShape shape, out float yRotation)
+    public static Mesh GetOrCreateMesh(int links, bool isStone, bool isGate)
     {
-        int neighborCount = CountBitsStatic(mask);
-        yRotation = 0f;
+        if (isGate) links &= ~WallGrid.DiagonalBits;
+        int key = (links & 0xFF) | (isStone ? 0x100 : 0) | (isGate ? 0x200 : 0);
 
-        switch (neighborCount)
-        {
-            case 0:
-                shape = WallShape.Isolated;
-                break;
-            case 1:
-                shape = WallShape.Endcap;
-                yRotation = GetEndcapRotationStatic(mask);
-                break;
-            case 2:
-                if (IsOppositeStatic(mask))
-                {
-                    shape = WallShape.Straight;
-                    yRotation = GetStraightRotationStatic(mask);
-                }
-                else
-                {
-                    shape = WallShape.Corner;
-                    yRotation = GetCornerRotationStatic(mask);
-                }
-                break;
-            case 3:
-                shape = WallShape.TJunction;
-                yRotation = GetTJunctionRotationStatic(mask);
-                break;
-            case 4:
-                shape = WallShape.Cross;
-                break;
-            default:
-                shape = WallShape.Isolated;
-                break;
-        }
-    }
-
-    /// <summary>
-    /// Get or create a cached procedural mesh for a given shape. Static so
-    /// BuildPlacement can call it for ghost previews.
-    /// </summary>
-    public static Mesh GetOrCreateMesh(WallShape shape, bool isStone)
-    {
-        string key = shape.ToString() + (isStone ? "_stone" : "_wood");
         Mesh mesh;
         if (meshCache.TryGetValue(key, out mesh) && mesh != null)
             return mesh;
 
-        float h = isStone ? STONE_HEIGHT : WOODEN_HEIGHT;
-        float t = WALL_THICKNESS;
-
-        switch (shape)
-        {
-            case WallShape.Isolated:
-                mesh = CreateBox(PILLAR_SIZE, h, PILLAR_SIZE);
-                break;
-            case WallShape.Endcap:
-                mesh = CreateEndcapMesh(t, h);
-                break;
-            case WallShape.Straight:
-                mesh = CreateStraightMesh(t, h);
-                break;
-            case WallShape.Corner:
-                mesh = CreateCornerMesh(t, h);
-                break;
-            case WallShape.TJunction:
-                mesh = CreateTJunctionMesh(t, h);
-                break;
-            case WallShape.Cross:
-                mesh = CreateCrossMesh(t, h);
-                break;
-            case WallShape.GateIsolated:
-                mesh = CreateBox(PILLAR_SIZE, h * GATE_HEIGHT_RATIO, PILLAR_SIZE);
-                break;
-            case WallShape.GateEndcap:
-                mesh = CreateGateEndcapMesh(t, h);
-                break;
-            case WallShape.GateStraight:
-                mesh = CreateGateStraightMesh(t, h);
-                break;
-            case WallShape.GateCorner:
-                mesh = CreateGateCornerMesh(t, h);
-                break;
-            case WallShape.GateTJunction:
-                mesh = CreateGateTJunctionMesh(t, h);
-                break;
-            case WallShape.GateCross:
-                mesh = CreateGateCrossMesh(t, h);
-                break;
-            default:
-                mesh = CreateBox(PILLAR_SIZE, h, PILLAR_SIZE);
-                break;
-        }
-
-        mesh.name = key;
+        mesh = BuildMesh(links, isStone, isGate);
+        mesh.name = "Wall_" + links + (isStone ? "_stone" : "_wood") + (isGate ? "_gate" : "");
         meshCache[key] = mesh;
         return mesh;
-    }
-
-    /// <summary>
-    /// Neighbour mask for a cell, counting both walls that already exist and other cells in
-    /// the wall line currently being previewed - which is what makes a dragged line connect
-    /// to itself as it is drawn.
-    /// </summary>
-    /// <remarks>
-    /// Called once per cell of the line every frame of a drag, so it uses WallGrid's shared
-    /// direction tables rather than building its own.
-    /// </remarks>
-    public static int GetPreviewNeighborMask(Vector2Int pos, HashSet<Vector2Int> ghostPositions)
-    {
-        int mask = 0;
-
-        for (int i = 0; i < 4; i++)
-        {
-            Vector2Int neighbor = pos + WallGrid.NeighborOffsets[i];
-            if (ghostPositions.Contains(neighbor))
-            {
-                mask |= WallGrid.NeighborBits[i];
-            }
-            else if (WallGrid.Instance != null && WallGrid.Instance.HasWallAt(neighbor))
-            {
-                mask |= WallGrid.NeighborBits[i];
-            }
-        }
-        return mask;
-    }
-
-    // =============================================
-    // Static Rotation Helpers
-    // =============================================
-
-    private static float GetEndcapRotationStatic(int mask)
-    {
-        if ((mask & WallGrid.NORTH) != 0) return 0f;
-        if ((mask & WallGrid.EAST) != 0)  return 90f;
-        if ((mask & WallGrid.SOUTH) != 0) return 180f;
-        if ((mask & WallGrid.WEST) != 0)  return 270f;
-        return 0f;
-    }
-
-    private static float GetStraightRotationStatic(int mask)
-    {
-        if ((mask & WallGrid.NORTH) != 0 && (mask & WallGrid.SOUTH) != 0) return 0f;
-        return 90f;
-    }
-
-    private static float GetCornerRotationStatic(int mask)
-    {
-        if ((mask & WallGrid.NORTH) != 0 && (mask & WallGrid.EAST) != 0)  return 0f;
-        if ((mask & WallGrid.EAST) != 0  && (mask & WallGrid.SOUTH) != 0) return 90f;
-        if ((mask & WallGrid.SOUTH) != 0 && (mask & WallGrid.WEST) != 0)  return 180f;
-        if ((mask & WallGrid.WEST) != 0  && (mask & WallGrid.NORTH) != 0) return 270f;
-        return 0f;
-    }
-
-    private static float GetTJunctionRotationStatic(int mask)
-    {
-        if ((mask & WallGrid.SOUTH) == 0) return 0f;
-        if ((mask & WallGrid.WEST) == 0)  return 90f;
-        if ((mask & WallGrid.NORTH) == 0) return 180f;
-        if ((mask & WallGrid.EAST) == 0)  return 270f;
-        return 0f;
-    }
-
-    private static bool IsOppositeStatic(int mask)
-    {
-        return mask == (WallGrid.NORTH | WallGrid.SOUTH) ||
-               mask == (WallGrid.EAST | WallGrid.WEST);
-    }
-
-    private static int CountBitsStatic(int n)
-    {
-        int count = 0;
-        while (n != 0) { count += n & 1; n >>= 1; }
-        return count;
     }
 
     // =============================================
@@ -350,387 +160,110 @@ public class WallConnector : MonoBehaviour
     // =============================================
 
     /// <summary>
-    /// Create a 5-face box (no bottom face) with bottom at y=0, centered on XZ.
+    /// A post at the cell centre plus one arm per link. A cardinal arm runs from the post's
+    /// edge to the cell edge, where the neighbour's arm meets it; a diagonal arm runs to the
+    /// shared cell CORNER, where the diagonal neighbour's arm meets it end to end.
     /// </summary>
-    private static Mesh CreateBox(float sizeX, float sizeY, float sizeZ)
+    private static Mesh BuildMesh(int links, bool isStone, bool isGate)
     {
-        return CreateBoxAt(sizeX, sizeY, sizeZ, 0f, 0f);
-    }
+        float h = isStone ? STONE_HEIGHT : WOODEN_HEIGHT;
+        float postTop = isGate ? h * GATE_HEIGHT_RATIO : h;
+        float armBottom = isGate ? postTop * GATE_ARCH_RATIO : 0f;
+        float halfPost = PILLAR_SIZE * 0.5f;
 
-    /// <summary>
-    /// Create a 5-face box (no bottom) at given XZ offset, bottom at y=0.
-    /// </summary>
-    private static Mesh CreateBoxAt(float sizeX, float sizeY, float sizeZ, float cx, float cz)
-    {
-        Mesh mesh = new Mesh();
+        var b = new BoxBuilder();
+        b.AddBox(Vector2.zero, Vector2.up, halfPost, halfPost, 0f, postTop, false);
 
-        float hx = sizeX * 0.5f;
-        float hz = sizeZ * 0.5f;
-        float top = sizeY;
-
-        // 5 faces x 4 verts = 20 vertices
-        Vector3[] vertices = new Vector3[20];
-        Vector3[] normals = new Vector3[20];
-        Vector2[] uvs = new Vector2[20];
-
-        // Front face (+Z)
-        vertices[0]  = new Vector3(cx - hx, 0,   cz + hz);
-        vertices[1]  = new Vector3(cx + hx, 0,   cz + hz);
-        vertices[2]  = new Vector3(cx + hx, top, cz + hz);
-        vertices[3]  = new Vector3(cx - hx, top, cz + hz);
-        // Back face (-Z)
-        vertices[4]  = new Vector3(cx + hx, 0,   cz - hz);
-        vertices[5]  = new Vector3(cx - hx, 0,   cz - hz);
-        vertices[6]  = new Vector3(cx - hx, top, cz - hz);
-        vertices[7]  = new Vector3(cx + hx, top, cz - hz);
-        // Top face (+Y)
-        vertices[8]  = new Vector3(cx - hx, top, cz + hz);
-        vertices[9]  = new Vector3(cx + hx, top, cz + hz);
-        vertices[10] = new Vector3(cx + hx, top, cz - hz);
-        vertices[11] = new Vector3(cx - hx, top, cz - hz);
-        // Right face (+X)
-        vertices[12] = new Vector3(cx + hx, 0,   cz + hz);
-        vertices[13] = new Vector3(cx + hx, 0,   cz - hz);
-        vertices[14] = new Vector3(cx + hx, top, cz - hz);
-        vertices[15] = new Vector3(cx + hx, top, cz + hz);
-        // Left face (-X)
-        vertices[16] = new Vector3(cx - hx, 0,   cz - hz);
-        vertices[17] = new Vector3(cx - hx, 0,   cz + hz);
-        vertices[18] = new Vector3(cx - hx, top, cz + hz);
-        vertices[19] = new Vector3(cx - hx, top, cz - hz);
-
-        for (int i = 0;  i < 4;  i++) normals[i]  = Vector3.forward;
-        for (int i = 4;  i < 8;  i++) normals[i]  = Vector3.back;
-        for (int i = 8;  i < 12; i++) normals[i]  = Vector3.up;
-        for (int i = 12; i < 16; i++) normals[i]  = Vector3.right;
-        for (int i = 16; i < 20; i++) normals[i]  = Vector3.left;
-
-        for (int i = 0; i < 5; i++)
+        for (int i = 0; i < 4; i++)
         {
-            int b = i * 4;
-            uvs[b]     = new Vector2(0, 0);
-            uvs[b + 1] = new Vector2(1, 0);
-            uvs[b + 2] = new Vector2(1, 1);
-            uvs[b + 3] = new Vector2(0, 1);
+            if ((links & WallGrid.NeighborBits[i]) == 0) continue;
+            Vector2Int o = WallGrid.NeighborOffsets[i];
+            Vector2 dir = new Vector2(o.x, o.y);
+            float len = 0.5f - halfPost;
+            b.AddBox(dir * (halfPost + len * 0.5f), dir, len * 0.5f, WALL_THICKNESS * 0.5f,
+                armBottom, postTop, isGate);
         }
 
-        // Clockwise winding for Unity front faces
-        int[] triangles = new int[30]; // 5 faces x 6 indices
-        for (int i = 0; i < 5; i++)
+        if (!isGate)
         {
-            int b = i * 4;
-            int t = i * 6;
-            triangles[t]     = b;
-            triangles[t + 1] = b + 1;
-            triangles[t + 2] = b + 2;
-            triangles[t + 3] = b;
-            triangles[t + 4] = b + 2;
-            triangles[t + 5] = b + 3;
+            for (int i = 0; i < 4; i++)
+            {
+                if ((links & WallGrid.DiagonalLinkBits[i]) == 0) continue;
+                Vector2Int o = WallGrid.DiagonalOffsets[i];
+                Vector2 dir = new Vector2(o.x, o.y).normalized;
+                float len = Mathf.Sqrt(0.5f) - halfPost;   // post edge → cell corner
+                b.AddBox(dir * (halfPost + len * 0.5f), dir, len * 0.5f, WALL_THICKNESS * 0.5f,
+                    0f, postTop - DIAGONAL_TOP_DROP, false);
+            }
         }
 
-        mesh.vertices = vertices;
-        mesh.normals = normals;
-        mesh.uv = uvs;
-        mesh.triangles = triangles;
-        mesh.RecalculateBounds();
-
-        return mesh;
+        return b.ToMesh();
     }
 
     /// <summary>
-    /// Endcap: pillar at center + half-bar toward +Z.
+    /// Accumulates oriented boxes into one vertex/index list (flat-shaded, four verts per face)
+    /// so a whole post-and-arms mesh is one allocation instead of a chain of combines.
     /// </summary>
-    private static Mesh CreateEndcapMesh(float thickness, float height)
+    private class BoxBuilder
     {
-        float halfT = thickness * 0.5f;
-        // Pillar at center
-        Mesh pillar = CreateBoxAt(PILLAR_SIZE, height, PILLAR_SIZE, 0f, 0f);
-        // Bar from pillar edge to +0.5 Z
-        float barLen = 0.5f - PILLAR_SIZE * 0.5f;
-        float barCZ = PILLAR_SIZE * 0.5f + barLen * 0.5f;
-        Mesh bar = CreateBoxAt(thickness, height, barLen, 0f, barCZ);
-        return CombineMeshes(pillar, bar);
-    }
+        readonly List<Vector3> verts = new List<Vector3>();
+        readonly List<Vector3> norms = new List<Vector3>();
+        readonly List<Vector2> uvs = new List<Vector2>();
+        readonly List<int> tris = new List<int>();
 
-    /// <summary>
-    /// Corner mesh: pillar + arm toward +Z + arm toward +X.
-    /// No overlapping geometry.
-    /// </summary>
-    private static Mesh CreateCornerMesh(float thickness, float height)
-    {
-        // Center pillar
-        Mesh pillar = CreateBoxAt(PILLAR_SIZE, height, PILLAR_SIZE, 0f, 0f);
-        // Arm toward +Z (North)
-        float armLen = 0.5f - PILLAR_SIZE * 0.5f;
-        float armCZ = PILLAR_SIZE * 0.5f + armLen * 0.5f;
-        Mesh armN = CreateBoxAt(thickness, height, armLen, 0f, armCZ);
-        // Arm toward +X (East)
-        float armCX = PILLAR_SIZE * 0.5f + armLen * 0.5f;
-        Mesh armE = CreateBoxAt(armLen, height, thickness, armCX, 0f);
-
-        return CombineMeshes(CombineMeshes(pillar, armN), armE);
-    }
-
-    /// <summary>
-    /// T-junction: pillar + arms toward +Z, +X, -X.
-    /// Default orientation: missing South (N+E+W).
-    /// </summary>
-    private static Mesh CreateTJunctionMesh(float thickness, float height)
-    {
-        // Center pillar
-        Mesh pillar = CreateBoxAt(PILLAR_SIZE, height, PILLAR_SIZE, 0f, 0f);
-        float armLen = 0.5f - PILLAR_SIZE * 0.5f;
-        float offset = PILLAR_SIZE * 0.5f + armLen * 0.5f;
-        // Arm +Z (North)
-        Mesh armN = CreateBoxAt(thickness, height, armLen, 0f, offset);
-        // Arm +X (East)
-        Mesh armE = CreateBoxAt(armLen, height, thickness, offset, 0f);
-        // Arm -X (West)
-        Mesh armW = CreateBoxAt(armLen, height, thickness, -offset, 0f);
-
-        return CombineMeshes(CombineMeshes(CombineMeshes(pillar, armN), armE), armW);
-    }
-
-    /// <summary>
-    /// Straight: pillar + arms toward +Z and -Z.
-    /// Default orientation: N-S.
-    /// </summary>
-    private static Mesh CreateStraightMesh(float thickness, float height)
-    {
-        Mesh pillar = CreateBoxAt(PILLAR_SIZE, height, PILLAR_SIZE, 0f, 0f);
-        float armLen = 0.5f - PILLAR_SIZE * 0.5f;
-        float offset = PILLAR_SIZE * 0.5f + armLen * 0.5f;
-        Mesh armN = CreateBoxAt(thickness, height, armLen, 0f, offset);
-        Mesh armS = CreateBoxAt(thickness, height, armLen, 0f, -offset);
-        return CombineMeshes(CombineMeshes(pillar, armN), armS);
-    }
-
-    /// <summary>
-    /// Cross: pillar + arms in all 4 directions.
-    /// </summary>
-    private static Mesh CreateCrossMesh(float thickness, float height)
-    {
-        Mesh pillar = CreateBoxAt(PILLAR_SIZE, height, PILLAR_SIZE, 0f, 0f);
-        float armLen = 0.5f - PILLAR_SIZE * 0.5f;
-        float offset = PILLAR_SIZE * 0.5f + armLen * 0.5f;
-        Mesh armN = CreateBoxAt(thickness, height, armLen, 0f, offset);
-        Mesh armS = CreateBoxAt(thickness, height, armLen, 0f, -offset);
-        Mesh armE = CreateBoxAt(armLen, height, thickness, offset, 0f);
-        Mesh armW = CreateBoxAt(armLen, height, thickness, -offset, 0f);
-
-        Mesh ns = CombineMeshes(CombineMeshes(pillar, armN), armS);
-        return CombineMeshes(CombineMeshes(ns, armE), armW);
-    }
-
-    /// <summary>
-    /// Combine two meshes into one.
-    /// </summary>
-    private static Mesh CombineMeshes(Mesh a, Mesh b)
-    {
-        int vertCountA = a.vertexCount;
-        int vertCountB = b.vertexCount;
-
-        Vector3[] verts = new Vector3[vertCountA + vertCountB];
-        Vector3[] norms = new Vector3[vertCountA + vertCountB];
-        Vector2[] uvArr = new Vector2[vertCountA + vertCountB];
-
-        System.Array.Copy(a.vertices, 0, verts, 0, vertCountA);
-        System.Array.Copy(b.vertices, 0, verts, vertCountA, vertCountB);
-        System.Array.Copy(a.normals, 0, norms, 0, vertCountA);
-        System.Array.Copy(b.normals, 0, norms, vertCountA, vertCountB);
-        System.Array.Copy(a.uv, 0, uvArr, 0, vertCountA);
-        System.Array.Copy(b.uv, 0, uvArr, vertCountA, vertCountB);
-
-        int[] trisA = a.triangles;
-        int[] trisB = b.triangles;
-        int[] tris = new int[trisA.Length + trisB.Length];
-        System.Array.Copy(trisA, 0, tris, 0, trisA.Length);
-        for (int i = 0; i < trisB.Length; i++)
+        /// <summary>
+        /// A box centred at <paramref name="c"/> (XZ), its long axis along the unit
+        /// <paramref name="along"/>. No bottom face unless asked (a gate arm's underside is
+        /// seen through the arch).
+        /// </summary>
+        public void AddBox(Vector2 c, Vector2 along, float halfLen, float halfWidth,
+            float yMin, float yMax, bool bottomFace)
         {
-            tris[trisA.Length + i] = trisB[i] + vertCountA;
+            Vector3 a = new Vector3(along.x, 0f, along.y) * halfLen;
+            Vector3 w = new Vector3(along.y, 0f, -along.x) * halfWidth;
+            Vector3 o = new Vector3(c.x, 0f, c.y);
+            Vector3 lo = Vector3.up * yMin, hi = Vector3.up * yMax;
+
+            // The four footprint corners; Quad winds each face from its outward normal,
+            // so their order around the box does not matter.
+            Vector3 p0 = o - a - w, p1 = o + a - w, p2 = o + a + w, p3 = o - a + w;
+
+            Vector3 na = a.normalized, nw = w.normalized;
+            Quad(p1 + lo, p2 + lo, p2 + hi, p1 + hi, na);    // far end
+            Quad(p3 + lo, p0 + lo, p0 + hi, p3 + hi, -na);   // near end
+            Quad(p2 + lo, p3 + lo, p3 + hi, p2 + hi, nw);    // side
+            Quad(p0 + lo, p1 + lo, p1 + hi, p0 + hi, -nw);   // other side
+            Quad(p0 + hi, p1 + hi, p2 + hi, p3 + hi, Vector3.up);
+            if (bottomFace) Quad(p0 + lo, p1 + lo, p2 + lo, p3 + lo, Vector3.down);
         }
 
-        Mesh mesh = new Mesh();
-        mesh.vertices = verts;
-        mesh.normals = norms;
-        mesh.uv = uvArr;
-        mesh.triangles = tris;
-        mesh.RecalculateBounds();
-
-        return mesh;
-    }
-
-    // =============================================
-    // Gate Shape Helpers
-    // =============================================
-
-    /// <summary>
-    /// Convert a wall shape to its gate equivalent.
-    /// </summary>
-    public static WallShape ToGateShape(WallShape wallShape)
-    {
-        switch (wallShape)
+        void Quad(Vector3 v0, Vector3 v1, Vector3 v2, Vector3 v3, Vector3 n)
         {
-            case WallShape.Isolated:  return WallShape.GateIsolated;
-            case WallShape.Endcap:    return WallShape.GateEndcap;
-            case WallShape.Straight:  return WallShape.GateStraight;
-            case WallShape.Corner:    return WallShape.GateCorner;
-            case WallShape.TJunction: return WallShape.GateTJunction;
-            case WallShape.Cross:     return WallShape.GateCross;
-            default:                  return wallShape; // Already a gate shape
-        }
-    }
+            // Unity's front face: cross(v1 - v0, v2 - v0) points out of the face.
+            if (Vector3.Dot(Vector3.Cross(v1 - v0, v2 - v0), n) < 0f)
+            {
+                Vector3 t = v1; v1 = v3; v3 = t;
+            }
 
-    /// <summary>
-    /// Gate meshes: same structure as wall meshes but at half height with pillar posts at connections.
-    /// The lower section has an opening (archway) so it visually reads as a gate.
-    /// </summary>
-    private static Mesh CreateGateEndcapMesh(float thickness, float height)
-    {
-        float gh = height * GATE_HEIGHT_RATIO;
-        // Short pillar at center
-        Mesh pillar = CreateBoxAt(PILLAR_SIZE, gh, PILLAR_SIZE, 0f, 0f);
-        // Short bar toward +Z
-        float barLen = 0.5f - PILLAR_SIZE * 0.5f;
-        float barCZ = PILLAR_SIZE * 0.5f + barLen * 0.5f;
-        // Gate bar: only top portion (archway below)
-        Mesh topBar = CreateBoxAtYRange(thickness, gh * 0.6f, gh, barLen, 0f, barCZ);
-        return CombineMeshes(pillar, topBar);
-    }
-
-    private static Mesh CreateGateStraightMesh(float thickness, float height)
-    {
-        float gh = height * GATE_HEIGHT_RATIO;
-        Mesh pillar = CreateBoxAt(PILLAR_SIZE, gh, PILLAR_SIZE, 0f, 0f);
-        float armLen = 0.5f - PILLAR_SIZE * 0.5f;
-        float offset = PILLAR_SIZE * 0.5f + armLen * 0.5f;
-        // Top bars only (archway openings below)
-        Mesh armN = CreateBoxAtYRange(thickness, gh * 0.6f, gh, armLen, 0f, offset);
-        Mesh armS = CreateBoxAtYRange(thickness, gh * 0.6f, gh, armLen, 0f, -offset);
-        return CombineMeshes(CombineMeshes(pillar, armN), armS);
-    }
-
-    private static Mesh CreateGateCornerMesh(float thickness, float height)
-    {
-        float gh = height * GATE_HEIGHT_RATIO;
-        Mesh pillar = CreateBoxAt(PILLAR_SIZE, gh, PILLAR_SIZE, 0f, 0f);
-        float armLen = 0.5f - PILLAR_SIZE * 0.5f;
-        float armCZ = PILLAR_SIZE * 0.5f + armLen * 0.5f;
-        float armCX = PILLAR_SIZE * 0.5f + armLen * 0.5f;
-        Mesh armN = CreateBoxAtYRange(thickness, gh * 0.6f, gh, armLen, 0f, armCZ);
-        Mesh armE = CreateBoxAtYRange(armLen, gh * 0.6f, gh, thickness, armCX, 0f);
-        return CombineMeshes(CombineMeshes(pillar, armN), armE);
-    }
-
-    private static Mesh CreateGateTJunctionMesh(float thickness, float height)
-    {
-        float gh = height * GATE_HEIGHT_RATIO;
-        Mesh pillar = CreateBoxAt(PILLAR_SIZE, gh, PILLAR_SIZE, 0f, 0f);
-        float armLen = 0.5f - PILLAR_SIZE * 0.5f;
-        float offset = PILLAR_SIZE * 0.5f + armLen * 0.5f;
-        Mesh armN = CreateBoxAtYRange(thickness, gh * 0.6f, gh, armLen, 0f, offset);
-        Mesh armE = CreateBoxAtYRange(armLen, gh * 0.6f, gh, thickness, offset, 0f);
-        Mesh armW = CreateBoxAtYRange(armLen, gh * 0.6f, gh, thickness, -offset, 0f);
-        return CombineMeshes(CombineMeshes(CombineMeshes(pillar, armN), armE), armW);
-    }
-
-    private static Mesh CreateGateCrossMesh(float thickness, float height)
-    {
-        float gh = height * GATE_HEIGHT_RATIO;
-        Mesh pillar = CreateBoxAt(PILLAR_SIZE, gh, PILLAR_SIZE, 0f, 0f);
-        float armLen = 0.5f - PILLAR_SIZE * 0.5f;
-        float offset = PILLAR_SIZE * 0.5f + armLen * 0.5f;
-        Mesh armN = CreateBoxAtYRange(thickness, gh * 0.6f, gh, armLen, 0f, offset);
-        Mesh armS = CreateBoxAtYRange(thickness, gh * 0.6f, gh, armLen, 0f, -offset);
-        Mesh armE = CreateBoxAtYRange(armLen, gh * 0.6f, gh, thickness, offset, 0f);
-        Mesh armW = CreateBoxAtYRange(armLen, gh * 0.6f, gh, thickness, -offset, 0f);
-        Mesh ns = CombineMeshes(CombineMeshes(pillar, armN), armS);
-        return CombineMeshes(CombineMeshes(ns, armE), armW);
-    }
-
-    /// <summary>
-    /// Create a box at given XZ offset with a Y range (bottom at yMin, top at yMax).
-    /// Used for gate archway bars that only span the top portion.
-    /// </summary>
-    private static Mesh CreateBoxAtYRange(float sizeX, float yMin, float yMax, float sizeZ, float cx, float cz)
-    {
-        Mesh mesh = new Mesh();
-
-        float hx = sizeX * 0.5f;
-        float hz = sizeZ * 0.5f;
-
-        // 6 faces x 4 verts = 24 vertices (full box since bottom is visible for archway)
-        Vector3[] vertices = new Vector3[24];
-        Vector3[] normals = new Vector3[24];
-        Vector2[] uvs = new Vector2[24];
-
-        // Front face (+Z)
-        vertices[0]  = new Vector3(cx - hx, yMin, cz + hz);
-        vertices[1]  = new Vector3(cx + hx, yMin, cz + hz);
-        vertices[2]  = new Vector3(cx + hx, yMax, cz + hz);
-        vertices[3]  = new Vector3(cx - hx, yMax, cz + hz);
-        // Back face (-Z)
-        vertices[4]  = new Vector3(cx + hx, yMin, cz - hz);
-        vertices[5]  = new Vector3(cx - hx, yMin, cz - hz);
-        vertices[6]  = new Vector3(cx - hx, yMax, cz - hz);
-        vertices[7]  = new Vector3(cx + hx, yMax, cz - hz);
-        // Top face (+Y)
-        vertices[8]  = new Vector3(cx - hx, yMax, cz + hz);
-        vertices[9]  = new Vector3(cx + hx, yMax, cz + hz);
-        vertices[10] = new Vector3(cx + hx, yMax, cz - hz);
-        vertices[11] = new Vector3(cx - hx, yMax, cz - hz);
-        // Right face (+X)
-        vertices[12] = new Vector3(cx + hx, yMin, cz + hz);
-        vertices[13] = new Vector3(cx + hx, yMin, cz - hz);
-        vertices[14] = new Vector3(cx + hx, yMax, cz - hz);
-        vertices[15] = new Vector3(cx + hx, yMax, cz + hz);
-        // Left face (-X)
-        vertices[16] = new Vector3(cx - hx, yMin, cz - hz);
-        vertices[17] = new Vector3(cx - hx, yMin, cz + hz);
-        vertices[18] = new Vector3(cx - hx, yMax, cz + hz);
-        vertices[19] = new Vector3(cx - hx, yMax, cz - hz);
-        // Bottom face (-Y) - visible for archway
-        vertices[20] = new Vector3(cx - hx, yMin, cz - hz);
-        vertices[21] = new Vector3(cx + hx, yMin, cz - hz);
-        vertices[22] = new Vector3(cx + hx, yMin, cz + hz);
-        vertices[23] = new Vector3(cx - hx, yMin, cz + hz);
-
-        for (int i = 0;  i < 4;  i++) normals[i]  = Vector3.forward;
-        for (int i = 4;  i < 8;  i++) normals[i]  = Vector3.back;
-        for (int i = 8;  i < 12; i++) normals[i]  = Vector3.up;
-        for (int i = 12; i < 16; i++) normals[i]  = Vector3.right;
-        for (int i = 16; i < 20; i++) normals[i]  = Vector3.left;
-        for (int i = 20; i < 24; i++) normals[i]  = Vector3.down;
-
-        for (int i = 0; i < 6; i++)
-        {
-            int b = i * 4;
-            uvs[b]     = new Vector2(0, 0);
-            uvs[b + 1] = new Vector2(1, 0);
-            uvs[b + 2] = new Vector2(1, 1);
-            uvs[b + 3] = new Vector2(0, 1);
+            int b = verts.Count;
+            verts.Add(v0); verts.Add(v1); verts.Add(v2); verts.Add(v3);
+            norms.Add(n); norms.Add(n); norms.Add(n); norms.Add(n);
+            uvs.Add(new Vector2(0, 0)); uvs.Add(new Vector2(1, 0));
+            uvs.Add(new Vector2(1, 1)); uvs.Add(new Vector2(0, 1));
+            tris.Add(b); tris.Add(b + 1); tris.Add(b + 2);
+            tris.Add(b); tris.Add(b + 2); tris.Add(b + 3);
         }
 
-        int[] triangles = new int[36]; // 6 faces x 6 indices
-        for (int i = 0; i < 6; i++)
+        public Mesh ToMesh()
         {
-            int b = i * 4;
-            int t = i * 6;
-            triangles[t]     = b;
-            triangles[t + 1] = b + 1;
-            triangles[t + 2] = b + 2;
-            triangles[t + 3] = b;
-            triangles[t + 4] = b + 2;
-            triangles[t + 5] = b + 3;
+            Mesh mesh = new Mesh();
+            mesh.SetVertices(verts);
+            mesh.SetNormals(norms);
+            mesh.SetUVs(0, uvs);
+            mesh.SetTriangles(tris, 0);
+            mesh.RecalculateBounds();
+            return mesh;
         }
-
-        mesh.vertices = vertices;
-        mesh.normals = normals;
-        mesh.uv = uvs;
-        mesh.triangles = triangles;
-        mesh.RecalculateBounds();
-
-        return mesh;
     }
 
     // =============================================
@@ -743,12 +276,17 @@ public class WallConnector : MonoBehaviour
         if (WallGrid.Instance == null) return;
 
         Vector3 center = transform.position + Vector3.up * 1f;
-        int mask = WallGrid.Instance.GetNeighborMask(WallGrid.Instance.WorldToGrid(transform.position));
+        int mask = WallGrid.Instance.GetLinkMask(WallGrid.Instance.WorldToGrid(transform.position));
 
         Gizmos.color = Color.green;
-        if ((mask & WallGrid.NORTH) != 0) Gizmos.DrawLine(center, center + Vector3.forward * 0.5f);
-        if ((mask & WallGrid.SOUTH) != 0) Gizmos.DrawLine(center, center + Vector3.back * 0.5f);
-        if ((mask & WallGrid.EAST) != 0)  Gizmos.DrawLine(center, center + Vector3.right * 0.5f);
-        if ((mask & WallGrid.WEST) != 0)  Gizmos.DrawLine(center, center + Vector3.left * 0.5f);
+        for (int i = 0; i < 4; i++)
+        {
+            Vector2Int o = WallGrid.NeighborOffsets[i];
+            if ((mask & WallGrid.NeighborBits[i]) != 0)
+                Gizmos.DrawLine(center, center + new Vector3(o.x, 0f, o.y) * 0.5f);
+            Vector2Int d = WallGrid.DiagonalOffsets[i];
+            if ((mask & WallGrid.DiagonalLinkBits[i]) != 0)
+                Gizmos.DrawLine(center, center + new Vector3(d.x, 0f, d.y) * 0.5f);
+        }
     }
 }
