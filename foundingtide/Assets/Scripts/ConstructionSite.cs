@@ -74,32 +74,23 @@ public class ConstructionSite : MonoBehaviour, IOwned
     private Vector2Int gridPos;
     private bool registeredWithGrid = false;
 
+    // The carve (2026-09-28, the wall lag): counted for the F6 logger when it appears
+    // and when it goes, each once.
+    private NavMeshObstacle obstacle;
+    private bool carveCounted;
+    private bool carveReleased;
+
     void Start()
     {
         cachedCamera = Camera.main;
 
-        // Make sure NavMesh Obstacle is enabled for runtime pathfinding
-        NavMeshObstacle obstacle = GetComponent<NavMeshObstacle>();
-        if (obstacle != null)
-        {
-            obstacle.enabled = true;
-            obstacle.carving = true;
-            obstacle.carveOnlyStationary = true;
+        // The site draws like the building it becomes: through the cutout + fog shader,
+        // and - another colony's - only on watched ground. Before 2026-09-28 a rival's
+        // wall line and its progress labels (sorting order 100) showed through the fog.
+        OccluderCutout.AttachTo(gameObject);
+        if (!Faction.IsPlayer) FogVisibility.Attach(gameObject, FogVisibility.Rule.Visible);
 
-            // For walls, use smaller carve size so gates have walkable gaps
-            bool isWallType = false;
-            if (BuildingDatabase.Instance != null)
-            {
-                BuildingData data = BuildingDatabase.Instance.GetBuildingData(buildingType);
-                isWallType = data != null && data.isWall;
-            }
-            if (isWallType)
-            {
-                obstacle.shape = NavMeshObstacleShape.Box;
-                obstacle.size = new Vector3(0.9f, 2f, 0.9f);
-                obstacle.center = new Vector3(0f, 1f, 0f);
-            }
-        }
+        SetupCarve();
 
         // Create progress text display
         if (showProgressText)
@@ -109,6 +100,51 @@ public class ConstructionSite : MonoBehaviour, IOwned
 
         // Register with WallGrid if this is a wall type
         RegisterIfWall();
+    }
+
+    /// <summary>
+    /// Make the obstacle carve. A wall site carves exactly the finished wall's box at the
+    /// finished wall's world height (<see cref="Wall.ConfigureCarve"/>), so the hand-over
+    /// in <see cref="Complete"/> leaves the NavMesh as it was. Runs from SetBuildingType as
+    /// well as Start, so the prefab's big default box never carves for a wall.
+    /// </summary>
+    private void SetupCarve()
+    {
+        if (obstacle == null) obstacle = GetComponent<NavMeshObstacle>();
+        if (obstacle == null || carveReleased) return;
+
+        if (IsWallType())
+        {
+            float wallY = WallConnector.SnapToCell(transform.position).y;
+            Wall.ConfigureCarve(obstacle, wallY + Wall.CarveCentreY - transform.position.y);
+        }
+        else
+        {
+            obstacle.enabled = true;
+            obstacle.carving = true;
+            obstacle.carveOnlyStationary = true;
+        }
+
+        if (!carveCounted) { carveCounted = true; PerfCounters.Hit(PerfCounters.K.CarveChange); }
+    }
+
+    private void ReleaseCarve()
+    {
+        if (carveReleased) return;
+        carveReleased = true;
+        if (obstacle == null) obstacle = GetComponent<NavMeshObstacle>();
+        if (obstacle != null && obstacle.enabled)
+        {
+            obstacle.enabled = false;
+            if (carveCounted) PerfCounters.Hit(PerfCounters.K.CarveChange);
+        }
+    }
+
+    private bool IsWallType()
+    {
+        if (BuildingDatabase.Instance == null) return false;
+        BuildingData data = BuildingDatabase.Instance.GetBuildingData(buildingType);
+        return data != null && data.isWall;
     }
 
     void Update()
@@ -188,12 +224,14 @@ public class ConstructionSite : MonoBehaviour, IOwned
         isComplete = true;
         DevQuests.Signal("build:" + buildingType.ToString().ToLowerInvariant());
 
-        // Unregister from WallGrid before destroying (the finished Wall will re-register)
-        UnregisterFromGrid();
+        // The site's carve goes this frame, whatever follows. A wall's carve replaces it
+        // in the same frame below, so the tile rebuilds once, not twice with a hole between.
+        ReleaseCarve();
 
         // Get building data from database
         if (BuildingDatabase.Instance == null)
         {
+            UnregisterFromGrid();
             Destroy(gameObject);
             return;
         }
@@ -201,15 +239,33 @@ public class ConstructionSite : MonoBehaviour, IOwned
         BuildingData data = BuildingDatabase.Instance.GetBuildingData(buildingType);
         if (data == null || data.finishedBuildingPrefab == null)
         {
+            UnregisterFromGrid();
             Destroy(gameObject);
             return;
         }
 
-        // Spawn the finished building
-        GameObject finishedBuilding = Spawn.Owned(data.finishedBuildingPrefab, transform.position, transform.rotation, Faction);
+        // Spawn the finished building. A wall is spawned where it will STAND (its cell
+        // centre on the ground, not the site's lifted pivot), shaped, carved and given the
+        // cell right now: WallConnector used to snap it down in its own Start, and that move
+        // restarted the carve of a wall that had only just appeared (the wall lag, 2026-09-28).
+        bool isWall = data.isWall;
+        Vector3 pos = isWall ? WallConnector.SnapToCell(transform.position) : transform.position;
+        Quaternion rot = isWall ? Quaternion.identity : transform.rotation;
+        GameObject finishedBuilding = Spawn.Owned(data.finishedBuildingPrefab, pos, rot, Faction);
 
         // Copy layer to finished building
         finishedBuilding.layer = gameObject.layer;
+
+        Wall wall = isWall ? finishedBuilding.GetComponent<Wall>() : null;
+        if (wall != null)
+        {
+            WallConnector connector = finishedBuilding.GetComponent<WallConnector>();
+            if (connector != null) connector.EnsureInitialized();
+            wall.ClaimCarveAndCell();   // takes the cell over from this site: no empty frame
+        }
+
+        // Frees the cell only if the wall did not just take it
+        UnregisterFromGrid();
 
         // Destroy the construction site
         Destroy(gameObject);
@@ -235,8 +291,10 @@ public class ConstructionSite : MonoBehaviour, IOwned
             }
         }
 
-        // Register with WallGrid if this is a wall type (may be called after Start)
+        // Register with WallGrid if this is a wall type (may be called after Start), and
+        // carve the wall's box from the first frame rather than the prefab's default.
         RegisterIfWall();
+        SetupCarve();
     }
 
     // Method for workers to add progress (we'll use this later)
@@ -276,7 +334,7 @@ public class ConstructionSite : MonoBehaviour, IOwned
     {
         if (registeredWithGrid && WallGrid.Instance != null)
         {
-            WallGrid.Instance.Unregister(gridPos);
+            WallGrid.Instance.Unregister(gridPos, this);
             registeredWithGrid = false;
         }
     }
@@ -285,6 +343,11 @@ public class ConstructionSite : MonoBehaviour, IOwned
     {
         ActiveRegistry<ConstructionSite>.Unregister(this);
         UnregisterFromGrid();
+        if (carveCounted && !carveReleased)
+        {
+            carveReleased = true;
+            PerfCounters.Hit(PerfCounters.K.CarveChange);   // demolished or cancelled: the carve goes with it
+        }
     }
 
     void CreateProgressText()

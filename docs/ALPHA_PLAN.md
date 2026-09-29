@@ -1,8 +1,32 @@
 # Alpha Plan — from here to a build in a tester's hands
 
-**Written 2026-09-08. This is the only forward-looking plan that is in scope.** Everything else at the repo root is either already built or parked (see the README's "Where the project is going").
+**Status 2026-09-27 (final scope, decided with the user): the alpha is a 30-day survival strategy game with an Endless option, saves, births and a richer food economy.** The boats, the live multi-island world and Settlers / Clans / Drifters are the **first major update after the alpha**, not the alpha. The reasoning, agreed the same day: the game is built as a survival strategy game on a raid clock (colonists are labour, the harness measures wins), not a RimWorld-style sandbox. So ship what it is, add Endless as an experiment, and let testers' behaviour decide the sandbox question. Detailed design for everything named here: [`KIN_AND_VOYAGES_PLAN.md`](KIN_AND_VOYAGES_PLAN.md). Everything below the checklist was written earlier and is kept as written.
 
-**The decision behind it:** the game is feature-complete enough to learn from real players, and it has accumulated a large pile of built-but-never-played work. More features would grow that pile. So: **feature freeze.** Nothing new goes in unless it is on this page.
+## The checklist (2026-09-27)
+
+- [x] A. Ship blockers: A1 / A2 / A3 / A5 closed
+- [ ] A4. One release build, played through the opening
+- [x] H. Occluder cutout built (playtest is in B)
+- [x] I. Fog of war + minimap built (playtest is in B)
+- [~] J. Architecture lap: step 1 factions landed; step 3 rivals slice A + B1/B3/B5 built; step 2 skipped; **step 4 save/load pulled INTO the alpha (below); step 5 replaced by the post-alpha voyages update**
+- [ ] **B0** Playtest the built-but-unplayed work first (the tester list in the plan's "Before K1" section): tiers + palette, drawn walls, campfire halves, levy, hold line, rivals
+- [ ] **K1** Scarcity: 3–4 starting survivors + a couple, no more castaways washing ashore
+- [ ] **K2** Bonds, births, children
+- [ ] **K3** Governors + sim learn kin; **raid curve rebuilt around colony size**
+- [ ] **F1** Work poles: crafted Marker Poles tell each job where to gather
+- [ ] **F2** Fishing: shoals in the shallows, Fishing Rods, Food poles by the water fish
+- [ ] **F3** Wild boar: herds, hunting with a spear, meat
+- [ ] **E1** Goal on New Game: **Survive 30 days** (default) or **Endless**; day 30 shows "Survived" with Keep playing as the main button
+- [ ] **SL** Save/load: dawn autosave, manual save while no raider is ashore, Continue + slots (lap plan step 4, built straight from scene state since the step 2 ledger was skipped; it must carry bonds, children, poles and boar)
+- [ ] **P** Polish pass over K / F / E1 / SL
+- [ ] B. Playtest debt cleared (`DevQuests.txt` empty), including every new batch
+- [ ] C. Raid and economy tuning on fresh baselines (**mandatory**: births make colonies small)
+- [ ] D. Tutorial (steps extended: upgrade a Tent to a Hut, first couple, plant a pole)
+- [ ] E. A run a tester can finish: a 15-day goal beside the 30-day one
+- [ ] F. Feedback button → Discord webhook
+- [ ] G. Zip it, hand it out, bump `bundleVersion`
+
+**After the alpha, the first major update:** W1–W2 (the live multi-island world), V1–V5 (boats, sea mode, landing, Outposts, Carrack), S1–S3 (Settlers and Clans by boat, packing up, Drifters by ship), and a decision on the sandbox direction informed by how many testers pressed Keep playing.
 
 ---
 
@@ -12,7 +36,7 @@ An alpha is done when a person who has never seen the game can:
 
 1. Be handed a zip, unzip it, and run the game with no instructions from you.
 2. Understand what to do in the first five minutes without being told.
-3. Reach an ending — rescue or defeat — inside one sitting.
+3. Reach an ending — surviving the goal's days, or defeat — inside one sitting (or across sittings, with saves).
 4. Send feedback without leaving the game.
 
 And when, for you:
@@ -32,7 +56,7 @@ That is the bar. Not "polished", not "balanced", not "content-complete".
 
 **Also in — and now FIRST (decided 2026-09-09):** the architecture lap in section J — factions, spatial hash and AI level of detail, a colony governor, save/load, multiple islands. The user chose to build it now; the alpha's remaining sections ship on the refactored foundation. The detailed shape lives in [`ARCHITECTURE_LAP_PLAN.md`](ARCHITECTURE_LAP_PLAN.md); this page keeps the alpha's definition of done.
 
-**Out, explicitly:** new buildings, new units, new resources, the story, processing chains, families, farming, the Warehouse, building upgrades, enemies wading ashore, the lighting bake. All of it is real and none of it is alpha.
+**Out, explicitly:** new buildings, new resources, the story, processing chains, farming, the Warehouse, building upgrades, enemies wading ashore, the lighting bake. All of it is real and none of it is alpha.
 
 **The one exception rule:** a bug found in playtest gets fixed even if the fix is a small feature. A wish found in playtest gets written down, not built.
 
@@ -184,9 +208,26 @@ Added at the user's request on 2026-09-08, knowingly pushing the schedule out. T
 
 **Where it sits.** ~~After G, not before.~~ **Changed 2026-09-09: before B.** The line below was the one to change, and it was changed — the lap runs now, planned in [`ARCHITECTURE_LAP_PLAN.md`](ARCHITECTURE_LAP_PLAN.md), and B → G follow it. The original reasoning is kept for the record: The argument for factions-first is that its cost grows with every feature added between now and then — but the alpha adds almost no features, so those weeks cost the refactor very little, while doing the refactor first costs the alpha its entire schedule and risks shipping to testers on freshly destabilised foundations. Ship the build, keep the testers, then start the lap. **If you want factions to jump ahead of the alpha instead, that is the one line to change here.**
 
+## K. Kin and Voyages (added 2026-09-27; scope cut the same day, see the status banner: only kin, poles, fishing, boar, Endless and save/load are alpha)
+
+Requested by the user as the last two features before calling the alpha. **Families move from "out" to "in"**, in the specific form below. Full design, slices and open questions: [`KIN_AND_VOYAGES_PLAN.md`](KIN_AND_VOYAGES_PLAN.md).
+
+- **Kin:** land with 3 survivors (4 on the easy settings), two of them a couple. No more arrivals by timer. Two adults sharing a Hut bond, a couple with food and a free bed has a child, and the child grows up in about 5 days. Housing stays the growth lever, and people become scarce, so every warrior is a worker lost.
+- **Voyages:** the world is one live scene with several islands in one heightfield. The Shipyard builds a **Longboat** (10 people, coastal) and, after Deep Hulls research, a **Carrack** (20 people, open sea). You steer the boat yourself in a zoomed-out sea view, land with a short cinematic, and found a new colony. The one you leave becomes an Allied **Outpost** run by a Steward governor, live in the same scene.
+- **Victory:** land the castaway on the **Far Shore** by Carrack. That replaces the 30-day survival win and the Set Sail escape. The calendar stays as the raid clock, and days taken is the score.
+
+**Consequences for the other sections:** C is no longer optional (the raid curve assumes colonies that grew by timer). D's tutorial gains a Hut, a couple and a boat. E becomes a Small world, where the Far Shore is two crossings away. Save/load stays out of the alpha, so a run must fit one sitting (target 60–90 minutes on a Small world).
+
+**Also in (second round, same day):** rival colonies become **Settlers** (small parties) and **Clans** (15–25, late game) who arrive by boat with their tents and can pack up and leave. The raiders become **Drifters** who arrive by ship. **Work poles** tell each job where to gather, **fishing** with rods, and **wild boar** hunted with spears (plan Parts 7–8). After this, the alpha is the platform the game builds on.
+
+**Done when:** a fresh run on a Medium world can reach the Far Shore, and every K / W / V / F / S DevQuests batch has a report in `Playtests/`.
+
 ---
 
 ## Order and rough shape
+
+**Updated 2026-09-27 (final scope): A4 + B0 → K1–K3 and F1–F3 side by side → E1 → SL → P → B → C → D and E together → F → G → upload.** The paragraphs below are the earlier order, kept for the record.
+
 
 **A → H → I → J → B → C → D and E together → F → G** (J moved ahead of B on 2026-09-09; the original order was A → B → H → I → C → D/E → F → G → J).
 

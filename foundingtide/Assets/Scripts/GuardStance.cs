@@ -12,14 +12,14 @@ using UnityEngine;
 /// <para><b>Defensive</b> is the stay-at-home order: Patrol / Intercept / DefendWall
 /// as before, and Engage only fights an enemy that reaches the LINE (2026-09-17):
 /// once Intercept has given the warrior a post (<c>bb.holdPost</c> — a slot in the
-/// line inside the gate the raiders are coming at, see <see cref="HoldLine"/>, or on
+/// line at the gate the raiders are coming at, see <see cref="HoldLine"/>, or on
 /// the perimeter without one) a raider is fought within <see cref="LineReach"/> of
 /// that post (plus the bow's reach for an archer), or once it is nearer the fire
-/// than the post is — and a spearman never takes one outside the wall the line
-/// holds. A target that walks back out of reach is dropped and the warrior returns
+/// than the post is. Since 2026-09-28 a gate line's spearmen stand OUTSIDE the gate and fight only within reach of their post or a raider already through the wall
+/// (no self-defence radius). A target that walks back out of reach is dropped and the warrior returns
 /// to the post. Before a post exists the old rule stands: within <see cref="HoldRadius"/>
 /// of the campfire or heading for a wall. <see cref="SelfDefenceRadius"/> applies in
-/// every stance — inside the wall, for a spearman on a gate line.</para>
+/// every stance except to a gate line's spearmen.</para>
 /// <para><b>Offensive</b> goes and gets them: Intercept's rally becomes a point
 /// advancing on the raiders (<see cref="AdvanceStandoff"/> short of their centroid,
 /// in formation), and Engage takes any raider within <see cref="OffensiveEngageRadius"/>
@@ -54,6 +54,8 @@ public static class GuardStance
     public const float BreachSlack = 2f;
     /// <summary>Defensive gate line: this far past the gate's radius still counts as in the gateway (a raider chewing the gate).</summary>
     public const float GateSlack = 1.5f;
+    /// <summary>Defensive gate line (2026-09-28): a raider this far inside the wall's radius is through it — the spearmen outside turn for it.</summary>
+    public const float InsideSlack = 1.5f;
     /// <summary>Any stance: an enemy this close to the warrior is fought regardless of orders.</summary>
     public const float SelfDefenceRadius = 10f;
     /// <summary>Follow: an enemy this close to the character is fought.</summary>
@@ -160,29 +162,28 @@ public static class GuardStance
                 Vector3 post = hasPost ? bb.holdPost : Vector3.zero;
                 float lineRadius = hasPost ? bb.holdLineRadius : float.MaxValue;
                 // No post of its own yet but the colony holds a gate (2026-09-17, the line
-                // check): the line's centre stands in for it. A levy body is NEW every
-                // night and its first tick came after the raiders were inside HoldRadius,
-                // so the old rule sent each one charging out through the gate alone —
-                // the check tripled Turtle's levy losses (2.4 → 5.3 a raid night).
-                if (!hasPost && bb != null && at != null)
-                {
-                    Gate held = HoldLine.CurrentGate(f);
-                    if (held != null)
-                    {
-                        Vector3 facing;
-                        HoldLine.LineAt(held, at, out post, out facing, out lineRadius);
-                        hasPost = true;
-                    }
-                }
-                // A gate line: a spearman never goes for what is outside the wall — the
-                // path out is through the gate, and that is the "Defensive turns Offensive
-                // when they arrive" the line exists to stop. An archer shoots over it.
+                // check): the line's centre for its kind stands in for it. A levy body is
+                // NEW every night and its first tick came after the raiders were inside
+                // HoldRadius, so the old rule sent each one charging out alone — the
+                // check tripled Turtle's levy losses (2.4 → 5.3 a raid night).
+                if (!hasPost && bb != null && at != null
+                    && HoldLine.CurrentLine(f, bb.isRanged, out post, out lineRadius))
+                    hasPost = true;
+                // A gate line's spearmen stand OUTSIDE the gate since 2026-09-28: they
+                // fight what reaches the line (LineReach of the post) and what is already
+                // through the wall, and nothing else — no self-defence radius, which was
+                // wider than the line's reach and let a man chase a raider along the
+                // wall. Engage drops a target that walks out of reach and Intercept walks
+                // him back to his slot. An archer (inside the wall) shoots over it.
                 if (hasPost && !bb.isRanged && lineRadius < float.MaxValue && at != null)
                 {
+                    Vector3 toPost = pos - post;
+                    toPost.y = 0f;
+                    if (toPost.sqrMagnitude <= LineReach * LineReach) return true;
                     Vector3 d = pos - at.transform.position;
                     d.y = 0f;
-                    float limit = lineRadius + GateSlack;
-                    if (d.sqrMagnitude > limit * limit) return false;
+                    float inside = Mathf.Max(0f, lineRadius - InsideSlack);
+                    return d.sqrMagnitude <= inside * inside;
                 }
                 if ((pos - warriorPos).sqrMagnitude <= SelfDefenceRadius * SelfDefenceRadius) return true;
                 if (hasPost) return ReachesLine(pos, at, post, bb);

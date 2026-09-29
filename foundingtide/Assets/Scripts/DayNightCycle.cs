@@ -73,6 +73,31 @@ public class DayNightCycle : MonoBehaviour
     public static event DayNightEvent OnNightStart;
     public static event DayNightEvent OnDayStart;
 
+    /// <summary>
+    /// Dusk (2026-09-28): the time of day the evening begins, a little ahead of the
+    /// dusk lighting blend (0.65 = 0.75 - transitionWidth). On a raid night this is
+    /// when the landing is telegraphed and the target colony musters and forms up,
+    /// so the militia stands in its line BEFORE the raiders come ashore.
+    /// </summary>
+    public const float DuskT = 0.65f;
+
+    /// <summary>
+    /// Fires once per calendar day when the clock crosses <see cref="DuskT"/>, and on
+    /// the first frame of a run that begins between dusk and nightfall.
+    /// </summary>
+    public static event DayNightEvent OnDuskStart;
+
+    /// <summary>
+    /// The clock is past dusk and before dawn: the evening and the whole night.
+    /// Static so a consideration reads it at zero cost; written every frame by the
+    /// live cycle, false with none in the scene.
+    /// </summary>
+    public static bool AfterDusk { get; private set; }
+
+    private int duskFiredDay = -1;
+
+    void OnDestroy() { AfterDusk = false; }
+
     void Start()
     {
         // Find the sun light if not assigned
@@ -166,6 +191,18 @@ public class DayNightCycle : MonoBehaviour
 
         // Check for day/night transitions
         CheckDayNightTransition();
+        CheckDusk();
+    }
+
+    /// <summary>Dusk edge (2026-09-28): once per day, including a run that starts after it.</summary>
+    void CheckDusk()
+    {
+        AfterDusk = currentTimeOfDay >= DuskT || currentTimeOfDay < DawnT;
+        if (currentTimeOfDay >= DuskT && currentTimeOfDay < 0.75f && duskFiredDay != currentDay)
+        {
+            duskFiredDay = currentDay;
+            OnDuskStart?.Invoke();
+        }
     }
 
     /// <summary>Any living raider on the field. Registry walk, no allocation.</summary>
@@ -304,5 +341,8 @@ public class DayNightCycle : MonoBehaviour
     {
         return currentDay;
     }
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetStatics() { AfterDusk = false; OnDuskStart = null; }
 
 }

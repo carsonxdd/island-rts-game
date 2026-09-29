@@ -55,6 +55,9 @@ public class PatrolExecutor : ActionExecutor
     // Ring radius around the fire and the huts: their no-build radius plus this.
     private const float PerimeterPadding = 4f;
     private const int MaxCorridorRepicks = 3;
+    // An archer's peacetime post: this far inside its wall cell (2026-09-28)
+    private const float ArcherInsideMin = 1.5f;
+    private const float ArcherInsideMax = 2.5f;
     private int corridorRepicks;
     private float walkTimer;
     private float originalStoppingDistance;
@@ -113,7 +116,8 @@ public class PatrolExecutor : ActionExecutor
         {
             // Ended the walk in a gate corridor (timed out, or queued behind a column):
             // don't wait here, move on to the next post
-            if (corridorRepicks < MaxCorridorRepicks && !Loiter.IsClear(bb.transform.position))
+            if (corridorRepicks < MaxCorridorRepicks
+                && (!Loiter.IsClear(bb.transform.position) || !ClearOfGateMouths(bb.transform.position)))
             {
                 corridorRepicks++;
                 DevQuests.Signal("loiter:patrol_moved_on");
@@ -219,29 +223,68 @@ public class PatrolExecutor : ActionExecutor
         {
             Vector3 wallPos = ownedWalls[Random.Range(0, totalCount)];
 
-            Vector3 interiorDir;
+            // Away from the fire through this wall cell: the OUTSIDE of the ring
+            Vector3 outwardDir;
             if (cachedCampfire != null)
             {
-                interiorDir = (wallPos - cachedCampfire.transform.position).normalized;
+                outwardDir = wallPos - cachedCampfire.transform.position;
+                outwardDir.y = 0f;
+                outwardDir = outwardDir.sqrMagnitude > 0.001f ? outwardDir.normalized : Vector3.forward;
             }
             else
             {
                 float angle = Random.Range(0f, 360f) * Mathf.Deg2Rad;
-                interiorDir = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
+                outwardDir = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
             }
 
-            float offset = Random.Range(1f, 2f);
-            Vector3 patrolPos = wallPos + interiorDir * offset;
+            // Spearmen stand on the outside of the wall, archers just inside it
+            // (2026-09-28): an archer's place is behind the wall shooting over it, a
+            // spearman's in front of it — the opposite sides of the line they hold
+            // at a raid, so a peacetime post is already on the right side of it.
+            float offset = bb.isRanged ? -Random.Range(ArcherInsideMin, ArcherInsideMax) : Random.Range(1f, 2f);
+            Vector3 patrolPos = wallPos + outwardDir * offset;
 
             NavMeshHit hit;
-            if (NavMesh.SamplePosition(patrolPos, out hit, 3f, NavMesh.AllAreas)
-                && !TooCloseToFire(hit.position) && Loiter.IsClear(hit.position))
+            if (NavMesh.SamplePosition(patrolPos, out hit, bb.isRanged ? 1.5f : 3f, NavMesh.AllAreas)
+                && !TooCloseToFire(hit.position) && Loiter.IsClear(hit.position) && ClearOfGateMouths(hit.position)
+                && (!bb.isRanged || InsideRing(hit.position, wallPos)))
             {
                 point = hit.position;
                 return true;
             }
         }
         return false;
+    }
+
+    /// <summary>
+    /// Not in front of or behind a gate opening (2026-09-28): a gate spans three
+    /// cells, so its mouth is <see cref="HoldLine.GateHalfWidth"/> either side of its
+    /// centre, plus the corridor <see cref="Loiter"/> already keeps clear.
+    /// </summary>
+    static bool ClearOfGateMouths(Vector3 point)
+    {
+        float r = HoldLine.GateHalfWidth + Loiter.GateClearance;
+        float sqr = r * r;
+        var gates = Gate.ActiveList;
+        for (int i = 0; i < gates.Count; i++)
+        {
+            Gate g = gates[i];
+            if (g == null) continue;
+            Vector3 d = point - g.transform.position;
+            d.y = 0f;
+            if (d.sqrMagnitude < sqr) return false;
+        }
+        return true;
+    }
+
+    /// <summary>The snapped archer post is still on the fire's side of its wall cell (the snap can jump the wall).</summary>
+    bool InsideRing(Vector3 point, Vector3 wallPos)
+    {
+        if (cachedCampfire == null) return true;
+        Vector3 fire = cachedCampfire.transform.position;
+        Vector3 a = point - fire; a.y = 0f;
+        Vector3 w = wallPos - fire; w.y = 0f;
+        return a.sqrMagnitude < w.sqrMagnitude;
     }
 
     /// <summary>

@@ -20,6 +20,8 @@ using UnityEngine;
 /// promise to walk — the weapon leaves the stockpile at the swap, so a recruit
 /// or a second colony's needs can still take it first, and a claimant who finds
 /// the rack bare simply goes back to the ladder.</para>
+/// <para>Since 2026-09-28 a third source, the <b>raid call</b> (<see cref="RaidCall"/>):
+/// dusk on a night a raid is rolled for this colony, and a landed raid until it is dead.</para>
 /// <para>The alarm has two sources: the <b>bell</b> (<see cref="Call"/> /
 /// <see cref="Dismiss"/>, the player's key and buttons, a governor's call) and a
 /// <b>threat at home</b> — a hostile combatant within <see cref="AlarmRadius"/> of
@@ -67,8 +69,19 @@ public sealed class Militia
     /// <summary>A hostile combatant inside the home radius (or, for the player, raiders lurking). Refreshed at 2 Hz.</summary>
     public bool ThreatAtHome { get; private set; }
 
-    /// <summary>Bell or threat: the levy musters while this is true.</summary>
-    public bool Alarm => Called || ThreatAtHome;
+    /// <summary>
+    /// A raid is coming to THIS colony (2026-09-28): from dusk on a raid night, and
+    /// from the first raider ashore until the raid is dead to the last man
+    /// (<see cref="RaidDirector.RaidCallFor"/>). Latched by the director, so raiders
+    /// crossing the alarm radius cannot flicker it, and a raid held out by the walls
+    /// (never inside the radius, never "lurking" while it chews a wall) still keeps
+    /// the levy armed. The same rule for a rival, so a governor is not disadvantaged.
+    /// Refreshed at 2 Hz.
+    /// </summary>
+    public bool RaidCall { get; private set; }
+
+    /// <summary>Bell, threat or raid: the levy musters while this is true.</summary>
+    public bool Alarm => Called || ThreatAtHome || RaidCall;
 
     /// <summary>No alarm for <see cref="StandDownSeconds"/>: a mustered colonist goes back to work.</summary>
     public bool StandDownDue => !Alarm && Time.time - lastAlarmTime >= StandDownSeconds;
@@ -115,6 +128,11 @@ public sealed class Militia
         scanTimer = ScanInterval;
         bool was = Alarm;
         ThreatAtHome = Scan();
+        RaidDirector rd = RaidDirector.Instance;
+        bool raidCall = rd != null && rd.RaidCallFor(faction);
+        if (raidCall && !RaidCall && faction.IsPlayer)
+            DevQuests.Signal(rd.RaidUnderwayAt(faction) ? "levy:landing" : "levy:dusk");
+        RaidCall = raidCall;
         if (Alarm && !was) AlarmSince = Time.time;
         if (Alarm) lastAlarmTime = Time.time;
         Levy();

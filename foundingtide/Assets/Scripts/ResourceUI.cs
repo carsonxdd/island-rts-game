@@ -105,6 +105,7 @@ public class ResourceUI : MonoBehaviour
         if (SimHooks.Headless) { enabled = false; return; }
         Build();
         RaidDirector.OnRaidRolled += OnRaidRolled;
+        RaidDirector.OnRaidDusk += OnRaidDusk;
         Militia.OnBell += OnBell;
         RivalLandingDirector.OnRivalLanded += OnRivalLanded;
         RivalLandingDirector.OnRivalMet += OnRivalMet;
@@ -118,6 +119,7 @@ public class ResourceUI : MonoBehaviour
     void OnDestroy()
     {
         RaidDirector.OnRaidRolled -= OnRaidRolled;
+        RaidDirector.OnRaidDusk -= OnRaidDusk;
         Militia.OnBell -= OnBell;
         RivalLandingDirector.OnRivalLanded -= OnRivalLanded;
         RivalLandingDirector.OnRivalMet -= OnRivalMet;
@@ -157,6 +159,22 @@ public class ResourceUI : MonoBehaviour
         if (who == null || !who.IsPlayer) return;
         if (ringing) Flash("THE BELL RINGS  \u2014  the levy takes up arms", MenuStyle.TextAccent, BannerSeconds);
         else Flash("STAND DOWN  \u2014  the levy goes back to work", MenuStyle.TextMuted, BannerSeconds);
+    }
+
+    /// <summary>
+    /// Dusk on a raid night at this shore (2026-09-28): where they will land, as a
+    /// compass word from the fire, while the militia forms up. The minimap draws the
+    /// arrow; this is the line that says it.
+    /// </summary>
+    void OnRaidDusk(Faction target, Vector3 landing)
+    {
+        if (target == null || !target.IsPlayer) return;
+        BaseBuilding fire = target.Campfire;
+        Vector3 from = fire != null ? fire.transform.position : Vector3.zero;
+        string side = RaidDirector.CompassWord(landing - from).ToUpperInvariant();
+        Flash("RAIDERS WILL LAND FROM THE " + side + "  —  the militia forms up", MenuStyle.TextDanger, BannerSeconds);
+        lastCalKey = -1;
+        UpdateUI();
     }
 
     void OnRaidRolled(bool raid)
@@ -769,8 +787,9 @@ public class ResourceUI : MonoBehaviour
         bool held = dayNight.DawnHeld;   // the night is waiting on the last raider (2026-09-07)
         bool lurking = rd != null && rd.RaidLurking;   // alive, but nothing has happened for a while (2026-09-10)
         bool repelled = raid && night && rd.RaidRepelled;   // the last raider fell; the night runs on (2026-09-17)
+        bool dusk = raid && !night && DayNightCycle.AfterDusk;   // the landing is telegraphed (2026-09-28)
 
-        int key = (((((((day * 128 + total) * 2 + (night ? 1 : 0)) * 2 + (raid ? 1 : 0)) * 2 + (held ? 1 : 0)) * 2 + (lurking ? 1 : 0)) * 2 + (elsewhere ? 1 : 0)) * 2 + (repelled ? 1 : 0)) * 64 + Mathf.Min(size, 63);
+        int key = ((((((((day * 128 + total) * 2 + (night ? 1 : 0)) * 2 + (raid ? 1 : 0)) * 2 + (held ? 1 : 0)) * 2 + (lurking ? 1 : 0)) * 2 + (elsewhere ? 1 : 0)) * 2 + (repelled ? 1 : 0)) * 2 + (dusk ? 1 : 0)) * 64 + Mathf.Min(size, 63);
         if (key == lastCalKey) return;
         lastCalKey = key;
 
@@ -821,7 +840,12 @@ public class ResourceUI : MonoBehaviour
         {
             calValue.color = MenuStyle.TextDanger;
             calLabel.color = MenuStyle.TextDanger;
-            calLabel.text = Caption("Raid tonight", size + " raiders");
+            Vector3 landing;
+            BaseBuilding home = Factions.Player.Campfire;
+            if (dusk && home != null && rd.LandingFor(Factions.Player, out landing))
+                calLabel.text = Caption("Raid tonight", size + " from the " + RaidDirector.CompassWord(landing - home.transform.position));
+            else
+                calLabel.text = Caption("Raid tonight", size + " raiders");
         }
         else if (elsewhere)
         {

@@ -13,6 +13,33 @@
 # Rewritten 2026-09-17 as a themed history; the 74 entries it replaced are in
 # docs/CHANGELOG_ARCHIVE.md. From here on, add a dated entry per change on top.
 
+## 2026-09-28 — The army forms up at dusk
+On a raid night your warriors and armed colonists now form a line outside the
+gate the raiders will come through, before night falls. Food is scarce again.
+- At dusk on a raid night a banner says where the raiders will land, and an
+  arrow on the minimap edge points at that shore.
+- Warriors and the levy (colonists armed from your spare weapons) muster at
+  dusk, not when the raiders reach the fire. The levy stays armed until the
+  raid is over, even while your walls hold the raiders back.
+- On Defensive, spearmen stand outside the gate facing the landing, two ranks
+  deep when there are fewer than eight. They hold the line instead of chasing,
+  and close the gap when someone falls. Archers stand inside the wall and
+  shoot over it.
+- Idle archers keep watch just inside the walls; spearmen walk the outside.
+- G now makes a gate three walls wide, so colonists pass through side by side
+  instead of queueing. A short run makes a two-wide or one-wide gate.
+- Colonists, warriors, raiders and your castaway are smaller, closer to the
+  size of a tent, and give each other more room.
+- Colonists eat six food a day instead of one, and a new colony starts with
+  100 wood, 50 food and no stone.
+- A Hut sleeps two, as intended (it slept four).
+- Fixed: weapons vanished when armed colonists stood down or a warrior was
+  dismissed while the stockpile was full.
+- Fixed: colonists kept sleeping by the fire when a bed came free.
+- Fixed: other colonies' colonists, walls, gates and building sites showed
+  through the fog.
+- Fixed: lag spikes from large wall rings and long wall lines.
+
 ## 2026-09-22 — Draw your walls
 Walls are drawn now: drag a line or click points along the way, and a slanted
 line builds as one slanted wall instead of a staircase.

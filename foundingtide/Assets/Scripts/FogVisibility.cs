@@ -32,6 +32,13 @@ public class FogVisibility : MonoBehaviour
     /// <summary>True while the object is hidden by the fog.</summary>
     public bool Hidden { get; private set; }
 
+    /// <summary>
+    /// True while the object's OWN logic hides it (2026-09-28: a colonist garrisoned in a
+    /// hut). Hidden by the fog OR by its owner = renderers off; the fog never switches on
+    /// a body its owner hid. Written only through <see cref="SetOwnerHidden"/>.
+    /// </summary>
+    public bool OwnerHidden { get; private set; }
+
     private Renderer[] renderers;
     private bool recollected;
     private float nextCheck;
@@ -79,7 +86,9 @@ public class FogVisibility : MonoBehaviour
     void Collect()
     {
         bool wasHidden = Hidden;
-        if (renderers != null && wasHidden) Apply(false);
+        bool ownerWas = OwnerHidden;
+        OwnerHidden = false;
+        if (renderers != null && (wasHidden || ownerWas)) Apply(false);
         Renderer[] all = GetComponentsInChildren<Renderer>(true);
         int count = 0;
         for (int i = 0; i < all.Length; i++)
@@ -87,7 +96,8 @@ public class FogVisibility : MonoBehaviour
         renderers = new Renderer[count];
         for (int i = 0, k = 0; i < all.Length; i++)
             if (all[i] != null && all[i].enabled) renderers[k++] = all[i];
-        if (wasHidden) Apply(true);
+        OwnerHidden = ownerWas;
+        if (wasHidden || ownerWas) Apply(wasHidden);
     }
 
     void Check(bool force)
@@ -102,6 +112,14 @@ public class FogVisibility : MonoBehaviour
         Apply(hide);
     }
 
+    /// <summary>The owner hides or shows the body (a hut garrison). Re-applies at once, so the fog's answer lands the moment the owner lets go.</summary>
+    public void SetOwnerHidden(bool hidden)
+    {
+        if (OwnerHidden == hidden) return;
+        OwnerHidden = hidden;
+        if (renderers != null) Apply(Hidden);
+    }
+
     void Apply(bool hide)
     {
         Hidden = hide;
@@ -110,7 +128,7 @@ public class FogVisibility : MonoBehaviour
             for (int i = 0; i < renderers.Length; i++)
             {
                 Renderer r = renderers[i];
-                if (r != null) r.enabled = !hide;
+                if (r != null) r.enabled = !hide && !OwnerHidden;
             }
         }
         if (clickLayer >= 0)

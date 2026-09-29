@@ -70,9 +70,14 @@ public class HealthBar : MonoBehaviour
             barContainer.transform.Rotate(0, 180, 0);
         }
 
-        // Only update bar content when health actually changes
+        // Only update bar content when health visibly changes (2026-09-28): a repair
+        // heals a fraction every frame, so a raw float compare re-scaled the quads and
+        // re-coloured the material every frame. Half a percent is below a pixel of bar;
+        // the ends (dead, full) always land exactly.
         float currentPercent = healthComponent.GetHealthPercentage();
-        if (currentPercent != lastHealthPercent)
+        float delta = currentPercent - lastHealthPercent;
+        if (delta >= 0.005f || delta <= -0.005f
+            || (currentPercent != lastHealthPercent && (currentPercent <= 0f || currentPercent >= 1f)))
         {
             lastHealthPercent = currentPercent;
             UpdateHealthBar();

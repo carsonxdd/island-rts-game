@@ -278,17 +278,18 @@ function Build-Sweep {
             return New-Sweep $Name 1 $runs
         }
         "economy" {
-            # Food after sleep cut the working day (2026-09-16 night): one knob at a
-            # time around the shipped values (1 food per colonist-day, 50 starting
-            # food, 15 food per warrior). Read hungry dawns and departures before
+            # Food that bites (2026-09-28): the shipped rate went 1 -> 6 a colonist-day
+            # (starting food 50) so one full-time food worker feeds ~5-6. One knob at a
+            # time around it. Read food_workers_dawn against food_drain_day (the governor
+            # assumes ForagerYieldPerDay 36), then hungry dawns and departures, before
             # the win rate - a colony that starved is a food problem, not a raid one.
             $variants = [ordered]@{
-                "fd050" = @{ foodPerDay = 0.5 }
-                "fd150" = @{ foodPerDay = 1.5 }
-                "fd200" = @{ foodPerDay = 2.0 }
+                "fd4"   = @{ foodPerDay = 4.0 }
+                "fd6"   = @{ foodPerDay = 6.0 }
+                "fd8"   = @{ foodPerDay = 8.0 }
+                "fd10"  = @{ foodPerDay = 10.0 }
                 "sf25"  = @{ startingFood = 25 }
                 "sf100" = @{ startingFood = 100 }
-                "wc25"  = @{ warriorCostFood = 25 }
             }
             $runs = @(foreach ($v in $variants.Keys) { foreach ($i in $islands6) { foreach ($s in $strategies) { New-Run $v $s $i $variants[$v] } } })
             return New-Sweep $Name 1 $runs

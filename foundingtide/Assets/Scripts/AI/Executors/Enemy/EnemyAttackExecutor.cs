@@ -63,6 +63,14 @@ public class EnemyAttackExecutor : ActionExecutor
     // Reachability path (reusable, zero GC)
     private NavMeshPath reachabilityPath;
 
+    /// <summary>
+    /// Reachability answers shared by the whole raid (2026-09-28): per target and
+    /// 8 m cell of the asking raider, for 3 s, cleared when any wall or gate falls.
+    /// Thirty raiders at one wall used to spend the 2-a-frame CalculatePath budget
+    /// asking about the same hut, starving each other into optimistic guesses.
+    /// </summary>
+    private static readonly RaidPathCache targetReach = new RaidPathCache(8f, 3f);
+
     public override void OnEnter(AIBlackboard bb)
     {
         if (reachabilityPath == null) reachabilityPath = new NavMeshPath();
@@ -171,7 +179,7 @@ public class EnemyAttackExecutor : ActionExecutor
         // to Warrior" at the wall all night; nobody hit the wall because the wall
         // is tier 4 and tier 1 had answered. Throttled path = accept optimistically.
         Warrior warrior = TargetingUtil.FindNearestHostile(Warrior.ActiveList, myPos, bb.warriorDetectionRange, bb.faction, out unused);
-        if (warrior != null && !IsPathable(myPos, warrior.transform.position))
+        if (warrior != null && !IsPathable(myPos, warrior.transform.position, warrior.GetEntityId().GetHashCode()))
         {
             DevQuests.Signal("raider:wall_over_warrior");
             warrior = null;
@@ -215,10 +223,20 @@ public class EnemyAttackExecutor : ActionExecutor
     /// A throttled CalculatePath (2/frame globally) answers true, like the
     /// building tier: worst case the raider walks and StuckResolver re-picks.
     /// </summary>
-    bool IsPathable(Vector3 from, Vector3 to)
+    bool IsPathable(Vector3 from, Vector3 to) => IsPathable(from, to, 0);
+
+    /// <summary>
+    /// The same, shared through <see cref="targetReach"/> when <paramref name="targetId"/>
+    /// names the target (non-zero). Only a computed answer is stored.
+    /// </summary>
+    bool IsPathable(Vector3 from, Vector3 to, int targetId)
     {
+        bool ok;
+        if (targetId != 0 && targetReach.TryGet(targetId, from, out ok)) return ok;
         if (!AINavHelper.TryCalculatePath(from, to, NavMesh.AllAreas, reachabilityPath)) return true;
-        return reachabilityPath.status == NavMeshPathStatus.PathComplete;
+        ok = reachabilityPath.status == NavMeshPathStatus.PathComplete;
+        if (targetId != 0) targetReach.Put(targetId, from, ok);
+        return ok;
     }
 
     Transform FindNearestReachableBuilding(AIBlackboard bb, Vector3 myPos)
@@ -261,11 +279,8 @@ public class EnemyAttackExecutor : ActionExecutor
         if (!NavMesh.SamplePosition(nearest.position, out walkableHit, 3f, NavMesh.AllAreas))
             return null; // No NavMesh within 3m of hut — truly unreachable island
 
-        if (AINavHelper.TryCalculatePath(myPos, walkableHit.position, NavMesh.AllAreas, reachabilityPath))
-        {
-            if (reachabilityPath.status != NavMeshPathStatus.PathComplete)
-                return null;
-        }
+        if (!IsPathable(myPos, walkableHit.position, nearest.GetEntityId().GetHashCode()))
+            return null;
         return nearest;
     }
 

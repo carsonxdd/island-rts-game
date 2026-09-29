@@ -90,6 +90,10 @@ public static class NewContentSetup
         BuildingData storehouseData = BuildStorehouseData(storehousePrefab, storehouseGhost, summary);
         RegisterInDatabase(storehouseData, summary);
 
+        // The Hut's beds (2026-09-28): tier 2 is 2 beds by design, and the prefab had
+        // drifted to 4. Stamped here so Setup Everything cannot drift it again.
+        RetuneHutPrefab(summary);
+
         // The Tent (2026-09-18): housing tier 1, key 1. Built before the tier pass so
         // TentData exists for the Hut to be pointed at.
         GameObject tentPrefab = BuildTentPrefab(summary);
@@ -698,6 +702,35 @@ public static class NewContentSetup
     // capacity, health and buildingType. The footprint matches the Hut's 2x2 on
     // purpose, so upgrading keeps the pad, the collider bounds and the carve.
     // ------------------------------------------------------------------
+
+    private const string HutPrefabPath = "Assets/Prefabs/Hut.prefab";
+
+    /// <summary>Stamps the Hut's gameplay numbers (2 beds). Art, collider and bar stay the plumber's.</summary>
+    private static void RetuneHutPrefab(StringBuilder summary)
+    {
+        if (AssetDatabase.LoadAssetAtPath<GameObject>(HutPrefabPath) == null)
+        {
+            Debug.LogWarning("[Session Content] " + HutPrefabPath + " missing - Hut beds not stamped.");
+            return;
+        }
+        GameObject root = PrefabUtility.LoadPrefabContents(HutPrefabPath);
+        try
+        {
+            Hut housing = root.GetComponent<Hut>();
+            if (housing == null)
+            {
+                Debug.LogError("[Session Content] " + HutPrefabPath + " has no Hut component.");
+                return;
+            }
+            housing.workerCapacity = 2;      // tier 2: two beds (a Tent is one)
+            PrefabUtility.SaveAsPrefabAsset(root, HutPrefabPath);
+            summary.AppendLine("    Hut.prefab retuned (2 beds)");
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(root);
+        }
+    }
 
     private static GameObject BuildTentPrefab(StringBuilder summary)
     {

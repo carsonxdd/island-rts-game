@@ -166,6 +166,21 @@ public class Enemy : UnitBase<Enemy>
     private float progressTime;
     private const float GiveUpSeconds = 20f;
     private const float ProgressMetre = 1f;
+    /// <summary>A stalled raider this close to a wall or gate cell is queued at the line, not lost (2026-09-28).</summary>
+    private const float WallQueueRadius = 2f;
+
+    /// <summary>Any wall, gate or wall-site cell within <paramref name="radius"/> of <paramref name="p"/> (1 m cells, square test).</summary>
+    static bool NearWallCell(Vector3 p, float radius)
+    {
+        WallGrid grid = WallGrid.Instance;
+        if (grid == null) return false;
+        Vector2Int c = grid.WorldToGrid(p);
+        int r = Mathf.CeilToInt(radius);
+        for (int dx = -r; dx <= r; dx++)
+            for (int dz = -r; dz <= r; dz++)
+                if (grid.HasWallAt(new Vector2Int(c.x + dx, c.y + dz))) return true;
+        return false;
+    }
 
     /// <summary>
     /// One line per living raider for the dawn-cap warning (2026-09-16 telemetry):
@@ -223,6 +238,11 @@ public class Enemy : UnitBase<Enemy>
         progressPos = p;
         progressTime = Time.time;
 
+        // Queued at a wall, not lost (2026-09-28): a raider standing against a wall or
+        // gate cell is waiting its turn at the line, and the walk below would only find
+        // it the same spot after a dozen path tests. Twenty-five O(1) cell lookups.
+        if (NearWallCell(p, WallQueueRadius)) return;
+
         float unusedDist;
         BaseBuilding fire = TargetingUtil.FindNearestHostile(BaseBuilding.ActiveList, p, 0f, Faction, out unusedDist);   // the raid's, or a rival's (2026-09-16)
         if (fire == null) return;
@@ -231,7 +251,7 @@ public class Enemy : UnitBase<Enemy>
         // step ahead skipped that check and warped a raider parked at a wall
         // to the far side of it.
         Vector3 dest;
-        if (!EnemySpawner.FindReachableToward(p, fire.transform.position, out dest)) return;
+        if (!EnemySpawner.FindReachableToward(p, fire.transform.position, fire, out dest)) return;
         if ((dest - p).sqrMagnitude < 1f) return;   // already on good ground: something else is wrong
 
         agent.Warp(dest);

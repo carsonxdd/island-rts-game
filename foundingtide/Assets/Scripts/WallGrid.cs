@@ -11,6 +11,9 @@ using System.Collections.Generic;
 /// lets a wall know its neighbours, since a wall's visible shape is chosen from the four
 /// cells around it - which is why registering or unregistering a cell also refreshes the
 /// shape of that cell and its four neighbours.
+/// A gate holds EVERY cell of its span (2026-09-28, up to three wide): each one maps to
+/// the same Gate, so HasWallAt, the link masks and the "never slant into a gate" rule all
+/// see the whole opening.
 /// Auto-creates itself if the scene has no WallGrid.
 /// </remarks>
 public class WallGrid : MonoBehaviour
@@ -110,6 +113,19 @@ public class WallGrid : MonoBehaviour
     {
         grid.Remove(pos);
         RefreshTileAndNeighbors(pos);
+    }
+
+    /// <summary>
+    /// Frees a cell only while <paramref name="occupant"/> still holds it (2026-09-28). A
+    /// cell can change hands without being emptied - a finished wall takes over its site's
+    /// cell, a wide gate takes over three walls' - so the old holder's late OnDestroy must
+    /// not evict the new one.
+    /// </summary>
+    public void Unregister(Vector2Int pos, MonoBehaviour occupant)
+    {
+        MonoBehaviour current;
+        if (grid.TryGetValue(pos, out current) && current != null && current != occupant) return;
+        Unregister(pos);
     }
 
     public bool HasWallAt(Vector2Int pos)

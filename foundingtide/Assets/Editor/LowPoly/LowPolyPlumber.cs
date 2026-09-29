@@ -74,6 +74,9 @@ namespace FoundingTide.ArtGen
             public float? CapsuleRadius, CapsuleHeight;
             public float? BaseOffset;
 
+            /// <summary>Uniform scale of the Model child (and the alt body). Null = 1. The ROOT stays 1.</summary>
+            public float? ModelScale;
+
             // UI retune.
             public float? BarOffset, BarWidth, BarHeight, TextOffset;
 
@@ -108,6 +111,16 @@ namespace FoundingTide.ArtGen
         //   Worker  0.40 wide, 1.2 tall   (was r0.5 h2 * 0.40/0.60/0.40)
         //   Warrior 0.50 wide, 1.4 tall   (was r0.5 h2 * 0.50/0.70/0.50)
         //   Enemy   0.45 wide, 1.4 tall   (was r0.5 h2 * 0.45/0.70/0.45)
+        //
+        // Every human body is drawn at UnitModelScale (0.8, 2026-09-28: they read big next
+        // to a tent and crowded each other). The Model child carries the scale, never the
+        // root; the capsule, the bar and the label heights scale with it, so re-running
+        // Setup reproduces it. The agent's avoidance radius is UnitSpacing's, not this table's,
+        // and the NavMesh BAKE radius (0.5) is untouched on purpose (diagonal wall carves).
+        /// <summary>Uniform size of every human body (worker, warrior + archer, raider; the castaway via OpeningSequenceSetup).</summary>
+        public const float UnitModelScale = 0.8f;
+        private const float S = UnitModelScale;
+
         private static readonly Plumb[] Units =
         {
             new Plumb
@@ -115,8 +128,9 @@ namespace FoundingTide.ArtGen
                 GameplayPrefab = "Assets/Prefabs/Worker.prefab",
                 ArtPrefab      = ArtPrefabRoot + "Units/Worker.prefab",
                 ResetRootScale = true, StripRootMesh = true,
-                CapsuleRadius = 0.2f, CapsuleHeight = 1.2f, BaseOffset = 0f,
-                TextOffset = 2f
+                ModelScale = S,
+                CapsuleRadius = 0.2f * S, CapsuleHeight = 1.2f * S, BaseOffset = 0f,
+                TextOffset = 2f * S
             },
             new Plumb
             {
@@ -124,16 +138,18 @@ namespace FoundingTide.ArtGen
                 ArtPrefab      = ArtPrefabRoot + "Units/Warrior.prefab",
                 AltArtPrefab   = ArtPrefabRoot + "Units/Archer.prefab", AltModelName = "Model_Archer",
                 ResetRootScale = true, StripRootMesh = true,
-                CapsuleRadius = 0.25f, CapsuleHeight = 1.4f, BaseOffset = 0f,
-                BarOffset = 1.8f, BarWidth = 0.6f, BarHeight = 0.1f, TextOffset = 2.2f
+                ModelScale = S,
+                CapsuleRadius = 0.25f * S, CapsuleHeight = 1.4f * S, BaseOffset = 0f,
+                BarOffset = 1.8f * S, BarWidth = 0.6f, BarHeight = 0.1f, TextOffset = 2.2f * S
             },
             new Plumb
             {
                 GameplayPrefab = "Assets/Prefabs/Enemy.prefab",
                 ArtPrefab      = ArtPrefabRoot + "Units/Enemy.prefab",
                 ResetRootScale = true, StripRootMesh = true,
-                CapsuleRadius = 0.225f, CapsuleHeight = 1.4f, BaseOffset = 0f,
-                BarOffset = 1.8f, BarWidth = 0.6f, BarHeight = 0.1f, TextOffset = 2.2f
+                ModelScale = S,
+                CapsuleRadius = 0.225f * S, CapsuleHeight = 1.4f * S, BaseOffset = 0f,
+                BarOffset = 1.8f * S, BarWidth = 0.6f, BarHeight = 0.1f, TextOffset = 2.2f * S
             },
         };
 
@@ -518,7 +534,7 @@ namespace FoundingTide.ArtGen
                 model.name = ModelChildName;
                 model.transform.localPosition = Vector3.zero;
                 model.transform.localRotation = Quaternion.identity;
-                model.transform.localScale = Vector3.one;
+                model.transform.localScale = Vector3.one * (p.ModelScale ?? 1f);
 
                 // 4b. The alternate body (the archer), mounted the same way but INACTIVE;
                 //     the unit's own code decides which of the two is shown.
@@ -538,7 +554,7 @@ namespace FoundingTide.ArtGen
                         alt.name = p.AltModelName;
                         alt.transform.localPosition = Vector3.zero;
                         alt.transform.localRotation = Quaternion.identity;
-                        alt.transform.localScale = Vector3.one;
+                        alt.transform.localScale = Vector3.one * (p.ModelScale ?? 1f);
                         alt.SetActive(false);
                     }
                 }

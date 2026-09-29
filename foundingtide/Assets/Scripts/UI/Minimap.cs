@@ -66,6 +66,11 @@ public class Minimap : MonoBehaviour
     static readonly Color32 WallFill = new Color32(176, 160, 128, 255);
     static readonly Color32 GateFill = new Color32(205, 175, 110, 255);
     static readonly Color32 LandingMark = new Color32(235, 92, 78, 255);
+    static readonly Color32 LandingArrow = new Color32(255, 110, 90, 255);
+    /// <summary>The dusk landing arrow (2026-09-28): texels from the map edge to its tip, its length, and half its base.</summary>
+    const int ArrowInset = 3;
+    const int ArrowLength = 11;
+    const int ArrowHalfWidth = 6;
     static readonly Color ViewOutline = new Color(1f, 1f, 1f, 0.75f);
     static readonly Color PulseColor = new Color(0.92f, 0.36f, 0.30f, 1f);
     const float ShroudLevel = 0.5f;
@@ -400,6 +405,7 @@ public class Minimap : MonoBehaviour
         for (int i = 0; i < fires.Count; i++) StampOwned(fog, fires[i], 4, CampfireFill);
 
         if (Time.time - landedAt < LandingMarkSeconds) Ring(landing, 3, LandingMark);
+        StampLandingArrow();
 
         var workers = Worker.ActiveList;
         for (int i = 0; i < workers.Count; i++) StampOwned(fog, workers[i], 2, ColonistDot);
@@ -423,6 +429,56 @@ public class Minimap : MonoBehaviour
 
         texture.SetPixels32(pixels);
         texture.Apply(false, false);
+    }
+
+    /// <summary>
+    /// Dusk on a raid night at the player's shore, before the first body is ashore
+    /// (2026-09-28): an arrow at the map's edge on the landing bearing, pointing out
+    /// at the side they will come from. Stamped texels like every marker, blinking at
+    /// 1 Hz; ignores the fog by the same decision as the landing pulse — the drums
+    /// are heard along the coast. The pulse and the landing mark take over once they land.
+    /// </summary>
+    void StampLandingArrow()
+    {
+        RaidDirector rd = RaidDirector.Instance;
+        if (rd == null || !DayNightCycle.AfterDusk || rd.RaidUnderwayAt(Factions.Player)) return;
+        Vector3 landingPoint;
+        if (!rd.RaidPendingAt(Factions.Player) || !rd.LandingFor(Factions.Player, out landingPoint)) return;
+        if (((int)(Time.time * 2f) & 1) == 1) return;   // blink
+
+        float a = rd.LandingBearing * Mathf.Deg2Rad;
+        float dx = Mathf.Cos(a), dz = Mathf.Sin(a);   // world x / z = texel x / z (north-up)
+        // Tip on the square's edge along the bearing, inset a little
+        float reach = (res * 0.5f - ArrowInset) / Mathf.Max(Mathf.Abs(dx), Mathf.Abs(dz));
+        float cx = res * 0.5f, cz = res * 0.5f;
+        float tipX = cx + dx * reach, tipZ = cz + dz * reach;
+        float baseX = tipX - dx * ArrowLength, baseZ = tipZ - dz * ArrowLength;
+        float px = -dz, pz = dx;   // perpendicular
+        float lx = baseX + px * ArrowHalfWidth, lz = baseZ + pz * ArrowHalfWidth;
+        float rx = baseX - px * ArrowHalfWidth, rz = baseZ - pz * ArrowHalfWidth;
+
+        int minX = Mathf.Max(0, Mathf.FloorToInt(Mathf.Min(tipX, Mathf.Min(lx, rx))));
+        int maxX = Mathf.Min(res - 1, Mathf.CeilToInt(Mathf.Max(tipX, Mathf.Max(lx, rx))));
+        int minZ = Mathf.Max(0, Mathf.FloorToInt(Mathf.Min(tipZ, Mathf.Min(lz, rz))));
+        int maxZ = Mathf.Min(res - 1, Mathf.CeilToInt(Mathf.Max(tipZ, Mathf.Max(lz, rz))));
+        for (int z = minZ; z <= maxZ; z++)
+        {
+            for (int x = minX; x <= maxX; x++)
+            {
+                float sx = x + 0.5f, sz = z + 0.5f;
+                if (InTriangle(sx, sz, tipX, tipZ, lx, lz, rx, rz)) pixels[z * res + x] = LandingArrow;
+            }
+        }
+    }
+
+    static bool InTriangle(float px, float pz, float ax, float az, float bx, float bz, float cx, float cz)
+    {
+        float d1 = (px - bx) * (az - bz) - (ax - bx) * (pz - bz);
+        float d2 = (px - cx) * (bz - cz) - (bx - cx) * (pz - cz);
+        float d3 = (px - ax) * (cz - az) - (cx - ax) * (pz - az);
+        bool neg = d1 < 0f || d2 < 0f || d3 < 0f;
+        bool pos = d1 > 0f || d2 > 0f || d3 > 0f;
+        return !(neg && pos);
     }
 
     static Color32 Shroud(Color32 c)

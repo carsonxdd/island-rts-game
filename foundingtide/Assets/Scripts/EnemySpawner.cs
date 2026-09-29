@@ -37,6 +37,7 @@ public class EnemySpawner : MonoBehaviour
     // Private
     private List<GameObject> activeEnemies = new List<GameObject>();
     private float waveBaseAngle = 0f;  // Chosen direction for current raid group
+    private float pendingBearing = float.NaN;   // the bearing the director drew at dawn (2026-09-28); NaN = draw one now
     private int pendingCount;          // Head count handed over by SpawnRaid, consumed by StartSpawning
     private int pendingRaidIndex;
     private bool landedThisRaid;       // OnRaidLanded fires once per raid, on the first body ashore
@@ -49,6 +50,9 @@ public class EnemySpawner : MonoBehaviour
     /// </summary>
     public static BaseBuilding TargetFire { get; private set; }
 
+    /// <summary>The colony the raid in progress (or the last one) went for. Null before any raid.</summary>
+    public static Faction TargetFaction { get; private set; }
+
     /// <summary>
     /// The first raider of a raid has landed, with where. The minimap pings it, fog or
     /// not: a landing is heard along the coast (2026-09-09).
@@ -58,6 +62,7 @@ public class EnemySpawner : MonoBehaviour
     void Awake()
     {
         TargetFire = null;   // a scene object clears the static it publishes
+        TargetFaction = null;
         // The director rides on this object so it needs no scene wiring and its
         // code defaults are the live values (see RaidDirector's remarks).
         if (GetComponent<RaidDirector>() == null) gameObject.AddComponent<RaidDirector>();
@@ -86,14 +91,52 @@ public class EnemySpawner : MonoBehaviour
     public void SpawnRaid(int count, int raidIndex) => SpawnRaid(count, raidIndex, Factions.Player);
 
     /// <summary>The same, at <paramref name="target"/>'s shore (2026-09-16): a rival colony can be tonight's.</summary>
-    public void SpawnRaid(int count, int raidIndex, Faction target)
+    public void SpawnRaid(int count, int raidIndex, Faction target) => SpawnRaid(count, raidIndex, target, float.NaN);
+
+    /// <summary>
+    /// The same, landing on <paramref name="bearing"/> (degrees around the map centre,
+    /// 0 = +x, counter-clockwise toward +z). The director draws it at the dawn roll
+    /// and publishes it (2026-09-28), so the landing a player was warned of at dusk
+    /// is the landing that comes. NaN draws one here (the F4 cheat).
+    /// </summary>
+    public void SpawnRaid(int count, int raidIndex, Faction target, float bearing)
     {
         DevQuests.Signal("raid");
         pendingCount = Mathf.Max(1, count);
         pendingRaidIndex = raidIndex;
         raidTarget = target ?? Factions.Player;
         TargetFire = raidTarget.Campfire;
+        TargetFaction = raidTarget;
+        pendingBearing = bearing;
         Invoke(nameof(StartSpawning), spawnDelay);
+    }
+
+    /// <summary>
+    /// The bearing a raid on <paramref name="target"/> lands on when <paramref name="drawn"/>
+    /// was the roll's draw: a rival's raid comes in over its own cove (the ring is
+    /// centred on the map, so a random bearing would land it on the player).
+    /// </summary>
+    public static float BearingFor(Faction target, float drawn)
+    {
+        if (target != null && !target.IsPlayer && target.HasCove)
+            return Mathf.Atan2(target.Cove.z, target.Cove.x) * Mathf.Rad2Deg;
+        return drawn;
+    }
+
+    /// <summary>
+    /// Where a raid on <paramref name="bearing"/> comes ashore against <paramref name="fire"/>:
+    /// the ring point walked inward like every spawn (<see cref="FindReachableToward"/>),
+    /// without the per-raider spread. The director publishes it at the roll and again at dusk.
+    /// </summary>
+    public Vector3 LandingPointFor(float bearing, BaseBuilding fire)
+    {
+        float distance = spawnDistance * TerrainGrid.SizeScale;
+        Vector3 ring = new Vector3(Mathf.Cos(bearing * Mathf.Deg2Rad) * distance, spawnHeight,
+                                   Mathf.Sin(bearing * Mathf.Deg2Rad) * distance);
+        if (fire == null) return ring;
+        Vector3 found;
+        if (FindReachableToward(ring, fire.transform.position, fire, out found)) return found;
+        return ring;
     }
 
     void StartSpawning()
@@ -106,12 +149,12 @@ public class EnemySpawner : MonoBehaviour
 
         int enemiesToSpawn = pendingCount;
 
-        // Pick a random direction for this raid — all enemies cluster around it.
-        // A raid on a RIVAL comes in over its own cove (2026-09-16): the ring is
-        // centred on the map, and a random bearing would land it on the player.
-        waveBaseAngle = Random.Range(0f, 360f);
-        if (raidTarget != null && !raidTarget.IsPlayer && raidTarget.HasCove)
-            waveBaseAngle = Mathf.Atan2(raidTarget.Cove.z, raidTarget.Cove.x) * Mathf.Rad2Deg;
+        // The raid's direction — all enemies cluster around it. Drawn by the
+        // director at the dawn roll (2026-09-28) so dusk can telegraph it; only a
+        // raid nobody rolled (the F4 cheat) draws one here. A raid on a RIVAL comes
+        // in over its own cove (2026-09-16), see BearingFor.
+        float drawn = float.IsNaN(pendingBearing) ? Random.Range(0f, 360f) : pendingBearing;
+        waveBaseAngle = BearingFor(raidTarget, drawn);
         landedThisRaid = false;
 
         Debug.Log($"EnemySpawner: Raid {pendingRaidIndex} — {enemiesToSpawn} raiders landing from direction {waveBaseAngle:F0}°");
@@ -186,19 +229,35 @@ public class EnemySpawner : MonoBehaviour
     private static NavMeshPath reachPath;
 
     /// <summary>
-    /// True when a NavMesh path runs from <paramref name="from"/> to the player's
-    /// campfire (its nearest NavMesh point; the fire carves). No campfire = true,
-    /// so the opening sequence and a dead colony never refuse every spot.
+    /// "Can I reach the fire from about here" per fire and 4 m cell, for 10 s,
+    /// cleared by any wall or gate death (2026-09-28). A raid lands as a cluster,
+    /// so thirty spawns walking in from one bearing asked the same dozen cells
+    /// thirty times over, each an unthrottled CalculatePath.
+    /// </summary>
+    private static readonly RaidPathCache fireReach = new RaidPathCache(4f, 10f);
+
+    /// <summary>
+    /// True when a NavMesh path runs from <paramref name="from"/> to the raid's
+    /// target campfire (its nearest NavMesh point; the fire carves). No campfire =
+    /// true, so the opening sequence and a dead colony never refuse every spot.
     /// </summary>
     public static bool CanReachFire(Vector3 from)
+        => CanReachFire(from, TargetFire != null ? TargetFire : Factions.Player.Campfire);
+
+    /// <summary>The same against a named fire (2026-09-28: the roll's landing, a raider's own nearest hostile fire).</summary>
+    public static bool CanReachFire(Vector3 from, BaseBuilding fire)
     {
-        BaseBuilding fire = TargetFire != null ? TargetFire : Factions.Player.Campfire;
         if (fire == null) return true;
+        int id = fire.GetEntityId().GetHashCode();
+        bool ok;
+        if (fireReach.TryGet(id, from, out ok)) return ok;
         NavMeshHit fireHit;
         if (!NavMesh.SamplePosition(fire.transform.position, out fireHit, 8f, NavMesh.AllAreas)) return true;
         if (reachPath == null) reachPath = new NavMeshPath();
-        return NavMesh.CalculatePath(from, fireHit.position, NavMesh.AllAreas, reachPath)
-               && reachPath.status == NavMeshPathStatus.PathComplete;
+        ok = NavMesh.CalculatePath(from, fireHit.position, NavMesh.AllAreas, reachPath)
+             && reachPath.status == NavMeshPathStatus.PathComplete;
+        fireReach.Put(id, from, ok);
+        return ok;
     }
 
     /// <summary>
@@ -208,6 +267,10 @@ public class EnemySpawner : MonoBehaviour
     /// up on where it stands (<see cref="Enemy"/>'s progress watchdog).
     /// </summary>
     public static bool FindReachableToward(Vector3 from, Vector3 toward, out Vector3 result)
+        => FindReachableToward(from, toward, TargetFire != null ? TargetFire : Factions.Player.Campfire, out result);
+
+    /// <summary>The same walk, testing paths to <paramref name="fire"/> rather than the raid's target fire.</summary>
+    public static bool FindReachableToward(Vector3 from, Vector3 toward, BaseBuilding fire, out Vector3 result)
     {
         result = from;
         TerrainGrid terrain = TerrainGrid.Instance;
@@ -233,7 +296,7 @@ public class EnemySpawner : MonoBehaviour
             if (terrain.SampleHeight(position) > TerrainGrid.DeepWaterY
                 && NavMesh.SamplePosition(position, out navHit, 4f, NavMesh.AllAreas))
             {
-                if (CanReachFire(navHit.position))
+                if (CanReachFire(navHit.position, fire))
                 {
                     result = navHit.position;
                     return true;

@@ -11,8 +11,12 @@ using System.Collections.Generic;
 /// on 2026-09-22: diagonal links make 256 masks, and "a post and its arms" covers all of them
 /// with one builder and no rotation, so a wall's transform always stays axis-aligned (the
 /// carve box and the square colliders are what the NavMesh and the gate trigger see).
-/// Meshes are cached statically per (mask, stone, gate) - one mesh per variant for the whole
+/// Meshes are cached statically per (mask, stone) - one mesh per variant for the whole
 /// game, not one per wall.
+///
+/// A gate is not drawn from links (2026-09-28): it is a doorway over its whole span - a jamb
+/// at each end, where the neighbouring walls' arms meet it, and a lintel above head height -
+/// cached per (span, axis, stone).
 ///
 /// Because this writes the mesh onto the root MeshFilter at runtime, a wall cannot be given
 /// hand-authored art by swapping its mesh: anything assigned is overwritten on the next
@@ -28,11 +32,12 @@ public class WallConnector : MonoBehaviour
     private MeshFilter meshFilter;
     private MeshRenderer meshRenderer;
     private bool isStoneWall = false;
-    private bool isGate = false;
+    private Gate gate;
     private bool initialized = false;
 
-    // Cached procedural meshes (shared across all walls of the same variant)
+    // Cached procedural meshes (shared across all walls / gates of the same variant)
     private static readonly Dictionary<int, Mesh> meshCache = new Dictionary<int, Mesh>();
+    private static readonly Dictionary<int, Mesh> gateMeshCache = new Dictionary<int, Mesh>();
 
     // Wall dimensions
     private const float WALL_THICKNESS = 0.3f;
@@ -40,8 +45,13 @@ public class WallConnector : MonoBehaviour
     private const float STONE_HEIGHT = 2.0f;
     private const float PILLAR_SIZE = 0.4f;
     private const float Y_OFFSET = 0.02f; // Slight raise to avoid ground z-fighting
-    private const float GATE_HEIGHT_RATIO = 0.5f; // Gates are half the height of walls
-    private const float GATE_ARCH_RATIO = 0.6f;   // A gate arm is only its top 40%: the arch below
+
+    // Gate frame: jambs taller than the wall and a lintel over the heads of the units
+    // walking under it (a colonist is ~1.2 m, a raider ~1.4 m).
+    private const float GATE_MIN_FRAME = 1.9f;
+    private const float GATE_FRAME_RATIO = 1.1f;  // frame height vs the wall it stands in
+    private const float GATE_JAMB_DEPTH = 0.25f;  // along the run, so a 1-wide gate still opens 0.5 m
+    private const float GATE_LINTEL = 0.18f;
 
     // A slanted arm starts inside the post's footprint; dropping its top a hair under the
     // post's keeps the two top faces from being coplanar where they overlap (z-fighting
@@ -53,15 +63,40 @@ public class WallConnector : MonoBehaviour
         Initialize();
     }
 
+    /// <summary>
+    /// Snap, reset and mesh this piece now rather than in its own Start. The wall and the
+    /// gate call it first thing in their Start (so the fog and the cutout collect the final
+    /// renderers), and a finishing site calls it the frame the wall is spawned (so the
+    /// carve box never moves after it appears - see ConstructionSite.Complete).
+    /// </summary>
+    public void EnsureInitialized()
+    {
+        Initialize();
+    }
+
+    /// <summary>
+    /// Where a wall piece in the cell containing <paramref name="pos"/> stands: the cell
+    /// centre, at the terrain height there plus a hair. A site finishing into a wall spawns
+    /// the wall HERE, so Initialize finds nothing to move.
+    /// </summary>
+    public static Vector3 SnapToCell(Vector3 pos)
+    {
+        Vector3 snapped = WallGrid.Instance.GridToWorld(WallGrid.Instance.WorldToGrid(pos), Y_OFFSET);
+        if (TerrainGrid.Instance != null)
+        {
+            snapped.y = TerrainGrid.Instance.SampleHeight(snapped) + Y_OFFSET;
+        }
+        return snapped;
+    }
+
     private void Initialize()
     {
         if (initialized) return;
         initialized = true;
 
         Wall wall = GetComponent<Wall>();
-        Gate gate = GetComponent<Gate>();
+        gate = GetComponent<Gate>();
         isStoneWall = (wall != null && wall.isStoneWall) || (gate != null && gate.isStoneGate);
-        isGate = gate != null;
 
         // Disable ALL child renderers so the original prefab mesh doesn't show
         Renderer[] childRenderers = GetComponentsInChildren<Renderer>();
@@ -73,8 +108,9 @@ public class WallConnector : MonoBehaviour
             }
         }
 
-        // Reset localScale — the procedural mesh has correct dimensions baked in
-        transform.localScale = Vector3.one;
+        // Reset localScale — the procedural mesh has correct dimensions baked in. Written
+        // only when it differs: a transform change restarts a carve (2026-09-28).
+        if (transform.localScale != Vector3.one) transform.localScale = Vector3.one;
 
         // Set up MeshFilter on root
         meshFilter = GetComponent<MeshFilter>();
@@ -86,32 +122,28 @@ public class WallConnector : MonoBehaviour
         if (meshRenderer == null)
             meshRenderer = gameObject.AddComponent<MeshRenderer>();
 
-        // Ensure a material is assigned
+        // Ensure a material is assigned. Only a piece built by hand with no material lands
+        // here (the gate conversion copies its wall's), and it draws unfogged - say so.
         if (meshRenderer.sharedMaterial == null)
         {
-            // Use Sprites/Default which is always available; Standard may be stripped
+            Debug.LogWarning("WallConnector: " + name + " has no material - drawing an unfogged fallback.");
             meshRenderer.material = new Material(Shader.Find("Sprites/Default"));
             meshRenderer.material.color = isStoneWall ? new Color(0.6f, 0.6f, 0.6f) : new Color(0.55f, 0.35f, 0.15f);
         }
 
-        // Snap to grid (y = terrain height at the snapped cell + lift, 0 on the flat world)
-        gridPos = WallGrid.Instance.WorldToGrid(transform.position);
-        Vector3 snapped = WallGrid.Instance.GridToWorld(gridPos, Y_OFFSET);
-        if (TerrainGrid.Instance != null)
-        {
-            snapped.y = TerrainGrid.Instance.SampleHeight(snapped) + Y_OFFSET;
-        }
-        transform.position = snapped;
-        transform.rotation = Quaternion.identity;
+        // Snap to grid (y = terrain height at the snapped cell + lift, 0 on the flat world).
+        // A wall spawned by a finishing site already stands here and must not be "moved"
+        // onto its own spot: a moved carving obstacle re-carves its NavMesh tile (the wall
+        // lag, 2026-09-28).
+        Vector3 snapped = SnapToCell(transform.position);
+        gridPos = WallGrid.Instance.WorldToGrid(snapped);
+        if ((transform.position - snapped).sqrMagnitude > 1e-8f) transform.position = snapped;
+        if (transform.rotation != Quaternion.identity) transform.rotation = Quaternion.identity;
 
-        // Bare post until the grid tells us our neighbours
-        meshFilter.mesh = GetOrCreateMesh(0, isStoneWall, isGate);
-
-        // Gates use a distinct color tint
-        if (isGate && meshRenderer != null && meshRenderer.sharedMaterial != null)
-        {
-            meshRenderer.material.color = isStoneWall ? new Color(0.5f, 0.6f, 0.5f) : new Color(0.45f, 0.35f, 0.2f);
-        }
+        // Bare post (or the whole doorway) until the grid tells us our neighbours
+        meshFilter.sharedMesh = gate != null
+            ? GetOrCreateGateMesh(gate.SpanLo, gate.SpanHi, gate.AlongX, isStoneWall)
+            : GetOrCreateMesh(0, isStoneWall);
     }
 
     /// <summary>
@@ -121,15 +153,23 @@ public class WallConnector : MonoBehaviour
     {
         if (!initialized) Initialize();
 
-        currentLinks = WallGrid.Instance.GetLinkMask(gridPos);
-
         if (meshFilter != null)
         {
-            meshFilter.mesh = GetOrCreateMesh(currentLinks, isStoneWall, isGate);
+            if (gate != null)
+            {
+                // A gate's doorway spans its own cells; its neighbours draw their arms up to it.
+                currentLinks = 0;
+                meshFilter.sharedMesh = GetOrCreateGateMesh(gate.SpanLo, gate.SpanHi, gate.AlongX, isStoneWall);
+            }
+            else
+            {
+                currentLinks = WallGrid.Instance.GetLinkMask(gridPos);
+                meshFilter.sharedMesh = GetOrCreateMesh(currentLinks, isStoneWall);
+            }
         }
 
-        transform.localScale = Vector3.one;
-        transform.rotation = Quaternion.identity;
+        if (transform.localScale != Vector3.one) transform.localScale = Vector3.one;
+        if (transform.rotation != Quaternion.identity) transform.rotation = Quaternion.identity;
     }
 
     // =============================================
@@ -137,21 +177,38 @@ public class WallConnector : MonoBehaviour
     // =============================================
 
     /// <summary>
-    /// The cached mesh for a link mask (WallGrid bits: four cardinal, four diagonal). A gate
-    /// ignores diagonal bits - WallGrid never gives it any. Always drawn unrotated.
+    /// The cached wall mesh for a link mask (WallGrid bits: four cardinal, four diagonal).
+    /// Always drawn unrotated.
     /// </summary>
-    public static Mesh GetOrCreateMesh(int links, bool isStone, bool isGate)
+    public static Mesh GetOrCreateMesh(int links, bool isStone)
     {
-        if (isGate) links &= ~WallGrid.DiagonalBits;
-        int key = (links & 0xFF) | (isStone ? 0x100 : 0) | (isGate ? 0x200 : 0);
+        int key = (links & 0xFF) | (isStone ? 0x100 : 0);
 
         Mesh mesh;
         if (meshCache.TryGetValue(key, out mesh) && mesh != null)
             return mesh;
 
-        mesh = BuildMesh(links, isStone, isGate);
-        mesh.name = "Wall_" + links + (isStone ? "_stone" : "_wood") + (isGate ? "_gate" : "");
+        mesh = BuildMesh(links, isStone);
+        mesh.name = "Wall_" + links + (isStone ? "_stone" : "_wood");
         meshCache[key] = mesh;
+        return mesh;
+    }
+
+    /// <summary>
+    /// The cached doorway for a gate spanning <paramref name="lo"/>..<paramref name="hi"/>
+    /// cells from its anchor (each within -4..4) along X or Z.
+    /// </summary>
+    public static Mesh GetOrCreateGateMesh(int lo, int hi, bool alongX, bool isStone)
+    {
+        int key = (lo + 4) | ((hi + 4) << 4) | (alongX ? 0x100 : 0) | (isStone ? 0x200 : 0);
+
+        Mesh mesh;
+        if (gateMeshCache.TryGetValue(key, out mesh) && mesh != null)
+            return mesh;
+
+        mesh = BuildGateMesh(lo, hi, alongX, isStone);
+        mesh.name = "Gate_" + (hi - lo + 1) + (alongX ? "x" : "z") + lo + (isStone ? "_stone" : "_wood");
+        gateMeshCache[key] = mesh;
         return mesh;
     }
 
@@ -164,15 +221,13 @@ public class WallConnector : MonoBehaviour
     /// edge to the cell edge, where the neighbour's arm meets it; a diagonal arm runs to the
     /// shared cell CORNER, where the diagonal neighbour's arm meets it end to end.
     /// </summary>
-    private static Mesh BuildMesh(int links, bool isStone, bool isGate)
+    private static Mesh BuildMesh(int links, bool isStone)
     {
         float h = isStone ? STONE_HEIGHT : WOODEN_HEIGHT;
-        float postTop = isGate ? h * GATE_HEIGHT_RATIO : h;
-        float armBottom = isGate ? postTop * GATE_ARCH_RATIO : 0f;
         float halfPost = PILLAR_SIZE * 0.5f;
 
         var b = new BoxBuilder();
-        b.AddBox(Vector2.zero, Vector2.up, halfPost, halfPost, 0f, postTop, false);
+        b.AddBox(Vector2.zero, Vector2.up, halfPost, halfPost, 0f, h, false);
 
         for (int i = 0; i < 4; i++)
         {
@@ -181,22 +236,42 @@ public class WallConnector : MonoBehaviour
             Vector2 dir = new Vector2(o.x, o.y);
             float len = 0.5f - halfPost;
             b.AddBox(dir * (halfPost + len * 0.5f), dir, len * 0.5f, WALL_THICKNESS * 0.5f,
-                armBottom, postTop, isGate);
+                0f, h, false);
         }
 
-        if (!isGate)
+        for (int i = 0; i < 4; i++)
         {
-            for (int i = 0; i < 4; i++)
-            {
-                if ((links & WallGrid.DiagonalLinkBits[i]) == 0) continue;
-                Vector2Int o = WallGrid.DiagonalOffsets[i];
-                Vector2 dir = new Vector2(o.x, o.y).normalized;
-                float len = Mathf.Sqrt(0.5f) - halfPost;   // post edge → cell corner
-                b.AddBox(dir * (halfPost + len * 0.5f), dir, len * 0.5f, WALL_THICKNESS * 0.5f,
-                    0f, postTop - DIAGONAL_TOP_DROP, false);
-            }
+            if ((links & WallGrid.DiagonalLinkBits[i]) == 0) continue;
+            Vector2Int o = WallGrid.DiagonalOffsets[i];
+            Vector2 dir = new Vector2(o.x, o.y).normalized;
+            float len = Mathf.Sqrt(0.5f) - halfPost;   // post edge → cell corner
+            b.AddBox(dir * (halfPost + len * 0.5f), dir, len * 0.5f, WALL_THICKNESS * 0.5f,
+                0f, h - DIAGONAL_TOP_DROP, false);
         }
 
+        return b.ToMesh();
+    }
+
+    /// <summary>
+    /// A doorway over cells lo..hi: a jamb standing at each END of the span (the cell edge,
+    /// where a neighbouring wall's arm stops) and a lintel across the top. Nothing in
+    /// between, so the opening reads as wide as it walks.
+    /// </summary>
+    private static Mesh BuildGateMesh(int lo, int hi, bool alongX, bool isStone)
+    {
+        float h = isStone ? STONE_HEIGHT : WOODEN_HEIGHT;
+        float top = Mathf.Max(GATE_MIN_FRAME, h * GATE_FRAME_RATIO);
+        Vector2 axis = alongX ? Vector2.right : Vector2.up;
+        float e0 = lo - 0.5f, e1 = hi + 0.5f;
+        float halfJamb = GATE_JAMB_DEPTH * 0.5f;
+
+        var b = new BoxBuilder();
+        b.AddBox(axis * (e0 + halfJamb), axis, halfJamb, PILLAR_SIZE * 0.5f, 0f, top, false);
+        b.AddBox(axis * (e1 - halfJamb), axis, halfJamb, PILLAR_SIZE * 0.5f, 0f, top, false);
+        // The lintel runs between the jambs, a hair under their tops so no faces z-fight;
+        // its underside is seen from below the camera's tilt, so it gets a bottom face.
+        b.AddBox(axis * ((e0 + e1) * 0.5f), axis, (e1 - e0) * 0.5f - GATE_JAMB_DEPTH, WALL_THICKNESS * 0.5f,
+            top - GATE_LINTEL, top - DIAGONAL_TOP_DROP, true);
         return b.ToMesh();
     }
 
@@ -213,8 +288,8 @@ public class WallConnector : MonoBehaviour
 
         /// <summary>
         /// A box centred at <paramref name="c"/> (XZ), its long axis along the unit
-        /// <paramref name="along"/>. No bottom face unless asked (a gate arm's underside is
-        /// seen through the arch).
+        /// <paramref name="along"/>. No bottom face unless asked (a gate lintel's underside
+        /// is seen through the doorway).
         /// </summary>
         public void AddBox(Vector2 c, Vector2 along, float halfLen, float halfWidth,
             float yMin, float yMax, bool bottomFace)

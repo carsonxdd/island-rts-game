@@ -88,7 +88,7 @@ MonoBehaviour:
   buildingType: 0
   maxHealth: 100
   noBuildRadius: 3.5
-  workerCapacity: 4
+  workerCapacity: 2
 --- !u!114 &-9112568316409137537
 MonoBehaviour:
   m_ObjectHideFlags: 0

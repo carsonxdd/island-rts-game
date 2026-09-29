@@ -92,6 +92,75 @@ public class RaidDirector : MonoBehaviour
     /// <summary>Fires after every dawn roll with the result. The HUD's calendar chip and banner listen.</summary>
     public static event System.Action<bool> OnRaidRolled;
 
+    // ---- the landing, decided at the roll (2026-09-28) ------------------
+    // The bearing is drawn at the dawn roll, right after the target (a FIXED point
+    // in the seeded stream: one draw per raid night), and the reachable landing
+    // point is computed from it then and again at dusk (walls built during the day
+    // change which beach reaches the fire). The spawner lands the raid on the same
+    // bearing, so the dusk warning is the truth.
+
+    /// <summary>A landing is known for tonight's raid (<see cref="LandingBearing"/> / <see cref="LandingPoint"/>).</summary>
+    public bool HasLanding { get; private set; }
+    /// <summary>Degrees around the map centre (0 = +x / east, 90 = +z / north). Meaningless without <see cref="HasLanding"/>.</summary>
+    public float LandingBearing { get; private set; }
+    /// <summary>Where the raid comes ashore: the ring point on <see cref="LandingBearing"/> walked in to ground with a path to the target fire.</summary>
+    public Vector3 LandingPoint { get; private set; }
+
+    /// <summary>
+    /// Dusk on a raid night (2026-09-28): the target colony and where they will land.
+    /// The HUD banner and the minimap arrow listen (the player's shore only); the
+    /// alarm and the form-up read <see cref="RaidPendingAt"/> instead of this.
+    /// </summary>
+    public static event System.Action<Faction, Vector3> OnRaidDusk;
+
+    private bool landedTonight;     // a raid has come ashore since the last dawn
+    private Faction landedTarget;   // ...on this colony's shore
+
+    /// <summary>
+    /// Tonight's raid lands on <paramref name="f"/>'s shore and the landing is known:
+    /// <paramref name="point"/> is where. False on a quiet night or a raid elsewhere.
+    /// </summary>
+    public bool LandingFor(Faction f, out Vector3 point)
+    {
+        point = LandingPoint;
+        return RaidTonight && HasLanding && f != null && (Target ?? Factions.Player) == f;
+    }
+
+    /// <summary>
+    /// The evening before a raid on <paramref name="f"/> and the night it lasts,
+    /// until the landed raid is dead to the last raider (2026-09-28). The dusk
+    /// muster and the form-up read it; the dawn roll ends it at the latest.
+    /// </summary>
+    public bool RaidPendingAt(Faction f)
+    {
+        if (!RaidTonight || f == null || (Target ?? Factions.Player) != f) return false;
+        if (!DayNightCycle.AfterDusk) return false;
+        return !(landedTonight && RaidRepelled);
+    }
+
+    /// <summary>
+    /// A raid has landed on <paramref name="f"/>'s shore and is not yet dead to the
+    /// last raider (2026-09-28). Latched from the first body ashore — raiders
+    /// crossing in and out of the alarm radius cannot flicker it — until the raid is
+    /// repelled or the dawn despawn clears it. Covers the F4 raid too.
+    /// </summary>
+    public bool RaidUnderwayAt(Faction f)
+        => landedTonight && f != null && landedTarget == f && !RaidRepelled;
+
+    /// <summary>The colony's militia should be armed for the raid: pending after dusk, or underway.</summary>
+    public bool RaidCallFor(Faction f) => RaidPendingAt(f) || RaidUnderwayAt(f);
+
+    static readonly string[] CompassWords =
+        { "north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west" };
+
+    /// <summary>One of eight compass words for a world direction (north = +z, the minimap's up).</summary>
+    public static string CompassWord(Vector3 dir)
+    {
+        float deg = Mathf.Atan2(dir.x, dir.z) * Mathf.Rad2Deg;   // 0 = north, 90 = east
+        int i = Mathf.RoundToInt(Mathf.Repeat(deg, 360f) / 45f) % 8;
+        return CompassWords[i];
+    }
+
     private EnemySpawner spawner;
     private DayNightCycle cycle;
 
@@ -105,12 +174,47 @@ public class RaidDirector : MonoBehaviour
     {
         DayNightCycle.OnDayStart += HandleDayStart;
         DayNightCycle.OnNightStart += HandleNightStart;
+        DayNightCycle.OnDuskStart += HandleDusk;
+        EnemySpawner.OnRaidLanded += HandleRaidLanded;
     }
 
     void OnDisable()
     {
         DayNightCycle.OnDayStart -= HandleDayStart;
         DayNightCycle.OnNightStart -= HandleNightStart;
+        DayNightCycle.OnDuskStart -= HandleDusk;
+        EnemySpawner.OnRaidLanded -= HandleRaidLanded;
+    }
+
+    void HandleRaidLanded(Vector3 where)
+    {
+        landedTonight = true;
+        RaidRepelled = false;
+        landedTarget = EnemySpawner.TargetFaction ?? Factions.Player;
+    }
+
+    /// <summary>
+    /// Dusk (2026-09-28): re-walk the landing against the colony as it stands now,
+    /// drop every colony's held gate so tonight's line is chosen against tonight's
+    /// landing, and telegraph it. The alarm and the form-up need no push — they
+    /// read <see cref="RaidPendingAt"/>, which turns on with <see cref="DayNightCycle.AfterDusk"/>.
+    /// </summary>
+    void HandleDusk()
+    {
+        HoldLine.ResetAll();
+        if (!RaidTonight) return;
+        Faction target = Target ?? Factions.Player;
+        RefreshLanding(target);
+        if (target.IsPlayer) DevQuests.Signal("raid:telegraph");
+        OnRaidDusk?.Invoke(target, LandingPoint);
+    }
+
+    void RefreshLanding(Faction target)
+    {
+        if (!HasLanding) return;
+        if (spawner == null) spawner = GetComponent<EnemySpawner>();
+        if (spawner == null || target == null) return;
+        LandingPoint = spawner.LandingPointFor(LandingBearing, target.Campfire);
     }
 
     void OnDestroy()
@@ -191,6 +295,8 @@ public class RaidDirector : MonoBehaviour
     void HandleDayStart()
     {
         RaidRepelled = false;
+        landedTonight = false;
+        landedTarget = null;
         if (LastRaidDay > 0 && CurrentDay() - LastRaidDay <= 1 && LastRaidTarget == Factions.Player
             && Factions.Player.Campfire != null) DevQuests.Signal("raid_survived");
         RollForTonight();
@@ -206,7 +312,7 @@ public class RaidDirector : MonoBehaviour
         RaidRepelled = false;
         LastRaidDay = CurrentDay();
         LastRaidTarget = Target ?? Factions.Player;
-        spawner.SpawnRaid(PlannedSize, RaidsSoFar, LastRaidTarget);
+        spawner.SpawnRaid(PlannedSize, RaidsSoFar, LastRaidTarget, HasLanding ? LandingBearing : float.NaN);
     }
 
     int CurrentDay()
@@ -252,10 +358,24 @@ public class RaidDirector : MonoBehaviour
 
         RaidTonight = raid;
         Target = raid ? ChooseTarget() : null;
+        // The landing bearing is drawn HERE, right after the target (2026-09-28): one
+        // draw per raid night at a fixed point in the seeded stream (it used to be
+        // drawn at nightfall by the spawner). A rival's raid still comes over its cove.
+        if (raid) SetLanding(Target, Random.Range(0f, 360f));
+        else HasLanding = false;
         PlannedSize = raid ? ComputeRaidSize(day, Target) : 0;
         if (raid && Target != null && !Target.IsPlayer) DevQuests.Signal("raid:target_rival");
         if (raid && AudioManager.Instance != null) AudioManager.Instance.PlayRaidWarning();
         OnRaidRolled?.Invoke(raid);
+    }
+
+    void SetLanding(Faction target, float drawn)
+    {
+        LandingBearing = EnemySpawner.BearingFor(target, drawn);
+        HasLanding = true;
+        if (spawner == null) spawner = GetComponent<EnemySpawner>();
+        Faction t = target ?? Factions.Player;
+        LandingPoint = spawner != null ? spawner.LandingPointFor(LandingBearing, t.Campfire) : Vector3.zero;
     }
 
     /// <summary>
@@ -395,8 +515,12 @@ public class RaidDirector : MonoBehaviour
     {
         RaidTonight = raid;
         Target = raid ? Factions.Player : null;
+        if (raid) SetLanding(Target, Random.Range(0f, 360f));   // debug only: a draw off the roll's fixed point is fine
+        else HasLanding = false;
         PlannedSize = raid ? ComputeRaidSize() : 0;
         OnRaidRolled?.Invoke(raid);
+        // Forced after dusk: telegraph now, the dusk edge has passed
+        if (raid && DayNightCycle.AfterDusk) HandleDusk();
     }
 #endif
 
@@ -405,5 +529,6 @@ public class RaidDirector : MonoBehaviour
     {
         Instance = null;
         OnRaidRolled = null;
+        OnRaidDusk = null;
     }
 }

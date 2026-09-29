@@ -221,7 +221,7 @@ public class WallLinePlacer
         bool isStone = data.buildingType == BuildingType.StoneWall;
         GameObject ghost = new GameObject("WallCursorGhost");
         MeshFilter mf = ghost.AddComponent<MeshFilter>();
-        mf.mesh = WallConnector.GetOrCreateMesh(0, isStone, false);
+        mf.mesh = WallConnector.GetOrCreateMesh(0, isStone);
         MeshRenderer mr = ghost.AddComponent<MeshRenderer>();
         mr.material = CreateWallGhostMaterial();
         return ghost;
@@ -454,7 +454,7 @@ public class WallLinePlacer
             int links = blocked || WallGrid.Instance == null
                 ? 0
                 : WallGrid.Instance.ComputeLinkMask(lineCells[i], validCellSet);
-            ghostFilters[i].sharedMesh = WallConnector.GetOrCreateMesh(links, isStone, false);
+            ghostFilters[i].sharedMesh = WallConnector.GetOrCreateMesh(links, isStone);
             ghostMaterials[i].color = blocked ? wallGhostInvalidColor : wallGhostColor;
         }
 

@@ -28,6 +28,7 @@
 #   fog:node_skipped  fog:raider_unseen  fog:ghost  fog:wall  minimap:click  minimap:landing
 #   sky:<sunny|slightly|partly|cloudy|off>  graphics:<preset|custom>
 #   faction:bootstrap  faction:rival  faction:<hostile|neutral|allied>  loot
+#   raid:telegraph  raid:dusk_formed  levy:dusk  levy:landing  gate:wide  gate:narrow  gate:card  sleep:moved_in
 #   changelog:<expand|collapse>
 #   repair  repair:gate  raid:rested  raider:wall_stop  raider:wall_over_warrior
 #   rival:landed  rival:met  rival:territory  rival:governed  rival:built  rival:recruited
@@ -52,6 +53,31 @@
 # changelog and the phase history. Quest ids are batch slug + index, so a batch
 # that loses quests from the middle needs a RESET on the DEV tab (done 2026-09-13
 # after the first report, Playtests/playtest_2026-09-13_2204.md).
+
+## 2026-09-28 Dusk muster and the gate line
+- @raid:telegraph Dusk on a raid night: banner names the landing side
+- Minimap edge arrow points where the raiders then actually land
+- @levy:dusk Spare weapons arm colonists at dusk, before night falls
+- @raid:dusk_formed Warriors form up outside the gate facing the landing
+- Under 8 spearmen they stand two ranks deep, and it looks tidy
+- Archers stand inside the wall behind the gate and shoot over it
+- Spearmen hold the line: no chasing raiders along the wall
+- A spearman falls: the line closes the gap without a big shuffle
+- @levy:landing Levy stays armed all raid while walls hold raiders out
+- Idle archers patrol inside the walls, spearmen outside
+- @gate:wide G on a long straight wall makes a gate three walls wide
+- @gate:narrow G on a short run makes a narrower gate and says why
+- @gate:card Clicking a gate shows its card: width, refund, no upgrade
+- Colonists pass a wide gate side by side, no queue at the gate
+- Colonists look smaller next to a tent and get stuck less
+- Health bars and name labels still sit just above the smaller heads
+- Food runs down noticeably: a colony of 10 needs ~2 food workers
+- @sleep:moved_in A colonist by the fire takes a bed that comes free
+- A Hut sleeps two
+- After F10 dismiss, the spear count in stock comes back in full
+- Other colonies' walls, gates and sites stay hidden in the fog
+- Other colonies' colonists stay hidden when they leave their huts
+- A big wall ring no longer hitches while it is built or repaired
 
 ## 2026-09-22 Drawn walls
 - @wall:drawn Drag a wall line across the ground and let go to place it

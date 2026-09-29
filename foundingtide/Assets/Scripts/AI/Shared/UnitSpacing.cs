@@ -8,7 +8,9 @@ using UnityEngine.AI;
 /// Agents therefore look like they respect each other's space but can squeeze
 /// through when the alternative is a deadlock: the push resolves an overlap,
 /// the stuck ladder (<see cref="StuckResolver"/>) drops the avoidance radius
-/// when a squeeze is the only way on. The art (~0.35) never drives either.
+/// when a squeeze is the only way on. The art never drives either. Both shrank
+/// with the 0.8x bodies (2026-09-28, <c>LowPolyPlumber.UnitModelScale</c>); the
+/// NavMesh BAKE radius (0.5) did not, because the diagonal wall carves rely on it.
 /// </summary>
 /// <remarks>
 /// Right of way is deterministic so two agents never mirror each other into a
@@ -21,16 +23,16 @@ using UnityEngine.AI;
 public static class UnitSpacing
 {
     /// <summary>Hard body: the soft push-apart acts inside twice this.</summary>
-    public const float SolidRadius = 0.22f;
-    /// <summary>Steering preference for warriors, raiders and the castaway (the spec's 0.55).</summary>
-    public const float AvoidanceRadius = 0.55f;
+    public const float SolidRadius = 0.18f;    // 0.22 before the 0.8x bodies
+    /// <summary>Steering preference for warriors, raiders and the castaway (the spec's 0.55, x0.8 with the bodies).</summary>
+    public const float AvoidanceRadius = 0.44f;
     /// <summary>
-    /// Workers keep a tighter one: the gather ring seats them 0.85 m apart
+    /// Workers keep a tighter one: the gather ring seats them 0.75 m apart
     /// (<see cref="Worker.AgentRadius"/> x 2 + 0.25), and an ORCA radius that
     /// wants 1.1 m clear can never reach a ring point beside a standing mate.
     /// Raise it with the ring, not alone.
     /// </summary>
-    public const float WorkerAvoidanceRadius = 0.4f;
+    public const float WorkerAvoidanceRadius = 0.32f;   // 0.4 before the 0.8x bodies; wants 0.64 m clear, under the ring's 0.75
     /// <summary>Positional push-apart is clamped to this.</summary>
     public const float MaxSeparationSpeed = 1.5f;
 
@@ -68,7 +70,7 @@ public static class UnitSpacing
         if (agent != null) agent.avoidancePriority = MovingPriority(agent, carrying);
     }
 
-    /// <summary>Inside a gate's corridor (the chokepoint rule): within <see cref="Loiter.GateClearance"/> of a gate centre.</summary>
+    /// <summary>Inside a gate's corridor (the chokepoint rule): within <see cref="Loiter.GateClearance"/> of a gate's span (up to three cells wide, 2026-09-28).</summary>
     public static bool InGateway(Vector3 pos)
     {
         var gates = Gate.ActiveList;
@@ -77,9 +79,7 @@ public static class UnitSpacing
         {
             Gate g = gates[i];
             if (g == null) continue;
-            Vector3 d = g.transform.position - pos;
-            d.y = 0f;
-            if (d.sqrMagnitude <= sqr) return true;
+            if (g.SqrDistanceXZ(pos) <= sqr) return true;
         }
         return false;
     }

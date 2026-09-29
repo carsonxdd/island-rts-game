@@ -668,7 +668,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing, IDropoff
         if (!activeWarriors.Remove(warrior)) return null;
         currentWarriors--;
 
-        if (warrior.weapon != null) Stockpile.Add(warrior.weapon, 1);
+        if (warrior.weapon != null) Stockpile.AddReturn(warrior.weapon, 1);   // never lost to a full stockpile
 
         Worker colonist = InstantiateColonist(warrior.transform.position);
         if (colonist != null && Faction.Population != null)
@@ -692,7 +692,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing, IDropoff
         if (better == null) return false;
         if (Stockpile.Remove(better, 1) <= 0) return false;
 
-        if (warrior.weapon != null) Stockpile.Add(warrior.weapon, 1);   // lost if the stockpile is full
+        if (warrior.weapon != null) Stockpile.AddReturn(warrior.weapon, 1);   // a returned weapon ignores the cap
         warrior.ApplyWeapon(better);
         DevQuests.Signal("rearm");
         return true;
@@ -767,7 +767,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing, IDropoff
             Debug.LogError("BaseBuilding: Warrior prefab doesn't have Warrior component!");
             Destroy(warriorObj);
             c.mustered = false;
-            Stockpile.Add(weapon, 1);
+            Stockpile.AddReturn(weapon, 1);
             return null;
         }
         warriorObj.name = "Levy_" + (c.persona != null ? c.persona.Name : recruit.name);
@@ -803,7 +803,7 @@ public class BaseBuilding : MonoBehaviour, ITargetable, IHousing, IDropoff
         if (colonist == null) return null;
 
         activeWarriors.Remove(warrior);
-        if (warrior.weapon != null) Stockpile.Add(warrior.weapon, 1);
+        if (warrior.weapon != null) Stockpile.AddReturn(warrior.weapon, 1);   // never lost to a full stockpile
         c.mustered = false;
         // The job comes straight back — no gear-up trip, they are standing at the fire
         colonist.hasJob = c.pausedHasJob;

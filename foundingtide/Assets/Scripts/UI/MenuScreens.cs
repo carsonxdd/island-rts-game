@@ -1338,13 +1338,16 @@ public class MenuScreens : MonoBehaviour
 
     private void RenderColonyTable(Transform t)
     {
+        // The live tunables in a run (the scene's PopulationManager), the defaults on the
+        // main menu: the page never types a number the game does not use (2026-09-28).
+        PopulationManager.Tunables pop = PopulationManager.Settings;
         string[] lines =
         {
-            "A survivor lands every " + PopulationManager.DefaultArrivalInterval.ToString("0") + " seconds by day while there is housing and the colony is fed.",
-            "Each colonist eats " + PopulationManager.DefaultFoodPerDay.ToString("0.#") + " food per day, times the difficulty's food multiplier.",
-            "Hungry after " + PopulationManager.DefaultHungryAfterDays.ToString("0.##") + " of a day without food: work at "
+            "A survivor lands every " + pop.ArrivalInterval.ToString("0") + " seconds by day while there is housing and the colony is fed.",
+            "Each colonist eats " + pop.FoodPerDay.ToString("0.#") + " food per day, times the difficulty's food multiplier.",
+            "Hungry after " + pop.HungryAfterDays.ToString("0.##") + " of a day without food: work at "
                 + Mathf.RoundToInt(PopulationManager.HungryLaborMultiplier * 100f) + "%, and nobody new lands.",
-            "Starving after " + PopulationManager.DefaultStarvingAfterDays.ToString("0.#") + " day without food: one colonist leaves each day it lasts.",
+            "Starving after " + pop.StarvingAfterDays.ToString("0.#") + (pop.StarvingAfterDays == 1f ? " day" : " days") + " without food: one colonist leaves each day it lasts.",
         };
         for (int i = 0; i < lines.Length; i++)
         {

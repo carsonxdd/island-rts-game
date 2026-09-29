@@ -134,8 +134,21 @@ public class UnitHoleMask : MonoBehaviour
         PlayerCharacter player = PlayerCharacter.Instance;
         if (player != null && !player.IsKnockedOut) Add(player.transform.position);
 
-        AddUnits(Worker.ActiveList);
-        AddUnits(Warrior.ActiveList);
+        // Another colony's people are fogged like raiders (2026-09-28): a window over a
+        // hidden rival gave it away. They carry FogVisibility(Visible), so the same
+        // question it asks is asked here (one grid read, player units skip it). A
+        // garrisoned worker's body is hidden while its GameObject stays active.
+        FogOfWar fogOfWar = FogOfWar.Instance;
+        IReadOnlyList<Worker> workers = Worker.ActiveList;
+        for (int i = 0; i < workers.Count && count < MaxUnits; i++)
+        {
+            Worker w = workers[i];
+            if (w == null || w.IsGarrisoned) continue;
+            AddUnit(w, fogOfWar);
+        }
+        IReadOnlyList<Warrior> warriors = Warrior.ActiveList;
+        for (int i = 0; i < warriors.Count && count < MaxUnits; i++)
+            AddUnit(warriors[i], fogOfWar);
 
         // A raider the fog hides must not open a window either — the window would give
         // it away (2026-09-09).
@@ -149,14 +162,13 @@ public class UnitHoleMask : MonoBehaviour
         }
     }
 
-    void AddUnits<T>(IReadOnlyList<T> list) where T : MonoBehaviour
+    void AddUnit<T>(T unit, FogOfWar fogOfWar) where T : MonoBehaviour, IOwned
     {
-        for (int i = 0; i < list.Count && count < MaxUnits; i++)
-        {
-            T unit = list[i];
-            if (unit == null || !unit.gameObject.activeInHierarchy) continue;  // garrisoned workers are hidden
-            Add(unit.transform.position);
-        }
+        if (unit == null || !unit.gameObject.activeInHierarchy) return;
+        Vector3 pos = unit.transform.position;
+        Faction f = unit.Faction;
+        if (fogOfWar != null && f != null && !f.IsPlayer && !fogOfWar.IsVisible(pos)) return;
+        Add(pos);
     }
 
     void Add(Vector3 feet)

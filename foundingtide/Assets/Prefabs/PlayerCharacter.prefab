@@ -72,7 +72,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerCharacter
   showStateText: 1
-  textHeightOffset: 1.9
+  textHeightOffset: 1.52
   maxHealth: 75
   regenPerSecond: 2
   regenRange: 3
@@ -91,7 +91,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HealthBar
   showHealthBar: 1
-  heightOffset: 1.5
+  heightOffset: 1.2
   barWidth: 0.8
   barHeight: 0.12
   highHealthColor: {r: 0, g: 1, b: 0, a: 1}
@@ -152,8 +152,8 @@ Transform:
   m_GameObject: {fileID: 9203925153327530487}
   serializedVersion: 2
   m_LocalRotation: {x: -0.21482633, y: -0.026377358, z: -0.118980564, w: 0.9690189}
-  m_LocalPosition: {x: 0.2, y: 0.4, z: 0.08}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalPosition: {x: 0.16, y: 0.32, z: 0.064}
+  m_LocalScale: {x: 0.8, y: 0.8, z: 0.8}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2283455778526387225}
@@ -205,6 +205,18 @@ PrefabInstance:
     - target: {fileID: 5643896635622639371, guid: 2e99bd67ac5a339489be0ab788c8c4be, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5643896635622639371, guid: 2e99bd67ac5a339489be0ab788c8c4be, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 0.8
+      objectReference: {fileID: 0}
+    - target: {fileID: 5643896635622639371, guid: 2e99bd67ac5a339489be0ab788c8c4be, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 0.8
+      objectReference: {fileID: 0}
+    - target: {fileID: 5643896635622639371, guid: 2e99bd67ac5a339489be0ab788c8c4be, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 0.8
       objectReference: {fileID: 0}
     - target: {fileID: 6148210518303130623, guid: 2e99bd67ac5a339489be0ab788c8c4be, type: 3}
       propertyPath: m_Name

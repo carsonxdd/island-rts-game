@@ -74,7 +74,7 @@ public class DemolishTool
                 if (gate != null)
                 {
                     targetObj = gate.gameObject;
-                    targetType = gate.isStoneGate ? BuildingType.StoneWall : BuildingType.WoodenWall;
+                    targetType = RepairCosts.WallTypeOf(gate);   // Demolish multiplies by the gate's width
                 }
             }
 
@@ -132,6 +132,14 @@ public class DemolishTool
                     targetObj = null; // Block campfire demolish
                 }
             }
+        }
+
+        // Only the player's own buildings (2026-09-28): a rival's wall hidden by the fog
+        // still has its collider, and demolishing it refunded the player.
+        if (targetObj != null)
+        {
+            IOwned owned = targetObj.GetComponent<IOwned>();
+            if (owned != null && owned.Faction != Factions.Player) targetObj = null;
         }
 
         // Update highlight
@@ -197,21 +205,24 @@ public class DemolishTool
     /// <summary>
     /// Refund half the build cost and destroy the building. Public and static since
     /// 2026-09-18 because the selected-building card demolishes too, and there must be
-    /// exactly one refund rule - two would drift the moment a cost changed.
+    /// exactly one refund rule - two would drift the moment a cost changed. A gate refunds
+    /// as the walls it replaced (its wall's cost x its width, 2026-09-28) whatever type
+    /// the caller names for it.
     /// </summary>
     public static void Demolish(GameObject buildingObj, BuildingType type)
     {
         if (BuildingDatabase.Instance == null) return;
 
         // Get building data for refund calculation
-        BuildingData data = BuildingDatabase.Instance.GetBuildingData(type);
+        int count;
+        BuildingData data = RefundData(buildingObj, type, out count);
         if (data != null)
         {
             // 50% refund
-            int woodRefund = Mathf.FloorToInt(data.woodCost * 0.5f);
-            int foodRefund = Mathf.FloorToInt(data.foodCost * 0.5f);
-            int stoneRefund = Mathf.FloorToInt(data.stoneCost * 0.5f);
-            int metalRefund = Mathf.FloorToInt(data.metalCost * 0.5f);
+            int woodRefund = RefundOf(data.woodCost, count);
+            int foodRefund = RefundOf(data.foodCost, count);
+            int stoneRefund = RefundOf(data.stoneCost, count);
+            int metalRefund = RefundOf(data.metalCost, count);
 
             if (woodRefund > 0) Factions.Player.Resources.AddWood(woodRefund);
             if (foodRefund > 0) Factions.Player.Resources.AddFood(foodRefund);
@@ -232,21 +243,48 @@ public class DemolishTool
     /// <summary>The 50% refund as a player-facing line, for the card's Demolish button.</summary>
     public static string RefundLine(BuildingType type)
     {
-        BuildingData data = BuildingDatabase.Instance != null
-            ? BuildingDatabase.Instance.GetBuildingData(type) : null;
+        return RefundLine(null, type);
+    }
+
+    /// <summary>The 50% refund of this building as a player-facing line (a gate: × its width).</summary>
+    public static string RefundLine(GameObject building, BuildingType type)
+    {
+        int count;
+        BuildingData data = RefundData(building, type, out count);
         if (data == null) return "";
 
         var sb = new System.Text.StringBuilder(24);
-        Refund(sb, data.woodCost, 'W');
-        Refund(sb, data.foodCost, 'F');
-        Refund(sb, data.stoneCost, 'S');
-        Refund(sb, data.metalCost, 'M');
+        Refund(sb, data.woodCost, count, 'W');
+        Refund(sb, data.foodCost, count, 'F');
+        Refund(sb, data.stoneCost, count, 'S');
+        Refund(sb, data.metalCost, count, 'M');
         return sb.ToString();
     }
 
-    static void Refund(System.Text.StringBuilder sb, int cost, char suffix)
+    /// <summary>
+    /// The data a refund is priced from and how many of it. A gate has no BuildingData:
+    /// it is its wall, <see cref="Gate.Width"/> times over.
+    /// </summary>
+    static BuildingData RefundData(GameObject building, BuildingType type, out int count)
     {
-        int back = Mathf.FloorToInt(cost * 0.5f);
+        count = 1;
+        Gate gate = building != null ? building.GetComponent<Gate>() : null;
+        if (gate != null)
+        {
+            type = RepairCosts.WallTypeOf(gate);
+            count = gate.Width;
+        }
+        else if (type == BuildingType.WoodenGate) type = BuildingType.WoodenWall;
+        else if (type == BuildingType.StoneGate) type = BuildingType.StoneWall;
+
+        return BuildingDatabase.Instance != null ? BuildingDatabase.Instance.GetBuildingData(type) : null;
+    }
+
+    static int RefundOf(int cost, int count) => Mathf.FloorToInt(cost * count * 0.5f);
+
+    static void Refund(System.Text.StringBuilder sb, int cost, int count, char suffix)
+    {
+        int back = RefundOf(cost, count);
         if (back <= 0) return;
         if (sb.Length > 0) sb.Append(' ');
         sb.Append(back).Append(suffix);

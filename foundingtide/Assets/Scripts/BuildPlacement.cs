@@ -327,6 +327,8 @@ public class BuildPlacement : MonoBehaviour
     /// <summary>
     /// Convert the wall at the mouse's grid position to a gate (costs 5 wood).
     /// Uses WallGrid lookup instead of raycast so it works regardless of camera angle.
+    /// The gate takes the wall and up to two straight neighbours (Wall.UpgradeToGate,
+    /// 2026-09-28); one narrower than three says why on the build bar.
     /// </summary>
     void TryConvertWallToGate()
     {
@@ -347,7 +349,7 @@ public class BuildPlacement : MonoBehaviour
 
         // Must be a Wall (not already a Gate or ConstructionSite)
         Wall wall = occupant as Wall;
-        if (wall == null)
+        if (wall == null || wall.Faction != Factions.Player)   // a neighbour's wall is not ours to gate
         {
             return;
         }
@@ -376,7 +378,14 @@ public class BuildPlacement : MonoBehaviour
             AudioManager.Instance.PlayBuildingPlaced();
         }
 
-        wall.UpgradeToGate();
+        Gate gate = wall.UpgradeToGate();
+        if (gate == null) return;
+        if (gate.Width >= Gate.MaxWidth) DevQuests.Signal("gate:wide");
+        else
+        {
+            ShowNotice("Gate is " + gate.Width + " wide - the straight wall here is too short for " + Gate.MaxWidth);
+            DevQuests.Signal("gate:narrow");
+        }
     }
 
     /// <summary>

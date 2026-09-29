@@ -136,9 +136,9 @@ public sealed class FactionBuilder
     /// the campfire, leaving a TWO-cell opening mid-way along each side. The
     /// openings are load-bearing: a sealed carving ring would trap every worker
     /// inside it. They are filled later by <see cref="GateOpenings"/>, which walls
-    /// each cell and converts it to a gate the tick it finishes — two gates side
-    /// by side per side (2026-09-10) so a column of workers or warriors paths
-    /// through without queueing on one cell.
+    /// both cells and converts the opening into ONE three-wide gate (2026-09-28;
+    /// two single gates side by side since 2026-09-10) so a column of workers or
+    /// warriors paths through without queueing on one cell.
     /// Returns how many sites were placed (0 if unaffordable or fully blocked).
     /// </summary>
     public int PlaceWallRing(BuildingType wallType, int halfExtent, int maxSites)
@@ -322,14 +322,18 @@ public sealed class FactionBuilder
     private static bool IsOpeningOffset(int d) => d == 0 || d == 1;
 
     /// <summary>
-    /// Fills the ring's openings with gates, one step per cell per call: an empty
+    /// Fills the ring's openings with gates, one step per opening per call: an empty
     /// opening cell gets a wall site (a gate is only ever converted from a finished
-    /// wall, like the player's G key), a finished wall in one is converted (5 wood),
-    /// a site is left to finish, a gate is done. The lab of 2026-09-10 showed why
-    /// this exists: the old ConvertGates turned the two NEWEST walls into gates
-    /// wherever they stood and left the openings as bare holes, so raiders walked
-    /// the ring's gaps and no wall took a hit all lab long. Returns how many
-    /// cells it acted on this call (0 = nothing to do or unaffordable).
+    /// wall, like the player's G key), a site is left to finish, and once both cells
+    /// stand as walls the opening is converted (5 wood) through the same
+    /// <see cref="Wall.UpgradeToGate"/> as the G key - ONE gate up to three wide,
+    /// which takes a ring wall beside the two-cell opening as its third cell
+    /// (2026-09-28; two single gates side by side before). A side holding a gate is
+    /// done. The lab of 2026-09-10 showed why this exists: the old ConvertGates
+    /// turned the two NEWEST walls into gates wherever they stood and left the
+    /// openings as bare holes, so raiders walked the ring's gaps and no wall took a
+    /// hit all lab long. Returns how many cells it acted on this call (0 = nothing
+    /// to do or unaffordable).
     /// </summary>
     public int GateOpenings(BuildingType wallType, int halfExtent)
     {
@@ -339,29 +343,51 @@ public sealed class FactionBuilder
         if (Campfire == null || WallGrid.Instance == null) return 0;
 
         Vector2Int center = WallGrid.Instance.WorldToGrid(Campfire.transform.position);
+        Vector2Int alongX = new Vector2Int(1, 0), alongZ = new Vector2Int(0, 1);
         int acted = 0;
-        for (int d = 0; d <= 1; d++)
-        {
-            acted += GateCell(data, wallType, new Vector2Int(center.x + d, center.y + halfExtent));
-            acted += GateCell(data, wallType, new Vector2Int(center.x + d, center.y - halfExtent));
-            acted += GateCell(data, wallType, new Vector2Int(center.x + halfExtent, center.y + d));
-            acted += GateCell(data, wallType, new Vector2Int(center.x - halfExtent, center.y + d));
-        }
+        acted += GateOpening(data, wallType, new Vector2Int(center.x, center.y + halfExtent), alongX);
+        acted += GateOpening(data, wallType, new Vector2Int(center.x, center.y - halfExtent), alongX);
+        acted += GateOpening(data, wallType, new Vector2Int(center.x + halfExtent, center.y), alongZ);
+        acted += GateOpening(data, wallType, new Vector2Int(center.x - halfExtent, center.y), alongZ);
         return acted;
     }
 
-    private int GateCell(BuildingData data, BuildingType wallType, Vector2Int cell)
+    /// <summary>One side's opening: the cell at <paramref name="first"/> and the next one <paramref name="along"/> the side.</summary>
+    private int GateOpening(BuildingData data, BuildingType wallType, Vector2Int first, Vector2Int along)
     {
-        MonoBehaviour occupant = WallGrid.Instance.GetWallAt(cell);
-        if (occupant == null) return TryPlaceWallCell(data, wallType, cell) == CellResult.Placed ? 1 : 0;
+        WallGrid grid = WallGrid.Instance;
+        Vector2Int second = first + along;
+        MonoBehaviour a = grid.GetWallAt(first), b = grid.GetWallAt(second);
+        if (a is Gate || b is Gate) return 0;          // gated
 
-        Wall wall = occupant as Wall;
-        if (wall == null) return 0;                    // a site still building, or already a gate
-        if (wall.Faction != faction) return 0;         // a neighbour's wall on my ring line is theirs to gate
+        // Wall both cells first. A cell the island refuses is left open and the other
+        // is gated alone; one still unaffordable or unexplored is waited for.
+        int placed = 0;
+        bool waiting = false;
+        if (a == null) Fill(data, wallType, first, ref placed, ref waiting);
+        if (b == null) Fill(data, wallType, second, ref placed, ref waiting);
+        if (placed > 0 || waiting) return placed;
+
+        Wall wa = a as Wall, wb = b as Wall;
+        if ((a != null && wa == null) || (b != null && wb == null)) return 0;   // a site still building
+
+        // Convert from a wall of mine that joins nothing on a slant (the G key's rule).
+        Wall pick = null;
+        if (wa != null && wa.Faction == faction && !grid.HasDiagonalLink(first)) pick = wa;
+        else if (wb != null && wb.Faction == faction && !grid.HasDiagonalLink(second)) pick = wb;
+        if (pick == null) return 0;                    // a neighbour's wall on my ring line is theirs to gate
+
         if (!faction.Resources.CanAfford(5, 0, 0)) return 0;
         faction.Resources.SpendResources(5, 0, 0);     // BuildPlacement's G cost
-        wall.UpgradeToGate();
-        return 1;
+        Gate gate = pick.UpgradeToGate();
+        return gate != null ? gate.Width : 0;
+    }
+
+    private void Fill(BuildingData data, BuildingType wallType, Vector2Int cell, ref int placed, ref bool waiting)
+    {
+        CellResult r = TryPlaceWallCell(data, wallType, cell);
+        if (r == CellResult.Placed) placed++;
+        else if (r == CellResult.Unaffordable || r == CellResult.Unexplored) waiting = true;
     }
 
     private enum CellResult { Placed, Occupied, Unaffordable, Unbuildable, Unexplored }

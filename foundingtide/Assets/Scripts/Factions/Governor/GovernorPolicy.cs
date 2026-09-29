@@ -353,6 +353,60 @@ public abstract class GovernorPolicy
         return true;
     }
 
+    /// <summary>Food a full-time food worker brings home in a calendar day (estimate: 1/s gather, carry 5, walk, sleep).</summary>
+    public const float ForagerYieldPerDay = 36f;
+
+    /// <summary>
+    /// Food workers that feed the roster at the live food rate and difficulty, plus
+    /// one while the bank holds less than a day of eating (2026-09-28). The overnight
+    /// batch measured 36 a forager on a quiet day but ~25 on a raid day (the levy
+    /// takes them off the bushes) and a recruit costs 15, so break-even with no
+    /// margin sat at food 0 for days, went Hungry (labor x0.6) and never climbed out.
+    /// </summary>
+    protected int ForagersWanted(ColonyState s)
+    {
+        float perDay = s.Colonists * PopulationManager.Settings.FoodPerDay * Difficulty.FoodConsumptionMultiplier;
+        return Mathf.CeilToInt(perDay / ForagerYieldPerDay) + (s.Food < perDay ? 1 : 0);
+    }
+
+    /// <summary>
+    /// Keeps <see cref="ForagersWanted"/> filled every tick, ahead of anything else
+    /// the policy wants (2026-09-28). HireWorker's floor alone never fired where it
+    /// mattered: it needs an idle colonist past the builder reserve and a free
+    /// worker slot, and the policies stop calling it once they have their worker
+    /// count, so 9 of the overnight batch's 40 defeats starved at the 10-worker cap
+    /// with three foragers against 100+ food a day. Hires if it can, otherwise moves
+    /// a woodcutter (then a miner, then a second quarryman — never the last one,
+    /// every spear needs a chunk). Skipped while the levy is out: a mustered
+    /// colonist is not in the job count, so every raid would read as a food shortage.
+    /// </summary>
+    protected bool KeepForagers(ColonyState s)
+    {
+        BaseBuilding fire = s.Campfire;
+        if (fire == null || s.Mustered > 0) return false;
+        if (!faction.Knowledge.HasJob(ResourceNode.ResourceType.Food)) return false;
+        if (fire.foodWorkers >= ForagersWanted(s)) return false;
+
+        Population pm = faction.Population;
+        if (pm != null && pm.GetIdleCount() > BuilderReserve(s) && fire.GetTotalWorkers() < fire.maxWorkers
+            && fire.AssignWorker(ResourceNode.ResourceType.Food))
+        {
+            Did("hire forager");
+            return true;
+        }
+
+        ResourceNode.ResourceType from;
+        if (fire.woodWorkers > 1) from = ResourceNode.ResourceType.Wood;
+        else if (fire.metalWorkers > 0) from = ResourceNode.ResourceType.Metal;
+        else if (fire.stoneWorkers > 1) from = ResourceNode.ResourceType.Stone;
+        else return false;
+
+        if (!fire.UnassignWorker(from)) return false;
+        fire.AssignWorker(ResourceNode.ResourceType.Food);   // the freed colonist is idle now, so this has someone
+        Did("move " + from.ToString().ToLowerInvariant() + " worker to food");
+        return true;
+    }
+
     /// <summary>
     /// Assigns one worker to whichever type the ratio is shortest on, among the
     /// jobs the colony knows. Metal (2026-09-10) is a fourth share: nobody mined
@@ -381,11 +435,13 @@ public abstract class GovernorPolicy
 
         Knowledge k = faction.Knowledge;
 
-        // The colony eats (2026-09-04): whatever the ratio says, keep one forager
-        // per eight mouths so a strategy that ignores food starves on schedule
-        // rather than by accident.
+        // The colony eats (2026-09-04): whatever the ratio says, keep enough foragers
+        // for what the roster eats a day. 2026-09-28: food went 1 -> 6 a head a day,
+        // so the old "one per eight mouths" is read off the live rate instead
+        // (ForagerYieldPerDay is the estimate the economy sweep checks:
+        // food_workers_dawn against food_drain_day in days.csv).
         if (k.HasJob(ResourceNode.ResourceType.Food)
-            && fire.foodWorkers < Mathf.CeilToInt(s.Colonists / 8f))
+            && fire.foodWorkers < ForagersWanted(s))
         {
             if (!fire.AssignWorker(ResourceNode.ResourceType.Food)) return false;
             Did("hire forager");
@@ -717,6 +773,7 @@ public class TurtlePolicy : GovernorPolicy
         // and needs no chunk, the one material every re-arm was short of.
         if (Research(s, "woodcutting", "foraging", "spearcraft", "construction", "quarrying",
                         "crafting", "storage_pits", "mining", "iron_work", "bowyery")) return;
+        if (KeepForagers(s)) return;   // food before the army, every tick (2026-09-28)
 
         // A man per raider, not 0.6 of one (2026-09-11). The 2026-09-11 lab
         // watched this colony hold at 9 warriors from day 6 to day 11 with 43
@@ -728,7 +785,7 @@ public class TurtlePolicy : GovernorPolicy
         int fullTime = FullTimeWanted(wantedWarriors, 2);
         int wantedWorkers = WantedWorkers(s, WorkerFloor);
         SetGoal(s, wantedWarriors, fullTime, wantedWorkers,
-            ringOrdered ? $"ring up · gates {builder.GateCount}/8" : "ring pending");
+            ringOrdered ? $"ring up · gates {builder.GateCount}/4" : "ring pending");
 
         // Enough economy to pay for a wall, then wall, then the guard.
         if (s.Workers < 4) { if (HireWorker(s, 2f, 1f, 2f)) return; }
@@ -789,6 +846,7 @@ public class RushPolicy : GovernorPolicy
         // never learned to quarry, never saw a chunk, and never re-armed a loss.
         if (Research(s, "woodcutting", "foraging", "spearcraft", "construction",
                         "crafting", "quarrying", "mining", "iron_work", "bowyery", "storage_pits")) return;
+        if (KeepForagers(s)) return;   // food before the army, every tick (2026-09-28)
 
         int wantedWarriors = WantedWarriors(s, 1f, 2) + (s.RaidTonight ? 1 : 0);
         int fullTime = FullTimeWanted(wantedWarriors, 2);
@@ -829,6 +887,7 @@ public class EcoPolicy : GovernorPolicy
         builder.SetRing(RingHalf);   // huts stay off the ring line and out of its gate corridors (2026-09-10)
         if (Research(s, "woodcutting", "foraging", "spearcraft", "construction", "quarrying",
                         "storage_pits", "crafting", "mining", "iron_work", "bowyery")) return;
+        if (KeepForagers(s)) return;   // food before the army, every tick (2026-09-28)
 
         int wantedWarriors = WantedWarriors(s, 0.7f, 1) + (s.RaidTonight ? 1 : 0);
         int fullTime = FullTimeWanted(wantedWarriors, 1);
@@ -913,6 +972,7 @@ public class ConquerorPolicy : GovernorPolicy
         if (ManageStance(s)) return;
         if (Research(s, "woodcutting", "foraging", "spearcraft", "construction",
                         "crafting", "quarrying", "mining", "iron_work", "bowyery", "storage_pits")) return;
+        if (KeepForagers(s)) return;   // food before the army, every tick (2026-09-28)
 
         Faction rival = FirstRival();
         int rivalWarriors = rival != null ? TargetingUtil.CountOwned(Warrior.ActiveList, rival) : 0;

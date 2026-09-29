@@ -50,7 +50,13 @@ public class Health : MonoBehaviour
 
     private TextMeshPro healthText;
     private GameObject healthTextObject;
-    private float lastDisplayedHealth = -1f;  // Dirty check: rebuild the string only when HP changes
+    // Dirty check (2026-09-28): the string is rebuilt only when the DISPLAYED numbers
+    // change. The old float compare fired every frame of a repair (Heal each frame
+    // moves currentHealth by a fraction) and built two interpolated strings a frame
+    // per wall under repair.
+    private int lastShownHealth = int.MinValue;
+    private int lastShownMax = int.MinValue;
+    private bool lastShownAlive = true;
     private Camera cachedCamera;
 
     // Public property to check if alive
@@ -98,8 +104,8 @@ public class Health : MonoBehaviour
             // Billboard rotation runs every frame (zero allocations)
             BillboardHealthText();
 
-            // Only rebuild text when health value actually changed
-            if (currentHealth != lastDisplayedHealth)
+            // Only rebuild text when the shown numbers actually changed
+            if (Shown(currentHealth) != lastShownHealth || Shown(maxHealth) != lastShownMax || IsAlive != lastShownAlive)
             {
                 UpdateHealthText();
             }
@@ -235,16 +241,21 @@ public class Health : MonoBehaviour
         }
     }
 
+    /// <summary>What "F0" printed: rounded half away from zero.</summary>
+    static int Shown(float v) => (int)System.Math.Round(v, System.MidpointRounding.AwayFromZero);
+
     void UpdateHealthText()
     {
         if (healthText == null)
             return;
 
-        lastDisplayedHealth = currentHealth;
+        lastShownHealth = Shown(currentHealth);
+        lastShownMax = Shown(maxHealth);
+        lastShownAlive = IsAlive;
 
-        // Update text content
-        string objectName = showObjectName ? $"{gameObject.name}\n" : "";
-        healthText.text = $"{objectName}{currentHealth:F0} / {maxHealth:F0} HP";
+        // Update text content (per change of the shown numbers, never per frame)
+        string objectName = showObjectName ? gameObject.name + "\n" : "";
+        healthText.text = objectName + lastShownHealth + " / " + lastShownMax + " HP";
 
         // Color based on health percentage
         float healthPercent = GetHealthPercentage();

@@ -124,7 +124,9 @@ public class SimRunner : MonoBehaviour
         if (gate == null || fire == null) return;
         Vector3 g = gate.transform.position, f = fire.transform.position;
         where.y = g.y = f.y = 0f;
-        float reach = GuardStance.LineReach + HoldLine.GateStandoff;
+        // 2026-09-28: the spear line stands OUTSIDE the gate (OutsideStandoff), so a kill
+        // at the line is within its reach of that, not of the old inside standoff.
+        float reach = GuardStance.LineReach + HoldLine.OutsideStandoff;
         if ((where - g).sqrMagnitude <= reach * reach) { night.killsGate++; metrics.killsGate++; return; }
         float inside = (g - f).magnitude - GuardStance.GateSlack;
         if ((where - f).sqrMagnitude < inside * inside) { night.killsInside++; metrics.killsInside++; }
@@ -814,6 +816,8 @@ public class SimRunner : MonoBehaviour
         night.enemiesKilledTotal = GameManager.Instance != null ? GameManager.Instance.totalEnemiesKilled : 0;
         Population pm = Factions.Player.Population;
         night.hungerDawn = pm != null ? (int)pm.Hunger : 0;
+        night.foodDrainDay = pm != null ? pm.DailyDrain : 0f;
+        night.foodWorkersDawn = Factions.Player.Campfire != null ? Factions.Player.Campfire.foodWorkers : 0;
         night.leftTotal = pm != null ? pm.ColonistsLeft : 0;
         if (pm != null) metrics.colonistsLeft = pm.ColonistsLeft;
 

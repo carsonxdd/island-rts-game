@@ -115,6 +115,36 @@ public class Inventory
     {
         if (item == null || amount <= 0) return 0;
         amount = Math.Min(amount, RoomLeft);
+        return AddUncapped(item, amount);
+    }
+
+    /// <summary>
+    /// Puts back something that was TAKEN from this inventory (2026-09-28): a
+    /// warrior's weapon on stand-down, dismissal or rearm. It ignores the total
+    /// cap — the item left a space that gatherers may have refilled meanwhile, and
+    /// a returned weapon must never evaporate — and, only when no slot has room,
+    /// overstacks an existing stack of the same item. Everything that ENTERS the
+    /// store for the first time goes through <see cref="Add"/> and its cap.
+    /// Returns how many went back (all of them unless 16 slots hold 16 other items).
+    /// </summary>
+    public int AddReturn(ItemDef item, int amount)
+    {
+        if (item == null || amount <= 0) return 0;
+        int added = AddUncapped(item, amount);
+        int remaining = amount - added;
+        if (remaining <= 0) return added;
+        for (int i = 0; i < slots.Length; i++)
+        {
+            if (slots[i].item != item || slots[i].IsEmpty) continue;
+            slots[i].count += remaining;
+            OnChanged?.Invoke();
+            return amount;
+        }
+        return added;
+    }
+
+    private int AddUncapped(ItemDef item, int amount)
+    {
         if (amount <= 0) return 0;
         int remaining = amount;
 

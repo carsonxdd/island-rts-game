@@ -952,8 +952,8 @@ MonoBehaviour:
   m_GenerateLinks: 0
   m_IgnoreNavMeshAgent: 1
   m_IgnoreNavMeshObstacle: 1
-  m_OverrideTileSize: 0
-  m_TileSize: 256
+  m_OverrideTileSize: 1
+  m_TileSize: 128
   m_OverrideVoxelSize: 0
   m_VoxelSize: 0.16666667
   m_MinRegionArea: 2
@@ -1431,9 +1431,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b332afea714e2a04eaf13c38c0a4c3f0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  startingWood: 300
-  startingFood: 300
-  startingStone: 300
+  startingWood: 100
+  startingFood: 50
+  startingStone: 0
   startingMetal: 0
 --- !u!4 &869555043
 Transform:
@@ -2201,7 +2201,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   arrivalInterval: 20
   arriveOnlyByDay: 1
-  foodPerColonistPerDay: 1
+  foodPerColonistPerDay: 6
   hungryAfterDays: 0.25
   starvingAfterDays: 1
 --- !u!4 &1508109507

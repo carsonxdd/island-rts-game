@@ -17,6 +17,7 @@ public static class FormationSlots
     {
         public readonly List<Warrior> melee = new List<Warrior>(16);
         public readonly List<Warrior> ranged = new List<Warrior>(16);
+        public int version;   // bumped whenever a rank is taken or given up
     }
 
     static readonly Dictionary<int, Ranks> byFaction = new Dictionary<int, Ranks>();
@@ -39,9 +40,20 @@ public static class FormationSlots
         List<Warrior> list = w.IsRanged ? For(w.Faction).ranged : For(w.Faction).melee;
         Purge(list);
         int i = list.IndexOf(w);
-        if (i < 0) { list.Add(w); i = list.Count - 1; }
+        if (i < 0) { list.Add(w); i = list.Count - 1; For(w.Faction).version++; }
         rank = i;
         count = list.Count;
+    }
+
+    /// <summary>
+    /// Changes whenever someone in <paramref name="f"/>'s formation joins or leaves
+    /// (2026-09-28): Intercept re-derives its slot on a change instead of waiting
+    /// for its 2 s recalc, so a line closes the gap a dead man left at once.
+    /// </summary>
+    public static int Version(Faction f)
+    {
+        Ranks r;
+        return f != null && byFaction.TryGetValue(f.Id, out r) ? r.version : 0;
     }
 
     /// <summary>How many of the OTHER kind hold a rank in <paramref name="f"/>.</summary>
@@ -58,24 +70,47 @@ public static class FormationSlots
         if (w == null || w.Faction == null) return;
         Ranks r;
         if (!byFaction.TryGetValue(w.Faction.Id, out r)) return;
-        r.melee.Remove(w);
-        r.ranged.Remove(w);
+        if (SwapRemove(r.melee, w) | SwapRemove(r.ranged, w)) r.version++;
+    }
+
+    /// <summary>
+    /// Remove by moving the LAST rank into the hole (2026-09-28): a death in the
+    /// middle of a line used to shift every rank after it one place, so half the
+    /// line walked sideways; now one man (the end of the line, or the second rank's
+    /// last) steps into the gap and everyone else only re-centres.
+    /// </summary>
+    static bool SwapRemove(List<Warrior> list, Warrior w)
+    {
+        int i = list.IndexOf(w);
+        if (i < 0) return false;
+        int last = list.Count - 1;
+        list[i] = list[last];
+        list.RemoveAt(last);
+        return true;
     }
 
     /// <summary>Every claim of the colony, so the next slot read re-forms the shape.</summary>
     public static void Clear(Faction f)
     {
         Ranks r;
-        if (f != null && byFaction.TryGetValue(f.Id, out r)) { r.melee.Clear(); r.ranged.Clear(); }
+        if (f != null && byFaction.TryGetValue(f.Id, out r)) { r.melee.Clear(); r.ranged.Clear(); r.version++; }
     }
 
     static void Purge(List<Warrior> list)
     {
+        // Backwards with a swap from the end: every index past i was already checked,
+        // so the one moved into the hole is a live rank (see SwapRemove).
         for (int i = list.Count - 1; i >= 0; i--)
         {
             Warrior w = list[i];
             Health h = w != null ? w.CachedHealth : null;
-            if (w == null || h == null || !h.IsAlive || (w.IsRanged != (list == For(w.Faction).ranged))) list.RemoveAt(i);
+            if (w == null || h == null || !h.IsAlive || (w.IsRanged != (list == For(w.Faction).ranged)))
+            {
+                int last = list.Count - 1;
+                list[i] = list[last];
+                list.RemoveAt(last);
+                if (w != null && w.Faction != null) For(w.Faction).version++;
+            }
         }
     }
 }

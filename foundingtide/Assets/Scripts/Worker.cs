@@ -139,12 +139,11 @@ public class Worker : UnitBase<Worker>
     // arrival check in GatherExecutor uses gatherDistance as its tolerance on top of this.
     public const float GatherStopDistance = 0.25f;
 
-    // NavMeshAgent avoidance radius. This — not the CapsuleCollider (click hitbox only) —
-    // is what keeps workers apart via ORCA local avoidance. 0.3 lets workers pack
-    // shoulder-to-shoulder around nodes without visually overlapping the ~0.4-wide
-    // meeple body. ResourceNode derives its per-node worker capacity slot arc and
+    // The worker's spacing unit at a node (the ORCA radius itself is UnitSpacing's).
+    // 0.25 (0.3 before the 0.8x bodies, 2026-09-28) packs workers shoulder-to-shoulder
+    // round a node without overlapping the ~0.32-wide meeple body. ResourceNode derives its per-node worker capacity slot arc and
     // GatherExecutor derives its anti-orbit arrival tolerance from this.
-    public const float AgentRadius = 0.3f;
+    public const float AgentRadius = 0.25f;
 
     // --- ORCA avoidance roles (worker crowding) ---
     // Lower avoidancePriority = MORE important = others yield to it. A stationary
@@ -265,14 +264,36 @@ public class Worker : UnitBase<Worker>
         if (isGarrisoned == hidden) return;
         isGarrisoned = hidden;
 
-        if (hidden) garrisonHiddenRenderers = GetComponentsInChildren<Renderer>(false);
-        if (garrisonHiddenRenderers != null)
+        // Composes with the fog (2026-09-28): a rival colonist carries a FogVisibility,
+        // and each used to switch on what the other had hidden: ungarrisoning lit a body
+        // standing in the dark, a fog reveal lit a sleeper inside a hut. Now the garrison
+        // hides only what is ON and gives back only what it hid, never while the fog
+        // still hides the body, and tells the fog it is holding the body hidden.
+        FogVisibility fog = GetComponent<FogVisibility>();
+        if (hidden)
         {
-            for (int i = 0; i < garrisonHiddenRenderers.Length; i++)
+            Renderer[] all = GetComponentsInChildren<Renderer>(false);
+            int n = 0;
+            for (int i = 0; i < all.Length; i++) if (all[i] != null && all[i].enabled) n++;
+            garrisonHiddenRenderers = new Renderer[n];
+            for (int i = 0, k = 0; i < all.Length; i++)
             {
-                if (garrisonHiddenRenderers[i] != null)
-                    garrisonHiddenRenderers[i].enabled = !hidden;
+                if (all[i] == null || !all[i].enabled) continue;
+                all[i].enabled = false;
+                garrisonHiddenRenderers[k++] = all[i];
             }
+            if (fog != null) fog.SetOwnerHidden(true);
+        }
+        else
+        {
+            bool fogHides = fog != null && fog.Hidden;
+            if (garrisonHiddenRenderers != null && !fogHides)
+            {
+                for (int i = 0; i < garrisonHiddenRenderers.Length; i++)
+                    if (garrisonHiddenRenderers[i] != null) garrisonHiddenRenderers[i].enabled = true;
+            }
+            garrisonHiddenRenderers = null;
+            if (fog != null) fog.SetOwnerHidden(false);   // the fog re-applies its own answer
         }
 
         if (agent != null) agent.enabled = !hidden;
@@ -422,10 +443,13 @@ public class Worker : UnitBase<Worker>
             // 20% switch bar turns into 1.38) but ThreatNearby zeroes it the moment
             // an enemy is in the grid, so Flee (1.2) still wins a raid; the flag
             // survives the flight and the trip resumes. Leave (2.0) beats it. Zero
-            // momentum, no yShift: the executor's Finish ends it at once.
+            // momentum, no yShift: the executor's Finish ends it at once. NotLevied
+            // zeroes it under a levy claim (2026-09-28): Muster 1.8 vs a current
+            // GearUp 1.5 x the 1.2 bar is a float tie, and the tie kept the gear-up.
             new ActionOption("GearUp", new Consideration[]
             {
                 new IsGearingUp(ResponseCurve.Linear(1f, 0f)),                 // Zero-cost gate
+                new NotLevied(),                                               // Zero-cost: a levy claim hands the fire visit to Muster
                 new ThreatNearby(1f, ResponseCurve.InverseLinear(1f, 0f))     // 1 enemy nearby → 0, flee first
             }, new GearUpExecutor(), basePriority: 1.5f, momentumBonus: 0f),
 
@@ -829,5 +853,17 @@ public class Worker : UnitBase<Worker>
         // Draw search radius
         Gizmos.color = Color.green;
         Gizmos.DrawWireSphere(transform.position, searchRadius);
+    }
+
+    /// <summary>
+    /// 0 while the colonist holds a levy claim, else 1 (2026-09-28). A zero-cost gate
+    /// that hands the fire visit to Muster: 1.8 against a CURRENT GearUp (1.5 x the
+    /// 20% switch bar = 1.8) is a float tie, and a tie keeps the current action.
+    /// The gearingUp flag survives, so a claim taken back before the muster resumes the trip.
+    /// </summary>
+    sealed class NotLevied : Consideration
+    {
+        public NotLevied() : base(ResponseCurve.Linear(1f, 0f)) { }
+        public override float ScoreRaw(AIBlackboard bb) => bb.levied ? 0f : 1f;
     }
 }

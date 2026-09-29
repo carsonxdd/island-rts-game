@@ -14,6 +14,10 @@ using UnityEngine;
 /// <see cref="BuildingType.WoodenGate"/> made every gate unrepairable for life and logged
 /// an error per AI evaluation per jobless colonist once one was scratched (9,408 lines
 /// in one sim run).
+/// A gate is up to three cells wide (2026-09-28) and costs as that many walls, so its
+/// type goes in as the GATE type and <see cref="TryGetPerHp"/> resolves it here: the
+/// wall's price per GATE-CELL hit point (<see cref="Gate.CellHealth"/>). That is the same
+/// per-HP rate at any width, and a full repair of a three-wide gate costs three walls'.
 /// </remarks>
 public static class RepairCosts
 {
@@ -34,10 +38,20 @@ public static class RepairCosts
     {
         cost = default;
         if (BuildingDatabase.Instance == null || maxHealth <= 0f) return false;
+
+        // A gate: its wall's price, per hit point of ONE gate cell (see remarks)
+        float hpBasis = maxHealth;
+        if (type == BuildingType.WoodenGate || type == BuildingType.StoneGate)
+        {
+            bool stone = type == BuildingType.StoneGate;
+            type = stone ? BuildingType.StoneWall : BuildingType.WoodenWall;
+            hpBasis = Gate.CellHealth(stone);
+        }
+
         BuildingData data = BuildingDatabase.Instance.GetBuildingData(type);
         if (data == null) return false;
 
-        float k = CostFraction / maxHealth;
+        float k = CostFraction / hpBasis;
         cost.wood = data.woodCost * k;
         cost.food = data.foodCost * k;
         cost.stone = data.stoneCost * k;
@@ -61,6 +75,11 @@ public static class RepairCosts
     }
 
     public static BuildingType TypeOf(Wall wall) => wall.isStoneWall ? BuildingType.StoneWall : BuildingType.WoodenWall;
-    /// <summary>A gate is priced as the wall it was converted from (no gate has a BuildingData).</summary>
-    public static BuildingType TypeOf(Gate gate) => gate.isStoneGate ? BuildingType.StoneWall : BuildingType.WoodenWall;
+    /// <summary>
+    /// A gate's repair type is the GATE type; <see cref="TryGetPerHp"/> prices it as the
+    /// wall it was converted from (no gate has a BuildingData) at the gate's width.
+    /// </summary>
+    public static BuildingType TypeOf(Gate gate) => gate.isStoneGate ? BuildingType.StoneGate : BuildingType.WoodenGate;
+    /// <summary>The wall a gate was converted from: what its demolish refund is priced as (× width).</summary>
+    public static BuildingType WallTypeOf(Gate gate) => gate.isStoneGate ? BuildingType.StoneWall : BuildingType.WoodenWall;
 }

@@ -24,14 +24,14 @@ public class PopulationManager : MonoBehaviour
 
     [Header("Food")]
     [Tooltip("Food each colonist eats per calendar day (day + night). Scaled by the difficulty's food knob.")]
-    public float foodPerColonistPerDay = 1f;
+    public float foodPerColonistPerDay = 6f;
     [Tooltip("Days without food before the colony is Hungry (slower work, no arrivals).")]
     public float hungryAfterDays = 0.25f;
     [Tooltip("Days without food before the colony is Starving (someone leaves each day).")]
     public float starvingAfterDays = 1f;
 
     public const float DefaultArrivalInterval = 20f;
-    public const float DefaultFoodPerDay = 1f;
+    public const float DefaultFoodPerDay = 6f;
     public const float DefaultHungryAfterDays = 0.25f;
     public const float DefaultStarvingAfterDays = 1f;
     /// <summary>Gathering and construction speed while Hungry or worse.</summary>

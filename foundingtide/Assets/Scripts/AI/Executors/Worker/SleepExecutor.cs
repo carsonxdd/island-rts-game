@@ -295,7 +295,10 @@ public class SleepExecutor : ActionExecutor
         if (!garrisoned)
         {
             // Lying by the fire: a hut finished tonight, or a bed in one came free
-            // (2026-09-17) — get up and go inside rather than wait for tomorrow's bedtime
+            // (2026-09-17) — get up and go inside rather than wait for tomorrow's bedtime.
+            // Population.MoveInFromFire rehomes us whenever a bed frees up (a hut
+            // registers, a resident dies or leaves, a warrior's bed is swapped,
+            // 2026-09-28); this poll only notices the new home.
             homeCheckTimer -= Time.deltaTime;
             if (homeCheckTimer > 0f || bb.faction == null || bb.faction.Population == null) return;
             homeCheckTimer = 1f;

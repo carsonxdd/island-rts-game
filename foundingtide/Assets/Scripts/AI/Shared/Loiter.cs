@@ -11,7 +11,7 @@ using UnityEngine.AI;
 /// <remarks>
 /// <para>Two rejects, both O(1) per gate: a cell held by <see cref="WallGrid"/> (a
 /// wall, a gate or a wall site - standing on the line itself), and anything within
-/// <see cref="GateClearance"/> of a gate's centre, which is the corridor on both
+/// <see cref="GateClearance"/> of a gate's span, which is the corridor on both
 /// sides of the opening. A gate carves nothing, so the NavMesh cannot tell a
 /// picker it is there.</para>
 /// <para>Only the loiter pickers call this. A unit walking THROUGH a gate on an
@@ -20,7 +20,7 @@ using UnityEngine.AI;
 /// </remarks>
 public static class Loiter
 {
-    /// <summary>Metres from a gate's centre that count as its corridor. Two cells each side of a 1 m gate cell plus the agent radius.</summary>
+    /// <summary>Metres from a gate's span (the line through its cell centres, 2026-09-28: gates are up to three wide) that count as its corridor. Two cells each side plus the agent radius.</summary>
     public const float GateClearance = 3f;
 
     /// <summary>True when a unit may stand here without sitting on a wall line or in a gate corridor.</summary>
@@ -35,9 +35,7 @@ public static class Loiter
         {
             Gate g = gates[i];
             if (g == null) continue;
-            Vector3 d = point - g.transform.position;
-            d.y = 0f;
-            if (d.sqrMagnitude < sqr) return false;
+            if (g.SqrDistanceXZ(point) < sqr) return false;
         }
         return true;
     }

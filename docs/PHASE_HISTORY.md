@@ -1589,3 +1589,15 @@ Green in all four Roslyn configs. UNPLAYTESTED — the "Renamed to Founding Tide
 Green in all four Roslyn configs. UNPLAYTESTED — the "Drawn walls" quest batch is the checklist; the first looks are a drawn diagonal (does the carve seal it? F3 / watch a raider) and the ghost vs the built wall.
 
 **Edited:** WallGrid.cs, WallConnector.cs (rewritten), WallLinePlacer.cs (rewritten), BuildPlacement.cs, UI/BuildPaletteHUD.cs, UI/KeyBindings.cs, Resources/Changelog.txt, Resources/DevQuests.txt, Resources/Information.txt, docs/CONTROLS.md, CLAUDE.md.
+
+### 2026-09-28 (evening) — The overnight read: colonies starved at the worker cap
+
+**User asks:** "we ran some simulations last night lets analyze and fix anything." The batch (`SimLogs/overnight-2026-09-28/`, 912 runs planned) ran on the day's uncommitted dusk-muster / 6-food build; seven sweeps finished with 0 err/timeout, it stopped inside `long` (long / clock / economy have no rows). Baseline against 09-17: Eco 72 → 86%, Rush 61 → 75%, Turtle 33 → 28% (noise).
+
+**Read.** Two ways to lose. (1) Nine of the 40 baseline defeats STARVED: food 0 at dusk, no workers, no warriors, departures had taken everyone. `HireWorker`'s forager floor (`ForagersWanted`, 36 a forager a day) was right on quiet days but ~25 on raid days (the levy takes foragers), had no margin, and only fired with an idle colonist past the builder reserve and a free slot — and the policies stop calling `HireWorker` once they have their worker count. Most short-of-foragers dawns were at the 10-worker cap. (2) Turtle's gate line trades badly: at equal odds (defenders / raiders 0.8–1.2) 1.43 kills per death on gate-line nights vs 3.47 on its own open nights and 3.60 for Rush; Eco's line 2.44 vs 2.76. Every loss night is the whole militia dead having killed half the raid. Not tuned blind — a visual lab on Turtle 2024 / 9001 / 101 is owed. Also: StuckResolver ABANDON ~9.2k a batch (09-17: 7.9k), mostly Intercept / Engage; Brutal 0/18, Hard 4/18; ~1.5 failed BerryBush respawns a run (harmless).
+
+**Built.** `GovernorPolicy.KeepForagers(s)`, called in all four policies right after `Research`: when `foodWorkers < ForagersWanted(s)` it hires an idle colonist if it can, else moves a woodcutter (then a miner, then a second quarryman — never the last) to food; skipped while `s.Mustered > 0` (a levied colonist leaves the job count). `ForagersWanted` takes the `ColonyState` and adds one forager while the bank is under a day of eating.
+
+**Check** (`SimLogs/check-food-2026-09-28/`, 108 runs, 0 err): starved defeats 9 → 2, food-0 dawns 1536 → 396, hungry dawns 120 → 52. Win rates Turtle 36%, Rush 86%, Eco 78% (Eco 5 → 8 losses, none starved — within the ±13pp of n=36, watch it). Turtle's gate-line k/d unchanged at 1.44, as expected.
+
+**Edited:** Factions/Governor/GovernorPolicy.cs.

@@ -227,6 +227,8 @@ These four answers replace the step's original "debug-spawned rival beside the p
 
 ## Step 5 — Islands (archipelago)
 
+**Status 2026-09-27: replaced by [`KIN_AND_VOYAGES_PLAN.md`](KIN_AND_VOYAGES_PLAN.md) Parts 2–6.** The user chose one live world scene (many islands in one heightfield, all ticking), steering the boat in a sea view, Outposts on the rival stack instead of abstract ledgers, and the Far Shore victory. Save/load (step 4) moved after the alpha. The text below is the superseded shape, kept verbatim.
+
 **Goal:** a world of seeded islands; one persistent colony per island; the player sails between them; rivals live on theirs and raid or trade across the water.
 
 ### World

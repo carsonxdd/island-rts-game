@@ -34,6 +34,10 @@ public static class Formation
     public const float WedgeStep = 1.6f;      // out and back per edge slot
     public const float RingRadius = 3.5f;     // spearmen around the centre
     public const float RingInner = 1.8f;      // archers inside them
+    /// <summary>A Line of fewer spearmen than this stands two ranks deep (2026-09-28); this many or more, one.</summary>
+    public const int TwoRankBelow = 8;
+    /// <summary>The spearmen's second rank stands this far behind the first, staggered half a spacing.</summary>
+    public const float RankGap = 1.5f;
 
     // The override itself is per faction since lap step 1 commit 4 (2026-09-09):
     // Faction.FormationKind, set through Faction.SetFormation.
@@ -58,6 +62,16 @@ public static class Formation
     /// caller uses its own spread. Zero-GC: two passes over Warrior.ActiveList.
     /// </summary>
     public static bool TrySlot(Warrior warrior, Faction f, Vector3 center, Vector3 facing, out Vector3 slot)
+        => TrySlot(warrior, f, center, facing, false, Vector3.zero, out slot);
+
+    /// <summary>
+    /// <see cref="TrySlot(Warrior, Faction, Vector3, Vector3, out Vector3)"/> with the
+    /// archers' rank on its own centre (2026-09-28, the gate line: spearmen outside the
+    /// gate, archers inside the wall). Used by the Line only; the other shapes keep
+    /// their archers where the shape puts them.
+    /// </summary>
+    public static bool TrySlot(Warrior warrior, Faction f, Vector3 center, Vector3 facing,
+                               bool hasArcherCentre, Vector3 archerCentre, out Vector3 slot)
     {
         Kind kind = Effective(f);
         if (kind == Kind.Loose || warrior == null)
@@ -111,13 +125,35 @@ public static class Formation
             default:   // Line
                 if (!ranged)
                 {
-                    x = Centered(rank, count, MeleeSpacing);
+                    // Two ranks while few (2026-09-28): a thin line of four is four
+                    // single fights; two ranks of two hold a gate-width and the second
+                    // rank steps into the first's gaps (swap-remove in FormationSlots
+                    // fills a front hole from the back).
+                    int front = count >= 2 && count < TwoRankBelow ? (count + 1) / 2 : count;
+                    if (rank < front)
+                    {
+                        x = Centered(rank, front, MeleeSpacing);
+                        z = 0f;
+                    }
+                    else
+                    {
+                        int back = count - front;
+                        x = Centered(rank - front, back, MeleeSpacing) + (back == front ? MeleeSpacing * 0.5f : 0f);
+                        z = -RankGap;
+                    }
+                }
+                else if (hasArcherCentre)
+                {
+                    // Their own rank on their own centre, facing the same way
+                    x = Centered(rank, count, RangedSpacing);
                     z = 0f;
+                    center = archerCentre;
                 }
                 else
                 {
                     x = Centered(rank, count, RangedSpacing);
-                    z = others > 0 ? -RankDepth : 0f;   // archers alone hold the front rank
+                    bool twoRanks = others >= 2 && others < TwoRankBelow;
+                    z = others > 0 ? -(RankDepth + (twoRanks ? RankGap : 0f)) : 0f;   // archers alone hold the front rank
                 }
                 break;
         }

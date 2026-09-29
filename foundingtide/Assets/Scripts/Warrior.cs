@@ -229,6 +229,10 @@ public class Warrior : UnitBase<Warrior>
         // so bb.nearestEnemy is always populated before other considerations read it.
         var enemyScanner = new EnemyPresence(0f, ResponseCurve.Linear(1f, 0f));
 
+        // Intercept and the dusk form-up share one rally (2026-09-28): the twin keeps
+        // this warrior's spread and draws nothing from the seeded stream.
+        var interceptExecutor = new InterceptExecutor();
+
         // The colony-wide stance (GuardStance, 2026-09-07) decides which of these
         // run and which enemies count: StanceAllows is a zero-cost gate first in
         // Intercept / DefendWall / Patrol / Follow, and StanceTargetAvailable is
@@ -256,7 +260,23 @@ public class Warrior : UnitBase<Warrior>
                 // Far = high, but never under 0.5: a Defensive line is HELD with the
                 // raiders in sight (2026-09-17), not abandoned as they close
                 new EnemyProximity(searchRadius, ResponseCurve.InverseLinear(0.5f, 0.5f))
-            }, new InterceptExecutor(), basePriority: 0.7f, momentumBonus: 0.15f),
+            }, interceptExecutor, basePriority: 0.7f, momentumBonus: 0.15f),
+
+            // Form Up (2026-09-28) — dusk on a night a raid is rolled for this colony,
+            // Defensive, nobody hostile ashore yet: walk out to this warrior's slot in
+            // the line facing the published landing and stand there, so the line is
+            // formed when they land. 0.58 + 0.1 momentum: beats Patrol (0.3 + 0.1 →
+            // needs 0.48); a Rearm in progress (0.5 → needs 0.6) finishes first; a
+            // warrior under ~55% HP heals first (Heal 0.9 x curve beats 0.68 x 1.2)
+            // and one over ~73% leaves the fire for the line. The moment a raider is
+            // ashore EnemyPresence zeroes it and Intercept (same slot, same gate)
+            // takes over; once the raid is repelled RaidFormUp zeroes it.
+            new ActionOption("FormUp", new Consideration[]
+            {
+                new StanceAllows(GuardStance.Role.Intercept, ResponseCurve.Linear(1f, 0f)),   // Zero-cost
+                new RaidFormUp(ResponseCurve.Linear(1f, 0f)),                                 // Zero-cost: raid coming, landing known, Defensive
+                new EnemyPresence(0f, ResponseCurve.InverseLinear(1f, 0f))                    // Nobody hostile ashore yet
+            }, interceptExecutor.FormUpTwin(), basePriority: 0.58f, momentumBonus: 0.1f),
 
             // Defend Wall (not while following) — walls under attack, rush to defend
             new ActionOption("DefendWall", new Consideration[]
@@ -393,8 +413,14 @@ public class Warrior : UnitBase<Warrior>
 
     void OnWallDestroyedUtilityAI()
     {
-        if (aiBrain != null)
-            aiBrain.ForceReeval();
+        // Radius-filtered (2026-09-28): a wall falling is news only to a warrior with a
+        // hostile fighter in the 3x3 density block around it (~15-30 m) — the fight at
+        // the breach. The event carries no position; the old broadcast re-evaluated
+        // every warrior of every colony in one frame for every wall a raid chewed through.
+        if (aiBrain == null) return;
+        AIWorldState ws = AIWorldState.Instance;
+        if (ws != null && ws.GetNearbyHostileCount(transform.position, Faction) == 0) return;
+        aiBrain.ForceReeval();
     }
 
     // --- Public sound methods for Utility AI executors ---
@@ -421,7 +447,7 @@ public class Warrior : UnitBase<Warrior>
             color = Color.yellow;
         else if (displayName.Contains("Defending") || displayName.Contains("Guarding") || displayName.Contains("Rearming") || displayName.Contains("Standing down"))
             color = new Color(0.3f, 0.8f, 1f);
-        else if (displayName.Contains("Intercepting"))
+        else if (displayName.Contains("Intercepting") || displayName.Contains("Forming up"))
             color = new Color(1f, 0.6f, 0f);  // Orange for intercept/rally
         else if (displayName.Contains("Falling back"))
             color = new Color(1f, 0.75f, 0.3f);  // an archer giving ground, still shooting

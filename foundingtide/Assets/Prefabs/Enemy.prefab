@@ -55,10 +55,10 @@ CapsuleCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 2
-  m_Radius: 0.225
-  m_Height: 1.4
+  m_Radius: 0.18
+  m_Height: 1.12
   m_Direction: 1
-  m_Center: {x: 0, y: 0.7, z: 0}
+  m_Center: {x: 0, y: 0.56, z: 0}
 --- !u!195 &3417692812822014759
 NavMeshAgent:
   m_ObjectHideFlags: 0
@@ -94,7 +94,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   showStateText: 0
-  textHeightOffset: 2.2
+  textHeightOffset: 1.76
   maxHealth: 100
   damage: 15
   attackRange: 2
@@ -114,7 +114,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   showHealthBar: 1
-  heightOffset: 1.8
+  heightOffset: 1.44
   barWidth: 0.6
   barHeight: 0.1
   highHealthColor: {r: 0, g: 1, b: 0, a: 1}
@@ -173,6 +173,18 @@ PrefabInstance:
     - target: {fileID: 7834584310752930794, guid: 998c3025391b276459e41411a6b41ed8, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7834584310752930794, guid: 998c3025391b276459e41411a6b41ed8, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 0.8
+      objectReference: {fileID: 0}
+    - target: {fileID: 7834584310752930794, guid: 998c3025391b276459e41411a6b41ed8, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 0.8
+      objectReference: {fileID: 0}
+    - target: {fileID: 7834584310752930794, guid: 998c3025391b276459e41411a6b41ed8, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 0.8
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

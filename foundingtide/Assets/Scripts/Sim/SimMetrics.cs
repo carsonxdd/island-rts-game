@@ -91,6 +91,8 @@ public class SimMetrics
         public int sleptFire;            // colonists who lay down by the fire this night
         public float repelS = -1f;       // seconds from the landing to the last raider dead; -1 = no landing here / never
         public float standDownS = -1f;   // seconds from the last raider dead to the last levy standing down; -1 = never / no levy
+        public int foodWorkersDawn;   // food-job workers at dawn (2026-09-28, the 6-a-day food check)
+        public float foodDrainDay;    // what the colony eats per calendar day at dawn (Population.DailyDrain)
         public int diedEngage, diedIntercept, diedOther;   // the player's fighters (levy included) by the action they died in (2026-09-17)
         public bool survived;
     }
@@ -185,7 +187,7 @@ public class SimMetrics
                 "spare_dusk,mustered_peak,levy_lost,asleep_landing,storehouses,rival_storehouses," +
                 "gate_held,posts_peak,kills_gate,kills_inside,levy_home,levy_fire,alarm_to_muster_s," +
                 "homed_fire,homed_hut,slept_fire,repel_s,stand_down_s," +
-                "died_engage,died_intercept,died_other\n");
+                "died_engage,died_intercept,died_other,food_workers_dawn,food_drain_day\n");
         }
     }
 
@@ -289,7 +291,9 @@ public class SimMetrics
               .Append(F(n.standDownS)).Append(',')
               .Append(n.diedEngage).Append(',')
               .Append(n.diedIntercept).Append(',')
-              .Append(n.diedOther).Append('\n');
+              .Append(n.diedOther).Append(',')
+              .Append(n.foodWorkersDawn).Append(',')
+              .Append(F(n.foodDrainDay)).Append('\n');
         }
         if (sb.Length > 0) File.AppendAllText(Path.Combine(dir, DaysFile), sb.ToString());
     }

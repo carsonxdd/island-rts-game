@@ -34,6 +34,10 @@ public class SelectedBuildingHUD : MonoBehaviour
     private GameObject target;
     private Health targetHealth;
     private BuildingType targetType;
+    // A gate has no BuildingData (it is converted from walls, 2026-09-28): the card names
+    // it and its width itself and never asks BuildingUpgrade, which would log a missing
+    // asset every frame.
+    private Gate targetGate;
 
     private RectTransform root;
     private TextMeshProUGUI titleText;
@@ -84,6 +88,7 @@ public class SelectedBuildingHUD : MonoBehaviour
 
         target = building;
         targetType = identity.BuildingType;
+        targetGate = building.GetComponent<Gate>();
         targetHealth = building.GetComponent<Health>();
         lastHealth = -1;
         lastUpgradeLabel = null;
@@ -92,11 +97,13 @@ public class SelectedBuildingHUD : MonoBehaviour
         root.gameObject.SetActive(true);
         RefreshTitle();
         DevQuests.Signal("building_card:open");
+        if (targetGate != null) DevQuests.Signal("gate:card");
     }
 
     void Clear()
     {
         target = null;
+        targetGate = null;
         targetHealth = null;
         PointerOver = false;
         if (root != null) root.gameObject.SetActive(false);
@@ -128,17 +135,25 @@ public class SelectedBuildingHUD : MonoBehaviour
 
     void RefreshTitle()
     {
-        BuildingData data = BuildingUpgrade.DataOf(target);
-        string name = data != null ? data.buildingName : targetType.ToString();
-        int tier = data != null ? data.tier : 1;
-        titleText.text = name + "   <size=80%><color=#9B978F>Level " + tier + "</color></size>";
+        if (targetGate != null)
+        {
+            titleText.text = (targetGate.isStoneGate ? "Stone Gate" : "Wooden Gate")
+                + "   <size=80%><color=#9B978F>" + targetGate.Width + " wide</color></size>";
+        }
+        else
+        {
+            BuildingData data = BuildingUpgrade.DataOf(target);
+            string name = data != null ? data.buildingName : targetType.ToString();
+            int tier = data != null ? data.tier : 1;
+            titleText.text = name + "   <size=80%><color=#9B978F>Level " + tier + "</color></size>";
+        }
         statText.text = StatLine();
 
         string warning = BuildingUpgrade.WarningFor(target);
         warningText.text = warning ?? "";
         warningText.gameObject.SetActive(!string.IsNullOrEmpty(warning));
 
-        demolishLabel.text = "Demolish   <size=85%><color=#9B978F>+" + DemolishTool.RefundLine(targetType) + "</color></size>";
+        demolishLabel.text = "Demolish   <size=85%><color=#9B978F>+" + DemolishTool.RefundLine(target, targetType) + "</color></size>";
     }
 
     void RefreshHealth()
@@ -160,9 +175,11 @@ public class SelectedBuildingHUD : MonoBehaviour
 
     void RefreshButtons()
     {
-        BuildingData next;
+        BuildingData next = null;
         string reason;
-        bool can = BuildingUpgrade.CanUpgrade(target, out next, out reason);
+        bool can;
+        if (targetGate != null) { can = false; reason = "Gates cannot be upgraded"; }
+        else can = BuildingUpgrade.CanUpgrade(target, out next, out reason);
 
         string label = can
             ? "Upgrade to " + next.buildingName + "   <size=85%><color=#9B978F>" + next.CostLine() + "</color></size>"
@@ -181,6 +198,9 @@ public class SelectedBuildingHUD : MonoBehaviour
     /// <summary>What this building does for the colony, in one line.</summary>
     string StatLine()
     {
+        if (targetGate != null)
+            return "A " + targetGate.Width + " m opening · colonists pass, raiders must break it";
+
         Hut housing = target.GetComponent<Hut>();
         if (housing != null)
         {

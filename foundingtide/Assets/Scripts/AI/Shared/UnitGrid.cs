@@ -26,7 +26,7 @@ public class UnitGrid : MonoBehaviour
     public static UnitGrid Instance { get; private set; }
 
     public const float TickHz = 20f;
-    public const float CellSize = UnitSpacing.AvoidanceRadius * 2f;   // ~1.1 m
+    public const float CellSize = UnitSpacing.AvoidanceRadius * 2f;   // ~0.9 m (0.8x bodies, 2026-09-28)
 
     public struct Entry
     {

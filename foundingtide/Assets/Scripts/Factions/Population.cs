@@ -104,6 +104,7 @@ public sealed class Population
             if (roster[i].home == provider) roster[i].home = null;
         }
         RehomeHomeless();
+        MoveInFromFire();
     }
 
     /// <summary>Every registered housing provider, in the order they were built. The HUD's housing breakdown walks this.</summary>
@@ -162,18 +163,63 @@ public sealed class Population
         return c.home;
     }
 
-    /// <summary>Everyone homed to the campfire moves into a hut with room, in roster order. Runs when a hut registers.</summary>
+    /// <summary>
+    /// Everyone who SLEEPS and is homed to the campfire moves into a hut bed, in
+    /// roster order. Runs whenever a bed may have come free: a hut registers, a
+    /// building's residents are rehomed, a colonist leaves the roster (death,
+    /// departure, prune) or changes body (2026-09-28 — before this only a new hut
+    /// moved anyone, so a bed freed by a death sat empty beside a fire sleeper).
+    /// A full-time warrior never sleeps, so when no bed is free a fire sleeper
+    /// SWAPS homes with a full-time warrior holding a hut bed: occupancy per
+    /// building is unchanged and the warrior keeps a home for the count. A mustered
+    /// levy is a sleeper in a warrior body, so its bed is never swapped away.
+    /// </summary>
     void MoveInFromFire()
+    {
+        // Pass 0: sleepers, who may also take a full-time warrior's hut bed.
+        // Pass 1: full-time warriors at the fire take whatever hut beds are left.
+        for (int pass = 0; pass < 2; pass++)
+        {
+            bool bedsLeft = true;
+            for (int i = 0; i < roster.Count && bedsLeft; i++)
+            {
+                Colonist c = roster[i];
+                if (c.unit == null) continue;
+                bool bedless = c.home == null || c.home is BaseBuilding || !c.home.HousingAlive;   // the fire, or nowhere
+                if (!bedless || Sleeps(c) != (pass == 0)) continue;
+
+                IHousing hut = FindHomeWithRoom();
+                if (hut != null && !(hut is BaseBuilding))
+                {
+                    c.home = hut;
+                }
+                else
+                {
+                    Colonist guard = pass == 0 ? WarriorInHutBed() : null;
+                    if (guard == null) { bedsLeft = false; continue; }
+                    IHousing bed = guard.home;
+                    guard.home = c.home;
+                    c.home = bed;
+                }
+                if (pass == 0 && faction != null && faction.IsPlayer) DevQuests.Signal("sleep:moved_in");
+            }
+        }
+    }
+
+    /// <summary>True for anyone who goes to bed: a colonist body, or a levy standing in a warrior body.</summary>
+    static bool Sleeps(Colonist c) => !(c.unit is Warrior) || c.mustered;
+
+    /// <summary>A full-time warrior homed in a live hut (not the fire), or null.</summary>
+    Colonist WarriorInHutBed()
     {
         for (int i = 0; i < roster.Count; i++)
         {
             Colonist c = roster[i];
-            if (c.unit == null || !(c.home is BaseBuilding)) continue;
-            IHousing hut = FindHomeWithRoom();
-            if (hut == null || hut is BaseBuilding) return;   // no hut has room
-            c.home = hut;
-            if (faction != null && faction.IsPlayer) DevQuests.Signal("sleep:moved_in");
+            if (c.unit == null || Sleeps(c)) continue;
+            if (c.home == null || c.home is BaseBuilding || !c.home.HousingAlive) continue;
+            return c;
         }
+        return null;
     }
 
     void RehomeHomeless()
@@ -250,7 +296,9 @@ public sealed class Population
     public void RemoveColonist(MonoBehaviour unit)
     {
         Colonist c = Find(unit);
-        if (c != null) roster.Remove(c);
+        if (c == null) return;
+        roster.Remove(c);
+        MoveInFromFire();   // the bed they held is free: offer it to a fire sleeper
     }
 
     /// <summary>
@@ -263,6 +311,7 @@ public sealed class Population
         Colonist c = Find(oldUnit);
         if (c == null) { AddColonist(newUnit, FindHomeWithRoom()); return; }
         c.unit = newUnit;
+        MoveInFromFire();   // a new warrior's hut bed can go to a fire sleeper; a stood-down levy at the fire can take one
         if (faction != null && faction.IsPlayer && c.persona != null) DevQuests.Signal("persona:kept");   // same name, new body
     }
 
@@ -558,9 +607,10 @@ public sealed class Population
     /// <summary>Drop roster entries whose unit died without notifying (belt and braces — never the primary path).</summary>
     void Prune()
     {
+        bool pruned = false;
         for (int i = roster.Count - 1; i >= 0; i--)
         {
-            if (roster[i].unit == null) roster.RemoveAt(i);
+            if (roster[i].unit == null) { roster.RemoveAt(i); pruned = true; }
         }
         for (int i = housing.Count - 1; i >= 0; i--)
         {
@@ -568,5 +618,6 @@ public sealed class Population
             // concrete Unity object does.
             if (housing[i] is Object o && o == null) housing.RemoveAt(i);
         }
+        if (pruned) MoveInFromFire();
     }
 }
