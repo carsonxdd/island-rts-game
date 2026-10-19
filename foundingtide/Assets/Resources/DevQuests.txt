@@ -54,6 +54,11 @@
 # that loses quests from the middle needs a RESET on the DEV tab (done 2026-09-13
 # after the first report, Playtests/playtest_2026-09-13_2204.md).
 
+## 2026-10-19 Governor lanes
+- F3 on a rival: its last line names bench / labor / build moves
+- @rival:recruited A rival recruits while it is still building its tents
+- A rival's camp grows tents, a ring and warriors with no hitches
+
 ## 2026-09-28 Dusk muster and the gate line
 - @raid:telegraph Dusk on a raid night: banner names the landing side
 - Minimap edge arrow points where the raiders then actually land

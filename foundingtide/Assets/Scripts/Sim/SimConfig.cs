@@ -155,7 +155,7 @@ public class SimConfig
 
     /// <summary>
     /// Extra weapons every governor keeps on the rack beyond the army's gap
-    /// (<c>KeepArmy</c>), so the levy can stand up more colonists than the
+    /// (<c>KeepRack</c>), so the levy can stand up more colonists than the
     /// want asked for. Still capped by the bodies there are to hold them.
     /// -1 = 0, the shipped rule.
     /// </summary>

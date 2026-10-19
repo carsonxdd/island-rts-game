@@ -11,9 +11,15 @@ using UnityEngine;
 /// goal / intent captions are instance state — two governors ticking through
 /// one static would trample each other.
 ///
-/// A policy is polled once a second (<see cref="Tick"/>). It should take at most
-/// one action per tick, so the resource curve stays legible rather than the
-/// whole bank emptying in one frame.
+/// A policy is polled once a second (<see cref="Tick"/>) and decides in four
+/// LANES (2026-10-19): command (stance, expeditions, sailing), bench (research
+/// and the weapon rack), labor (hiring, recruiting, staffing) and build (every
+/// placement and upgrade). Each lane takes at most one action a tick; a lane
+/// that found nothing to do looks again only after a reaction delay of 2-5 s
+/// (command never waits). Until then it was one action a second for the whole
+/// colony behind a fixed ladder of early returns, so a long run of wall orders
+/// starved the army and a research queue starved the hiring; a human does those
+/// in parallel, but notices a new need late, which is what the delay is.
 ///
 /// The simulated player's character (materials, bench labor) is
 /// <c>SimPlayerDriver</c>, sim-only. A rival has no castaway: its jobless
@@ -23,9 +29,6 @@ using UnityEngine;
 public abstract class GovernorPolicy
 {
     public abstract string Name { get; }
-
-    /// <summary>Called once a game-second while the colony is alive.</summary>
-    public abstract void Tick(ColonyState s);
 
     /// <summary>The colony this policy runs. Set once by <see cref="Bind"/>.</summary>
     protected Faction faction;
@@ -39,24 +42,117 @@ public abstract class GovernorPolicy
     {
         this.faction = faction;
         this.builder = builder;
+        // Its own stream, never UnityEngine.Random: the shared stream is the
+        // harness's seed and the AI's stagger, and a delay draw per action would
+        // shift every draw after it.
+        reaction = new System.Random(9176 + faction.Id * 7919);
     }
 
+    // ---- lanes (2026-10-19) -------------------------------------------------
+
+    public enum Lane { Command, Bench, Labor, Build }
+    private const int LaneCount = 4;
+    private static readonly string[] LaneNames = { "command", "bench", "labor", "build" };
+
+    /// <summary>The shortest and longest wait before an idle lane looks again (game seconds).</summary>
+    public const float ReactionMin = 2f, ReactionMax = 5f;
+
+    private readonly float[] laneReadyAt = new float[LaneCount];
+    private System.Random reaction;
+    private Lane lane;   // the lane running now; Did files its intent under it
+
+    /// <summary>
+    /// Called once a game-second while the colony is alive: <see cref="Plan"/>
+    /// sets this second's wants, then each lane whose reaction delay has run
+    /// out takes its best move.
+    /// </summary>
+    public void Tick(ColonyState s)
+    {
+        Plan(s);
+        RunLane(Lane.Command, s);
+        RunLane(Lane.Bench, s);
+        RunLane(Lane.Labor, s);
+        RunLane(Lane.Build, s);
+    }
+
+    void RunLane(Lane l, ColonyState s)
+    {
+        int i = (int)l;
+        if (Time.time < laneReadyAt[i]) return;
+        lane = l;
+        bool acted;
+        switch (l)
+        {
+            case Lane.Command: acted = CommandLane(s); break;
+            case Lane.Bench: acted = BenchLane(s); break;
+            case Lane.Labor: acted = LaborLane(s); break;
+            default: acted = BuildLane(s); break;
+        }
+        // The delay is on NOTICING, not on acting: a lane with nothing to do
+        // looks again in 2-5 s (a player glancing at that part of the colony
+        // now and then), a lane that acted goes again next tick (a player who
+        // is recruiting clicks five times, not once every few seconds). The
+        // command lane is never delayed: a stance flip or a sailing answers
+        // something happening now.
+        if (!acted && l != Lane.Command)
+            laneReadyAt[i] = Time.time + ReactionMin + (float)reaction.NextDouble() * (ReactionMax - ReactionMin);
+    }
+
+    /// <summary>This second's wants: call <see cref="SetGoal"/>, which the lanes read back.</summary>
+    protected abstract void Plan(ColonyState s);
+    /// <summary>Stance, then expeditions. True when it acted.</summary>
+    protected virtual bool CommandLane(ColonyState s) => ManageStance(s) || ConsiderExpeditions(s);
+    /// <summary>Research and the weapon rack: what goes on the bench queue.</summary>
+    protected abstract bool BenchLane(ColonyState s);
+    /// <summary>Hiring, moving and recruiting colonists: everything that spends an idle body.</summary>
+    protected abstract bool LaborLane(ColonyState s);
+    /// <summary>Every placement and upgrade: everything that spends a builder's time.</summary>
+    protected abstract bool BuildLane(ColonyState s);
+
     // ---- what the colony is working on (2026-09-10) -------------------------
-    // Read by the visual overlay and the F3 line only. A policy sets Goal at the
-    // top of every tick (what it is trying to reach) and every shared move that
-    // DOES something stamps Intent (what it just did). Neither is read by
-    // anything that decides.
+    // Read by the visual overlay, the F3 line and status.csv only. Plan sets
+    // Goal every tick (what it is trying to reach) and every shared move that
+    // DOES something stamps its lane's intent (what it just did). Neither is
+    // read by anything that decides.
 
     /// <summary>This second's target: "army 4/6 · beds 1 free · workers 5/8".</summary>
     public string Goal { get; private set; } = "";
-    /// <summary>The last action taken and the game-second it was taken on.</summary>
-    public string Intent { get; private set; } = "";
-    private float intentTime;
+
+    /// <summary>The last action of each lane, "bench: queue Wooden Spear · build: (place tent)"; parenthesised after 30 s.</summary>
+    public string Intent
+    {
+        get
+        {
+            if (intentDirty)
+            {
+                intentDirty = false;
+                var sb = new System.Text.StringBuilder(96);
+                for (int i = 0; i < LaneCount; i++)
+                {
+                    if (laneIntent[i] == null) continue;
+                    if (sb.Length > 0) sb.Append(" · ");
+                    sb.Append(LaneNames[i]).Append(": ");
+                    if (laneStale[i]) sb.Append('(').Append(laneIntent[i]).Append(')');
+                    else sb.Append(laneIntent[i]);
+                }
+                intent = sb.ToString();
+            }
+            return intent;
+        }
+    }
+    private readonly string[] laneIntent = new string[LaneCount];
+    private readonly float[] laneIntentTime = new float[LaneCount];
+    private readonly bool[] laneStale = new bool[LaneCount];
+    private string intent = "";
+    private bool intentDirty;
 
     protected void Did(string what)
     {
-        Intent = what;
-        intentTime = Time.time;
+        int i = (int)lane;
+        laneIntent[i] = what;
+        laneIntentTime[i] = Time.time;
+        laneStale[i] = false;
+        intentDirty = true;
     }
 
     /// <summary>
@@ -120,8 +216,13 @@ public abstract class GovernorPolicy
     /// <summary>Days between one colony's landings.</summary>
     public const int LandingCooldownDays = 3;
 
-    private int lastWantedWarriors;   // written by SetGoal every tick; 0 until the first
-    private int lastWantedFullTime;   // the full-time part of it: a landing sails the surplus over THIS
+    // This second's wants, written by SetGoal from Plan before any lane runs; 0 until the first.
+    /// <summary>The whole strength (full-time + levy) the strategy wants before the next raid.</summary>
+    protected int wantedWarriors;
+    /// <summary>The full-time part of it: a landing sails the surplus over THIS.</summary>
+    protected int wantedFullTime;
+    /// <summary>Workers the strategy wants on jobs.</summary>
+    protected int wantedWorkers;
     private int nextLandingDay;
 
     /// <summary>
@@ -130,7 +231,7 @@ public abstract class GovernorPolicy
     /// </summary>
     protected bool ConsiderExpeditions(ColonyState s)
     {
-        if (s.Campfire == null || lastWantedWarriors <= 0 || Expedition.Active(faction)) return false;
+        if (s.Campfire == null || wantedWarriors <= 0 || Expedition.Active(faction)) return false;
 
         var all = Factions.All;
         for (int i = 0; i < all.Count; i++)
@@ -154,7 +255,7 @@ public abstract class GovernorPolicy
                     // By day, on a quiet day, with men to spare past what the raid needs.
                     if (s.Night || s.RaidTonight || s.Day < nextLandingDay) continue;
                     // The levy holds the fire; full-timers past the full-time want can sail (2026-09-16).
-                    int surplus = s.Warriors - lastWantedFullTime;
+                    int surplus = s.Warriors - wantedFullTime;
                     if (surplus < LandingMinParty) continue;
                     int sent = Expedition.Send(faction, other, surplus, relief: false);
                     if (sent > 0)
@@ -171,15 +272,21 @@ public abstract class GovernorPolicy
     }
 
     /// <summary>The one line every strategy's caption shares. "army 3+4/8 (5 full-time)" = warriors + levy over the wanted strength.</summary>
-    protected void SetGoal(ColonyState s, int wantedWarriors, int fullTime, int wantedWorkers, string extra = null)
+    protected void SetGoal(ColonyState s, int warriors, int fullTime, int workers, string extra = null)
     {
-        lastWantedWarriors = wantedWarriors;
-        lastWantedFullTime = fullTime;
+        wantedWarriors = warriors;
+        wantedFullTime = fullTime;
+        wantedWorkers = workers;
         Population pop = faction.Population;
         int beds = pop != null ? pop.GetAvailableHousing() : 0;
-        Goal = $"army {s.Warriors}+{s.Levy}/{wantedWarriors} ({fullTime} full-time) · workers {s.Workers}/{wantedWorkers} · beds {beds} free"
+        Goal = $"army {s.Warriors}+{s.Levy}/{warriors} ({fullTime} full-time) · workers {s.Workers}/{workers} · beds {beds} free"
                + (string.IsNullOrEmpty(extra) ? "" : " · " + extra);
-        if (Time.time - intentTime > 30f && Intent.Length > 0 && !Intent.StartsWith("(")) Intent = "(" + Intent + ")";
+        for (int i = 0; i < LaneCount; i++)
+        {
+            if (laneIntent[i] == null || laneStale[i] || Time.time - laneIntentTime[i] <= 30f) continue;
+            laneStale[i] = true;
+            intentDirty = true;
+        }
     }
 
     /// <summary>The strategy names the sim and the rival picker share, in <see cref="Create"/> order.</summary>
@@ -326,25 +433,26 @@ public abstract class GovernorPolicy
     }
 
     /// <summary>
-    /// The Workshop and a Crafter to run it (2026-09-04): place the building once
-    /// Crafting is known and there is wood to spare, then give the bench a colonist
-    /// once it stands and the idle pool can afford one. One action per call.
+    /// The Workshop (2026-09-04): place it once Crafting is known and there is
+    /// wood to spare. The build half of what was RunWorkshop; <see cref="StaffWorkshop"/>
+    /// is the labor half (2026-10-19, lanes).
     /// </summary>
-    protected bool RunWorkshop(ColonyState s)
+    protected bool PlaceWorkshop(ColonyState s)
     {
         if (!faction.Knowledge.Has(Unlocks.Kind.Crafting) || !CanBuild) return false;
+        if (s.Campfire == null || builder.WorkshopCount > 0) return false;
+        if (builder.PendingSites(BuildingType.Workshop) > 0) return false;
+        if (s.Wood < 80f) return false;
+        if (!builder.PlaceBuilding(BuildingType.Workshop, 6f, 14f)) return false;
+        Did("place Workshop");
+        return true;
+    }
+
+    /// <summary>A Crafter for the Workshop once it stands and the idle pool can afford one.</summary>
+    protected bool StaffWorkshop(ColonyState s)
+    {
         BaseBuilding fire = s.Campfire;
-        if (fire == null) return false;
-
-        if (builder.WorkshopCount == 0)
-        {
-            if (builder.PendingSites(BuildingType.Workshop) > 0) return false;
-            if (s.Wood < 80f) return false;
-            if (!builder.PlaceBuilding(BuildingType.Workshop, 6f, 14f)) return false;
-            Did("place Workshop");
-            return true;
-        }
-
+        if (fire == null || builder.WorkshopCount == 0) return false;
         if (fire.crafterWorkers > 0) return false;
         Population pm = faction.Population;
         if (pm == null || pm.GetIdleCount() < 2) return false;   // keep a builder
@@ -671,23 +779,27 @@ public abstract class GovernorPolicy
     }
 
     /// <summary>
-    /// Keep the colony's strength at <paramref name="wanted"/> (2026-09-16): the rack
-    /// first — every weapon the levy will need and the recruits will take, capped
-    /// at the bodies there are to hold them, the mustered ones already out of the
-    /// stockpile not re-queued — then a full-time recruit while the standing army
-    /// is under <paramref name="fullTime"/>. One action per call. Until the levy
-    /// this kept the rack two ahead of the men and recruited to the whole want.
+    /// The bench half of keeping the colony's strength at <see cref="wantedWarriors"/>
+    /// (2026-09-16): every weapon the levy will need and the recruits will take,
+    /// capped at the bodies there are to hold them, the mustered ones already out of
+    /// the stockpile not re-queued. <see cref="KeepRecruits"/> is the labor half;
+    /// the two were one KeepArmy move until the lanes (2026-10-19).
     /// </summary>
-    protected bool KeepArmy(ColonyState s, int wanted, int fullTime)
+    protected bool KeepRack(ColonyState s)
     {
         int extra = RackExtra;   // the levy sweep's spare rack, 0 shipped
-        if (s.Strength >= wanted + extra && s.Warriors >= fullTime) return false;
+        if (s.Strength >= wantedWarriors + extra && s.Warriors >= wantedFullTime) return false;
         int bodies = Mathf.Max(0, s.Colonists - s.Warriors);
-        int rack = Mathf.Min(wanted + extra - s.Warriors, bodies) - s.Mustered;
-        if (s.Warriors < fullTime) rack = Mathf.Max(rack, 1);   // a recruit takes one off the rack
-        if (rack > 0 && KeepSpears(s, rack)) return true;
-        return s.Warriors < fullTime && Recruit(s);
+        int rack = Mathf.Min(wantedWarriors + extra - s.Warriors, bodies) - s.Mustered;
+        if (s.Warriors < wantedFullTime) rack = Mathf.Max(rack, 1);   // a recruit takes one off the rack
+        return rack > 0 && KeepSpears(s, rack);
     }
+
+    /// <summary>A full-time recruit while the standing army is under <see cref="wantedFullTime"/>.</summary>
+    protected bool KeepRecruits(ColonyState s) => s.Warriors < wantedFullTime && Recruit(s);
+
+    /// <summary><see cref="WantedColonists(ColonyState, int, int, int)"/> for this second's wants.</summary>
+    protected int WantedColonists(ColonyState s) => WantedColonists(s, wantedWorkers, wantedWarriors, wantedFullTime);
 
     /// <summary>Construction research gates every placement.</summary>
     protected bool CanBuild => faction.Knowledge.Has(Unlocks.Kind.Construction);
@@ -758,22 +870,9 @@ public class TurtlePolicy : GovernorPolicy
 
     private bool ringOrdered;
 
-    public override void Tick(ColonyState s)
+    protected override void Plan(ColonyState s)
     {
-        // Spears before stone (2026-09-10): the first raid lands on day 3-4 and
-        // a wall with nobody behind it only delays it. Then the ring's stone,
-        // then Bowyery so the men behind the wall can shoot over it.
-        if (ManageStance(s)) return;
-        if (ConsiderExpeditions(s)) return;
         builder.SetRing(RingHalf);   // huts stay off the ring line and out of its gate corridors (2026-09-10)
-        // Mining and Iron Work before Bowyery (2026-09-16): the overnight batch's
-        // Turtle sat on a median 1179 stone and 1320 wood with no metal job and
-        // never made an Iron Spear, while Rush (which lists them) lost 13% of its
-        // militia a raid night to Turtle's 30-42%. An Iron Spear is +40% damage
-        // and needs no chunk, the one material every re-arm was short of.
-        if (Research(s, "woodcutting", "foraging", "spearcraft", "construction", "quarrying",
-                        "crafting", "storage_pits", "mining", "iron_work", "bowyery")) return;
-        if (KeepForagers(s)) return;   // food before the army, every tick (2026-09-28)
 
         // A man per raider, not 0.6 of one (2026-09-11). The 2026-09-11 lab
         // watched this colony hold at 9 warriors from day 6 to day 11 with 43
@@ -781,18 +880,42 @@ public class TurtlePolicy : GovernorPolicy
         // 0.6x of a 14-raider night is 9. The raiders-per-warrior threshold the
         // second lab measured is ~1.0, so a turtle at 0.6 is built to lose. The
         // wall is meant to be the edge on top of parity, not a substitute for it.
-        int wantedWarriors = WantedWarriors(s, 1f, 2) + (s.RaidTonight ? 1 : 0);
-        int fullTime = FullTimeWanted(wantedWarriors, 2);
-        int wantedWorkers = WantedWorkers(s, WorkerFloor);
-        SetGoal(s, wantedWarriors, fullTime, wantedWorkers,
+        int warriors = WantedWarriors(s, 1f, 2) + (s.RaidTonight ? 1 : 0);
+        SetGoal(s, warriors, FullTimeWanted(warriors, 2), WantedWorkers(s, WorkerFloor),
             ringOrdered ? $"ring up · gates {builder.GateCount}/4" : "ring pending");
+    }
 
-        // Enough economy to pay for a wall, then wall, then the guard.
-        if (s.Workers < 4) { if (HireWorker(s, 2f, 1f, 2f)) return; }
-        if (KeepHousing(s, MaxHouses, WantedColonists(s, wantedWorkers, wantedWarriors, fullTime))) return;
+    protected override bool BenchLane(ColonyState s)
+    {
+        // Spears before stone (2026-09-10): the first raid lands on day 3-4 and
+        // a wall with nobody behind it only delays it. Then the ring's stone,
+        // then Bowyery so the men behind the wall can shoot over it.
+        // Mining and Iron Work before Bowyery (2026-09-16): the overnight batch's
+        // Turtle sat on a median 1179 stone and 1320 wood with no metal job and
+        // never made an Iron Spear, while Rush (which lists them) lost 13% of its
+        // militia a raid night to Turtle's 30-42%. An Iron Spear is +40% damage
+        // and needs no chunk, the one material every re-arm was short of.
+        return Research(s, "woodcutting", "foraging", "spearcraft", "construction", "quarrying",
+                           "crafting", "storage_pits", "mining", "iron_work", "bowyery")
+               || KeepRack(s);
+    }
+
+    protected override bool LaborLane(ColonyState s)
+    {
+        if (KeepForagers(s)) return true;   // food before the army, every tick (2026-09-28)
+        // Enough economy to pay for a wall, then the guard.
+        if (s.Workers < 4 && HireWorker(s, 2f, 1f, 2f)) return true;
+        if (KeepRecruits(s)) return true;
+        if (s.Workers < wantedWorkers && HireWorker(s, 2f, 1f, 2f, 0.5f)) return true;
+        return StaffWorkshop(s);   // bows for the wall
+    }
+
+    protected override bool BuildLane(ColonyState s)
+    {
+        if (KeepHousing(s, MaxHouses, WantedColonists(s))) return true;
         // Beds first, then trade a tent up for a hut when there are beds to spare (2026-09-18).
-        if (KeepUpgrades(s)) return;
-        if (KeepStorehouse(s)) return;
+        if (KeepUpgrades(s)) return true;
+        if (KeepStorehouse(s)) return true;
 
         // Build the ring in segments, keeping a wood reserve. Committing the
         // whole bank to 48 wall sites at once is what made this policy lose
@@ -800,21 +923,20 @@ public class TurtlePolicy : GovernorPolicy
         // huts, or replacements for anything it lost.
         if (CanBuild && !ringOrdered && s.Wood >= WoodReserve + 90f && s.Stone >= 40)
         {
-            if (builder.PlaceWallRing(BuildingType.WoodenWall, RingHalf, 6) > 0) { Did("order wall segment"); return; }
+            if (builder.PlaceWallRing(BuildingType.WoodenWall, RingHalf, 6) > 0) { Did("order wall segment"); return true; }
             ringOrdered = true;   // ring is complete or fully blocked
         }
 
         // The openings get their two gates each as soon as the ring is ordered:
         // a wall site per cell, converted the tick it finishes (2026-09-10).
-        if (ringOrdered && builder.GateOpenings(BuildingType.WoodenWall, RingHalf) > 0) { Did("gate an opening"); return; }
+        if (ringOrdered && builder.GateOpenings(BuildingType.WoodenWall, RingHalf) > 0) { Did("gate an opening"); return true; }
 
-        if (KeepArmy(s, wantedWarriors, fullTime)) return;
-        if (s.Workers < wantedWorkers) { if (HireWorker(s, 2f, 1f, 2f, 0.5f)) return; }
-        if (RunWorkshop(s)) return;   // bows for the wall
+        if (PlaceWorkshop(s)) return true;
 
         // Top the ring back up as it gets chewed.
         if (CanBuild && ringOrdered && s.Wood >= WoodReserve + 150f
-            && builder.PlaceWallRing(BuildingType.WoodenWall, RingHalf, 6) > 0) Did("repair ring");
+            && builder.PlaceWallRing(BuildingType.WoodenWall, RingHalf, 6) > 0) { Did("repair ring"); return true; }
+        return false;
     }
 }
 
@@ -834,34 +956,43 @@ public class RushPolicy : GovernorPolicy
     private const int MaxHouses = 16;
     private const int WorkerFloor = 5;
 
-    public override void Tick(ColonyState s)
+    protected override void Plan(ColonyState s)
     {
-        // Spearcraft third, then the beds, then the Workshop tier for Iron Spears
-        // and Bows — a rush colony sits on the wood for them.
-        if (ManageStance(s)) return;
-        if (ConsiderExpeditions(s)) return;
+        int warriors = WantedWarriors(s, 1f, 2) + (s.RaidTonight ? 1 : 0);
+        // Workers grow with the army they feed (2026-09-10).
+        SetGoal(s, warriors, FullTimeWanted(warriors, 2), WantedWorkers(s, WorkerFloor));
+    }
+
+    protected override bool BenchLane(ColonyState s)
+    {
+        // Spearcraft third, then the Workshop tier for Iron Spears and Bows — a
+        // rush colony sits on the wood for them.
         // Quarrying was MISSING from this list until 2026-09-11, and Mining
         // requires it: Research skips an id whose prerequisite is unmet, so the
         // last three entries here were unreachable for the whole run and Rush
         // never learned to quarry, never saw a chunk, and never re-armed a loss.
-        if (Research(s, "woodcutting", "foraging", "spearcraft", "construction",
-                        "crafting", "quarrying", "mining", "iron_work", "bowyery", "storage_pits")) return;
-        if (KeepForagers(s)) return;   // food before the army, every tick (2026-09-28)
+        return Research(s, "woodcutting", "foraging", "spearcraft", "construction",
+                           "crafting", "quarrying", "mining", "iron_work", "bowyery", "storage_pits")
+               || KeepRack(s);
+    }
 
-        int wantedWarriors = WantedWarriors(s, 1f, 2) + (s.RaidTonight ? 1 : 0);
-        int fullTime = FullTimeWanted(wantedWarriors, 2);
-        int wantedWorkers = WantedWorkers(s, WorkerFloor);   // grows with the army it feeds (2026-09-10)
-        SetGoal(s, wantedWarriors, fullTime, wantedWorkers);
-
+    protected override bool LaborLane(ColonyState s)
+    {
+        if (KeepForagers(s)) return true;   // food before the army, every tick (2026-09-28)
         // Minimum viable economy, then everything into warriors.
-        if (s.Workers < 3) { if (HireWorker(s, 2f, 2f, 1f)) return; }
-        if (KeepHousing(s, MaxHouses, WantedColonists(s, wantedWorkers, wantedWarriors, fullTime))) return;
+        if (s.Workers < 3 && HireWorker(s, 2f, 2f, 1f)) return true;
+        if (KeepRecruits(s)) return true;
+        if (StaffWorkshop(s)) return true;
+        return s.Workers < wantedWorkers && HireWorker(s, 2f, 2f, 1f, 1f);
+    }
+
+    protected override bool BuildLane(ColonyState s)
+    {
+        if (KeepHousing(s, MaxHouses, WantedColonists(s))) return true;
         // Beds first, then trade a tent up for a hut when there are beds to spare (2026-09-18).
-        if (KeepUpgrades(s)) return;
-        if (KeepArmy(s, wantedWarriors, fullTime)) return;
-        if (RunWorkshop(s)) return;
-        if (KeepStorehouse(s)) return;
-        if (s.Workers < wantedWorkers) { if (HireWorker(s, 2f, 2f, 1f, 1f)) return; }
+        if (KeepUpgrades(s)) return true;
+        if (PlaceWorkshop(s)) return true;
+        return KeepStorehouse(s);
     }
 }
 
@@ -878,62 +1009,79 @@ public class EcoPolicy : GovernorPolicy
     private const int WorkerFloor = 10;
     private const int RingHalf = 12;   // 8 until 2026-09-10: huts need room inside, clear of the gate corridors
 
-    public override void Tick(ColonyState s)
+    // The escape (2026-09-04, Slice 6): from day 12 research Shipwright (bench),
+    // build the Shipyard on the beach when the bank covers it (build), and sail
+    // the moment it stands (command). A run that ends "escape" is the metric: how
+    // early can Eco leave? The player's colony only: the escape is the run's
+    // victory beat, and a rival leaving the island has no rule yet (2026-09-16) —
+    // it stays and spends the surplus on the wall and the militia instead.
+    // (A rival's Shipyard would end the PLAYER's run: GameManager.TriggerEscape.)
+    bool Escaping(ColonyState s) => faction.IsPlayer && s.Day >= 12;
+
+    // The dawn roll is public knowledge — a human who sees "raiders land
+    // tonight" spends the reserve on warriors, so the policy does too.
+    static bool Spend(ColonyState s) => s.RaidTonight || (s.Wood > 60 && s.Food > 60);
+
+    protected override void Plan(ColonyState s)
+    {
+        builder.SetRing(RingHalf);   // huts stay off the ring line and out of its gate corridors (2026-09-10)
+        int warriors = WantedWarriors(s, 0.7f, 1) + (s.RaidTonight ? 1 : 0);
+        SetGoal(s, warriors, FullTimeWanted(warriors, 1), WantedWorkers(s, WorkerFloor),
+            Escaping(s) ? "escape" : null);
+    }
+
+    protected override bool CommandLane(ColonyState s)
+    {
+        if (base.CommandLane(s)) return true;
+        if (!Escaping(s) || builder.ShipyardCount == 0) return false;
+        Shipyard yard = TargetingUtil.FindNearestOwned(Shipyard.ActiveList, Vector3.zero, 0f, faction, out _);
+        if (yard == null) return false;
+        Did("set sail");
+        yard.SetSail();
+        return true;
+    }
+
+    protected override bool BenchLane(ColonyState s)
     {
         // Spearcraft before Construction (2026-09-10): the first raid does not
         // wait for the economy to finish.
-        if (ManageStance(s)) return;
-        if (ConsiderExpeditions(s)) return;
-        builder.SetRing(RingHalf);   // huts stay off the ring line and out of its gate corridors (2026-09-10)
         if (Research(s, "woodcutting", "foraging", "spearcraft", "construction", "quarrying",
-                        "storage_pits", "crafting", "mining", "iron_work", "bowyery")) return;
-        if (KeepForagers(s)) return;   // food before the army, every tick (2026-09-28)
+                        "storage_pits", "crafting", "mining", "iron_work", "bowyery")) return true;
+        if (Spend(s) && KeepRack(s)) return true;
+        return Escaping(s) && Research(s, "shipwright");
+    }
 
-        int wantedWarriors = WantedWarriors(s, 0.7f, 1) + (s.RaidTonight ? 1 : 0);
-        int fullTime = FullTimeWanted(wantedWarriors, 1);
-        int wantedWorkers = WantedWorkers(s, WorkerFloor);
-        bool escapes = faction.IsPlayer;   // a rival's Shipyard would end the PLAYER's run (GameManager.TriggerEscape)
-        SetGoal(s, wantedWarriors, fullTime, wantedWorkers, escapes && s.Day >= 12 ? "escape" : null);
+    protected override bool LaborLane(ColonyState s)
+    {
+        if (KeepForagers(s)) return true;   // food before the army, every tick (2026-09-28)
+        if (StaffWorkshop(s)) return true;
+        if (s.Workers < wantedWorkers && HireWorker(s, 3f, 2f, 1f, 1f)) return true;
+        return Spend(s) && KeepRecruits(s);
+    }
 
-        if (KeepHousing(s, MaxHouses, WantedColonists(s, wantedWorkers, wantedWarriors, fullTime))) return;
+    protected override bool BuildLane(ColonyState s)
+    {
+        if (KeepHousing(s, MaxHouses, WantedColonists(s))) return true;
         // Beds first, then trade a tent up for a hut when there are beds to spare (2026-09-18).
-        if (KeepUpgrades(s)) return;
-        if (KeepStorehouse(s)) return;
-        if (RunWorkshop(s)) return;
-        if (s.Workers < wantedWorkers) { if (HireWorker(s, 3f, 2f, 1f, 1f)) return; }
-
-        // The dawn roll is public knowledge — a human who sees "raiders land
-        // tonight" spends the reserve on warriors, so the policy does too.
-        bool spend = s.RaidTonight || (s.Wood > 60 && s.Food > 60);
-        if (spend && KeepArmy(s, wantedWarriors, fullTime)) return;
+        if (KeepUpgrades(s)) return true;
+        if (KeepStorehouse(s)) return true;
+        if (PlaceWorkshop(s)) return true;
 
         if (CanBuild && s.Day >= 4 && s.Wood >= 250 && s.Stone >= 150)
         {
-            if (builder.PlaceWallRing(BuildingType.WoodenWall, RingHalf, 12) > 0) { Did("order wall segment"); return; }
+            if (builder.PlaceWallRing(BuildingType.WoodenWall, RingHalf, 12) > 0) { Did("order wall segment"); return true; }
             // Ring complete (or blocked): put the two gates in each opening (2026-09-10).
-            if (builder.GateOpenings(BuildingType.WoodenWall, RingHalf) > 0) { Did("gate an opening"); return; }
+            if (builder.GateOpenings(BuildingType.WoodenWall, RingHalf) > 0) { Did("gate an opening"); return true; }
         }
 
-        // The escape (2026-09-04, Slice 6): from day 12 research Shipwright, build the
-        // Shipyard on the beach when the bank covers it, and sail the moment it stands.
-        // A run that ends "escape" is the metric: how early can Eco leave?
-        // The player's colony only: the escape is the run's victory beat, and a
-        // rival leaving the island has no rule yet (2026-09-16) — it stays and
-        // spends the surplus on the wall and the militia instead.
-        if (escapes && s.Day >= 12)
+        if (Escaping(s) && faction.Knowledge.Has(Unlocks.Kind.Shipwright) && CanBuild
+            && builder.ShipyardCount == 0 && builder.PendingSites(BuildingType.Shipyard) == 0
+            && builder.PlaceShoreBuilding(BuildingType.Shipyard, 60f))
         {
-            if (Research(s, "shipwright")) return;
-            if (faction.Knowledge.Has(Unlocks.Kind.Shipwright) && CanBuild
-                && builder.ShipyardCount == 0 && builder.PendingSites(BuildingType.Shipyard) == 0)
-            {
-                if (builder.PlaceShoreBuilding(BuildingType.Shipyard, 60f)) { Did("place Shipyard"); return; }
-            }
-            if (builder.ShipyardCount > 0)
-            {
-                Shipyard yard = TargetingUtil.FindNearestOwned(Shipyard.ActiveList, Vector3.zero, 0f, faction, out _);
-                if (yard != null) { Did("set sail"); yard.SetSail(); return; }
-            }
+            Did("place Shipyard");
+            return true;
         }
+        return false;
     }
 }
 
@@ -966,58 +1114,66 @@ public class ConquerorPolicy : GovernorPolicy
     protected override float PolicyLevyShare => 0f;
 
     private int nextSailDay;
+    // This second's picture of the war, written by Plan.
+    private Faction rival;
+    private bool atWar, theirFireStands;
 
-    public override void Tick(ColonyState s)
+    protected override void Plan(ColonyState s)
     {
-        if (ManageStance(s)) return;
-        if (Research(s, "woodcutting", "foraging", "spearcraft", "construction",
-                        "crafting", "quarrying", "mining", "iron_work", "bowyery", "storage_pits")) return;
-        if (KeepForagers(s)) return;   // food before the army, every tick (2026-09-28)
-
-        Faction rival = FirstRival();
+        rival = FirstRival();
         int rivalWarriors = rival != null ? TargetingUtil.CountOwned(Warrior.ActiveList, rival) : 0;
-        bool atWar = rival != null && faction.Toward(rival) == Attitude.Hostile;
-        bool theirFireStands = rival != null && rival.Campfire != null;
+        atWar = rival != null && faction.Toward(rival) == Attitude.Hostile;
+        theirFireStands = rival != null && rival.Campfire != null;
 
-        int wantedWarriors = WantedWarriors(s, 1f, 2) + (s.RaidTonight ? 1 : 0);
-        if (theirFireStands) wantedWarriors = Mathf.Max(wantedWarriors, rivalWarriors + Overmatch + Mathf.CeilToInt(s.NextRaidSize * HomeGuardShare));
-        int fullTime = FullTimeWanted(wantedWarriors, 2);   // LevyShare 0: all of it
-        int wantedWorkers = WantedWorkers(s, WorkerFloor);
-        SetGoal(s, wantedWarriors, fullTime, wantedWorkers,
+        int warriors = WantedWarriors(s, 1f, 2) + (s.RaidTonight ? 1 : 0);
+        if (theirFireStands) warriors = Mathf.Max(warriors, rivalWarriors + Overmatch + Mathf.CeilToInt(s.NextRaidSize * HomeGuardShare));
+        SetGoal(s, warriors, FullTimeWanted(warriors, 2), WantedWorkers(s, WorkerFloor),   // LevyShare 0: all of it full-time
             rival == null ? "no rival yet" : !theirFireStands ? "rival fire out" : atWar ? "at war · " + rivalWarriors + " of theirs" : "war on day " + WarDay);
+    }
 
-        if (s.Workers < 3) { if (HireWorker(s, 2f, 2f, 1f)) return; }
-        if (KeepHousing(s, MaxHouses, WantedColonists(s, wantedWorkers, wantedWarriors, fullTime))) return;
-        // Beds first, then trade a tent up for a hut when there are beds to spare (2026-09-18).
-        if (KeepUpgrades(s)) return;
-
-        // The war, and the daily landing
+    /// <summary>The war, and the daily landing. No relief or opportunistic landings: this colony has one target.</summary>
+    protected override bool CommandLane(ColonyState s)
+    {
+        if (ManageStance(s)) return true;
         if (faction.IsPlayer && theirFireStands && !atWar && s.Day >= WarDay)
         {
             Diplomacy.DeclareWar(rival);
             Did("declare war on the " + rival.Name);
-            return;
+            return true;
         }
-        if (atWar && theirFireStands && !s.Night && !s.RaidTonight && !Expedition.Active(faction) && s.Day >= nextSailDay)
-        {
-            int guard = Mathf.CeilToInt(s.NextRaidSize * HomeGuardShare);
-            int party = s.Warriors - guard;
-            if (party >= MinParty)
-            {
-                int sent = Expedition.Send(faction, rival, party, relief: false);
-                if (sent > 0)
-                {
-                    nextSailDay = s.Day + 1;
-                    Did("land " + sent + " on the " + rival.Name);
-                    return;
-                }
-            }
-        }
+        if (!atWar || !theirFireStands || s.Night || s.RaidTonight || Expedition.Active(faction) || s.Day < nextSailDay) return false;
 
-        if (KeepArmy(s, wantedWarriors, fullTime)) return;
-        if (RunWorkshop(s)) return;
-        if (KeepStorehouse(s)) return;
-        if (s.Workers < wantedWorkers) { if (HireWorker(s, 2f, 2f, 1f, 1f)) return; }
+        int guard = Mathf.CeilToInt(s.NextRaidSize * HomeGuardShare);
+        int party = s.Warriors - guard;
+        if (party < MinParty) return false;
+        int sent = Expedition.Send(faction, rival, party, relief: false);
+        if (sent <= 0) return false;
+        nextSailDay = s.Day + 1;
+        Did("land " + sent + " on the " + rival.Name);
+        return true;
+    }
+
+    protected override bool BenchLane(ColonyState s)
+        => Research(s, "woodcutting", "foraging", "spearcraft", "construction",
+                       "crafting", "quarrying", "mining", "iron_work", "bowyery", "storage_pits")
+           || KeepRack(s);
+
+    protected override bool LaborLane(ColonyState s)
+    {
+        if (KeepForagers(s)) return true;   // food before the army, every tick (2026-09-28)
+        if (s.Workers < 3 && HireWorker(s, 2f, 2f, 1f)) return true;
+        if (KeepRecruits(s)) return true;
+        if (StaffWorkshop(s)) return true;
+        return s.Workers < wantedWorkers && HireWorker(s, 2f, 2f, 1f, 1f);
+    }
+
+    protected override bool BuildLane(ColonyState s)
+    {
+        if (KeepHousing(s, MaxHouses, WantedColonists(s))) return true;
+        // Beds first, then trade a tent up for a hut when there are beds to spare (2026-09-18).
+        if (KeepUpgrades(s)) return true;
+        if (PlaceWorkshop(s)) return true;
+        return KeepStorehouse(s);
     }
 
     /// <summary>The first rival ashore this run, or null. The sim's rival columns are about the same colony.</summary>

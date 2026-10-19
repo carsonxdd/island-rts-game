@@ -162,7 +162,7 @@ Deeper technical notes, the gotcha list and the session log: [`.claude/CLAUDE.md
 
 ## Simulation
 
-Scripted strategies (Turtle / Rush / Eco, plus Conqueror, a player-only war test that declares war on the first rival ashore and sails against it every quiet day) play whole games without a human and write CSVs. Full guide: [`docs/SIMULATION.md`](docs/SIMULATION.md). Everything below runs from the repo root in PowerShell and needs the sim player built once (`Tools > Founding Tide > Simulation > Build Headless Sim Player`, or let the overnight script do it). **Rebuild the sim player after any code change** — a script-only build rewrites `Build/SimPlayer/foundingtide-sim_Data/Managed/Assembly-CSharp.dll`, so check that file's date, not the exe's.
+Scripted strategies (Turtle / Rush / Eco, plus Conqueror, a player-only war test that declares war on the first rival ashore and sails against it every quiet day) play whole games without a human and write CSVs. The same brain runs rival colonies: each strategy decides in four lanes at once — command, bench, labor and build — and a lane with nothing to do looks again after a short 2–5 s reaction delay, so it plays at about a human's pace. Full guide: [`docs/SIMULATION.md`](docs/SIMULATION.md). Everything below runs from the repo root in PowerShell and needs the sim player built once (`Tools > Founding Tide > Simulation > Build Headless Sim Player`, or let the overnight script do it). **Rebuild the sim player after any code change** — a script-only build rewrites `Build/SimPlayer/foundingtide-sim_Data/Managed/Assembly-CSharp.dll`, so check that file's date, not the exe's.
 
 ### The four ways to run it
 

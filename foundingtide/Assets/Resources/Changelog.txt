@@ -18,6 +18,8 @@ Zoom in and the clouds fade away so you can see the ground; zoom out and they re
 - Clouds fade out over the last few scroll steps of zooming in, and their shade on the ground stays.
 - Computer-run colonies keep their wall rings off ridges and mountains: the wall follows the flat ground around the camp and closes any gap.
 - Computer-run colonies leave the same gap between buildings that you have to.
+- Computer-run colonies now research, hire, recruit and build at the same time instead of one thing
+  at a time, so a camp busy walling itself in still arms its warriors.
 
 ## 2026-09-28 — The army forms up at dusk
 On a raid night your warriors and armed colonists now form a line outside the
