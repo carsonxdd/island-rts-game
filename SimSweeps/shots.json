@@ -1,0 +1,9 @@
+{
+    "outputDir": "SimLogs/shots-2026-10-19",
+    "captureDeltaTime": 0.016666668,
+    "renderFrameInterval": 11,
+    "repeats": 1,
+    "runs": [
+        { "id": "shots_eco", "strategy": "Eco", "seed": 1, "terrainSeed": 1, "daysToSurvive": 30, "maxGameSeconds": 6000 }
+    ]
+}

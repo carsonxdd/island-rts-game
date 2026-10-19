@@ -183,6 +183,14 @@ public class SimSpectatorCamera : MonoBehaviour
         }
 
         Vector3 target = TargetFor(current);
+        if (PhotoDir != null)
+        {
+            // Photo mode (-simshots <dir>, 2026-10-19): a wide, steady frame of the village
+            // and a ScreenCapture of the GAME's own frame at set moments (never the desktop).
+            BaseBuilding pf = Factions.Player.Campfire;
+            if (pf != null) target = pf.transform.position;
+            TakePhotos();
+        }
 
         // The first frame SNAPS. Smoothing from the field's default zero would
         // glide the opening shot in from the world origin, which on a 150 m map
@@ -192,7 +200,37 @@ public class SimSpectatorCamera : MonoBehaviour
         focus = Vector3.SmoothDamp(focus, target, ref focusVelocity, FocusSmoothTime,
                                    Mathf.Infinity, Time.unscaledDeltaTime);
         rig.CenterOn(focus);
-        rig.SetZoom(ShotZoom[(int)current]);
+        rig.SetZoom(PhotoDir != null ? PhotoZoom : ShotZoom[(int)current]);
+    }
+
+    // --- photo mode --------------------------------------------------------
+
+    private const float PhotoZoom = 22f;
+    private static readonly string PhotoDir = ParsePhotoDir();
+    private readonly System.Collections.Generic.HashSet<string> photosTaken = new System.Collections.Generic.HashSet<string>();
+    private DayNightCycle photoClock;
+
+    private static string ParsePhotoDir()
+    {
+        string[] a = System.Environment.GetCommandLineArgs();
+        for (int i = 0; i < a.Length - 1; i++)
+            if (a[i] == "-simshots") { System.IO.Directory.CreateDirectory(a[i + 1]); return a[i + 1]; }
+        return null;
+    }
+
+    private void TakePhotos()
+    {
+        if (photoClock == null) photoClock = FindAnyObjectByType<DayNightCycle>();
+        if (photoClock == null) return;
+        int day = photoClock.GetCurrentDay();
+        float t = photoClock.currentTimeOfDay;
+        bool noon = t > 0.45f && t < 0.55f;
+        string name = null;
+        if (noon && (day == 2 || day == 7 || day == 9 || day == 12 || day == 16)) name = "day" + day;
+        else if (RaidDirector.Instance != null && RaidDirector.Instance.RaidTonight
+                 && t > DayNightCycle.DuskT + 0.03f && day >= 8) name = "raid-night-day" + day;
+        if (name == null || !photosTaken.Add(name)) return;
+        ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(PhotoDir, name + ".png"));
     }
 
     // --- the director ------------------------------------------------------

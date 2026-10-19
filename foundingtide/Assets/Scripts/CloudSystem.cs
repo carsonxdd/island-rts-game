@@ -100,6 +100,9 @@ public class CloudSystem : MonoBehaviour
     static readonly int SeedId = Shader.PropertyToID("_Seed");
     static readonly int IsSheetId = Shader.PropertyToID("_IsSheet");
     static readonly int AlphaId = Shader.PropertyToID("_Alpha");
+    const float ZoomFadeStart = 13f;   // ortho size at which clouds are gone (range 5-30)
+    const float ZoomFadeEnd = 21f;     // ortho size at which they are fully drawn
+    float lastSheetFade = 1f;
     static readonly int CloudTimeId = Shader.PropertyToID("_CloudTime");
     static readonly int CloudDriftId = Shader.PropertyToID("_CloudDrift");
     static readonly int CloudOvercastId = Shader.PropertyToID("_CloudOvercast");
@@ -288,7 +291,14 @@ public class CloudSystem : MonoBehaviour
 
         drift += wind * dt;
         Vector2 dir = wind.sqrMagnitude > 0.0001f ? wind.normalized : Vector2.right;
-        bool showPuffs = mode == GameSettings.CloudMode.Full;
+        // Zooming in passes THROUGH the clouds (2026-10-19): the drawn puffs and the
+        // sheet fade out between ZoomFadeStart and ZoomFadeEnd ortho size; the sun's
+        // cloud shade (the cookie) is untouched, so only what hides the ground goes.
+        Camera cam = Camera.main;
+        float viewFade = cam != null && cam.orthographic
+            ? Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(ZoomFadeStart, ZoomFadeEnd, cam.orthographicSize))
+            : 1f;
+        bool showPuffs = mode == GameSettings.CloudMode.Full && viewFade > 0.01f;
         bool anything = overcast > 0.002f;
         int count = 0;
 
@@ -322,13 +332,21 @@ public class CloudSystem : MonoBehaviour
                 block.Clear();
                 block.SetVector(CloudId, cloudArray[count - 1]);
                 block.SetFloat(SeedId, p.seed);
-                block.SetFloat(AlphaId, puffAlpha);
+                block.SetFloat(AlphaId, puffAlpha * viewFade);
                 p.renderer.SetPropertyBlock(block);
             }
         }
 
         bool sheetVisible = showPuffs && overcast > 0.005f;
         if (sheetRenderer.enabled != sheetVisible) sheetRenderer.enabled = sheetVisible;
+        if (sheetVisible && !Mathf.Approximately(viewFade, lastSheetFade))
+        {
+            lastSheetFade = viewFade;
+            block.Clear();
+            block.SetFloat(IsSheetId, 1f);
+            block.SetFloat(AlphaId, sheetAlpha * viewFade);
+            sheetRenderer.SetPropertyBlock(block);
+        }
 
         Shader.SetGlobalFloat(CloudTimeId, clock);
         Shader.SetGlobalVector(CloudDriftId, drift);

@@ -36,7 +36,6 @@ public sealed class FactionBuilder
 
     // Scratch, not state: written and read inside one call.
     private static readonly Collider[] overlap = new Collider[8];
-    private static readonly List<Vector2Int> detour = new List<Vector2Int>();
 
     public BaseBuilding Campfire => faction.Campfire;
 
@@ -114,14 +113,15 @@ public sealed class FactionBuilder
         for (float radius = startRadius; radius <= maxRadius; radius += 1.5f)
         {
             float lapOffset = (radius - startRadius) * 11f;
-            for (int i = 0; i < 8; i++)
+            int steps = Mathf.Max(8, Mathf.CeilToInt(Mathf.PI * 2f * radius / 3f));   // a candidate every ~3 m of arc (a fixed 8 left a thin annulus with 2-3 spots once spacing applied, 2026-10-19)
+            for (int i = 0; i < steps; i++)
             {
-                float angle = (i * 45f + lapOffset) * Mathf.Deg2Rad;
+                float angle = (i * (360f / steps) + lapOffset) * Mathf.Deg2Rad;
                 Vector3 pos = origin + new Vector3(Mathf.Cos(angle) * radius, 0f, Mathf.Sin(angle) * radius);
                 pos = GridSnap.SnapXZ(pos, 1f);
                 pos.y = GroundY(pos);
 
-                if (!IsClear(pos, data.buildingSize)) continue;
+                if (!IsClear(pos, data.buildingSize, data.noBuildRadius)) continue;
                 if (BlocksRing(pos)) continue;
 
                 SpawnSite(data, type, pos, flatten: true);
@@ -132,14 +132,15 @@ public sealed class FactionBuilder
     }
 
     /// <summary>
-    /// Orders a square wall perimeter at <paramref name="halfExtent"/> cells from
-    /// the campfire, leaving a TWO-cell opening mid-way along each side. The
-    /// openings are load-bearing: a sealed carving ring would trap every worker
-    /// inside it. They are filled later by <see cref="GateOpenings"/>, which walls
-    /// both cells and converts the opening into ONE three-wide gate (2026-09-28;
-    /// two single gates side by side since 2026-09-10) so a column of workers or
-    /// warriors paths through without queueing on one cell.
-    /// Returns how many sites were placed (0 if unaffordable or fully blocked).
+    /// Orders the colony's wall ring (<see cref="EnsureRingPlan"/>): a closed loop that
+    /// follows the FOOT of any steep ground instead of a fixed square, with a
+    /// two-cell opening where each compass ray from the fire meets it (filled later
+    /// by <see cref="GateOpenings"/>, which walls both cells and converts them into
+    /// ONE three-wide gate). The openings are load-bearing: a sealed carving ring
+    /// would trap every worker inside it. Every call walks the whole plan, so a gap
+    /// left by a destroyed wall, unaffordable wood or unexplored ground is filled
+    /// the next time round. Returns how many sites were placed (0 if unaffordable
+    /// or complete).
     /// </summary>
     public int PlaceWallRing(BuildingType wallType, int halfExtent, int maxSites)
     {
@@ -148,72 +149,180 @@ public sealed class FactionBuilder
         if (data == null || data.constructionSitePrefab == null) return 0;
         if (Campfire == null || WallGrid.Instance == null) return 0;
 
-        // Re-examine every abandoned cell periodically; ground changes under a
-        // colony (fog lifts, nodes deplete, pads flatten) and a hole left forever
-        // is a hole raiders walk through forever.
+        // Re-plan and re-examine every abandoned cell periodically; ground changes
+        // under a colony (pads flatten, nodes deplete) and the plan follows it.
         if (Time.time >= nextHoleSweep)
         {
             holeCells.Clear();
+            ringPlanned = false;
             nextHoleSweep = Time.time + HoleRetrySeconds;
         }
-
-        Vector2Int center = WallGrid.Instance.WorldToGrid(Campfire.transform.position);
-        List<Vector2Int> cells = new List<Vector2Int>();
-
-        for (int d = -halfExtent; d <= halfExtent; d++)
-        {
-            bool gap = IsOpeningOffset(d);
-            if (!gap)
-            {
-                cells.Add(new Vector2Int(center.x + d, center.y + halfExtent));
-                cells.Add(new Vector2Int(center.x + d, center.y - halfExtent));
-            }
-            if (!gap && Mathf.Abs(d) != halfExtent)
-            {
-                cells.Add(new Vector2Int(center.x + halfExtent, center.y + d));
-                cells.Add(new Vector2Int(center.x - halfExtent, center.y + d));
-            }
-        }
+        EnsureRingPlan(halfExtent);
 
         int placed = 0;
-        for (int i = 0; i < cells.Count && placed < maxSites; i++)
+        for (int i = 0; i < ringCells.Count && placed < maxSites; i++)
         {
-            Vector2Int cell = cells[i];
-            if (holeCells.Contains(cell)) continue;
+            Vector2Int cell = ringCells[i];
             CellResult r = TryPlaceWallCell(data, wallType, cell);
-            if (r == CellResult.Placed) { placed++; continue; }
-            if (r != CellResult.Unbuildable) continue;   // exists, unaffordable, or unexplored (retried later)
-            placed += Notch(data, wallType, cell, center, halfExtent, maxSites - placed);
+            if (r == CellResult.Placed) placed++;
+            else if (r == CellResult.Unbuildable) holeCells.Add(cell);
         }
         return placed;
     }
 
-    /// <summary>
-    /// A ring cell that cannot take a wall (water, a slope, a node) is bypassed
-    /// with a detour INWARD, tried at depth 1 first and deepening to
-    /// <see cref="MaxDetourDepth"/> (2026-09-11; depth 1 only until then, which
-    /// left ~12 permanent holes in every Turtle ring of the overnight batch).
-    ///
-    /// On a side the detour is a U: the two neighbouring offsets run inward to
-    /// the depth and a crossbar closes them there, so the ring stays orthogonally
-    /// connected. On a CORNER it is an L cutting across the corner at that depth -
-    /// a corner used to be an instant hole, and a square ring has four of them.
-    ///
-    /// A depth is usable when every one of its cells is already walled, buildable,
-    /// or still unexplored; unexplored ground defers the whole cell to a later call
-    /// rather than condemning it. Only when no depth works is the cell a hole.
-    /// </summary>
-    private const int MaxDetourDepth = 6;   // 4 until 2026-09-16
+    // ---- the ring plan (2026-10-19) ------------------------------------------
+    // The old ring was a square of cells at a fixed Chebyshev distance, notched
+    // inward around anything unbuildable; on a mountainside that either climbed the
+    // slope (IsBuildable only asks slope < 0.55) or left holes. The plan is instead
+    // the boundary of the FLAT ground around the fire: flood-fill the flat cells
+    // connected to the fire inside the old square bound, and the walled cells are
+    // the region's edge cells that touch ground a raider could cross. Steep ground
+    // is walkable (the bake climbs 45 degrees), so the wall hugs its foot and must
+    // close; only sea and cliff (RaidersCanCross false) seal a stretch for free.
+    private readonly List<Vector2Int> ringCells = new List<Vector2Int>();
+    private readonly HashSet<Vector2Int> ringSet = new HashSet<Vector2Int>();
+    private readonly List<Vector2Int> openingFirst = new List<Vector2Int>();
+    private readonly List<Vector2Int> openingAlong = new List<Vector2Int>();
+    private bool ringPlanned;
+    private int plannedHalf;
+    private Vector2Int plannedCentre;
+
+    private static readonly Vector2Int[] Dir4 =
+        { new Vector2Int(1, 0), new Vector2Int(-1, 0), new Vector2Int(0, 1), new Vector2Int(0, -1) };
+
+    private bool FlatCell(Vector2Int cell)
+    {
+        Vector3 p = WallGrid.Instance.GridToWorld(cell);
+        p.y = GroundY(p);
+        return TerrainGrid.Instance == null || (TerrainGrid.Instance.IsBuildable(p) && RingGroundOk(p));
+    }
+
+    private void EnsureRingPlan(int half)
+    {
+        Vector2Int centre = WallGrid.Instance.WorldToGrid(Campfire.transform.position);
+        if (ringPlanned && plannedHalf == half && plannedCentre == centre) return;
+        ringPlanned = true; plannedHalf = half; plannedCentre = centre;
+        ringCells.Clear(); ringSet.Clear(); openingFirst.Clear(); openingAlong.Clear();
+
+        // 1. Flat ground inside the square bound, smoothed so a one-cell finger of
+        //    flat ground does not become a spur of wall (a cell needs 6 of its 3x3 flat).
+        int side = half * 2 + 3;
+        var flat = new Dictionary<Vector2Int, bool>(side * side);
+        for (int dx = -half - 1; dx <= half + 1; dx++)
+            for (int dy = -half - 1; dy <= half + 1; dy++)
+            {
+                var c = new Vector2Int(centre.x + dx, centre.y + dy);
+                flat[c] = FlatCell(c);
+            }
+        var region = new HashSet<Vector2Int>();
+        var stack = new Stack<Vector2Int>();
+        region.Add(centre); stack.Push(centre);   // the fire's own pad is flat by construction
+        while (stack.Count > 0)
+        {
+            Vector2Int c = stack.Pop();
+            for (int d = 0; d < 4; d++)
+            {
+                Vector2Int n = c + Dir4[d];
+                if (region.Contains(n)) continue;
+                if (Mathf.Max(Mathf.Abs(n.x - centre.x), Mathf.Abs(n.y - centre.y)) > half) continue;
+                if (!SolidFlat(flat, n)) continue;
+                region.Add(n); stack.Push(n);
+            }
+        }
+
+        // 1b. Shave the stair-steps: drop edge cells with fewer than 6 of their 3x3
+        //     block in the region (removal only, so the loop never climbs a slope),
+        //     twice, then keep what is still connected to the fire.
+        for (int pass = 0; pass < 2; pass++)
+        {
+            var drop = new List<Vector2Int>();
+            foreach (Vector2Int c in region)
+            {
+                if (c == centre) continue;
+                int n = 0;
+                for (int dx = -1; dx <= 1; dx++)
+                    for (int dy = -1; dy <= 1; dy++)
+                        if (region.Contains(new Vector2Int(c.x + dx, c.y + dy))) n++;
+                if (n < 6) drop.Add(c);
+            }
+            for (int i = 0; i < drop.Count; i++) region.Remove(drop[i]);
+        }
+        var connected = new HashSet<Vector2Int> { centre };
+        stack.Push(centre);
+        while (stack.Count > 0)
+        {
+            Vector2Int c = stack.Pop();
+            for (int d = 0; d < 4; d++)
+            {
+                Vector2Int n = c + Dir4[d];
+                if (region.Contains(n) && connected.Add(n)) stack.Push(n);
+            }
+        }
+        region = connected;
+
+        // 2. Wall the region's edge cells that touch crossable ground. An edge cell is
+        //    one with ANY of its 8 neighbours outside the region, which keeps the loop
+        //    4-connected (no diagonal links to seal).
+        foreach (Vector2Int c in region)
+        {
+            bool needsWall = false;
+            for (int dx = -1; dx <= 1 && !needsWall; dx++)
+                for (int dy = -1; dy <= 1 && !needsWall; dy++)
+                {
+                    if (dx == 0 && dy == 0) continue;
+                    Vector2Int n = new Vector2Int(c.x + dx, c.y + dy);
+                    if (region.Contains(n)) continue;
+                    Vector3 np = WallGrid.Instance.GridToWorld(n);
+                    np.y = GroundY(np);
+                    if (RaidersCanCross(np)) needsWall = true;   // else sea / cliff: sealed by the island
+                }
+            if (needsWall) ringSet.Add(c);
+        }
+
+        // 3. A two-cell opening where each compass ray from the fire meets the loop.
+        for (int d = 0; d < 4; d++)
+        {
+            Vector2Int last = centre;
+            while (region.Contains(last + Dir4[d])) last += Dir4[d];
+            if (!ringSet.Contains(last)) continue;       // sealed there by sea or cliff
+            Vector2Int along = d < 2 ? new Vector2Int(0, 1) : new Vector2Int(1, 0);
+            Vector2Int first = last;
+            if (!ringSet.Contains(first + along))
+            {
+                if (ringSet.Contains(first - along)) first = first - along;
+                else along = Vector2Int.zero;             // a lone cell: gated alone
+            }
+            openingFirst.Add(first);
+            openingAlong.Add(along);
+        }
+
+        // 4. The cells to wall: the loop minus the openings, in a fixed order.
+        foreach (Vector2Int c in ringSet)
+        {
+            bool opening = false;
+            for (int i = 0; i < openingFirst.Count; i++)
+                if (c == openingFirst[i] || c == openingFirst[i] + openingAlong[i]) { opening = true; break; }
+            if (!opening) ringCells.Add(c);
+        }
+        ringCells.Sort((a, b) => (a.x != b.x) ? a.x.CompareTo(b.x) : a.y.CompareTo(b.y));
+    }
+
+    /// <summary>Flat, and at least 6 of its 3x3 block flat: the smoothing in step 1.</summary>
+    private static bool SolidFlat(Dictionary<Vector2Int, bool> flat, Vector2Int c)
+    {
+        bool f;
+        if (!flat.TryGetValue(c, out f) || !f) return false;
+        int n = 0;
+        for (int dx = -1; dx <= 1; dx++)
+            for (int dy = -1; dy <= 1; dy++)
+                if (flat.TryGetValue(new Vector2Int(c.x + dx, c.y + dy), out f) && f) n++;
+        return n >= 6;
+    }
 
     /// <summary>
     /// A ring cell nothing can walk is sealed by the island itself (2026-09-16):
-    /// water, a cliff face, a cut-off outcrop. Before this every unbuildable cell
-    /// was notched around and then counted as a hole when no detour fit, so a
-    /// terraced seed read 15-27 permanent "holes" (777: 27 on all three of its
-    /// baseline runs) that were mostly cliff and sea, the ring's wood went on
-    /// detours around ground no raider crosses, and ring_holes could not tell
-    /// a sieve from a fortress. Passable = the flood fill reaches it AND the
-    /// NavMesh has a surface inside the cell.
+    /// water, a cliff face, a cut-off outcrop. Passable = the flood fill reaches it
+    /// AND the NavMesh has a surface inside the cell.
     /// </summary>
     private static bool RaidersCanCross(Vector3 pos)
     {
@@ -222,118 +331,38 @@ public sealed class FactionBuilder
         return NavMesh.SamplePosition(pos, out hit, 0.6f, NavMesh.AllAreas);
     }
 
-    private int Notch(BuildingData data, BuildingType wallType, Vector2Int cell,
-                      Vector2Int center, int halfExtent, int budget)
-    {
-        Vector3 cellPos = WallGrid.Instance.GridToWorld(cell);
-        cellPos.y = GroundY(cellPos);
-        if (!RaidersCanCross(cellPos)) return 0;   // sealed by the island: no wall, no detour, no hole
-
-        int dx = cell.x - center.x, dy = cell.y - center.y;
-        bool onRow = Mathf.Abs(dy) == halfExtent;
-        bool onCol = Mathf.Abs(dx) == halfExtent;
-
-        for (int depth = 1; depth <= MaxDetourDepth && depth < halfExtent; depth++)
-        {
-            BuildDetour(cell, center, halfExtent, depth, onRow, onCol);
-            if (detour.Count == 0) continue;
-
-            bool blocked = false, unexplored = false;
-            for (int i = 0; i < detour.Count; i++)
-            {
-                if (WallGrid.Instance.HasWallAt(detour[i])) continue;
-                Vector3 pos = WallGrid.Instance.GridToWorld(detour[i]);
-                pos.y = GroundY(pos);
-                if (TerrainGrid.Instance != null && !TerrainGrid.Instance.IsBuildable(pos)) { blocked = true; break; }
-                if (!Explored(pos)) unexplored = true;
-            }
-            if (blocked) continue;          // try one cell deeper
-            if (unexplored) return 0;       // come back once it is seen
-
-            int placed = 0;
-            for (int i = 0; i < detour.Count && placed < budget; i++)
-                if (TryPlaceWallCell(data, wallType, detour[i]) == CellResult.Placed) placed++;
-            return placed;
-        }
-
-        holeCells.Add(cell);
-        return 0;
-    }
-
-    /// <summary>The cells of one detour attempt, written into <see cref="detour"/> so a call allocates nothing.</summary>
-    private static void BuildDetour(Vector2Int cell, Vector2Int center, int halfExtent, int depth,
-                                    bool onRow, bool onCol)
-    {
-        detour.Clear();
-        int dx = cell.x - center.x, dy = cell.y - center.y;
-
-        if (onRow && onCol)
-        {
-            // Corner: an L cutting across it at this depth. One arm ends beside
-            // the ring's row, the other beside its column, so both stay connected.
-            int sx = dx > 0 ? 1 : -1, sy = dy > 0 ? 1 : -1;
-            int inset = halfExtent - depth;
-            for (int a = inset; a <= halfExtent - 1; a++)
-                detour.Add(new Vector2Int(center.x + sx * a, center.y + sy * inset));
-            for (int b = inset; b <= halfExtent - 1; b++)
-                detour.Add(new Vector2Int(center.x + sx * inset, center.y + sy * b));
-            return;
-        }
-
-        Vector2Int inward = onRow ? new Vector2Int(0, dy > 0 ? -1 : 1) : new Vector2Int(dx > 0 ? -1 : 1, 0);
-        Vector2Int tangent = onRow ? new Vector2Int(1, 0) : new Vector2Int(0, 1);
-
-        // Two stiles running inward from the neighbouring offsets, joined by a
-        // crossbar at the far end.
-        for (int j = 1; j <= depth; j++)
-        {
-            detour.Add(cell + tangent + inward * j);
-            detour.Add(cell - tangent + inward * j);
-        }
-        detour.Add(cell + inward * depth);
-    }
-
     /// <summary>
     /// True when a non-wall building at <paramref name="pos"/> would sit on the
-    /// ring's line or in a gate corridor (2026-09-10). Watched in the third lab:
-    /// huts placed on the 7-16 m spiral landed IN the openings of a 9-cell ring,
+    /// ring's line or in a gate corridor (2026-09-10; follows the planned loop since
+    /// 2026-10-19). Huts placed on the spiral once landed IN the openings of a ring,
     /// which sealed it, locked the militia outside and let the raid land inside.
-    /// The band is two cells either side of the line; a corridor is five cells
-    /// deep on both sides of each opening.
+    /// The band is two cells either side of the line; a corridor is seven cells wide
+    /// and eleven deep around each opening.
     /// </summary>
     private bool BlocksRing(Vector3 pos)
     {
         if (RingHalf <= 0 || Campfire == null || WallGrid.Instance == null) return false;
-        Vector2Int c = WallGrid.Instance.WorldToGrid(Campfire.transform.position);
+        EnsureRingPlan(RingHalf);
         Vector2Int g = WallGrid.Instance.WorldToGrid(pos);
-        int dx = Mathf.Abs(g.x - c.x), dy = Mathf.Abs(g.y - c.y);
-        int cheb = Mathf.Max(dx, dy);
-        if (cheb >= RingHalf - 2 && cheb <= RingHalf + 2) return true;
-        // Openings sit at offsets 0 and 1 along each side (IsOpeningOffset).
-        int ox = g.x - c.x, oy = g.y - c.y;
-        bool nearX = ox >= -2 && ox <= 3, nearY = oy >= -2 && oy <= 3;
-        int deep = RingHalf + 5, shallow = RingHalf - 5;
-        if (nearX && dy >= shallow && dy <= deep) return true;
-        if (nearY && dx >= shallow && dx <= deep) return true;
+        for (int dx = -1; dx <= 1; dx++)
+            for (int dy = -1; dy <= 1; dy++)
+                if (ringSet.Contains(new Vector2Int(g.x + dx, g.y + dy))) return true;
+        for (int i = 0; i < openingFirst.Count; i++)
+        {
+            Vector2Int o = openingFirst[i];
+            if (Mathf.Abs(g.x - o.x) <= 4 && Mathf.Abs(g.y - o.y) <= 4) return true;
+        }
         return false;
     }
-
-    /// <summary>The two cells of each side's opening: offsets 0 and 1 along the side.</summary>
-    private static bool IsOpeningOffset(int d) => d == 0 || d == 1;
 
     /// <summary>
     /// Fills the ring's openings with gates, one step per opening per call: an empty
     /// opening cell gets a wall site (a gate is only ever converted from a finished
     /// wall, like the player's G key), a site is left to finish, and once both cells
     /// stand as walls the opening is converted (5 wood) through the same
-    /// <see cref="Wall.UpgradeToGate"/> as the G key - ONE gate up to three wide,
-    /// which takes a ring wall beside the two-cell opening as its third cell
-    /// (2026-09-28; two single gates side by side before). A side holding a gate is
-    /// done. The lab of 2026-09-10 showed why this exists: the old ConvertGates
-    /// turned the two NEWEST walls into gates wherever they stood and left the
-    /// openings as bare holes, so raiders walked the ring's gaps and no wall took a
-    /// hit all lab long. Returns how many cells it acted on this call (0 = nothing
-    /// to do or unaffordable).
+    /// <see cref="Wall.UpgradeToGate"/> as the G key - ONE gate up to three wide.
+    /// A side holding a gate is done. Returns how many cells it acted on this call
+    /// (0 = nothing to do or unaffordable).
     /// </summary>
     public int GateOpenings(BuildingType wallType, int halfExtent)
     {
@@ -342,15 +371,13 @@ public sealed class FactionBuilder
         if (data == null || data.constructionSitePrefab == null) return 0;
         if (Campfire == null || WallGrid.Instance == null) return 0;
 
-        Vector2Int center = WallGrid.Instance.WorldToGrid(Campfire.transform.position);
-        Vector2Int alongX = new Vector2Int(1, 0), alongZ = new Vector2Int(0, 1);
+        EnsureRingPlan(halfExtent);
         int acted = 0;
-        acted += GateOpening(data, wallType, new Vector2Int(center.x, center.y + halfExtent), alongX);
-        acted += GateOpening(data, wallType, new Vector2Int(center.x, center.y - halfExtent), alongX);
-        acted += GateOpening(data, wallType, new Vector2Int(center.x + halfExtent, center.y), alongZ);
-        acted += GateOpening(data, wallType, new Vector2Int(center.x - halfExtent, center.y), alongZ);
+        for (int i = 0; i < openingFirst.Count; i++)
+            acted += GateOpening(data, wallType, openingFirst[i], openingAlong[i]);
         return acted;
     }
+
 
     /// <summary>One side's opening: the cell at <paramref name="first"/> and the next one <paramref name="along"/> the side.</summary>
     private int GateOpening(BuildingData data, BuildingType wallType, Vector2Int first, Vector2Int along)
@@ -365,7 +392,7 @@ public sealed class FactionBuilder
         int placed = 0;
         bool waiting = false;
         if (a == null) Fill(data, wallType, first, ref placed, ref waiting);
-        if (b == null) Fill(data, wallType, second, ref placed, ref waiting);
+        if (b == null && second != first) Fill(data, wallType, second, ref placed, ref waiting);
         if (placed > 0 || waiting) return placed;
 
         Wall wa = a as Wall, wb = b as Wall;
@@ -401,6 +428,7 @@ public sealed class FactionBuilder
         Vector3 pos = WallGrid.Instance.GridToWorld(cell);
         pos.y = GroundY(pos);
         if (TerrainGrid.Instance != null && !TerrainGrid.Instance.IsBuildable(pos)) return CellResult.Unbuildable;
+        if (!RingGroundOk(pos)) return CellResult.Unbuildable;
         if (!Explored(pos)) return CellResult.Unexplored;   // WallLinePlacer.CellBlocked
 
         // Walls deliberately do NOT flatten — they follow the terrain per cell.
@@ -436,7 +464,7 @@ public sealed class FactionBuilder
                 pos.y = GroundY(pos);
 
                 if (!TerrainGrid.Instance.IsNearWater(pos, GhostPlacer.ShoreRadius)) continue;
-                if (!IsClear(pos, data.buildingSize)) continue;
+                if (!IsClear(pos, data.buildingSize, data.noBuildRadius)) continue;
                 if (BlocksRing(pos)) continue;
 
                 SpawnSite(data, type, pos, flatten: true);
@@ -477,6 +505,56 @@ public sealed class FactionBuilder
     private static float GroundY(Vector3 pos)
     {
         return TerrainGrid.Instance != null ? TerrainGrid.Instance.SampleHeight(pos) : 0f;
+    }
+
+    /// <summary>
+    /// A governed wall ring stays on the camp's own ground (2026-10-19). IsBuildable
+    /// only asks for slope under 0.55, so a ring happily climbed a ridge and the
+    /// wall ran over the mountain in the site shots. A ring cell must be gentle
+    /// AND within <see cref="RingMaxRise"/> of the fire's height; a cell that fails
+    /// is notched around inward like any other unbuildable one.
+    /// </summary>
+    private const float RingMaxSlope = 0.3f;
+    private const float RingMaxRise = 2.5f;
+
+    private bool RingGroundOk(Vector3 pos)
+    {
+        if (TerrainGrid.Instance == null || Campfire == null) return true;
+        if (TerrainGrid.Instance.SlopeAt(pos) >= RingMaxSlope) return false;
+        return Mathf.Abs(TerrainGrid.Instance.SampleHeight(pos) - GroundY(Campfire.transform.position)) <= RingMaxRise;
+    }
+
+    /// <summary>
+    /// True when <paramref name="pos"/> sits inside another building's no-build
+    /// square (or its own, if larger) - the rule GhostPlacer.IsTooCloseToExistingBuilding
+    /// holds the player to, which this builder never applied: huts landed touching
+    /// (2026-10-19). Walls are exempt (radius 0).
+    /// </summary>
+    private static bool TooClose(Vector3 pos, float ownRadius)
+    {
+        const float buffer = 0.1f;
+        for (int i = 0; i < BaseBuilding.ActiveList.Count; i++) if (Near(BaseBuilding.ActiveList[i], pos, BaseBuilding.ActiveList[i] != null ? BaseBuilding.ActiveList[i].noBuildRadius : 0f, ownRadius, buffer)) return true;
+        for (int i = 0; i < ConstructionSite.ActiveList.Count; i++) if (Near(ConstructionSite.ActiveList[i], pos, ConstructionSite.ActiveList[i] != null ? ConstructionSite.ActiveList[i].noBuildRadius : 0f, ownRadius, buffer)) return true;
+        for (int i = 0; i < Hut.ActiveList.Count; i++) if (Near(Hut.ActiveList[i], pos, Hut.ActiveList[i] != null ? Hut.ActiveList[i].noBuildRadius : 0f, ownRadius, buffer)) return true;
+        for (int i = 0; i < Workshop.ActiveList.Count; i++) if (Near(Workshop.ActiveList[i], pos, Workshop.ActiveList[i] != null ? Workshop.ActiveList[i].noBuildRadius : 0f, ownRadius, buffer)) return true;
+        for (int i = 0; i < Shipyard.ActiveList.Count; i++) if (Near(Shipyard.ActiveList[i], pos, Shipyard.ActiveList[i] != null ? Shipyard.ActiveList[i].noBuildRadius : 0f, ownRadius, buffer)) return true;
+        for (int i = 0; i < Storehouse.ActiveList.Count; i++) if (Near(Storehouse.ActiveList[i], pos, Storehouse.ActiveList[i] != null ? Storehouse.ActiveList[i].noBuildRadius : 0f, ownRadius, buffer)) return true;
+        for (int i = 0; i < Watchtower.ActiveList.Count; i++) if (Near(Watchtower.ActiveList[i], pos, Watchtower.ActiveList[i] != null ? Watchtower.ActiveList[i].noBuildRadius : 0f, ownRadius, buffer)) return true;
+        return false;
+    }
+
+    private static bool Near(Component other, Vector3 pos, float otherRadius, float ownRadius, float buffer)
+    {
+        if (other == null) return false;
+        float r = Mathf.Max(otherRadius, ownRadius) + buffer;
+        Vector3 p = other.transform.position;
+        return Mathf.Abs(pos.x - p.x) < r && Mathf.Abs(pos.z - p.z) < r;
+    }
+
+    private bool IsClear(Vector3 pos, Vector3 size, float noBuildRadius)
+    {
+        if (TooClose(pos, noBuildRadius)) return false;
+        return IsClear(pos, size);
     }
 
     private bool IsClear(Vector3 pos, Vector3 size)

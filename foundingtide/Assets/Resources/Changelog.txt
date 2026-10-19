@@ -13,6 +13,12 @@
 # Rewritten 2026-09-17 as a themed history; the 74 entries it replaced are in
 # docs/CHANGELOG_ARCHIVE.md. From here on, add a dated entry per change on top.
 
+## 2026-10-19 — Clouds you can zoom through
+Zoom in and the clouds fade away so you can see the ground; zoom out and they return. Rival and sim colonies also build with more room.
+- Clouds fade out over the last few scroll steps of zooming in, and their shade on the ground stays.
+- Computer-run colonies keep their wall rings off ridges and mountains: the wall follows the flat ground around the camp and closes any gap.
+- Computer-run colonies leave the same gap between buildings that you have to.
+
 ## 2026-09-28 — The army forms up at dusk
 On a raid night your warriors and armed colonists now form a line outside the
 gate the raiders will come through, before night falls. Food is scarce again.
