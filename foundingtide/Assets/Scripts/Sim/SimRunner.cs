@@ -821,6 +821,15 @@ public class SimRunner : MonoBehaviour
         night.leftTotal = pm != null ? pm.ColonistsLeft : 0;
         if (pm != null) metrics.colonistsLeft = pm.ColonistsLeft;
 
+        // The governor's forecast as of its last tick (2026-10-19, slice 2).
+        ColonyState gs = governor.LastState;
+        night.foodRunwayDawn = gs.FoodRunwayDays;
+        night.foragerYieldDawn = gs.ForagerYield;
+        night.woodIncomeDawn = gs.WoodIncome;
+        night.foodIncomeDawn = gs.FoodIncome;
+        night.stoneIncomeDawn = gs.StoneIncome;
+        night.metalIncomeDawn = gs.MetalIncome;
+
         int archers = 0;
         var warriors = Warrior.ActiveList;
         for (int i = 0; i < warriors.Count; i++)

@@ -31,11 +31,29 @@ public sealed class Governor
         Tick(ColonyState.Capture(Faction, clock));
     }
 
+    /// <summary>The rates this colony's governor remembers between ticks (2026-10-19, slice 2).</summary>
+    public readonly ColonyForecast Forecast = new ColonyForecast();
+
     /// <summary>Act on a state the caller already captured (the sim shares it with the player driver).</summary>
     public void Tick(ColonyState s)
     {
+        ApplyForecast(ref s);
         LastState = s;
         if (Faction.Campfire == null) return;   // the colony has fallen; nothing to govern
         Policy.Tick(s);
+    }
+
+    /// <summary>Sample the forecast and copy its numbers into this tick's state.</summary>
+    void ApplyForecast(ref ColonyState s)
+    {
+        float cycle = s.CycleSeconds;
+        Forecast.Sample(Faction, s.Campfire != null ? s.Campfire.foodWorkers : 0, cycle);
+        s.ForecastWarm = Forecast.IncomeWarm(cycle);
+        s.WoodIncome = Forecast.IncomePerDay(ResourceNode.ResourceType.Wood, cycle);
+        s.FoodIncome = Forecast.IncomePerDay(ResourceNode.ResourceType.Food, cycle);
+        s.StoneIncome = Forecast.IncomePerDay(ResourceNode.ResourceType.Stone, cycle);
+        s.MetalIncome = Forecast.IncomePerDay(ResourceNode.ResourceType.Metal, cycle);
+        s.ForagerYield = Forecast.ForagerYield(cycle, GovernorPolicy.ForagerYieldPerDay);
+        s.FoodRunwayDays = Forecast.FoodRunwayDays(s.Food, s.FoodDrain, cycle);
     }
 }

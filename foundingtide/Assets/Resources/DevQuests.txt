@@ -54,6 +54,11 @@
 # that loses quests from the middle needs a RESET on the DEV tab (done 2026-09-13
 # after the first report, Playtests/playtest_2026-09-13_2204.md).
 
+## 2026-10-19 Governor forecast
+- F3 on a rival after a day: its goal line shows food days and income
+- A rival keeps enough foragers that it never goes Hungry
+- No rival tent is torn down to upgrade in the evening of a raid
+
 ## 2026-10-19 Governor lanes
 - F3 on a rival: its last line names bench / labor / build moves
 - @rival:recruited A rival recruits while it is still building its tents

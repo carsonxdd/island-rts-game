@@ -215,6 +215,8 @@ public abstract class GovernorPolicy
     public const int LandingMinParty = 3;
     /// <summary>Days between one colony's landings.</summary>
     public const int LandingCooldownDays = 3;
+    /// <summary>Game seconds of daylight before dusk a landing party needs to sail (2026-10-19).</summary>
+    public const float LandingMinDaylight = 40f;
 
     // This second's wants, written by SetGoal from Plan before any lane runs; 0 until the first.
     /// <summary>The whole strength (full-time + levy) the strategy wants before the next raid.</summary>
@@ -253,7 +255,9 @@ public abstract class GovernorPolicy
                 case Attitude.Hostile:
                 {
                     // By day, on a quiet day, with men to spare past what the raid needs.
-                    if (s.Night || s.RaidTonight || s.Day < nextLandingDay) continue;
+                    // "By day" has a margin since 2026-10-19 (slice 2): !Night let a party
+                    // sail with seconds of light left and fight its whole landing at night.
+                    if (s.DuskIn < LandingMinDaylight || s.RaidTonight || s.Day < nextLandingDay) continue;
                     // The levy holds the fire; full-timers past the full-time want can sail (2026-09-16).
                     int surplus = s.Warriors - wantedFullTime;
                     if (surplus < LandingMinParty) continue;
@@ -280,13 +284,22 @@ public abstract class GovernorPolicy
         Population pop = faction.Population;
         int beds = pop != null ? pop.GetAvailableHousing() : 0;
         Goal = $"army {s.Warriors}+{s.Levy}/{warriors} ({fullTime} full-time) · workers {s.Workers}/{workers} · beds {beds} free"
-               + (string.IsNullOrEmpty(extra) ? "" : " · " + extra);
+               + (string.IsNullOrEmpty(extra) ? "" : " · " + extra)
+               + Forecast(s);
         for (int i = 0; i < LaneCount; i++)
         {
             if (laneIntent[i] == null || laneStale[i] || Time.time - laneIntentTime[i] <= 30f) continue;
             laneStale[i] = true;
             intentDirty = true;
         }
+    }
+
+    /// <summary>" · food 2.3d · in 41w 30f 12s/d", or "food fed"; empty until the forecast is warm (2026-10-19).</summary>
+    static string Forecast(ColonyState s)
+    {
+        if (!s.ForecastWarm) return "";
+        string food = s.FoodRunwayDays >= ColonyForecast.RunwayFed ? "fed" : s.FoodRunwayDays.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "d";
+        return $" · food {food} · in {s.WoodIncome:0}w {s.FoodIncome:0}f {s.StoneIncome:0}s/d";
     }
 
     /// <summary>The strategy names the sim and the rival picker share, in <see cref="Create"/> order.</summary>
@@ -461,8 +474,15 @@ public abstract class GovernorPolicy
         return true;
     }
 
-    /// <summary>Food a full-time food worker brings home in a calendar day (estimate: 1/s gather, carry 5, walk, sleep).</summary>
+    /// <summary>
+    /// Food a full-time food worker brings home in a calendar day (estimate: 1/s gather,
+    /// carry 5, walk, sleep). Since 2026-10-19 only the first day's guess: after a whole
+    /// cycle <see cref="ColonyState.ForagerYield"/> is this colony's measured yield.
+    /// </summary>
     public const float ForagerYieldPerDay = 36f;
+
+    /// <summary>Food runway (days at the measured income) under which one more forager is hired.</summary>
+    public const float RunwayAlarmDays = 2f;
 
     /// <summary>
     /// Food workers that feed the roster at the live food rate and difficulty, plus
@@ -470,11 +490,18 @@ public abstract class GovernorPolicy
     /// batch measured 36 a forager on a quiet day but ~25 on a raid day (the levy
     /// takes them off the bushes) and a recruit costs 15, so break-even with no
     /// margin sat at food 0 for days, went Hungry (labor x0.6) and never climbed out.
+    /// 2026-10-19 (slice 2): the yield is MEASURED (food deposited over the last
+    /// cycle per food worker over it, so a raid night, thin bushes or a long walk
+    /// all show up), and the extra forager also comes when the measured income
+    /// would empty the bank inside <see cref="RunwayAlarmDays"/>. The bank rule
+    /// stays: at exact break-even the runway reads "fed" with nothing in the bank.
     /// </summary>
     protected int ForagersWanted(ColonyState s)
     {
-        float perDay = s.Colonists * PopulationManager.Settings.FoodPerDay * Difficulty.FoodConsumptionMultiplier;
-        return Mathf.CeilToInt(perDay / ForagerYieldPerDay) + (s.Food < perDay ? 1 : 0);
+        float perDay = s.FoodDrain;
+        float yield = s.ForagerYield > 0f ? s.ForagerYield : ForagerYieldPerDay;
+        bool low = s.Food < perDay || s.FoodRunwayDays < RunwayAlarmDays;
+        return Mathf.CeilToInt(perDay / yield) + (low ? 1 : 0);
     }
 
     /// <summary>
@@ -605,6 +632,9 @@ public abstract class GovernorPolicy
     /// </summary>
     protected static int BuilderReserve(ColonyState s) => s.Colonists > 6 ? 2 : 1;
 
+    /// <summary>Game seconds before dusk from which a raid night's recruits may take the builder reserve.</summary>
+    public const float RecruitLeadSeconds = 45f;
+
     /// <summary>Arm an idle colonist with a spear from the stockpile (the campfire checks food, cap and research).</summary>
     protected bool Recruit(ColonyState s)
     {
@@ -613,9 +643,13 @@ public abstract class GovernorPolicy
 
         // A recruit spends the same idle colonist a site needs, so the reserve
         // holds here too — until raiders land tonight, when a player would arm
-        // the builder and finish the hut tomorrow.
+        // the builder and finish the hut tomorrow. Since 2026-10-19 (slice 2)
+        // "tonight" means the evening: the dawn roll names a raid night at
+        // breakfast, and until then the reserve was spent from dawn, so the
+        // builder sat in a warrior body all day instead of finishing the hut.
         Population pop = faction.Population;
-        if (!s.RaidTonight && pop != null && pop.GetIdleCount() <= BuilderReserve(s)) return false;
+        bool armTheBuilder = s.RaidTonight && s.DuskIn <= RecruitLeadSeconds;
+        if (!armTheBuilder && pop != null && pop.GetIdleCount() <= BuilderReserve(s)) return false;
 
         PickRecruitWeapon(s);
         if (!fire.CanRecruitWarrior()) return false;
@@ -810,6 +844,8 @@ public abstract class GovernorPolicy
     protected const int UpgradeBedSlack = 2;
     /// <summary>Wood held back from an upgrade, on top of its cost.</summary>
     protected const float UpgradeWoodReserve = 60f;
+    /// <summary>Daylight an upgrade needs before a raid night's dusk: walk, build, move back in.</summary>
+    public const float UpgradeLeadSeconds = 60f;
 
     /// <summary>
     /// Trade a tent for a hut when the colony can afford to lose a bed for a minute.
@@ -826,6 +862,9 @@ public abstract class GovernorPolicy
     protected bool KeepUpgrades(ColonyState s)
     {
         if (!CanBuild || s.Enemies > 0) return false;
+        // ...nor late on a raid day (2026-10-19, slice 2): "no raider ashore" let a
+        // tent come down an hour before the landing, its sleepers out in the open.
+        if (s.RaidTonight && s.DuskIn < UpgradeLeadSeconds) return false;
         if (builder.PendingSites(BuildingType.Tent) > 0) return false;
         if (builder.PendingSites(BuildingType.Hut) > 0) return false;
 
@@ -1141,7 +1180,7 @@ public class ConquerorPolicy : GovernorPolicy
             Did("declare war on the " + rival.Name);
             return true;
         }
-        if (!atWar || !theirFireStands || s.Night || s.RaidTonight || Expedition.Active(faction) || s.Day < nextSailDay) return false;
+        if (!atWar || !theirFireStands || s.DuskIn < LandingMinDaylight || s.RaidTonight || Expedition.Active(faction) || s.Day < nextSailDay) return false;
 
         int guard = Mathf.CeilToInt(s.NextRaidSize * HomeGuardShare);
         int party = s.Warriors - guard;

@@ -1601,3 +1601,13 @@ Green in all four Roslyn configs. UNPLAYTESTED — the "Drawn walls" quest batch
 **Check** (`SimLogs/check-food-2026-09-28/`, 108 runs, 0 err): starved defeats 9 → 2, food-0 dawns 1536 → 396, hungry dawns 120 → 52. Win rates Turtle 36%, Rush 86%, Eco 78% (Eco 5 → 8 losses, none starved — within the ±13pp of n=36, watch it). Turtle's gate-line k/d unchanged at 1.44, as expected.
 
 **Edited:** Factions/Governor/GovernorPolicy.cs.
+
+### 2026-10-19 — Governor slice 2: the forecast
+
+**User asks:** "lets do slice 2 for the new governer" (slice 2 of the governor-brain plan: forecast fields). Answers to the four questions: build it now and sweep lanes and forecast as two separate sweeps; fields plus replacing the rough proxies; days.csv + caption; a half-day EMA window.
+
+**Built.** `ColonyForecast` (one per `Governor`, sampled each tick, copied into `ColonyState` before `Policy.Tick`): gross income per resource from the new `ResourcePool.Gained` counters (half-cycle EMA), plus a full-cycle food EMA and food-worker EMA for the forager yield (clamped 20-60, 36 for the first cycle) and the food runway (999 = fed / unknown). The food sums use the longer window ON PURPOSE: `KeepForagers` only adds, so a half-day reading that dips over the night's sleep would hire a forager every dawn. `ColonyState` also gained `CycleSeconds`, `DuskIn` (0 from dusk to dawn), `LandingKnown` / `LandingPoint` (after dusk only, like the player's banner; stored for slice 6) and `FoodDrain`. Consumers: `ForagersWanted` divides by the measured yield and adds its +1 when the runway is under `RunwayAlarmDays` 2 too (the bank-under-a-day rule stays, because at exact break-even the runway reads "fed" with an empty bank); the raid-night builder-reserve bypass in `Recruit` waits for the last `RecruitLeadSeconds` 45 before dusk instead of starting at dawn; `KeepUpgrades` refuses on a raid day under `UpgradeLeadSeconds` 60; both landing checks need `LandingMinDaylight` 40 instead of `!Night`. Goal caption ends " · food 2.3d · in 41w 30f 12s/d"; days.csv ends `food_runway_dawn, forager_yield_dawn, wood/food/stone/metal_income_dawn`.
+
+**Owed:** rebuild the sim player and run the lanes sweep (commit ca5d8a8 only) → `SimLogs/lanes-2026-10-19/`, then this slice → `SimLogs/forecast-2026-10-19/`, each against `baseline-2026-10-19`. Read the forager count, starved defeats, food-0 dawns and `forager_yield_dawn` first. Green in all four Roslyn configs, unswept, unplaytested.
+
+**Edited:** Factions/ResourcePool.cs, Factions/Governor/{ColonyForecast (new), ColonyState, Governor, GovernorPolicy}.cs, Sim/{SimMetrics, SimRunner}.cs, Resources/{Changelog, DevQuests}.txt.

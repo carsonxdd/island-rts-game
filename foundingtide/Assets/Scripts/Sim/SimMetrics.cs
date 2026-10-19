@@ -94,6 +94,11 @@ public class SimMetrics
         public int foodWorkersDawn;   // food-job workers at dawn (2026-09-28, the 6-a-day food check)
         public float foodDrainDay;    // what the colony eats per calendar day at dawn (Population.DailyDrain)
         public int diedEngage, diedIntercept, diedOther;   // the player's fighters (levy included) by the action they died in (2026-09-17)
+        // The governor's forecast at dawn (2026-10-19, slice 2): what its forager
+        // count and food alarm decided on, so a starving run reads as a wrong
+        // yield or a late alarm rather than a guess. Runway 999 = fed / unknown.
+        public float foodRunwayDawn, foragerYieldDawn;
+        public float woodIncomeDawn, foodIncomeDawn, stoneIncomeDawn, metalIncomeDawn;   // gross deposits a day, half-cycle window
         public bool survived;
     }
 
@@ -187,7 +192,8 @@ public class SimMetrics
                 "spare_dusk,mustered_peak,levy_lost,asleep_landing,storehouses,rival_storehouses," +
                 "gate_held,posts_peak,kills_gate,kills_inside,levy_home,levy_fire,alarm_to_muster_s," +
                 "homed_fire,homed_hut,slept_fire,repel_s,stand_down_s," +
-                "died_engage,died_intercept,died_other,food_workers_dawn,food_drain_day\n");
+                "died_engage,died_intercept,died_other,food_workers_dawn,food_drain_day," +
+                "food_runway_dawn,forager_yield_dawn,wood_income_dawn,food_income_dawn,stone_income_dawn,metal_income_dawn\n");
         }
     }
 
@@ -293,7 +299,13 @@ public class SimMetrics
               .Append(n.diedIntercept).Append(',')
               .Append(n.diedOther).Append(',')
               .Append(n.foodWorkersDawn).Append(',')
-              .Append(F(n.foodDrainDay)).Append('\n');
+              .Append(F(n.foodDrainDay)).Append(',')
+              .Append(F(n.foodRunwayDawn)).Append(',')
+              .Append(F(n.foragerYieldDawn)).Append(',')
+              .Append(F(n.woodIncomeDawn)).Append(',')
+              .Append(F(n.foodIncomeDawn)).Append(',')
+              .Append(F(n.stoneIncomeDawn)).Append(',')
+              .Append(F(n.metalIncomeDawn)).Append('\n');
         }
         if (sb.Length > 0) File.AppendAllText(Path.Combine(dir, DaysFile), sb.ToString());
     }

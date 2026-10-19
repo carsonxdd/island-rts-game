@@ -27,10 +27,20 @@ public sealed class ResourcePool
         this.metal = metal;
     }
 
-    public void AddWood(int amount) { wood += amount; }
-    public void AddFood(int amount) { food += amount; }
-    public void AddStone(int amount) { stone += amount; }
-    public void AddMetal(int amount) { metal += amount; }
+    // Everything ever deposited, by ResourceType index (2026-10-19, the governor's
+    // forecast): a governor reads the change between two ticks as gross income,
+    // which the pool's own balance cannot give it (spending hides it). Every
+    // deposit path goes through the Add methods; Set and the direct field writes
+    // (debug zeroing, the sim's starting pool) are not income and do not count.
+    private readonly int[] gained = new int[4];
+
+    /// <summary>Everything ever deposited of <paramref name="type"/> into this pool.</summary>
+    public int Gained(ResourceNode.ResourceType type) => gained[(int)type];
+
+    public void AddWood(int amount) { wood += amount; gained[(int)ResourceNode.ResourceType.Wood] += amount; }
+    public void AddFood(int amount) { food += amount; gained[(int)ResourceNode.ResourceType.Food] += amount; }
+    public void AddStone(int amount) { stone += amount; gained[(int)ResourceNode.ResourceType.Stone] += amount; }
+    public void AddMetal(int amount) { metal += amount; gained[(int)ResourceNode.ResourceType.Metal] += amount; }
 
     /// <summary>Deposit by type — what the delivery executor calls.</summary>
     public void Add(ResourceNode.ResourceType type, int amount)
@@ -41,7 +51,9 @@ public sealed class ResourcePool
             case ResourceNode.ResourceType.Food: food += amount; break;
             case ResourceNode.ResourceType.Stone: stone += amount; break;
             case ResourceNode.ResourceType.Metal: metal += amount; break;
+            default: return;
         }
+        gained[(int)type] += amount;
     }
 
     public int Get(ResourceNode.ResourceType type)

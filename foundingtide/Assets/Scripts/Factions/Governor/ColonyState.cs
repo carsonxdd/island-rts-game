@@ -44,6 +44,30 @@ public struct ColonyState
     /// <summary>Population.HungerState as an int: 0 fed, 1 hungry, 2 starving (2026-09-04).</summary>
     public int Hunger;
 
+    // ---- the forecast (2026-10-19, governor slice 2) ------------------------
+    // Timing comes off the clock in Capture; the rates are a ColonyForecast the
+    // Governor owns and copies in (Governor.Tick), because a snapshot remembers
+    // nothing. Zero/false on a state nobody's governor has seen, which is what
+    // SimPlayerDriver gets: it reads none of them.
+
+    /// <summary>Game seconds in one calendar day (<see cref="DayNightCycle.CycleSeconds"/>), the unit of every "per day" here.</summary>
+    public float CycleSeconds;
+    /// <summary>Game seconds until tonight's dusk (<see cref="DayNightCycle.DuskT"/>); 0 from dusk until dawn.</summary>
+    public float DuskIn;
+    /// <summary>Tonight's raid lands on this shore and the dusk telegraph has gone out: <see cref="LandingPoint"/> is where. Known from dusk, as the player's banner is.</summary>
+    public bool LandingKnown;
+    public Vector3 LandingPoint;
+    /// <summary>What the roster eats a calendar day at the active difficulty.</summary>
+    public float FoodDrain;
+    /// <summary>The income rates below have half a cycle behind them.</summary>
+    public bool ForecastWarm;
+    /// <summary>Gross deposits a calendar day, half-cycle window (<see cref="ColonyForecast"/>).</summary>
+    public float WoodIncome, FoodIncome, StoneIncome, MetalIncome;
+    /// <summary>Food one food worker brings home a day, measured over the last cycle; <see cref="GovernorPolicy.ForagerYieldPerDay"/> until it is.</summary>
+    public float ForagerYield;
+    /// <summary>Days of food left at the last cycle's income; <see cref="ColonyForecast.RunwayFed"/> when the colony feeds itself or before a cycle is in.</summary>
+    public float FoodRunwayDays;
+
     /// <summary>
     /// What the levy can field (2026-09-16): the mustered plus every spare weapon
     /// that has a colonist to hold it. A rack of eight spears in a colony of four
@@ -63,6 +87,10 @@ public struct ColonyState
         Population pop = faction.Population;
         int day = clock != null ? clock.GetCurrentDay() : 1;
         RaidDirector rd = RaidDirector.Instance;
+        int colonists = pop != null ? pop.GetColonistCount() : 0;
+        float duskIn = SecondsToDusk(clock);
+        Vector3 landing = Vector3.zero;
+        bool landingKnown = duskIn <= 0f && rd != null && rd.LandingFor(faction, out landing);
 
         return new ColonyState
         {
@@ -81,9 +109,31 @@ public struct ColonyState
             Wood = rm.wood,
             Food = rm.food,
             Stone = rm.stone,
-            Colonists = pop != null ? pop.GetColonistCount() : 0,
+            Colonists = colonists,
             Hunger = pop != null ? (int)pop.Hunger : 0,
+            CycleSeconds = clock != null ? clock.CycleSeconds : 225f,
+            DuskIn = duskIn,
+            LandingKnown = landingKnown,
+            LandingPoint = landing,
+            // Population.DailyDrain's formula off the same roster count.
+            FoodDrain = colonists * PopulationManager.Settings.FoodPerDay * Difficulty.FoodConsumptionMultiplier,
+            FoodRunwayDays = ColonyForecast.RunwayFed,
+            ForagerYield = GovernorPolicy.ForagerYieldPerDay,
         };
+    }
+
+    /// <summary>
+    /// Game seconds until the clock reaches <see cref="DayNightCycle.DuskT"/>, 0
+    /// from dusk until dawn (the evening and the night are one stretch to a
+    /// governor: the line forms, the levy musters). Day and night run at their
+    /// own rates, so the day's remaining parameter converts at the day's.
+    /// </summary>
+    public static float SecondsToDusk(DayNightCycle clock)
+    {
+        if (clock == null) return 0f;
+        float t = clock.GetTimeOfDay();
+        if (t < 0.25f || t >= DayNightCycle.DuskT) return 0f;
+        return (DayNightCycle.DuskT - t) / 0.5f * clock.dayLengthInSeconds;
     }
 
     /// <summary>
